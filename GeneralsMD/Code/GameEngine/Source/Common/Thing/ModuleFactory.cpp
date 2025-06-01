@@ -322,6 +322,8 @@
 #include "GameClient/Module/DynamicGeometryClientUpdate.h"
 #include "GameClient/Module/BeaconClientUpdate.h"
 
+#include "GameLogic/Module/RiftSlowDeathUpdate.h"
+
 // PUBLIC DATA ////////////////////////////////////////////////////////////////////////////////////
 ModuleFactory *TheModuleFactory = nullptr;  ///< the module factory singleton
 
@@ -379,6 +381,7 @@ void ModuleFactory::init()
 	addModule( HelicopterSlowDeathBehavior );
 	addModule( ShipSlowDeathBehavior );
 	addModule( NeutronMissileSlowDeathBehavior );
+	addModule( RiftSlowDeathBehavior );
 	addModule( CaveContain );
 	addModule( OpenContain );
 	addModule( OverchargeBehavior );
