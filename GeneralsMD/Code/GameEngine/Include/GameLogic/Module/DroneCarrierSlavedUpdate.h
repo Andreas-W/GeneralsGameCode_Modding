@@ -30,6 +30,7 @@ public:
 	virtual UpdateSleepTime update();	///< Deciding whether or not to make new guys
 
 	virtual SlavedUpdateInterface* getSlavedUpdateInterface() { return this; }
+
 };
 
 #endif

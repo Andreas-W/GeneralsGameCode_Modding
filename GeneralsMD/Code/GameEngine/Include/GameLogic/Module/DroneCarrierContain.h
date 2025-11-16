@@ -10,9 +10,10 @@
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 #include "GameLogic/Module/OpenContain.h"
 #include "GameLogic/Module/TransportContain.h"
+#include "GameLogic/Module/GarrisonContain.h"
 
 //-------------------------------------------------------------------------------------------------
-class DroneCarrierContain: public TransportContain
+class DroneCarrierContain: public TransportContain //public GarrisonContain
 {
 
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(DroneCarrierContain, "DroneCarrierContain")
@@ -23,7 +24,18 @@ public:
 	DroneCarrierContain(Thing* thing, const ModuleData* moduleData);
 	// virtual destructor prototype provided by memory pool declaration
 
+	//Only allow slaved units in
 	virtual Bool isValidContainerFor(const Object* obj, Bool checkCapacity) const;
+
+	virtual Bool isEnclosingContainerFor(const Object* obj) const { return true; } //TODO param in module
+
+	//support for specific exit bones
+	virtual void onRemoving(Object* obj);
+
+	virtual short getRiderSlot(ObjectID riderID) const override;
+	virtual short getPortableSlot(ObjectID portableID) const override;
+	virtual const ContainedItemsList* getAddOnList() const override;
+	virtual ContainedItemsList* getAddOnList() override;
 };
 
 #endif // __TransportContain_H_

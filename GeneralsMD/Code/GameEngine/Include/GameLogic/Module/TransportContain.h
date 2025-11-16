@@ -111,8 +111,6 @@ protected:
 	Bool m_payloadCreated;
 	Int m_extraSlotsInUse;
 
-private:
-
 	UnsignedInt m_frameExitNotBusy;
 
 };
