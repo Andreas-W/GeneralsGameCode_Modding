@@ -30,6 +30,13 @@ DroneCarrierContain::DroneCarrierContain(Thing* thing, const ModuleData* moduleD
 	//GarrisonContain(thing, moduleData)
 	TransportContain(thing, moduleData)
 {
+	const TransportContainModuleData* data = dynamic_cast<const TransportContainModuleData*>(moduleData);
+	if (data != nullptr) {
+		m_contained_units.reserve(data->m_slotCapacity);
+		for (size_t i = 0; i < data->m_slotCapacity; i++) {
+			m_contained_units.emplace_back(INVALID_ID, 0);
+		}
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -84,6 +91,7 @@ Bool DroneCarrierContain::isValidContainerFor(const Object* rider, Bool checkCap
 //-------------------------------------------------------------------------------------------------
 void DroneCarrierContain::onRemoving(Object* rider)
 {
+	//Intentionally not use TransportContain::onRemoving
 	OpenContain::onRemoving(rider);
 
 	// object is no longer held inside a transport
@@ -105,17 +113,20 @@ void DroneCarrierContain::onRemoving(Object* rider)
 			Matrix3D boneMat;
 			AsciiString boneName;
 
-			Int slot = static_cast<Int>(getContainCount());
-			boneName.format("%s%02d", d->m_exitBone.str(), slot + 1);
+			//Int slot = static_cast<Int>(getContainCount());
+			Int slot = getRiderSlot(rider->getID());
+			if (slot >= 0) {
+				boneName.format("%s%02d", d->m_exitBone.str(), slot + 1);
 
-			Int foundBones = draw->getPristineBonePositions(boneName.str(), 0, &bonePos, &boneMat, 1);
+				Int foundBones = draw->getPristineBonePositions(boneName.str(), 0, &bonePos, &boneMat, 1);
 
-			if (foundBones > 0) {
-				Coord3D worldPos;
-				Matrix3D worldMat;
-				getObject()->convertBonePosToWorldPos(&bonePos, &boneMat, &worldPos, &worldMat);
-				rider->setPosition(&worldPos);
-				rider->setTransformMatrix(&worldMat);
+				if (foundBones > 0) {
+					Coord3D worldPos;
+					Matrix3D worldMat;
+					getObject()->convertBonePosToWorldPos(&bonePos, &boneMat, &worldPos, &worldMat);
+					rider->setPosition(&worldPos);
+					rider->setTransformMatrix(&worldMat);
+				}
 			}
 		}
 	}
@@ -182,13 +193,32 @@ void DroneCarrierContain::onRemoving(Object* rider)
 		rider->getAI()->wakeUpAndAttemptToTarget();
 	}
 
-	m_frameExitNotBusy = TheGameLogic->getFrame() + d->m_exitDelay;
+	// Remove unit from slot assign vector
+	for (size_t i = 0; i < m_contained_units.size(); i++) {
+		if (std::get<0>(m_contained_units[i]) == rider->getID()){
+			m_contained_units[i] = { INVALID_ID, 0 };
+		}
+	}
 
+	m_frameExitNotBusy = TheGameLogic->getFrame() + d->m_exitDelay;
+}
+
+void DroneCarrierContain::onContaining(Object* obj, Bool wasSelected)
+{
+	TransportContain::onContaining(obj, wasSelected);
+
+	// Assing in first free slot
+	for (size_t i = 0; i < m_contained_units.size(); i++) {
+		if (std::get<0>(m_contained_units[i]) == INVALID_ID) {
+			m_contained_units[i] = { obj->getID(), TheGameLogic->getFrame() };
+			break;
+		}
+	}
 }
 
 short DroneCarrierContain::getRiderSlot(ObjectID riderID) const
 {
-	short idx = 0;
+	/*short idx = 0;
 	for (ContainedItemsList::const_iterator it = getContainList().begin(); it != getContainList().end(); it++)
 	{
 		Object* obj;
@@ -199,6 +229,11 @@ short DroneCarrierContain::getRiderSlot(ObjectID riderID) const
 		if (obj && obj->getID() == riderID)
 			return idx;
 		idx++;
+	}*/
+	for (size_t i = 0; i < m_contained_units.size(); i++) {
+		if (std::get<0>(m_contained_units[i]) == riderID) {
+			return i;
+		}
 	}
 	return -1;
 }
@@ -216,6 +251,36 @@ const ContainedItemsList* DroneCarrierContain::getAddOnList() const
 ContainedItemsList* DroneCarrierContain::getAddOnList()
 {
 	return &m_containList;
+}
+
+// Similar to jet ai when parking
+void DroneCarrierContain::updateContainedReloadingStatus()
+{
+	UnsignedInt now = TheGameLogic->getFrame();
+
+	for (size_t i = 0; i < m_contained_units.size(); i++) {
+		const auto& [objectID, enteredFrame] = m_contained_units[i];
+		if (objectID != INVALID_ID) {
+
+			Object* drone = TheGameLogic->findObjectByID(objectID);
+			if (drone != nullptr) {
+				for (Int i = 0; i < WEAPONSLOT_COUNT; ++i)
+				{
+					Weapon* w = drone->getWeaponInWeaponSlot((WeaponSlotType)i);
+					if (w == NULL)
+						continue;
+
+					Int reloadTime = w->getClipReloadTime(drone);
+					UnsignedInt reloadDone = enteredFrame + reloadTime;
+
+					if (now >= reloadDone)
+						w->setClipPercentFull(1.0f, false);
+					else
+						w->setClipPercentFull((Real)(reloadTime - (reloadDone - now)) / reloadTime, false);
+				}
+			}
+		}
+	}
 }
 
 // ------------------------------------------------------------------------------------------------

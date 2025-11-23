@@ -30,12 +30,21 @@ public:
 	virtual Bool isEnclosingContainerFor(const Object* obj) const { return true; } //TODO param in module
 
 	//support for specific exit bones
-	virtual void onRemoving(Object* obj);
+	virtual void onRemoving(Object* obj) override;
+	virtual void onContaining(Object* obj, Bool wasSelected) override;		///< object now contains 'obj'
 
 	virtual short getRiderSlot(ObjectID riderID) const override;
 	virtual short getPortableSlot(ObjectID portableID) const override;
 	virtual const ContainedItemsList* getAddOnList() const override;
 	virtual ContainedItemsList* getAddOnList() override;
+
+	// Called from the AI update to reload the contained drones
+	void updateContainedReloadingStatus();
+
+protected:
+
+	// Saves slot assignement and frame when entered
+	std::vector<std::tuple<ObjectID, UnsignedInt>> m_contained_units;
 };
 
 #endif // __TransportContain_H_

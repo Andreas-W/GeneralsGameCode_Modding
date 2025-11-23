@@ -500,6 +500,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/KodiakUpdate.h
     Include/GameLogic/Module/DroneCarrierSlavedUpdate.h
     Include/GameLogic/Module/DroneCarrierContain.h
+    Include/GameLogic/Module/CarrierDroneJetAIUpdate.h
     Include/GameLogic/Object.h
     Include/GameLogic/ObjectCreationList.h
     Include/GameLogic/ObjectIter.h
@@ -1022,6 +1023,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/AIUpdate/TeleporterAIUpdate.cpp
     Source/GameLogic/Object/Update/AIUpdate/WorkerAIUpdate.cpp
     Source/GameLogic/Object/Update/AIUpdate/DroneCarrierAIUpdate.cpp
+    Source/GameLogic/Object/Update/AIUpdate/CarrierDroneJetAIUpdate.cpp
     Source/GameLogic/Object/Update/AnimationSteeringUpdate.cpp
     Source/GameLogic/Object/Update/AssistedTargetingUpdate.cpp
     Source/GameLogic/Object/Update/AutoDepositUpdate.cpp

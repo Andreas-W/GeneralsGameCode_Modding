@@ -27,6 +27,7 @@
 #include "GameLogic/Module/JetAIUpdate.h"
 #include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/Module/ContainModule.h"
+#include "GameLogic/Module/DroneCarrierContain.h"
 
 
 DroneCarrierAIUpdateModuleData::DroneCarrierAIUpdateModuleData()
@@ -417,6 +418,41 @@ void DroneCarrierAIUpdate::onDie(const DamageInfo* damageInfo)
 	}	
 }
 
+/**
+* Check if drone has ammo and is repaired depending on combat state
+*/
+bool drone_is_combat_ready(Object* drone) {
+	if (drone->isContained()) {
+		// Contained drone must be repaired before getting back to fight
+		BodyModuleInterface* body = drone->getBodyModule();
+		if (body) {
+			if (body->getHealth() < body->getMaxHealth()) {
+				DEBUG_LOG(("Drone %d is contained annd not fully healed", drone->getID()));
+				return false;
+			}
+		}
+		if (drone->isFullAmmo()) {
+			DEBUG_LOG(("Drone %d is contained and full ammo", drone->getID()));
+		}
+		else {
+			DEBUG_LOG(("Drone %d is contained and but NOT full ammo", drone->getID()));
+		}
+		return drone->isFullAmmo();
+	}
+	else {
+		if (drone->isOutOfAmmo()) {
+			DEBUG_LOG(("Drone %d is outside and out of ammo", drone->getID()));
+		}
+		else {
+			DEBUG_LOG(("Drone %d is outside and has ammo", drone->getID()));
+		}
+
+		// if not contained we can fight as long as we have ammo
+		return !drone->isOutOfAmmo();
+	}
+	return false;
+}
+
 /****************************************/
 void DroneCarrierAIUpdate::deployDrones()
 {
@@ -427,7 +463,7 @@ void DroneCarrierAIUpdate::deployDrones()
 		if (obj == NULL || obj->isEffectivelyDead())
 			continue;
 
-		if (obj->isContained()) {
+		if (obj->isContained() && drone_is_combat_ready(obj)) {
 			AIUpdateInterface* ai = obj->getAI();
 			if (ai != nullptr) {
 				ai->aiExit(carrier, CMD_FROM_AI);
@@ -464,8 +500,11 @@ void DroneCarrierAIUpdate::propagateOrderToSpecificDrone(Object* drone)
 		if (ai != nullptr)
 		{
 			Object* target = TheGameLogic->findObjectByID(m_designatedTarget);
+
+			AICommandType cmd = drone_is_combat_ready(drone) ? m_designatedCommand : AICMD_IDLE;
+
 			bool contained = drone->isContained();
-			switch (m_designatedCommand)
+			switch (cmd)
 			{
 			case AICMD_GUARD_POSITION:
 				if (!contained) {
@@ -523,11 +562,15 @@ bool DroneCarrierAIUpdate::positionInRange(const Coord3D* loc)
 	if (primaryWeapon == nullptr) {
 		return true;
 	}
-
+	// calc if within 2D range with 5% leeway
 	Real range = primaryWeapon->getAttackRange(carrier);
 	Coord3D pos = *carrier->getPosition();
-	pos.sub(loc);
-	return pos.lengthSqr() <= range * range;
+	pos.z = 0;
+	Coord3D loc2d = *loc;
+	loc2d.z = 0;
+
+	pos.sub(&loc2d);
+	return pos.lengthSqr() <= range * range * 1.05f;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -620,6 +663,23 @@ UpdateSleepTime DroneCarrierAIUpdate::update()
 			}
 			else {
 				m_rebuild_time = now + data->m_respawn_time;
+			}
+		}
+	}
+
+	if (now % 5 == 0) {
+
+		// check for reloading drones each 5th frame
+		Object* carrier = getObject();
+		if (carrier != nullptr) {
+
+			ContainModuleInterface* cmi = carrier->getContain();
+
+			if (cmi != nullptr) {
+				DroneCarrierContain* drone_contain = dynamic_cast<DroneCarrierContain*>(cmi);
+				if (drone_contain != nullptr) {
+					drone_contain->updateContainedReloadingStatus();
+				}
 			}
 		}
 	}
