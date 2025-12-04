@@ -124,6 +124,11 @@ void DroneCarrierContain::onRemoving(Object* rider)
 	rider->clearWeaponBonusCondition(WEAPONBONUSCONDITION_CONTAINED);
 	rider->clearWeaponSetFlag(WEAPONSET_CONTAINED);
 
+	Drawable* rider_draw = rider->getDrawable();
+	if (rider_draw != nullptr) {
+		rider_draw->enableAmbientSound(true);
+	}
+
 	// If we have a bone and no exit paths, put each rider at the numbered bone position
 	if (!d->m_exitBone.isEmpty() && d->m_numberOfExitPaths <= 0)
 	{
@@ -242,6 +247,11 @@ void DroneCarrierContain::onRemoving(Object* rider)
 void DroneCarrierContain::onContaining(Object* obj, Bool wasSelected)
 {
 	TransportContain::onContaining(obj, wasSelected);
+
+	Drawable* draw = obj->getDrawable();
+	if (draw != nullptr) {
+		draw->enableAmbientSound(false);
+	}
 
 	// Assing in first free slot
 	for (size_t i = 0; i < m_contained_units.size(); i++) {
