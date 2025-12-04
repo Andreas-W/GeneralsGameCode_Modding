@@ -126,7 +126,7 @@ UpdateSleepTime DroneCarrierSlavedUpdate::update(void)
 	if (data->m_attackRange && target != nullptr)
 	{
 		//Check distance to master
-		Real dist = ThePartitionManager->getDistanceSquared(me, master->getPosition(), FROM_BOUNDINGSPHERE_2D);
+		Real dist = ThePartitionManager->getDistanceSquared(me, master->getPosition(), FROM_CENTER_2D);
 		if (data->m_leashRange > 0.0f && dist > sqr(data->m_leashRange))
 		{
 			//Call back when too far away

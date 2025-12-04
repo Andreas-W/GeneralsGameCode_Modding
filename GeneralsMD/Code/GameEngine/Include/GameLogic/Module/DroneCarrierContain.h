@@ -25,7 +25,7 @@ public:
 };
 
 //-------------------------------------------------------------------------------------------------
-class DroneCarrierContain: public TransportContain //public GarrisonContain
+class DroneCarrierContain: public TransportContain
 {
 
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(DroneCarrierContain, "DroneCarrierContain")

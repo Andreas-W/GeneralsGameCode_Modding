@@ -73,11 +73,6 @@ DroneCarrierAIUpdate::~DroneCarrierAIUpdate(void)
 {
 }
 
-Bool DroneCarrierAIUpdate::shouldTryToSpawn()
-{
-	return false; // TODO
-}
-
 Bool DroneCarrierAIUpdate::createSpawn()
 {
 	Object* parent = getObject();
@@ -566,13 +561,9 @@ bool DroneCarrierAIUpdate::positionInRange(const Coord3D* loc)
 	}
 	// calc if within 2D range with 5% leeway
 	Real range = primaryWeapon->getAttackRange(carrier);
-	Coord3D pos = *carrier->getPosition();
-	pos.z = 0;
-	Coord3D loc2d = *loc;
-	loc2d.z = 0;
+	Real distsq = ThePartitionManager->getDistanceSquared(carrier, loc, FROM_CENTER_2D);
 
-	pos.sub(&loc2d);
-	return pos.lengthSqr() <= range * range * 1.05f;
+	return distsq < sqr(range) * 1.05f;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -602,36 +593,27 @@ void DroneCarrierAIUpdate::aiDoCommand(const AICommandParms* parms)
 			m_designatedTarget = INVALID_ID;
 			m_designatedPosition.set(&parms->m_pos);
 			m_designatedCommand = parms->m_cmd;
-			//if (positionInRange(&m_designatedPosition))
-			//	propagateOrdersToDrones();
 			break;
 		case AICMD_ATTACK_POSITION:
 			m_designatedTarget = INVALID_ID;
 			m_designatedPosition.set(&parms->m_pos);
 			m_designatedCommand = parms->m_cmd;
-			//if (positionInRange(&m_designatedPosition))
-			//	propagateOrdersToDrones();
 			break;
 		case AICMD_FORCE_ATTACK_OBJECT:
 		case AICMD_ATTACK_OBJECT:
 			m_designatedTarget = parms->m_obj ? parms->m_obj->getID() : INVALID_ID;
 			m_designatedPosition.zero();
 			m_designatedCommand = parms->m_cmd;
-			//if (parms->m_obj != nullptr && positionInRange(parms->m_obj->getPosition())) 
-			//	propagateOrdersToDrones();
 			break;
 		case AICMD_ATTACKMOVE_TO_POSITION:
 			m_designatedTarget = INVALID_ID;
 			m_designatedPosition.set(&parms->m_pos);
 			m_designatedCommand = parms->m_cmd;
-			//if (positionInRange(&m_designatedPosition))
-			//	propagateOrdersToDrones();
 			break;
 		case AICMD_IDLE:
 			m_designatedTarget = INVALID_ID;
 			m_designatedPosition.zero();
 			m_designatedCommand = parms->m_cmd;
-			//propagateOrdersToDrones();
 			break;
 		default:
 			m_designatedCommand = AICMD_NO_COMMAND;

@@ -55,7 +55,7 @@ public:
 	// SpawnBehaviorInterface
 	virtual SpawnBehaviorInterface* getSpawnBehaviorInterface() { return this; }
 
-	virtual Bool maySpawnSelfTaskAI(Real maxSelfTaskersRatio) { return false; /*TODO*/ };
+	virtual Bool maySpawnSelfTaskAI(Real maxSelfTaskersRatio) { return false; };
 	virtual void onSpawnDeath(ObjectID deadSpawn, DamageInfo* damageInfo);
 	virtual Object* getClosestSlave(const Coord3D* pos);
 	virtual void orderSlavesToAttackTarget(Object* target, Int maxShotsToFire, CommandSourceType cmdSource);
@@ -81,19 +81,7 @@ public:
 
 private:
 
-	struct DroneSlotInfo
-	{
-		UnsignedInt		m_slot_id;
-		ObjectID			m_objectInSpace;
-
-		DroneSlotInfo()
-		{
-			m_slot_id = 0;
-			m_objectInSpace = INVALID_ID;
-		}
-	};
 	Bool is_full(); ///< has this carrier an open spot?
-	Bool shouldTryToSpawn(); ///< For my own use, should I even think of spawning
 	Bool createSpawn();										///< Actual work of creating a guy
 
 	void deployDrones(); ///< let all drones exit the transport
