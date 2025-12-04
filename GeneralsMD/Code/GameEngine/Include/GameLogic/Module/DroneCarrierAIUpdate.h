@@ -77,6 +77,8 @@ public:
 	// AIUpdateInterface
 	virtual void aiDoCommand(const AICommandParms* parms);
 
+	static bool isDroneCombatReady(Object* drone);
+
 private:
 
 	struct DroneSlotInfo

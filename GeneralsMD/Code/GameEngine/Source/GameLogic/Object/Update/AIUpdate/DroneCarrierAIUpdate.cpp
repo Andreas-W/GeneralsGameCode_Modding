@@ -8,6 +8,7 @@
 #include "Common/CRCDebug.h"
 #include "Common/Player.h"
 #include "Common/Team.h"
+#include "Common/GameState.h"
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h"
@@ -421,7 +422,8 @@ void DroneCarrierAIUpdate::onDie(const DamageInfo* damageInfo)
 /**
 * Check if drone has ammo and is repaired depending on combat state
 */
-bool drone_is_combat_ready(Object* drone) {
+bool DroneCarrierAIUpdate::isDroneCombatReady(Object* drone) {
+	if (drone == nullptr) return false;
 	if (drone->isContained()) {
 		// Contained drone must be repaired before getting back to fight
 		BodyModuleInterface* body = drone->getBodyModule();
@@ -463,7 +465,7 @@ void DroneCarrierAIUpdate::deployDrones()
 		if (obj == NULL || obj->isEffectivelyDead())
 			continue;
 
-		if (obj->isContained() && drone_is_combat_ready(obj)) {
+		if (obj->isContained() && isDroneCombatReady(obj)) {
 			AIUpdateInterface* ai = obj->getAI();
 			if (ai != nullptr) {
 				ai->aiExit(carrier, CMD_FROM_AI);
@@ -501,7 +503,7 @@ void DroneCarrierAIUpdate::propagateOrderToSpecificDrone(Object* drone)
 		{
 			Object* target = TheGameLogic->findObjectByID(m_designatedTarget);
 
-			AICommandType cmd = drone_is_combat_ready(drone) ? m_designatedCommand : AICMD_IDLE;
+			AICommandType cmd = isDroneCombatReady(drone) ? m_designatedCommand : AICMD_IDLE;
 
 			bool contained = drone->isContained();
 			switch (cmd)
@@ -726,7 +728,6 @@ void DroneCarrierAIUpdate::crc(Xfer* xfer)
 /** Xfer method
 	* Version Info:
 	* 1: Initial version
-	* 2: Added m_initialBurstTimesInited to the save. jba.
 */
 // ------------------------------------------------------------------------------------------------
 void DroneCarrierAIUpdate::xfer(Xfer* xfer)
@@ -734,13 +735,51 @@ void DroneCarrierAIUpdate::xfer(Xfer* xfer)
 	AsciiString name;
 
 	// version
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 1;
 	XferVersion version = currentVersion;
 	xfer->xferVersion(&version, currentVersion);
 
 	// extend base class
 	AIUpdateInterface::xfer(xfer);
 
+	// spawn template
+	name = m_spawnTemplate ? m_spawnTemplate->getName() : AsciiString::TheEmptyString;
+	xfer->xferAsciiString(&name);
+	if (xfer->getXferMode() == XFER_LOAD)
+	{
+		m_spawnTemplate = NULL;
+		if (name.isEmpty() == FALSE)
+		{
+			m_spawnTemplate = TheThingFactory->findTemplate(name);
+			if (m_spawnTemplate == NULL)
+			{
+				DEBUG_CRASH(("SpawnBehavior::xfer - Unable to find template '%s'", name.str()));
+				throw SC_INVALID_DATA;
+
+			}  // end if
+		}  // end if
+	}  // end if
+
+		// spawn ids
+	xfer->xferSTLObjectIDVector(&m_spawnIDs);
+
+	xfer->xferUnsignedInt(&m_rebuild_time);
+	xfer->xferBool(&m_active);
+	xfer->xferBool(&m_initial_spawns);
+
+	xfer->xferObjectID(&m_designatedTarget);
+
+	if (xfer->getXferMode() == XFER_LOAD) {
+		Int commandType;
+		xfer->xferInt(&commandType);
+		m_designatedCommand = (AICommandType)commandType;
+	}
+	else {
+		Int commandType = m_designatedCommand;
+		xfer->xferInt(&commandType);
+	}
+
+	xfer->xferCoord3D(&m_designatedPosition);
 
 }  // end xfer
 

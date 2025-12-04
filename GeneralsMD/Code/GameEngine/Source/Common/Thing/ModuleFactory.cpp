@@ -207,7 +207,7 @@
 #include "GameLogic/Module/DroneCarrierAIUpdate.h"
 #include "GameLogic/Module/DroneCarrierSlavedUpdate.h"
 #include "GameLogic/Module/DroneCarrierContain.h"
-#include "GameLogic/Module/CarrierDroneJetAIUpdate.h"
+#include "GameLogic/Module/CarrierDroneAIUpdate.h"
 
 // upgrade includes
 #include "GameLogic/Module/ActiveShroudUpgrade.h"
@@ -510,7 +510,7 @@ void ModuleFactory::init( void )
 	addModule( ResetSpecialPowerTimerWhileAliveUpdate );
 	addModule( DroneCarrierAIUpdate );
 	addModule( DroneCarrierSlavedUpdate );
-	addModule( CarrierDroneJetAIUpdate );
+	addModule( CarrierDroneAIUpdate );
 
 	// upgrade modules
 	addModule( CostModifierUpgrade );

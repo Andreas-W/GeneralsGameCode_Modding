@@ -1,5 +1,6 @@
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/DroneCarrierSlavedUpdate.h"
+#include "GameLogic/Module/DroneCarrierAIUpdate.h"
 #include "GameLogic/Object.h"
 
 #include "Common/RandomValue.h"
@@ -23,6 +24,23 @@
 #define STRAY_MULTIPLIER 2.0f // Multiplier from stating diestance from tunnel, to max distance from
 const Real CLOSE_ENOUGH = 15;				// Our moveTo commands and pathfinding can't handle people in the way, so quit trying to hump someone on your spot
 const Real CLOSE_ENOUGH_SQR = (CLOSE_ENOUGH * CLOSE_ENOUGH);
+
+
+DroneCarrierSlavedUpdateModuleData::DroneCarrierSlavedUpdateModuleData()
+{
+	m_leashRange = 0.0f;
+}
+
+void DroneCarrierSlavedUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
+{
+	SlavedUpdateModuleData::buildFieldParse(p);
+	static const FieldParse dataFieldParse[] =
+	{
+		{ "LeashRange",			INI::parseReal,	NULL, offsetof(DroneCarrierSlavedUpdateModuleData, m_leashRange) },
+		{ 0, 0, 0, 0 }
+	};
+	p.add(dataFieldParse);
+}
 
 DroneCarrierSlavedUpdate::DroneCarrierSlavedUpdate(Thing* thing, const ModuleData* moduleData) : SlavedUpdate(thing, moduleData)
 {
@@ -51,7 +69,7 @@ UpdateSleepTime DroneCarrierSlavedUpdate::update(void)
 	if (m_slaver == INVALID_ID)
 		return UPDATE_SLEEP_NONE;
 
-	const SlavedUpdateModuleData* data = getSlavedUpdateModuleData();
+	const DroneCarrierSlavedUpdateModuleData* data = getDroneCarrierSlavedUpdateModuleData();
 	Object* me = getObject();
 	if (!me)
 	{
@@ -97,7 +115,7 @@ UpdateSleepTime DroneCarrierSlavedUpdate::update(void)
 	
 	Object* target = NULL;
 	AIUpdateInterface* masterAI = master->getAIUpdateInterface();
-	if (masterAI)
+	if (masterAI && DroneCarrierAIUpdate::isDroneCombatReady(me))
 	{
 		target = masterAI->getCurrentVictim();
 	}
@@ -105,14 +123,19 @@ UpdateSleepTime DroneCarrierSlavedUpdate::update(void)
 	AIUpdateInterface* ai = me->getAI();
 	if (ai == nullptr) return UPDATE_SLEEP_NONE;
 
-	if (data->m_attackRange)
+	if (data->m_attackRange && target != nullptr)
 	{
-		if (target)
+		//Check distance to master
+		Real dist = ThePartitionManager->getDistanceSquared(me, master->getPosition(), FROM_BOUNDINGSPHERE_2D);
+		if (data->m_leashRange > 0.0f && dist > sqr(data->m_leashRange))
 		{
-			doAttackLogic(target);
-
-			return UPDATE_SLEEP_NONE;
+			//Call back when too far away
+			ai->aiEnter(master, CMD_FROM_AI);
 		}
+		else {
+			doAttackLogic(target);
+		}
+		return UPDATE_SLEEP_NONE;
 	}
 
 	// No Target, go home to carrier

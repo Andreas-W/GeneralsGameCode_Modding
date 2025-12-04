@@ -19,25 +19,32 @@
 #include "GameLogic/TerrainLogic.h"
 #include "GameLogic/Weapon.h"
 
-#include "GameLogic/Module/CarrierDroneJetAIUpdate.h"
+#include "GameLogic/Module/CarrierDroneAIUpdate.h"
 #include "GameLogic/Module/JetAIUpdate.h"
 #include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/Module/ContainModule.h"
 
-CarrierDroneJetAIUpdate::CarrierDroneJetAIUpdate(Thing* thing, const ModuleData* moduleData) : AIUpdateInterface(thing, moduleData)
+CarrierDroneAIUpdate::CarrierDroneAIUpdate(Thing* thing, const ModuleData* moduleData) : AIUpdateInterface(thing, moduleData)
 {
+}
+
+void CarrierDroneAIUpdate::privateAttackPosition(const Coord3D* pos, Int maxShotsToFire, CommandSourceType cmdSource)
+{
+	if (getObject() && !getObject()->isContained()) {
+		AIUpdateInterface::privateAttackPosition(pos, maxShotsToFire, cmdSource);
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-CarrierDroneJetAIUpdate::~CarrierDroneJetAIUpdate(void)
+CarrierDroneAIUpdate::~CarrierDroneAIUpdate(void)
 {
 }
 
 // ------------------------------------------------------------------------------------------------
 /** CRC */
 // ------------------------------------------------------------------------------------------------
-void CarrierDroneJetAIUpdate::crc(Xfer* xfer)
+void CarrierDroneAIUpdate::crc(Xfer* xfer)
 {
 	// extend base class
 	AIUpdateInterface::crc(xfer);
@@ -48,7 +55,7 @@ void CarrierDroneJetAIUpdate::crc(Xfer* xfer)
 	* Version Info:
 	* 1: Initial version */
 	// ------------------------------------------------------------------------------------------------
-void CarrierDroneJetAIUpdate::xfer(Xfer* xfer)
+void CarrierDroneAIUpdate::xfer(Xfer* xfer)
 {
 
 	// version
@@ -64,7 +71,7 @@ void CarrierDroneJetAIUpdate::xfer(Xfer* xfer)
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void CarrierDroneJetAIUpdate::loadPostProcess(void)
+void CarrierDroneAIUpdate::loadPostProcess(void)
 {
 	// extend base class
 	AIUpdateInterface::loadPostProcess();

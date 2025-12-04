@@ -23,11 +23,27 @@
 #include "GameLogic/Weapon.h"
 #include "GameLogic/WeaponSetType.h"
 
-// PUBLIC /////////////////////////////////////////////////////////////////////////////////////////
+
+DroneCarrierContainModuleData::DroneCarrierContainModuleData() : TransportContainModuleData()
+{
+	m_launchVelocityBoost = 0.0f;
+}
+
+void DroneCarrierContainModuleData::buildFieldParse(MultiIniFieldParse& p)
+{
+	TransportContainModuleData::buildFieldParse(p);
+
+	static const FieldParse dataFieldParse[] =
+	{
+		{ "LaunchVelocityBoost", INI::parseReal, NULL, offsetof(DroneCarrierContainModuleData, m_launchVelocityBoost) },
+		{ 0, 0, 0, 0 }
+	};
+	p.add(dataFieldParse);
+}
+
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 DroneCarrierContain::DroneCarrierContain(Thing* thing, const ModuleData* moduleData) :
-	//GarrisonContain(thing, moduleData)
 	TransportContain(thing, moduleData)
 {
 	const TransportContainModuleData* data = dynamic_cast<const TransportContainModuleData*>(moduleData);
@@ -87,6 +103,11 @@ Bool DroneCarrierContain::isValidContainerFor(const Object* rider, Bool checkCap
 	return false;
 }
 
+Bool DroneCarrierContain::isPassengerAllowedToFire(ObjectID id) const
+{
+	return false;
+}
+
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 void DroneCarrierContain::onRemoving(Object* rider)
@@ -97,7 +118,7 @@ void DroneCarrierContain::onRemoving(Object* rider)
 	// object is no longer held inside a transport
 	rider->clearDisabled(DISABLED_HELD);
 
-	const TransportContainModuleData* d = getTransportContainModuleData();
+	const DroneCarrierContainModuleData* d = getDroneCarrierContainModuleData();
 
 	// give the object back a regular weapon
 	rider->clearWeaponBonusCondition(WEAPONBONUSCONDITION_CONTAINED);
@@ -154,6 +175,19 @@ void DroneCarrierContain::onRemoving(Object* rider)
 		}
 	}
 
+	if (d->m_launchVelocityBoost > 0.0f) {
+		PhysicsBehavior* phys = rider->getPhysics();
+		if (phys != nullptr) {
+			Coord3D dir;
+			rider->getUnitDirectionVector3D(dir);
+			Real mass = phys->getMass() * d->m_launchVelocityBoost;
+			dir.x *= mass;
+			dir.y *= mass;
+			dir.z *= mass;
+			phys->applyMotiveForce(&dir);
+		}
+	}
+
 	Int transportSlotCount = rider->getTransportSlotCount();
 	DEBUG_ASSERTCRASH(transportSlotCount > 0, ("Hmm, this object isnt transportable"));
 	m_extraSlotsInUse -= transportSlotCount - 1;
@@ -200,6 +234,8 @@ void DroneCarrierContain::onRemoving(Object* rider)
 		}
 	}
 
+
+
 	m_frameExitNotBusy = TheGameLogic->getFrame() + d->m_exitDelay;
 }
 
@@ -218,18 +254,6 @@ void DroneCarrierContain::onContaining(Object* obj, Bool wasSelected)
 
 short DroneCarrierContain::getRiderSlot(ObjectID riderID) const
 {
-	/*short idx = 0;
-	for (ContainedItemsList::const_iterator it = getContainList().begin(); it != getContainList().end(); it++)
-	{
-		Object* obj;
-
-		// get the object
-		obj = *it;
-
-		if (obj && obj->getID() == riderID)
-			return idx;
-		idx++;
-	}*/
 	for (size_t i = 0; i < m_contained_units.size(); i++) {
 		if (std::get<0>(m_contained_units[i]) == riderID) {
 			return i;
@@ -291,7 +315,6 @@ void DroneCarrierContain::crc(Xfer* xfer)
 
 	// extend base class
 	TransportContain::crc(xfer);
-	//GarrisonContain::crc(xfer);
 
 }  // end crc
 
@@ -304,7 +327,60 @@ void DroneCarrierContain::xfer(Xfer* xfer)
 {
 	// extend base class
 	TransportContain::xfer(xfer);
-	//GarrisonContain::xfer(xfer);
+
+	//xfer the contain vector
+	// xfer the count of the vector
+	UnsignedShort listCount = m_contained_units.size();
+	xfer->xferUnsignedShort(&listCount);
+
+	// xfer vector data
+	std::tuple<ObjectID, UnsignedInt> entry;
+	if (xfer->getXferMode() == XFER_SAVE || xfer->getXferMode() == XFER_CRC)
+	{
+		// save all tuples
+		std::vector< std::tuple<ObjectID, UnsignedInt> >::const_iterator it;
+		for (it = m_contained_units.begin(); it != m_contained_units.end(); ++it)
+		{
+
+			entry = *it;
+			xfer->xferObjectID(&std::get<0>(entry));
+			xfer->xferUnsignedInt(&std::get<1>(entry));
+
+		}  // end for
+
+	}  // end if, save
+	else if (xfer->getXferMode() == XFER_LOAD)
+	{
+		m_contained_units.clear();
+		m_contained_units.reserve(listCount);
+
+		// sanity, the list should be empty before we transfer more data into it
+		if (m_contained_units.size() != 0)
+		{
+
+			DEBUG_CRASH(("DroneCarrierContain::xfer - object vector should be empty before loading"));
+			throw XFER_LIST_NOT_EMPTY;
+
+		}  // end if
+
+		// read all ids
+		for (UnsignedShort i = 0; i < listCount; ++i)
+		{
+
+			xfer->xferObjectID(&std::get<0>(entry));
+			xfer->xferUnsignedInt(&std::get<1>(entry));
+			m_contained_units.push_back(entry);
+
+		}  // end for, i
+
+	}  // end else if
+	else
+	{
+
+		DEBUG_CRASH(("DroneCarrierContain::xfer - Unknown xfer mode '%d'", xfer->getXferMode()));
+		throw XFER_MODE_UNKNOWN;
+
+	}  // end else
 
 }  // end xfer
 
@@ -316,7 +392,5 @@ void DroneCarrierContain::loadPostProcess(void)
 
 	// extend base class
 	TransportContain::loadPostProcess();
-	//GarrisonContain::loadPostProcess();
 
 }  // end loadPostProcess
-
