@@ -90,7 +90,9 @@ private:
 	void propagateOrdersToDrones();
 	void propagateOrderToSpecificDrone(Object* drone);
 
-	bool positionInRange(const Coord3D* loc);
+	//works for both Object and Coord3D
+	template <typename T>
+	bool targetInRange(const T* target);
 
 	const ThingTemplate* m_spawnTemplate;	///< What it is I spawn
 	std::vector<ObjectID> m_spawnIDs;				///< IDs of currently active drones
@@ -102,6 +104,9 @@ private:
 	AICommandType									m_designatedCommand;
 	Coord3D												m_designatedPosition;
 };
+
+template bool DroneCarrierAIUpdate::targetInRange<Object>(const Object* target);
+template bool DroneCarrierAIUpdate::targetInRange<Coord3D>(const Coord3D* target);
 
 #endif // __DRONE_CARRIER_AI_UPDATE_H
 

@@ -550,8 +550,11 @@ void DroneCarrierAIUpdate::propagateOrderToSpecificDrone(Object* drone)
 	}
 }
 
-bool DroneCarrierAIUpdate::positionInRange(const Coord3D* loc)
+template<typename T>
+bool DroneCarrierAIUpdate::targetInRange(const T* target)
 {
+	if (target == nullptr) return false;
+
 	Object* carrier = getObject();
 	Weapon* primaryWeapon = carrier->getWeaponInWeaponSlot(PRIMARY_WEAPON);
 
@@ -559,11 +562,8 @@ bool DroneCarrierAIUpdate::positionInRange(const Coord3D* loc)
 	if (primaryWeapon == nullptr) {
 		return true;
 	}
-	// calc if within 2D range with 5% leeway
-	Real range = primaryWeapon->getAttackRange(carrier);
-	Real distsq = ThePartitionManager->getDistanceSquared(carrier, loc, FROM_CENTER_2D);
 
-	return distsq < sqr(range) * 1.05f;
+	return primaryWeapon->isWithinAttackRange(carrier, target);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -586,6 +586,7 @@ void DroneCarrierAIUpdate::aiDoCommand(const AICommandParms* parms)
 	//forward commands to drones
   if (parms->m_cmdSource != CMD_FROM_AI)
 	{
+		//DEBUG_LOG(("DroneCarrier: getting order: %d", parms->m_cmd));
 		//Now the only time we care about anything is if we were ordered to attack something or attack move.
 		switch (parms->m_cmd)
 		{
@@ -669,25 +670,23 @@ UpdateSleepTime DroneCarrierAIUpdate::update()
 	}
 
 	Object* my_target = getCurrentVictim();
-	if (my_target != nullptr) {
+	const Coord3D* my_target_pos = getCurrentVictimPos();
+	if (targetInRange(my_target) || targetInRange(my_target_pos)) {
+		// send out contained drones
+		deployDrones();
 
-		if (positionInRange(my_target->getPosition())) {
-			// send out contained drones
-			deployDrones();
-
-			//update orders
-			if (now % 5 == 0) { //do every 5th frame
-				switch (m_designatedCommand) {
-				case AICMD_GUARD_POSITION:
-				case AICMD_ATTACK_POSITION:
-				case AICMD_FORCE_ATTACK_OBJECT:
-				case AICMD_ATTACK_OBJECT:
-				case AICMD_ATTACKMOVE_TO_POSITION:
-					propagateOrdersToDrones();
-					break;
-				default:
-					break;
-				}
+		//update orders
+		if (now % 5 == 0) { //do every 5th frame
+			switch (m_designatedCommand) {
+			case AICMD_GUARD_POSITION:
+			case AICMD_ATTACK_POSITION:
+			case AICMD_FORCE_ATTACK_OBJECT:
+			case AICMD_ATTACK_OBJECT:
+			case AICMD_ATTACKMOVE_TO_POSITION:
+				propagateOrdersToDrones();
+				break;
+			default:
+				break;
 			}
 		}
 	}
