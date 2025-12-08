@@ -1221,7 +1221,7 @@ void PathfindCell::reset( )
 	}
 	m_connectsToLayer = LAYER_INVALID;
 	m_layer = LAYER_GROUND;
-
+	m_waterLevel = 0;
 }
 
 /**
@@ -4512,7 +4512,6 @@ void Pathfinder::classifyMapCell( Int i, Int j , PathfindCell *cell)
 {
 	Coord3D topLeftCorner, bottomRightCorner;
 
-
 	Bool hasObstacle =  (cell->getType() == PathfindCell::CELL_OBSTACLE) ;
 
 	topLeftCorner.y = (Real)j * PATHFIND_CELL_SIZE_F;
@@ -4522,6 +4521,7 @@ void Pathfinder::classifyMapCell( Int i, Int j , PathfindCell *cell)
 	bottomRightCorner.x = topLeftCorner.x + PATHFIND_CELL_SIZE_F;
 
 	cell->setPinched(false);
+	cell->setWaterLevel(0);
 
 	PathfindCell::CellType type = PathfindCell::CELL_CLEAR;
 	if (TheTerrainLogic->isCliffCell(topLeftCorner.x, topLeftCorner.y))
