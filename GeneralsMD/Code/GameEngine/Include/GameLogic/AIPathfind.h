@@ -343,6 +343,9 @@ public:
 	Bool getPinched(void) const {return m_pinched;}
 	void setPinched(Bool pinch) {m_pinched = pinch;	}
 
+	UnsignedShort getWaterLevel(void) const { return m_waterLevel; }
+	void setWaterLevel(UnsignedShort level) { m_waterLevel = min(level, 3); }
+
 	Bool allocateInfo(const ICoord2D &pos);
 	void releaseInfo(void);
 	Bool hasInfo(void) const {return m_info!=NULL;}
@@ -373,6 +376,8 @@ private:
 	UnsignedByte m_flags:4;			///< what type of units are in or moving through this cell.
 	UnsignedByte m_connectsToLayer:4;	///< This cell can pathfind onto this layer, if > LAYER_TOP.
   UnsignedByte m_layer:4;					 ///< Layer of this cell.
+	//This is added for ship pathing
+	UnsignedShort m_waterLevel:2 ///< how deep are neighbouring water tiles, 0 land, 1 neighboring land tiles, 2 neighboring level 1 tiles, 3 neighboring level 2 tiles 
 };
 
 typedef PathfindCell *PathfindCellP;

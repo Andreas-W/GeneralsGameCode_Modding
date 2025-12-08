@@ -61,7 +61,8 @@ enum LocomotorAppearance CPP_11(: Int)
 	LOCO_WINGS,
 	LOCO_CLIMBER,			// human climber - backs down cliffs.
 	LOCO_OTHER,
-	LOCO_MOTORCYCLE
+	LOCO_MOTORCYCLE,
+	LOCO_SHIP
 };
 
 enum LocomotorPriority CPP_11(: Int)
@@ -83,7 +84,7 @@ static const char *TheLocomotorAppearanceNames[] =
 	"CLIMBER",
 	"OTHER",
 	"MOTORCYCLE",
-
+	"SHIP",
 	NULL
 };
 #endif
@@ -377,6 +378,7 @@ protected:
 	void moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionWings(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
+	void moveTowardsPositionShip(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 
 	void maintainCurrentPositionThrust(Object* obj, PhysicsBehavior *physics);
 	void maintainCurrentPositionOther(Object* obj, PhysicsBehavior *physics);
@@ -385,6 +387,7 @@ protected:
 	void maintainCurrentPositionTreads(Object* obj, PhysicsBehavior *physics) { maintainCurrentPositionOther(obj, physics); }
 	void maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physics);
 	void maintainCurrentPositionWings(Object* obj, PhysicsBehavior *physics);
+	void maintainCurrentPositionShip(Object* obj, PhysicsBehavior* physics);
 
 	PhysicsTurningType rotateTowardsPosition(Object* obj, const Coord3D& goalPos, Real *relAngle=NULL);
 

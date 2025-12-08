@@ -395,6 +395,7 @@ GlobalData* GlobalData::m_theOriginal = NULL;
 	{ "MinDistFromEdgeOfMapForBuild",	 INI::parseReal,				NULL,			offsetof( GlobalData, m_MinDistFromEdgeOfMapForBuild ) },
 	{ "SupplyBuildBorder",	 INI::parseReal,				NULL,			offsetof( GlobalData, m_SupplyBuildBorder ) },
 	{ "AllowedHeightVariationForBuilding", INI::parseReal,NULL,			offsetof( GlobalData, m_allowedHeightVariationForBuilding ) },
+	{ "AllowedHeightVariationForBuildingShipyard", INI::parseReal,NULL,			offsetof(GlobalData, m_allowedHeightVariationForBuildingShipyard) },
 	{ "MinLowEnergyProductionSpeed",INI::parseReal,				NULL,			offsetof( GlobalData, m_MinLowEnergyProductionSpeed ) },
 	{ "MaxLowEnergyProductionSpeed",INI::parseReal,				NULL,			offsetof( GlobalData, m_MaxLowEnergyProductionSpeed ) },
 	{ "LowEnergyPenaltyModifier",		INI::parseReal,				NULL,			offsetof( GlobalData, m_LowEnergyPenaltyModifier ) },
@@ -908,6 +909,7 @@ GlobalData::GlobalData()
 	m_MinDistFromEdgeOfMapForBuild = 0.0f;
 	m_SupplyBuildBorder = 0.0f;
 	m_allowedHeightVariationForBuilding = 0.0f;
+	m_allowedHeightVariationForBuildingShipyard = 0.0f;
 	m_MinLowEnergyProductionSpeed = 0.0f;
 	m_MaxLowEnergyProductionSpeed = 0.0f;
 	m_LowEnergyPenaltyModifier = 0.0f;
