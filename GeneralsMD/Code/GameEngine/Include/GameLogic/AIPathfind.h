@@ -158,7 +158,7 @@ public:
 	void appendNode( const Coord3D *pos, PathfindLayerEnum layer );				///< Create a new node at the end of the path
 	void setBlockedByAlly(Bool blocked) {m_blockedByAlly = blocked;}
 	Bool getBlockedByAlly(void) {return m_blockedByAlly;}
-	void optimize( const Object *obj, LocomotorSurfaceTypeMask acceptableSurfaces, Bool blocked );			///< Optimize the path to discard redundant nodes
+	void optimize( const Object *obj, LocomotorSurfaceTypeMask acceptableSurfaces, Bool blocked, Int requiredWaterLevel);			///< Optimize the path to discard redundant nodes
 
 	void optimizeGroundPath( Bool crusher, Int diameter );			///< Optimize the ground path to discard redundant nodes
 
@@ -343,8 +343,8 @@ public:
 	Bool getPinched(void) const {return m_pinched;}
 	void setPinched(Bool pinch) {m_pinched = pinch;	}
 
-	UnsignedShort getWaterLevel(void) const { return m_waterLevel; }
-	void setWaterLevel(UnsignedShort level) { m_waterLevel = level; }
+	Short getWaterLevel(void) const { return m_waterLevel; }
+	void setWaterLevel(Short level) { m_waterLevel = level; }
 
 	Bool allocateInfo(const ICoord2D &pos);
 	void releaseInfo(void);
@@ -377,7 +377,7 @@ private:
 	UnsignedByte m_connectsToLayer:4;	///< This cell can pathfind onto this layer, if > LAYER_TOP.
   UnsignedByte m_layer:4;					 ///< Layer of this cell.
 	//This is added for ship pathing
-	UnsignedShort m_waterLevel:2; ///< how deep are neighbouring water tiles, 0 land, 1 neighboring land tiles, 2 neighboring level 1 tiles, 3 neighboring level 2 tiles 
+	Short m_waterLevel:8; ///< how far away is this cell from land (distance transform), capped at 15
 };
 
 typedef PathfindCell *PathfindCellP;
@@ -678,7 +678,7 @@ public:
 
 	void setIgnoreObstacleID( ObjectID objID );					///< if non-zero, the pathfinder will ignore the given obstacle
 
-	Bool validMovementPosition( Bool isCrusher, LocomotorSurfaceTypeMask acceptableSurfaces, PathfindCell *toCell, PathfindCell *fromCell = NULL );		///< Return true if given position is a valid movement location
+	Bool validMovementPosition( Bool isCrusher, LocomotorSurfaceTypeMask acceptableSurfaces, Int requiredWaterLevel, PathfindCell *toCell, PathfindCell *fromCell = NULL );		///< Return true if given position is a valid movement location
 	Bool validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Int x, Int y );					///< Return true if given position is a valid movement location
 	Bool validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, const Coord3D *pos );		///< Return true if given position is a valid movement location
 	Bool validMovementTerrain( PathfindLayerEnum layer, const Locomotor* locomotor, const Coord3D *pos );		///< Return true if given position is a valid movement location
@@ -691,7 +691,7 @@ public:
 
 	Bool isLinePassable( const Object *obj, LocomotorSurfaceTypeMask acceptableSurfaces,
 		PathfindLayerEnum layer, const Coord3D& startWorld, const Coord3D& endWorld,
-		Bool blocked, Bool allowPinched );	///< Return true if the straight line between the given points is passable
+		Bool blocked, Bool allowPinched, Int requiredWaterDepth);	///< Return true if the straight line between the given points is passable
 
 	void moveAlliesAwayFromDestination( Object *obj,const Coord3D& destination);
 
@@ -819,7 +819,7 @@ protected:
 									 const Object *obj, Int attackDistance);
 
 	Path *buildActualPath( const Object *obj, LocomotorSurfaceTypeMask acceptableSurfaces,
-		const Coord3D *fromPos, PathfindCell *goalCell, Bool center, Bool blocked );	///< Work backwards from goal cell to construct final path
+		const Coord3D *fromPos, PathfindCell *goalCell, Bool center, Bool blocked, Int requiredWaterLevel );	///< Work backwards from goal cell to construct final path
 	Path *buildGroundPath( Bool isCrusher,const Coord3D *fromPos, PathfindCell *goalCell,
 		Bool center, Int pathDiameter );	///< Work backwards from goal cell to construct final path
 	Path *buildHierachicalPath( const Coord3D *fromPos, PathfindCell *goalCell);	///< Work backwards from goal cell to construct final path
@@ -831,6 +831,8 @@ protected:
 	static LocomotorSurfaceTypeMask validLocomotorSurfacesForCellType(PathfindCell::CellType t);
 
 	void checkChangeLayers(PathfindCell *parentCell);
+
+	void classifyWaterLevelForCell(Int x, Int y);
 
 #if defined(RTS_DEBUG)
 	void doDebugIcons(void) ;
@@ -888,7 +890,7 @@ inline void Pathfinder::worldToGrid( const Coord3D *pos, ICoord2D *cellIndex )
 
 inline Bool Pathfinder::validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Int x, Int y )
 {
-	return validMovementPosition( isCrusher, locomotorSet.getValidSurfaces(), getCell( layer, x, y ) );
+	return validMovementPosition( isCrusher, locomotorSet.getValidSurfaces(), locomotorSet.getRequiredWaterLevel(), getCell(layer, x, y));
 }
 
 inline Bool Pathfinder::validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, const Coord3D *pos )

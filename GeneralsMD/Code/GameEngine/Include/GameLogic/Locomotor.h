@@ -214,6 +214,8 @@ private:
 	Real											m_rudderCorrectionRate;
 	Real											m_elevatorCorrectionDegree;
 	Real											m_elevatorCorrectionRate;
+
+	Int												m_requiredWaterLevel; ///< for LOCO_SHIP, how deep the water must be
 };
 
 typedef OVERRIDE<LocomotorTemplate> LocomotorTemplateOverride;
@@ -316,6 +318,9 @@ public:
 	inline Bool isInvalidPositionAllowed() const { return getFlag( ALLOW_INVALID_POSITION ); }
 
 	inline void setPreferredHeight( Real height ) { m_preferredHeight = height; }
+
+	//Returns 0 for non SHIP locomotors
+	inline Int getRequireWaterLevel() const { return m_template->m_appearance == LOCO_SHIP ? m_template->m_requiredWaterLevel : 0; };
 
 #ifdef CIRCLE_FOR_LANDING
 	/**

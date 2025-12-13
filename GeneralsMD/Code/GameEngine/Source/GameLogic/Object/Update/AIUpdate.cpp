@@ -1770,7 +1770,7 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 
 	LocomotorSurfaceTypeMask surfaces = m_locomotorSet.getValidSurfaces();
 	if (!m_isFinalGoal && TheAI->pathfinder()->isLinePassable( getObject(), surfaces,
-			getObject()->getLayer(), *getObject()->getPosition(), originalDestination, false, true)) {
+			getObject()->getLayer(), *getObject()->getPosition(), originalDestination, false, true, m_locomotorSet.getRequiredWaterLevel())) {
 		return computeQuickPath(destination);
 	}
 
