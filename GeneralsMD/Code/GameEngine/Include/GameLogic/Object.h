@@ -27,8 +27,6 @@
 // Author: Michael S. Booth, October 2000
 
 #pragma once
-#ifndef _OBJECT_H_
-#define _OBJECT_H_
 
 #include "Lib/BaseType.h"
 #include "ref_ptr.h"
@@ -99,6 +97,7 @@ class UpdateModuleInterface;
 class UpgradeModule;
 class UpgradeModuleInterface;
 class UpgradeTemplate;
+class BuffTemplate;
 
 class ObjectHeldHelper;
 class ObjectDisabledHelper;
@@ -108,6 +107,7 @@ class StatusDamageHelper;
 class SubdualDamageHelper;
 class ChronoDamageHelper;
 class TempWeaponBonusHelper;
+class BuffEffectHelper;
 class ObjectWeaponStatusHelper;
 class ObjectDefectionHelper;
 
@@ -124,9 +124,6 @@ enum WeaponStatus CPP_11(: Int);
 enum RadarPriorityType CPP_11(: Int);
 enum CanAttackResult CPP_11(: Int);
 // enum TintStatus CPP_11(: Int);
-
-// For ObjectStatusTypes
-#include "Common/ObjectStatusTypes.h"
 
 // For ObjectScriptStatusBit
 #include "GameLogic/ObjectScriptStatusBits.h"
@@ -237,6 +234,7 @@ public:
 	void notifyChronoDamage( Real amount );///< At this level, we just pass this on to our helper and do a special tint
 	void doStatusDamage( ObjectStatusTypes status, Real duration );///< At this level, we just pass this on to our helper
 	void doTempWeaponBonus( WeaponBonusConditionType status, UnsignedInt duration, TintStatus tintStatus = TINT_STATUS_INVALID );///< At this level, we just pass this on to our helper
+	void applyBuff(const BuffTemplate* buffTemp, UnsignedInt duration, Object* sourceObj);
 
 	void scoreTheKill( const Object *victim );						///< I just killed this object.
 	void onVeterancyLevelChanged( VeterancyLevel oldLevel, VeterancyLevel newLevel, Bool provideFeedback = TRUE );	///< I just achieved this level right this moment
@@ -264,7 +262,10 @@ public:
 	void setCustomIndicatorColor(Color c);
 	void removeCustomIndicatorColor();
 
+	Bool isLogicallyVisible() const; ///< Returns whether the object is logically visible to the player, irrespective of shroud.
+
 	Bool isLocallyControlled() const;
+	Bool isLocallyViewed() const;
 	Bool isNeutralControlled() const;
 
 	Bool getIsUndetectedDefector(void) const { return BitIsSet(m_privateStatus, UNDETECTED_DEFECTOR); }
@@ -422,6 +423,7 @@ public:
 	void friend_setPartitionData(PartitionData *pd) { m_partitionData = pd; }
 	PartitionData *friend_getPartitionData() const { return m_partitionData; }
 	const PartitionData *friend_getConstPartitionData() const { return m_partitionData; }
+	Bool hasGhostObject() const; ///< This object has a ghost object. This does not imply that a ghost snapshot is taken or active.
 
 	void onPartitionCellChange();///< We have moved a 'significant' amount, so do maintenence that can be considered 'cell-based'
 	void handlePartitionCellMaintenance();					///< Undo and redo all shroud actions.  Call when something has changed, like position or ownership or Death
@@ -452,6 +454,8 @@ public:
 	void onRemovedFrom( Object *removedFrom );
 	Int getTransportSlotCount() const;
 	void friend_setContainedBy( Object *containedBy ) { m_containedBy = containedBy; }
+	const Object* getEnclosingContainedBy() const; ///< Find the first enclosing container in the containment chain.
+	const Object* getOuterObject() const; ///< Get the top-level object
 
 	// Special Powers -------------------------------------------------------------------------------
 	SpecialPowerModuleInterface *getSpecialPowerModule( const SpecialPowerTemplate *specialPowerTemplate ) const;
@@ -575,6 +579,17 @@ public:
 	Bool testWeaponBonusCondition(WeaponBonusConditionType wst) const { return (m_weaponBonusCondition & (1 << wst)) != 0; }
 	inline WeaponBonusConditionFlags getWeaponBonusCondition() const { return m_weaponBonusCondition; }
 	inline void setWeaponBonusConditionFlags(WeaponBonusConditionFlags flags) { m_weaponBonusCondition = flags; }
+
+	void applyWeaponBonusConditionFlags(WeaponBonusConditionFlags flags);
+	void removeWeaponBonusConditionFlags(WeaponBonusConditionFlags flags);
+
+	// Weapon Bonus Against,  i.e. like Target Designator logic
+	inline void setWeaponBonusConditionAgainst(WeaponBonusConditionType wst) { m_weaponBonusConditionAgainst |= (1 << wst); };
+	inline void clearWeaponBonusConditionAgainst(WeaponBonusConditionType wst) { m_weaponBonusConditionAgainst &= ~(1 << wst); };
+	Bool testWeaponBonusConditionAgainst(WeaponBonusConditionType wst) const { return (m_weaponBonusConditionAgainst & (1 << wst)) != 0; }
+	inline WeaponBonusConditionFlags getWeaponBonusConditionAgainst() const { return m_weaponBonusConditionAgainst; }
+	inline void setWeaponBonusConditionFlagsAgainst(WeaponBonusConditionFlags flags) { m_weaponBonusConditionAgainst = flags; }
+
 
 	Bool getSingleLogicalBonePosition(const char* boneName, Coord3D* position, Matrix3D* transform) const;
 	Bool getSingleLogicalBonePositionOnTurret(WhichTurretType whichTurret, const char* boneName, Coord3D* position, Matrix3D* transform) const;
@@ -741,7 +756,7 @@ private:
 
 	UnsignedInt		m_smcUntil;
 
-	enum { NUM_SLEEP_HELPERS = 9 };
+	enum { NUM_SLEEP_HELPERS = 10 };
 	ObjectRepulsorHelper*					m_repulsorHelper;
 	ObjectSMCHelper*							m_smcHelper;
 	ObjectWeaponStatusHelper*			m_wsHelper;
@@ -750,6 +765,7 @@ private:
 	SubdualDamageHelper*					m_subdualDamageHelper;
 	ChronoDamageHelper*					m_chronoDamageHelper;
 	TempWeaponBonusHelper*				m_tempWeaponBonusHelper;
+	BuffEffectHelper*				m_buffEffectHelper;
 	FiringTracker*								m_firingTracker;	///< Tracker is really a "helper" and is included NUM_SLEEP_HELPERS
 
 	// modules
@@ -790,6 +806,8 @@ private:
 	WeaponBonusConditionFlags			m_weaponBonusCondition;
 	Byte													m_lastWeaponCondition[WEAPONSLOT_COUNT];
 
+	WeaponBonusConditionFlags			m_weaponBonusConditionAgainst;  ///< Weapon bonus granted when attacking this target;
+
 	SpecialPowerMaskType					m_specialPowerBits; ///< bits determining what kind of special abilities this object has access to.
 
 	//////////////////////////////////////< for the non-stacking healers like ambulance and propaganda
@@ -826,7 +844,7 @@ private:
 	Bool													m_singleUseCommandUsed;
 	Bool													m_isReceivingDifficultyBonus;
 
-};  // end class Object
+};
 
 // deleteInstance is not meant to be used with Object in order to require the use of TheGameLogic->destroyObject()
 void deleteInstance(Object* object) CPP_11(= delete);
@@ -843,5 +861,3 @@ AsciiString DebugDescribeObject(const Object *obj);
 #ifdef DEBUG_OBJECT_ID_EXISTS
 extern ObjectID TheObjectIDToDebug;
 #endif
-
-#endif // _OBJECT_H_
