@@ -5995,7 +5995,7 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 					continue;
 			}
 
-			Bool movementValid = validMovementPosition(isCrusher, locomotorSet.getValidSurfaces(), newCell, parentCell);
+			Bool movementValid = validMovementPosition(isCrusher, locomotorSet.getValidSurfaces(), locomotorSet.getRequiredWaterLevel(), newCell, parentCell);
 			Bool dozerHack = false;
 			if (!movementValid && obj->isKindOf(KINDOF_DOZER) && newCell->getType() == PathfindCell::CELL_OBSTACLE) {
 				Object* obstacle = TheGameLogic->findObjectByID(newCell->getObstacleID());
@@ -10596,10 +10596,8 @@ Path *Pathfinder::findAttackPath( const Object *obj, const LocomotorSet& locomot
 			worldToCell(&testPos, &cellNdx);
 			PathfindCell *aCell = getCell(obj->getLayer(), cellNdx.x, cellNdx.y);
 			if (!aCell) break;
-			if (!validMovementPosition( isCrusher, locomotorSet.getValidSurfaces(), locomotorSet.getRequiredWaterLevel(), aCell )) {
-				break;
 
-			if (!validMovementPosition(isCrusher, locomotorSet.getValidSurfaces(), aCell))
+			if (!validMovementPosition(isCrusher, locomotorSet.getValidSurfaces(), locomotorSet.getRequiredWaterLevel(), aCell))
 				break;
 
 			if (!checkDestination(obj, cellNdx.x, cellNdx.y, obj->getLayer(), radius, centerInCell))

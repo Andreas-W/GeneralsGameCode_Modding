@@ -146,7 +146,8 @@ enum WeaponCollideMaskType CPP_11(: Int)
 	WEAPON_COLLIDE_WALLS									= 0x0020,
 	WEAPON_COLLIDE_SMALL_MISSILES					= 0x0040, //All missiles are also projectiles!
 	WEAPON_COLLIDE_BALLISTIC_MISSILES			= 0x0080, //All missiles are also projectiles!
-	WEAPON_COLLIDE_CONTROLLED_STRUCTURES	= 0x0100	//this is "ONLY structures belonging to the projectile's controller".
+	WEAPON_COLLIDE_CONTROLLED_STRUCTURES	= 0x0100,	//this is "ONLY structures belonging to the projectile's controller".
+	WEAPON_COLLIDE_WATER                  = 0x0200
 };
 
 #ifdef DEFINE_WEAPONCOLLIDEMASK_NAMES
@@ -161,6 +162,7 @@ static const char *const TheWeaponCollideMaskNames[] =
 	"SMALL_MISSILES",			//All missiles are also projectiles!
 	"BALLISTIC_MISSILES", //All missiles are also projectiles!
 	"CONTROLLED_STRUCTURES",
+	"WATER",
 	NULL
 };
 #endif
