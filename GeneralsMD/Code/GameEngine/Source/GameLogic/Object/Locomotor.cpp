@@ -1107,8 +1107,6 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 					moveTowardsPositionTreads(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
 					break;
 			case LOCO_SHIP:
-					moveTowardsPositionShip(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
-					break;
 			case LOCO_HOVER:
 					moveTowardsPositionHover(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
 					break;
@@ -1930,110 +1928,6 @@ void Locomotor::moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, 
 	}
 }
 
-static void pushShipAwayFromLand(Object* obj, PhysicsBehavior* physics) {
-	//TODO CLEANUP
-	/*const auto& geom = obj->getGeometryInfo();
-
-	if (geom.getIsSmall()) return;
-
-	Coord2D p1 = { 0.0f, 0.0f };
-	Coord2D p2 = { 0.0f, 0.0f };
-	Coord2D p3 = { 0.0f, 0.0f };
-	Coord2D p4 = { 0.0f, 0.0f };
-
-	const Real major_rad = geom.getMajorRadius();
-	const Real minor_rad = geom.getMinorRadius() + 10.0f;
-
-	switch (geom.getGeomType())
-	{
-	case GEOMETRY_SPHERE:
-	case GEOMETRY_CYLINDER:
-	{
-		p1.x += major_rad;
-		p2.x -= major_rad;
-		p3.y += major_rad;
-		p4.y -= major_rad;
-		break;
-	}
-	case GEOMETRY_BOX:
-	default:
-	{
-		p1.x += major_rad;
-		p1.y += minor_rad;
-
-		p2.x -= major_rad;
-		p2.y += minor_rad;
-
-		p3.x -= major_rad;
-		p3.y -= minor_rad;
-
-		p4.x += major_rad;
-		p4.y -= minor_rad;
-
-		p1.rotateByAngle(obj->getOrientation());
-		p2.rotateByAngle(obj->getOrientation());
-		p3.rotateByAngle(obj->getOrientation());
-		p4.rotateByAngle(obj->getOrientation());
-		break;
-	}
-	}
-
-	Real xpos = obj->getPosition()->x;
-	Real ypos = obj->getPosition()->y;
-
-	p1.x += xpos;
-	p1.y += ypos;
-
-	p2.x += xpos;
-	p2.y += ypos;
-
-	p3.x += xpos;
-	p3.y += ypos;
-
-	p4.x += xpos;
-	p4.y += ypos;
-
-	//Sample the terrain to check if we are fully in water at 4 corner points
-
-	if (!TheTerrainLogic->isUnderwater(p1.x, p1.y) ||
-		!TheTerrainLogic->isUnderwater(p2.x, p2.y) ||
-		!TheTerrainLogic->isUnderwater(p3.x, p3.y) ||
-		!TheTerrainLogic->isUnderwater(p4.x, p4.y)
-		) {
-		//We are touching land
-
-		// sample the terrain at cardinal axis to get direction of terrain
-		const Coord3D* worldPos = obj->getPosition();
-		Real hx1 = TheTerrainLogic->getGroundHeight(worldPos->x + major_rad, worldPos->y);
-		Real hx2 = TheTerrainLogic->getGroundHeight(worldPos->x - major_rad, worldPos->y);
-		Real hy1 = TheTerrainLogic->getGroundHeight(worldPos->x, worldPos->y + major_rad);
-		Real hy2 = TheTerrainLogic->getGroundHeight(worldPos->x, worldPos->y - major_rad);
-
-		Real dx = hx1 - hx2;
-		Real dy = hy1 - hy2;
-
-		DEBUG_LOG(("Ship getting pushed away from Land!"));
-
-		// Push ship away in terrain gradient direction
-		Coord2D v;
-		v.x = dx;
-		v.y = dy;
-		Coord3D force = { -v.x, -v.y, 0 };
-		force.normalize();
-		force.scale(physics->getMass() * 0.1f);
-		physics->applyForce(&force);
-	}*/
-}
-
-//-------------------------------------------------------------------------------------------------
-void Locomotor::moveTowardsPositionShip(Object* obj, PhysicsBehavior* physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed)
-{
-	moveTowardsPositionHover(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
-
-	pushShipAwayFromLand(obj, physics);
-
-}
-
 //-------------------------------------------------------------------------------------------------
 void Locomotor::moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed)
 {
@@ -2620,16 +2514,13 @@ Bool Locomotor::locoUpdate_maintainCurrentPosition(Object* obj)
 			maintainCurrentPositionTreads(obj, physics);
 			requiresConstantCalling = FALSE;
 			break;
+		case LOCO_SHIP:
 		case LOCO_HOVER:
 			maintainCurrentPositionHover(obj, physics);
 			requiresConstantCalling = TRUE;
 			break;
 		case LOCO_WINGS:
 			maintainCurrentPositionWings(obj, physics);
-			requiresConstantCalling = TRUE;
-			break;
-		case LOCO_SHIP:
-			maintainCurrentPositionShip(obj, physics);
 			requiresConstantCalling = TRUE;
 			break;
 		case LOCO_OTHER:
@@ -2743,19 +2634,6 @@ void Locomotor::maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physi
 		}
 	}
 
-}
-
-//-------------------------------------------------------------------------------------------------
-void Locomotor::maintainCurrentPositionShip(Object* obj, PhysicsBehavior* physics)
-{
-	//Similar to hover, but automatically push back to water when close to land
-
-	maintainCurrentPositionHover(obj, physics);
-
-	if (physics->isMotive())	// no need to stop something that isn't moving.
-	{
-		pushShipAwayFromLand(obj, physics);
-	}
 }
 
 //-------------------------------------------------------------------------------------------------

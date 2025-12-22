@@ -387,7 +387,6 @@ protected:
 	void moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 	void moveTowardsPositionWings(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
-	void moveTowardsPositionShip(Object* obj, PhysicsBehavior *physics, const Coord3D& goalPos, Real onPathDistToGoal, Real desiredSpeed);
 
 	void maintainCurrentPositionThrust(Object* obj, PhysicsBehavior *physics);
 	void maintainCurrentPositionOther(Object* obj, PhysicsBehavior *physics);
@@ -396,7 +395,6 @@ protected:
 	void maintainCurrentPositionTreads(Object* obj, PhysicsBehavior *physics) { maintainCurrentPositionOther(obj, physics); }
 	void maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physics);
 	void maintainCurrentPositionWings(Object* obj, PhysicsBehavior *physics);
-	void maintainCurrentPositionShip(Object* obj, PhysicsBehavior* physics);
 
 	PhysicsTurningType rotateTowardsPosition(Object* obj, const Coord3D& goalPos, Real *relAngle=NULL);
 
