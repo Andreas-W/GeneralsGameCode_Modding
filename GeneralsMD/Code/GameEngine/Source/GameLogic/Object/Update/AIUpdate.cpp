@@ -2355,8 +2355,10 @@ UpdateSleepTime AIUpdateInterface::doLocomotor( void )
 		}
 
 		// After our movement for the frame, update our AirborneTarget flag.
-		if(getObject()->getHeightAboveTerrain() > m_curLocomotor->getAirborneTargetingHeight() )
+		if(TheGlobalData->m_heightAboveTerrainIncludesWater && getObject()->getHeightAboveTerrainOrWater() > m_curLocomotor->getAirborneTargetingHeight() )
 			getObject()->setStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_AIRBORNE_TARGET ) );
+		else if (!TheGlobalData->m_heightAboveTerrainIncludesWater && getObject()->getHeightAboveTerrain() > m_curLocomotor->getAirborneTargetingHeight())
+			getObject()->setStatus(MAKE_OBJECT_STATUS_MASK(OBJECT_STATUS_AIRBORNE_TARGET));
 		else
 			getObject()->clearStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_AIRBORNE_TARGET ) );
 

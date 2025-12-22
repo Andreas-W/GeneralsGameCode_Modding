@@ -573,7 +573,7 @@ GlobalData* GlobalData::m_theOriginal = NULL;
 	{"ChronoDamageParticleSystemSmall", INI::parseAsciiString, NULL, offsetof(GlobalData, m_chronoDisableParticleSystemSmall) },
 
 	{"DefaultExcludedDeathTypes", INI::parseDeathTypeFlagsList, NULL, offsetof(GlobalData, m_defaultExcludedDeathTypes) },
-	
+	{"HeightAboveTerrainIncludesWater", INI::parseBool, NULL, offsetof(GlobalData, m_heightAboveTerrainIncludesWater) },
 	{ NULL,					NULL,						NULL,						0 }  // keep this last
 
 };
@@ -1159,6 +1159,8 @@ GlobalData::GlobalData()
 	m_chronoDisableParticleSystemMedium.clear();
 	m_chronoDisableParticleSystemSmall.clear();
 	// m_chronoTintStatusType = TINT_STATUS_INVALID;
+
+	m_heightAboveTerrainIncludesWater = false;
 
 }  // end GlobalData
 

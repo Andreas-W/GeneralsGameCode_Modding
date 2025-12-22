@@ -587,7 +587,7 @@ public:
 	//AudioEventRTS m_chronoDisableSoundLoop;
 
 	DeathTypeFlags m_defaultExcludedDeathTypes;
-
+	Bool m_heightAboveTerrainIncludesWater;
 
 	// the trailing '\' is included!
   const AsciiString &getPath_UserData() const { return m_userDataDir; }
