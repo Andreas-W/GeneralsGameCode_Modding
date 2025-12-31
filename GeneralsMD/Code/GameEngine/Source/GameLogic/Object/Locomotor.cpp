@@ -1907,8 +1907,7 @@ void Locomotor::moveTowardsPositionHover(Object* obj, PhysicsBehavior *physics, 
 	moveTowardsPositionOther(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
 
 	// Only hover locomotors care about their OverWater special effects.  (OverWater also affects speed, so this is not a client thing)
-	Coord3D newPosition = *obj->getPosition();
-	if( TheTerrainLogic->isUnderwater( newPosition.x, newPosition.y ) )
+	if( obj->isOverWater() )
 	{
 		if( ! getFlag( OVER_WATER ) )
 		{

@@ -880,6 +880,10 @@ void AIUpdateInterface::chooseGoodLocomotorFromCurrentSet( void )
 		m_curLocomotor->setNoSlowDownAsApproachingDest(FALSE);
 		// ditto for ultra-accuracy.
 		m_curLocomotor->setUltraAccurate(FALSE);
+
+
+		// We need to reset any Drawable transforms
+
 	}
 }
 
