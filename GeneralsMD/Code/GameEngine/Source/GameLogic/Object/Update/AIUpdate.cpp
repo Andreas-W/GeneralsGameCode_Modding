@@ -954,7 +954,7 @@ void AIUpdateInterface::chooseGoodLocomotorFromCurrentSet( void )
 			m_curLocomotor->applySpeedMultiplier(m_speedMultiplier);
 
 		// Reset drawable transforms
-		if (prevLoco->getAppearance() != m_curLocomotor->getAppearance()) {
+		if (prevLoco != NULL && prevLoco->getAppearance() != m_curLocomotor->getAppearance()) {
 			Drawable* draw = getObject()->getDrawable();
 			if (draw) {
 				draw->resetPhysicsXform();
