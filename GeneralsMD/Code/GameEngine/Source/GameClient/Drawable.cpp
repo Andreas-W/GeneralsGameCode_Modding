@@ -2053,27 +2053,6 @@ void Drawable::calcPhysicsXformWheels( const Locomotor *locomotor, PhysicsXformI
 
 	Bool airborne = obj->isSignificantlyAboveTerrain();
 
-	// THIS IS NEVER CALLED WHEN USING A HOVER LOCOMOTOR
-	// 
-	//if (obj->isKindOf(KINDOF_NO_MOVE_EFFECTS_ON_WATER) && obj->isOverWater() && !obj->isSignificantlyAboveTerrainOrWater()) {
-	//	DEBUG_LOG((">>> calcPhysicsXformWheels overWater 1"));
-	//	if (DO_WHEELS) {
-	//		DEBUG_LOG((">>> calcPhysicsXformWheels overWater -> set height offsets to zero"));
-	//		m_locoInfo->m_wheelInfo.m_rearLeftHeightOffset = 0;
-	//		m_locoInfo->m_wheelInfo.m_rearRightHeightOffset = 0;
-	//		m_locoInfo->m_wheelInfo.m_frontLeftHeightOffset = 0;
-	//		m_locoInfo->m_wheelInfo.m_rearLeftHeightOffset = 0;
-	//		m_locoInfo->m_wheelInfo.m_wheelAngle = 0;
-	//	}
-	//	// Calculate suspension info.
-	//	Real length = obj->getGeometryInfo().getMajorRadius();
-	//	Real width = obj->getGeometryInfo().getMinorRadius();
-	//	Real pitchHeight = length * Sin(m_locoInfo->m_pitch + m_locoInfo->m_accelerationPitch - groundPitch);
-	//	Real rollHeight = width * Sin(m_locoInfo->m_roll + m_locoInfo->m_accelerationRoll - groundRoll);
-	//	info.m_totalZ = fabs(pitchHeight) / 4 + fabs(rollHeight) / 4;
-	//	return; // maintain the same orientation while we fly through the air.
-	//}
-	//else
 	if (airborne)
 	{
 		if (DO_WHEELS)

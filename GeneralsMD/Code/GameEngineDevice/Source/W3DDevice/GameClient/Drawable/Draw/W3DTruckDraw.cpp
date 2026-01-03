@@ -499,17 +499,6 @@ void W3DTruckDraw::doDrawModule(const Matrix3D* transformMtx)
 		m_midRearWheelRotation = m_rearWheelRotation;
 
 
-		// DEBUG!!!!
-		if (overWater) {
-			DEBUG_LOG((">>> W3DTruckDraw: wheelInfo: FLZ = %f, FRZ = %f, RLZ = %f, RRZ = %f ",
-				wheelInfo->m_frontLeftHeightOffset,
-				wheelInfo->m_frontRightHeightOffset,
-				wheelInfo->m_rearLeftHeightOffset,
-				wheelInfo->m_rearRightHeightOffset
-				));
-		}
-
-
 		Matrix3D wheelXfrm(1);
 
 		if (m_frontLeftTireBone && wheelInfo)
