@@ -42,7 +42,6 @@
 #include "GameLogic/PolygonTrigger.h"
 #include "GameLogic/SidesList.h"
 #include "GameLogic/ScriptEngine.h"
-#include "GameLogic/FPUControl.h"
 
 #include "Compression.h"
 #include "CUndoable.h"
