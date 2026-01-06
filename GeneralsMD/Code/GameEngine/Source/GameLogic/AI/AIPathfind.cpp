@@ -8895,9 +8895,11 @@ void Pathfinder::adjustCoordToCell(Int cellX, Int cellY, Bool centerInCell, Coor
 	}
 	pos.z = TheTerrainLogic->getLayerHeight( pos.x, pos.y, layer );
 
-	//Adjust to water surface
-	if (Real waterZ = 0; TheTerrainLogic->isUnderwater(pos.x, pos.y, &waterZ)) {
-		if (waterZ > pos.z) pos.z = waterZ;
+	if (TheGlobalData->m_heightAboveTerrainIncludesWater) {
+		//Adjust to water surface
+		if (Real waterZ = 0; TheTerrainLogic->isUnderwater(pos.x, pos.y, &waterZ)) {
+			if (waterZ > pos.z) pos.z = waterZ;
+		}
 	}
 }
 
