@@ -810,6 +810,8 @@ UpdateSleepTime MissileAIUpdate::update()
 		m_prevPos = newPos;
 	}
 
+	const MissileAIUpdateModuleData* d = getMissileAIUpdateModuleData();
+
 	//If this missile has been marked to divert to countermeasures, check when
 	//that will occur, then do it when the timer expires.
 	if( m_framesTillDecoyed && m_framesTillDecoyed <= TheGameLogic->getFrame() )
@@ -824,10 +826,18 @@ UpdateSleepTime MissileAIUpdate::update()
 			if( targetID != INVALID_ID )
 			{
 				victim = TheGameLogic->findObjectByID( targetID );
-				getStateMachine()->setGoalPosition(victim->getPosition());
+				Coord3D targetPos = *victim->getPosition();
+				if (d->m_isTorpedo) {
+					Locomotor* curLoco = getCurLocomotor();
+					if (curLoco)
+					{
+						targetPos.z = curLoco->getPreferredHeight();
+					}
+				}
+				getStateMachine()->setGoalPosition(&targetPos);
 				// ick. const-cast is evil. fix. (srj)
  				aiMoveToObject(const_cast<Object*>(victim), CMD_FROM_AI );
-				m_originalTargetPos = *victim->getPosition();
+				m_originalTargetPos = targetPos;
 				m_isTrackingTarget = TRUE;// Remember that I was originally shot at a moving object, so if the
 				// target dies I can do something cool.
 				m_victimID = victim->getID();
@@ -843,7 +853,6 @@ UpdateSleepTime MissileAIUpdate::update()
 	}
 
 	// If treated as torpedo, explode when not over water
-	const MissileAIUpdateModuleData* d = getMissileAIUpdateModuleData();
 	if (d->m_isTorpedo && !getObject()->isOverWater()) {
 		detonate();
 	}

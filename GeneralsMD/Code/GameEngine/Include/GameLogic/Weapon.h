@@ -1009,6 +1009,10 @@ private:
 
 	std::vector<WeaponTemplate*> m_weaponTemplateVector;
 	std::list<WeaponDelayedDamageInfo> m_weaponDDI;
+#define DEBUG_PRINT_WEAPON_USAGE 0 ///< activate this to print unused weapons into the debug log
+#if DEBUG_PRINT_WEAPON_USAGE
+	mutable std::unordered_map<NameKeyType, UnsignedInt> m_weaponUseCounter;
+#endif
 };
 
 // EXTERNALS //////////////////////////////////////////////////////////////////////////////////////
