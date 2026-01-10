@@ -35,6 +35,8 @@
 
 // FORWARD REFERENCES /////////////////////////////////////////////////////////////////////////////
 class Object;
+// class AudioEventRTS;
+class FXList;
 
 //-------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -58,6 +60,19 @@ public:
 
 	Bool								m_showProgressBar;
 
+	UnsignedShort				m_capturePingInterval;  ///< number of ticks between capture FX
+	Bool								m_showCapturePingFlash;
+	Bool								m_playDefectorPingSound;
+	// AudioEventRTS				m_capturePingSound;
+
+	const FXList* m_startCaptureFX;
+	const FXList* m_startUncapFX;
+	const FXList* m_finishCaptureFX;
+	const FXList* m_capturePingFX;
+	const FXList* m_capturePingContestedFX;
+
+	Int m_skillPointsForCapture;   ///< grant XP to the player on capture
+
 	ProximityCaptureUpdateModuleData()
 	{
 		m_captureTickDelay = LOGICFRAMES_PER_SECOND;
@@ -69,6 +84,14 @@ public:
 		m_unitValueContentionDelta = 0.01;
 		m_unitValueCountFactor = 1.0;
 		//m_unitValueBuildCostFactor = 0.0;
+
+		m_startCaptureFX = NULL;
+		m_startUncapFX = NULL;
+		m_finishCaptureFX = NULL;
+		m_capturePingFX = NULL;
+		m_capturePingContestedFX = NULL;
+		m_showCapturePingFlash = true;
+		m_playDefectorPingSound = true;
 	}
 
 	static void buildFieldParse(MultiIniFieldParse& p)
@@ -90,6 +113,16 @@ public:
 			{ "UnitValueCountFactor",		INI::parseReal,		NULL, offsetof(ProximityCaptureUpdateModuleData, m_unitValueCountFactor) },
 			//{ "UnitValueBuildCostFactor",		INI::parseReal,		NULL, offsetof(ProximityCaptureUpdateModuleData, m_unitValueBuildCostFactor) },
 			{ "ShowProgressBar", INI::parseBool, NULL, offsetof(ProximityCaptureUpdateModuleData, m_showProgressBar) },
+			{ "CapturePingInterval", INI::parseUnsignedShort, NULL, offsetof(ProximityCaptureUpdateModuleData, m_capturePingInterval) },
+			{ "ShowCaptureFlash", INI::parseBool, NULL, offsetof(ProximityCaptureUpdateModuleData, m_showCapturePingFlash) },
+			{ "PlayDefectorPingSound", INI::parseBool, NULL, offsetof(ProximityCaptureUpdateModuleData, m_playDefectorPingSound) },
+			//{ "CapturePingSound", INI::parseAudioEventRTS, NULL, offsetof(ProximityCaptureUpdateModuleData, m_capturePingSound) },
+			{ "StartCaptureFX", INI::parseFXList, NULL, offsetof(ProximityCaptureUpdateModuleData, m_startCaptureFX) },
+			{ "StartRemoveFX", INI::parseFXList, NULL, offsetof(ProximityCaptureUpdateModuleData, m_startUncapFX) },
+			{ "FinishCaptureFX", INI::parseFXList, NULL, offsetof(ProximityCaptureUpdateModuleData, m_finishCaptureFX) },
+			{ "CapturePingFX", INI::parseFXList, NULL, offsetof(ProximityCaptureUpdateModuleData, m_capturePingFX) },
+			{ "CapturePingContestedFX", INI::parseFXList, NULL, offsetof(ProximityCaptureUpdateModuleData, m_capturePingContestedFX) },
+			{ "SkillPointsForCapture", INI::parseInt, NULL, offsetof(ProximityCaptureUpdateModuleData, m_skillPointsForCapture) },
 			{ 0, 0, 0, 0 }
 		};
     p.add(dataFieldParse);
@@ -119,6 +152,7 @@ protected:
 	Int checkDominantPlayer( void );
 
 	void handleCaptureProgress(Int dominantPlayer);
+	void handleFlashEffects(Int dominantPlayer);
 
 	Real getValueForUnit(const Object* obj) const;
 
@@ -128,10 +162,17 @@ private:
 	Int m_dominantPlayerPrev;
 	Bool m_isContested;
 	Real m_captureProgress;
+	UnsignedInt m_lastTickFrame;
+
+	UnsignedShort m_capturePingDelay;
+
+	Real m_currentProgressRate;  ///< current speed/direction for interpolation
 
 	void startCapture(Int playerId);
 	void finishCapture(Int playerId);
 	void startUncap(Int playerId);
 	void finishUncap(Int playerId);
+
+	Real getCaptureProgressInterp();
 
 };

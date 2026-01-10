@@ -41,6 +41,12 @@
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/Module/ProximityCaptureUpdate.h"
 #include "GameLogic/Object.h"
+#include "GameLogic/GameLogic.h"
+#include "Common/GameUtility.h"
+#include "Common/GameAudio.h"
+#include "Common/AudioEventRTS.h"
+#include "GameClient/FXList.h"
+#include "Common/MiscAudio.h"
 //#include "GameLogic/AI.h"
 //#include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/ContainModule.h"
@@ -144,7 +150,7 @@ Int ProximityCaptureUpdate::checkDominantPlayer( void )
 	PlayerResult secondBestResult;
 	//result.totalValue = -std::numeric_limits<float>::infinity();
 
-	for (int i = 0; i < MAX_PLAYER_COUNT; ++i) {
+	for (int i = 0; i < MAX_PLAYER_COUNT; i++) {
 
 		if (playerTotals[i] > bestResult.totalValue) {
 
@@ -156,6 +162,10 @@ Int ProximityCaptureUpdate::checkDominantPlayer( void )
 			bestResult.totalValue = playerTotals[i];
 			bestResult.playerId = i;
 		}
+		else if (playerTotals[i] > secondBestResult.totalValue) {
+			secondBestResult.totalValue = playerTotals[i];
+			secondBestResult.playerId = i;
+		}
 	}
 
 	if (bestResult.totalValue <= 0) {
@@ -164,7 +174,8 @@ Int ProximityCaptureUpdate::checkDominantPlayer( void )
 	}
 
 	if (!arePlayersAllied(bestResult.playerId, secondBestResult.playerId)) {
-		m_isContested = bestResult.totalValue + data->m_unitValueContentionDelta <= secondBestResult.totalValue;
+		// DEBUG_LOG((">>> ProximityCaptureUpdate:: Is Contested? - best = %f, second = %f", bestResult.totalValue, secondBestResult.totalValue));
+		m_isContested = bestResult.totalValue <= (secondBestResult.totalValue + data->m_unitValueContentionDelta);
 	}
 
 	if (!m_isContested) {
@@ -200,6 +211,8 @@ Real ProximityCaptureUpdate::getValueForUnit(const Object* obj) const
 //-------------------------------------------------------------------------------------------------
 void ProximityCaptureUpdate::handleCaptureProgress(Int dominantPlayer)
 {
+
+	Real captureProgressPrev = m_captureProgress;
 
 	if (m_isContested) {
 		// No update while contested
@@ -249,8 +262,6 @@ void ProximityCaptureUpdate::handleCaptureProgress(Int dominantPlayer)
 		}
 	}
 
-
-
 	if (m_captureProgress <= 0) {
 		//DEBUG_ASSERTCRASH(dominantPlayer != -1, ("Can't uncap without a dominant player."));
 		m_captureProgress = 0;
@@ -277,7 +288,9 @@ void ProximityCaptureUpdate::handleCaptureProgress(Int dominantPlayer)
 			// finished capturing, change ownership
 			finishCapture(m_capturingPlayer);
 		}
-	}	
+	}
+
+	m_currentProgressRate = m_captureProgress - captureProgressPrev;
 }
 // ------------------------------------------------------------------------------------------------
 // A player starts capturing (i.e. filling up his progress)
@@ -285,7 +298,9 @@ void ProximityCaptureUpdate::startCapture(Int playerId)
 {
 	DEBUG_ASSERTLOG(getObject()->isNeutralControlled(), ("ProximityCaptureUpdate::startCapture: Warning, current owner should be neutral!"));
 
-	// What do we do here? Add visual effect?
+	FXList::doFXObj(getProximityCaptureUpdateModuleData()->m_startCaptureFX, getObject());
+
+	m_capturePingDelay = 0;
 }
 // ------------------------------------------------------------------------------------------------
 // A player has finished capturing (i.e. got ownership)
@@ -295,6 +310,7 @@ void ProximityCaptureUpdate::finishCapture(Int playerId)
 	// if (getObject()->checkAndDetonateBoobyTrap(getObject())) // We need to store at least one unit of the dominant player ?!
 
 	Object* me = getObject();
+	const ProximityCaptureUpdateModuleData* data = getProximityCaptureUpdateModuleData();
 
 	// Just in case we are capturing a building which is already garrisoned by other
 	ContainModuleInterface* contain = me->getContain();
@@ -305,10 +321,22 @@ void ProximityCaptureUpdate::finishCapture(Int playerId)
 
 	DEBUG_ASSERTLOG(me->isNeutralControlled(), ("ProximityCaptureUpdate::finishCapture: Warning, current owner should be neutral!"));
 
-	Player* newOwner = ThePlayerList->getNthPlayer(playerId);
-	me->defect(newOwner->getDefaultTeam(), 1); // one frame of flash!
+	FXList::doFXObj(data->m_finishCaptureFX, getObject());
 
-	newOwner->getAcademyStats()->recordBuildingCapture();
+	Player* newOwner = ThePlayerList->getNthPlayer(playerId);
+	if (newOwner) {
+		me->defect(newOwner->getDefaultTeam(), 1); // one frame of flash!
+
+		newOwner->getAcademyStats()->recordBuildingCapture();
+
+		if (data->m_skillPointsForCapture > 0)
+		{
+			newOwner->addSkillPoints(data->m_skillPointsForCapture);
+		}
+
+		if (newOwner == rts::getObservedOrLocalPlayer())
+			TheRadar->tryEvent(RADAR_EVENT_INFORMATION, me->getPosition());
+	}
 }
 // ------------------------------------------------------------------------------------------------
 // A player starts removing the progress of another
@@ -320,6 +348,10 @@ void ProximityCaptureUpdate::startUncap(Int playerId) {
 		TheEva->setShouldPlay(EVA_BuildingBeingStolen);
 	}
 	TheRadar->tryInfiltrationEvent(me);
+
+	FXList::doFXObj(getProximityCaptureUpdateModuleData()->m_startUncapFX, getObject());
+
+	m_capturePingDelay = 0;
 }
 // ------------------------------------------------------------------------------------------------
 // A player has finished neutralizing
@@ -342,9 +374,13 @@ UpdateSleepTime ProximityCaptureUpdate::update()
 
 	Int dominantPlayer = checkDominantPlayer();
 
-	DEBUG_LOG((">>> ProximityCaptureUpdate::update - dominantPlayer = %d", dominantPlayer));
+	// DEBUG_LOG((">>> ProximityCaptureUpdate::update - dominantPlayer = %d", dominantPlayer));
 
 	handleCaptureProgress(dominantPlayer);
+
+	handleFlashEffects(dominantPlayer);
+
+	m_lastTickFrame = TheGameLogic->getFrame();
 
 	//m_dominantPlayerPrev = dominantPlayer;
 
@@ -362,7 +398,7 @@ Bool ProximityCaptureUpdate::getProgressBarInfo(Real& progress, Int& type, RGBAC
 	if (m_captureProgress >= 1.0)
 		return false;
 
-	progress = m_captureProgress;
+	progress = getCaptureProgressInterp();
 
 	if (m_isContested)
 		colorBG = { 255, 255, 0, 255 };
@@ -377,6 +413,61 @@ Bool ProximityCaptureUpdate::getProgressBarInfo(Real& progress, Int& type, RGBAC
 
 	return true;
 }
+
+
+//-------------------------------------------------------------------------------------------------
+void ProximityCaptureUpdate::handleFlashEffects(Int dominantPlayer)
+{
+	if (m_capturePingDelay-- > 0)
+		return;
+
+	Object* me = getObject();
+	Drawable* draw = me->getDrawable();
+
+	if (m_isContested) {
+		FXList::doFXObj(getProximityCaptureUpdateModuleData()->m_capturePingContestedFX, getObject());
+	} else if (m_captureProgress < 1.0 && dominantPlayer != -1 && dominantPlayer != me->getControllingPlayer()->getPlayerIndex() && dominantPlayer != ThePlayerList->getNeutralPlayer()->getPlayerIndex()) {
+		if (draw) {
+			RGBColor myHouseColor;
+			myHouseColor.setFromInt(ThePlayerList->getNthPlayer(dominantPlayer)->getPlayerColor());
+
+			Real saturation = TheGlobalData->m_selectionFlashSaturationFactor;
+			draw->saturateRGB(myHouseColor, saturation);
+			draw->flashAsSelected(&myHouseColor); //In MY house color, not his!
+
+		}
+		if (getProximityCaptureUpdateModuleData()->m_playDefectorPingSound) {
+			AudioEventRTS defectorTimerSound = TheAudio->getMiscAudio()->m_defectorTimerTickSound;
+			defectorTimerSound.setObjectID(me->getID());
+			TheAudio->addAudioEvent(&defectorTimerSound);
+		}
+
+		FXList::doFXObj(getProximityCaptureUpdateModuleData()->m_capturePingFX, getObject());
+
+	}
+
+	m_capturePingDelay = getProximityCaptureUpdateModuleData()->m_capturePingInterval;
+}
+
+// ------------------------------------------------------------------------------------------------
+Real ProximityCaptureUpdate::getCaptureProgressInterp()
+{
+	if (m_captureProgress > 1.0)
+		return 1.0;
+	if (m_captureProgress < 0.0)
+		return 0.0;
+
+	if (m_isContested || getProximityCaptureUpdateModuleData()->m_captureTickDelay == 0)
+		return m_captureProgress;
+
+	UnsignedInt frameDiff = TheGameLogic->getFrame() - m_lastTickFrame;
+	Real progDiff = INT_TO_REAL(frameDiff) / INT_TO_REAL(getProximityCaptureUpdateModuleData()->m_captureTickDelay);
+
+	Real frameShift = (0.5 / INT_TO_REAL(getProximityCaptureUpdateModuleData()->m_captureTickDelay)) * m_currentProgressRate;  // half a tick offset
+
+	return MAX(0.0, MIN(m_captureProgress + m_currentProgressRate * progDiff - frameShift, 1.0));
+}
+
 
 // ------------------------------------------------------------------------------------------------
 /** CRC */
@@ -408,6 +499,9 @@ void ProximityCaptureUpdate::xfer( Xfer *xfer )
 	xfer->xferInt(&m_capturingPlayer);
 	xfer->xferBool(&m_isContested);
 	xfer->xferReal(&m_captureProgress);
+	xfer->xferReal(&m_currentProgressRate);
+	xfer->xferUnsignedInt(&m_lastTickFrame);
+	xfer->xferUnsignedShort(&m_capturePingDelay);
 
 }
 
