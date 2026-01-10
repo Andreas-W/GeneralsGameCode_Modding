@@ -240,6 +240,16 @@ void MissileAIUpdate::projectileLaunchAtObjectOrPosition(
 
 #define APPROACH_HEIGHT 10.0f
 
+static Real getTorpedoTargetHeight(const Coord3D & pos, Locomotor* loco) {
+	Real waterZ{ 0 };
+	Real ret = pos.z;
+	bool underwater = TheTerrainLogic && TheTerrainLogic->isUnderwater(pos.x, pos.y, &waterZ);
+	if (underwater && loco) {
+		ret= waterZ + loco->getPreferredHeight();
+	}
+	return ret;
+}
+
 //-------------------------------------------------------------------------------------------------
 // The actual firing of the missile once setup.
 //-------------------------------------------------------------------------------------------------
@@ -316,10 +326,22 @@ void MissileAIUpdate::projectileFireAtObjectOrPosition( const Object *victim, co
 	// instead of Attacking the target.
 	if (victim && d->m_tryToFollowTarget)
 	{
-		getStateMachine()->setGoalPosition(victim->getPosition());
+		Coord3D targetPos = *victim->getPosition();
+		if (d->m_isTorpedo) {
+			Locomotor* loco = getCurLocomotor();
+			if (loco) {
+				targetPos.z = getTorpedoTargetHeight(targetPos, loco);
+			}
+		}
+		getStateMachine()->setGoalPosition(&targetPos);
 		// ick. const-cast is evil. fix. (srj)
- 		aiMoveToObject(const_cast<Object*>(victim), CMD_FROM_AI );
-		m_originalTargetPos = *victim->getPosition();
+		if (!d->m_isTorpedo) {
+			aiMoveToObject(const_cast<Object*>(victim), CMD_FROM_AI);
+		}
+		else {
+			aiMoveToPosition(&targetPos, CMD_FROM_AI);
+		}
+		m_originalTargetPos = targetPos;
 		m_isTrackingTarget = TRUE;// Remember that I was originally shot at a moving object, so if the
 		// target dies I can do something cool.
 		m_victimID = victim->getID();
@@ -574,10 +596,24 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 					{
 						DEBUG_LOG((">>> MissileAI - EndRandomPath: victim is not null.\n"));
 
-						getStateMachine()->setGoalPosition(victim->getPosition());
+						Coord3D targetPos = *victim->getPosition();
+						if (d->m_isTorpedo) {
+							Locomotor* curLoco = getCurLocomotor();
+							if (curLoco)
+							{
+								targetPos.z = getTorpedoTargetHeight(targetPos, curLoco);
+							}
+						}
+
+						getStateMachine()->setGoalPosition(&targetPos);
 						getStateMachine()->setGoalObject(victim);
-						aiMoveToObject(const_cast<Object*>(victim), CMD_FROM_AI);
-						m_originalTargetPos = *victim->getPosition();
+						if (!d->m_isTorpedo) {
+							aiMoveToObject(const_cast<Object*>(victim), CMD_FROM_AI);
+						}
+						else {
+							aiMoveToPosition(&targetPos, CMD_FROM_AI);
+						}
+						m_originalTargetPos = targetPos;
 						m_isTrackingTarget = TRUE;// Remember that I was originally shot at a moving object, so if the 
 						// target dies I can do something cool.
 						m_victimID = victim->getID();
@@ -634,7 +670,7 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 		}
 	}
 
-	if(curLoco && (curLoco->getPreferredHeight() > 0 || curLoco->getPreferredHeight() < 0) )
+	if(curLoco && (curLoco->getPreferredHeight() > 0)) // || curLoco->getPreferredHeight() < 0) )
 	{
 		// Am I close enough to the target to ignore my preferred height setting?
 		Real distanceToTargetSquared = ThePartitionManager->getDistanceSquared( getObject(), getGoalPosition(), FROM_CENTER_2D );
@@ -691,10 +727,19 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 
 			targetPos.add(&offset);
 
-			// Make sure Z is above ground
-			PathfindLayerEnum layer = TheTerrainLogic->getHighestLayerForDestination(&targetPos);
-			Real minHeight = TheTerrainLogic->getLayerHeight(targetPos.x, targetPos.y, layer) + APPROACH_HEIGHT;
-			targetPos.z = __max(targetPos.z, minHeight);
+			if (!d->m_isTorpedo) {
+				// Make sure Z is above ground
+				PathfindLayerEnum layer = TheTerrainLogic->getHighestLayerForDestination(&targetPos);
+				Real minHeight = TheTerrainLogic->getLayerHeight(targetPos.x, targetPos.y, layer) + APPROACH_HEIGHT;
+				targetPos.z = __max(targetPos.z, minHeight);
+			}
+			else {
+				Locomotor* curLoco = getCurLocomotor();
+				if (curLoco)
+				{
+					targetPos.z = getTorpedoTargetHeight(targetPos, curLoco);
+				}
+			}
 
 			getStateMachine()->setGoalPosition(&targetPos);
 			getStateMachine()->setGoalObject(NULL);
@@ -719,16 +764,20 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 
 	// If I was fired at a flyer and have lost target (most likely they died), then I need to do something better
 	// than cloverleaf around their last spot.
-	if( m_isTrackingTarget && (getGoalObject() == NULL) )
+	if( m_isTrackingTarget && (getGoalObject() == NULL) && !d->m_isTorpedo)
+		airborneTargetGone();
+
+	if (m_isTrackingTarget && (getGoalPosition() == NULL) && d->m_isTorpedo)
 		airborneTargetGone();
 }
 
 //-------------------------------------------------------------------------------------------------
 void MissileAIUpdate::doKillState(void)
 {
+	const MissileAIUpdateModuleData* d = getMissileAIUpdateModuleData();
 	if (TheGameLogic->getFrame() >= m_fuelExpirationDate)
 	{
-		if( getMissileAIUpdateModuleData()->m_detonateOnNoFuel )
+		if( d->m_detonateOnNoFuel )
 		{
 			detonate();
 			return;
@@ -756,29 +805,53 @@ void MissileAIUpdate::doKillState(void)
 	}
 	if (isIdle()) {
 		// we finished the move
-		if (getGoalObject()!=NULL) {
+		if (getGoalObject() != NULL) {
 			Locomotor* curLoco = getCurLocomotor();
 			Real closeEnough = 1.0f;
 			if (curLoco)
 			{
 				closeEnough = curLoco->getMaxSpeedForCondition(BODY_PRISTINE);
 			}
-			Real distanceToTargetSq = ThePartitionManager->getDistanceSquared( getObject(), getGoalObject(), FROM_BOUNDINGSPHERE_3D);
+			Real distanceToTargetSq = ThePartitionManager->getDistanceSquared(getObject(), getGoalObject(), FROM_BOUNDINGSPHERE_3D);
 			// DEBUG_LOG((">>> MissileAI KILL (Idle) - Distance to target %f, closeEnough %f\n", sqrt(distanceToTargetSq), closeEnough));
-			if (distanceToTargetSq < closeEnough*closeEnough) {
+			if (distanceToTargetSq < closeEnough * closeEnough) {
 				Coord3D pos = *getGoalObject()->getPosition();
 				getObject()->setPosition(&pos);
 				detonate();
-			}	else{
-				aiMoveToObject(getGoalObject(), CMD_FROM_AI );
 			}
-		} else {
+			else {
+				aiMoveToObject(getGoalObject(), CMD_FROM_AI);
+			}
+		}
+		else if (d->m_isTorpedo && getGoalPosition() != nullptr)
+		{
+			Locomotor* curLoco = getCurLocomotor();
+			Real closeEnough = 1.0f;
+			if (curLoco)
+			{
+				closeEnough = curLoco->getMaxSpeedForCondition(BODY_PRISTINE);
+			}
+			Real distanceToTargetSq = ThePartitionManager->getDistanceSquared(getObject(), getGoalPosition(), FROM_BOUNDINGSPHERE_2D);
+			if (distanceToTargetSq < closeEnough * closeEnough) {
+				Coord3D pos = *getGoalPosition();
+				pos.z = getTorpedoTargetHeight(pos, curLoco);
+				getObject()->setPosition(&pos);
+				detonate();
+			}
+			else {
+				aiMoveToObject(getGoalObject(), CMD_FROM_AI);
+			}
+		}
+		else {
 			detonate();
 		}
 	}
 	// If I was fired at a flyer and have lost target (most likely they died), then I need to do something better
 	// than cloverleaf around their last spot.
-	if( m_isTrackingTarget && (getGoalObject() == NULL) )
+	if( m_isTrackingTarget && (getGoalObject() == NULL) && !d->m_isTorpedo)
+		airborneTargetGone();
+
+	if (m_isTrackingTarget && (getGoalPosition() == nullptr) && d->m_isTorpedo)
 		airborneTargetGone();
 }
 
@@ -831,12 +904,17 @@ UpdateSleepTime MissileAIUpdate::update()
 					Locomotor* curLoco = getCurLocomotor();
 					if (curLoco)
 					{
-						targetPos.z = curLoco->getPreferredHeight();
+						targetPos.z = getTorpedoTargetHeight(targetPos, curLoco);
 					}
 				}
 				getStateMachine()->setGoalPosition(&targetPos);
 				// ick. const-cast is evil. fix. (srj)
- 				aiMoveToObject(const_cast<Object*>(victim), CMD_FROM_AI );
+				if (!d->m_isTorpedo) {
+					aiMoveToObject(const_cast<Object*>(victim), CMD_FROM_AI);
+				}
+				else {
+					aiMoveToPosition(&targetPos, CMD_FROM_AI);
+				}
 				m_originalTargetPos = targetPos;
 				m_isTrackingTarget = TRUE;// Remember that I was originally shot at a moving object, so if the
 				// target dies I can do something cool.
@@ -855,6 +933,24 @@ UpdateSleepTime MissileAIUpdate::update()
 	// If treated as torpedo, explode when not over water
 	if (d->m_isTorpedo && !getObject()->isOverWater()) {
 		detonate();
+	}
+
+	// If torpedo, update target location
+	if (d->m_isTorpedo && m_isTrackingTarget) {
+		Object * targetUnit = TheGameLogic->findObjectByID(m_victimID);
+		if (targetUnit != nullptr && !targetUnit->isEffectivelyDead()) {
+			Coord3D targetPos = *targetUnit->getPosition();
+			Locomotor* curLoco = getCurLocomotor();
+			if (curLoco)
+			{
+				targetPos.z = getTorpedoTargetHeight(targetPos, curLoco);
+			}
+			getStateMachine()->setGoalPosition(&targetPos);
+			getStateMachine()->setGoalObject(targetUnit);
+			aiMoveToPosition(&targetPos, CMD_FROM_AI);
+			m_originalTargetPos = targetPos;
+			m_isTrackingTarget = true;
+		}
 	}
 
 	switch( m_state )
