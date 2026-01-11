@@ -505,6 +505,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/DroneCarrierSlavedUpdate.h
     Include/GameLogic/Module/DroneCarrierContain.h
     Include/GameLogic/Module/CarrierDroneAIUpdate.h
+    Include/GameLogic/Module/AdvancedContain.h
     Include/GameLogic/Object.h
     Include/GameLogic/ObjectCreationList.h
     Include/GameLogic/BuffSystem.h
@@ -957,6 +958,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Contain/TransportContain.cpp
     Source/GameLogic/Object/Contain/TunnelContain.cpp
     Source/GameLogic/Object/Contain/DroneCarrierContain.cpp
+    Source/GameLogic/Object/Contain/AdvancedContain.cpp
     Source/GameLogic/Object/Create/CreateModule.cpp
     Source/GameLogic/Object/Create/GrantUpgradeCreate.cpp
     Source/GameLogic/Object/Create/LockWeaponCreate.cpp
