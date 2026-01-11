@@ -237,7 +237,7 @@ protected:
 
 	Setting m_settings[ TIME_OF_DAY_COUNT ];	///< settings for each time of day
 	void drawRiverWater(PolygonTrigger *pTrig);
-	void drawTrapezoidWater(Vector3 points[4]);
+	void drawTrapezoidWater(Vector3 points[4], byte numFeatherPass = 0);
 	void loadSetting ( Setting *skySetting, TimeOfDay timeOfDay );	///<init sky/water settings from GDF
 	void renderSky(void);	///<draw the sky layer (clouds, stars, etc.)
 	void testCurvedWater(void);	///<draw the sky layer (clouds, stars, etc.)
@@ -249,7 +249,7 @@ protected:
 	///bounding box of frustum clipped polygon plane
 	Bool getClippedWaterPlane(CameraClass *cam, AABoxClass *box);
 
-	void setupFlatWaterShader(void);
+	void setupFlatWaterShader(byte featherPass = 0);
 	void setupJbaWaterShader(void);
 	void cleanupJbaWaterShader(void);
 

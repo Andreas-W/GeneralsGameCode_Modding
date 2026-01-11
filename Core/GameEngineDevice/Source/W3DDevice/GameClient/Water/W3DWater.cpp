@@ -1977,8 +1977,8 @@ void WaterRenderObjClass::drawSea(RenderInfoClass & rinfo)
 }
 
 
-#define FEATHER_LAYER_COUNT (5.0f)
-#define FEATHER_THICKNESS   (4.0f)
+#define FEATHER_LAYER_COUNT (15.0f)
+#define FEATHER_THICKNESS   (45.0f)
 
 //-------------------------------------------------------------------------------------------------
 /** Renders (draws) the water surface.*/
@@ -2011,8 +2011,9 @@ void WaterRenderObjClass::renderWater(void)
 					{
 						for (int r = 0; r < TheGlobalData->m_featherWater; ++r)
 						{
-							drawTrapezoidWater(points);
-							points[0].Z += (FEATHER_THICKNESS/TheGlobalData->m_featherWater);
+							drawTrapezoidWater(points, r);
+							//points[0].Z += (FEATHER_THICKNESS/TheGlobalData->m_featherWater);
+							points[0].Z -= 15.0f; // (FEATHER_THICKNESS / TheGlobalData->m_featherWater);
 						}
 					}
 
@@ -2925,7 +2926,7 @@ void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
 
 }
 
-void WaterRenderObjClass::setupFlatWaterShader(void)
+void WaterRenderObjClass::setupFlatWaterShader(byte featherPass)
 {
 
 	DX8Wrapper::Set_Texture(0,m_riverTexture);
@@ -2972,6 +2973,8 @@ void WaterRenderObjClass::setupFlatWaterShader(void)
 	DX8Wrapper::Set_DX8_Texture_Stage_State(1,  D3DTSS_TEXCOORDINDEX, 0);
 
 	Bool doSparkles = true;
+
+	if (featherPass > 0) doSparkles = false;
 
 	if (m_trapezoidWaterPixelShader && doSparkles) {
 
@@ -3023,7 +3026,7 @@ void WaterRenderObjClass::setupFlatWaterShader(void)
 //-------------------------------------------------------------------------------------------------
 //Draw a 4 sided flat water area.
 //-------------------------------------------------------------------------------------------------
-void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
+void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4], byte featherPass)
 {
 	Vector3 origin(points[0]);
 	Vector3 uVec1(points[1]);
@@ -3118,6 +3121,16 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 		}
 	}
 
+	if (featherPass > 0) {
+		Real factor = (INT_TO_REAL(TheGlobalData->m_featherWater - featherPass)) / INT_TO_REAL(TheGlobalData->m_featherWater);
+		Real min_value = 0.25;
+		factor = min_value + (factor * (1.0 - min_value));
+
+		shadeR = shadeR * factor;
+		shadeG = shadeR * factor;
+		shadeB = shadeR * factor;
+	}
+
 	Int diffuse=REAL_TO_INT(shadeB) | (REAL_TO_INT(shadeG) << 8) | (REAL_TO_INT(shadeR) << 16);
 
 	//Keep diffuse from lighting calculations but substitute custom alpha
@@ -3131,7 +3144,7 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 //#define FEATHER_WATER
 
 //#ifdef WAVY_WATER // the NEW WATER a'la LORENZEN
-	if ( TheGlobalData->m_featherWater )
+	if ( TheGlobalData->m_featherWater)
 	{
 
 		DynamicVBAccessClass::WriteLockClass lock(&vb_access);
@@ -3148,11 +3161,22 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 
 
 		Int Alpha = 0;
-		if ( TheGlobalData->m_featherWater == 5) Alpha = 80;
-		if ( TheGlobalData->m_featherWater == 4) Alpha = 110;
-		if ( TheGlobalData->m_featherWater == 3) Alpha = 140;
-		if ( TheGlobalData->m_featherWater == 2) Alpha = 200;
-		if ( TheGlobalData->m_featherWater == 1) Alpha = 255;
+
+		if (featherPass == 0)
+			Alpha = 80;
+		else
+			Alpha = 5;
+
+		//if (TheGlobalData->m_featherWater == 5) Alpha = 80;
+		//if ( TheGlobalData->m_featherWater == 4) Alpha = 110;
+		//if ( TheGlobalData->m_featherWater == 3) Alpha = 140;
+		//if ( TheGlobalData->m_featherWater == 2) Alpha = 200;
+		//if ( TheGlobalData->m_featherWater == 1) Alpha = 255;
+
+		Real phaseOffset = 0;
+		if (featherPass > 0) {
+			phaseOffset = PI * 69.420 / featherPass;
+		}
 
 		//Keep diffuse from lighting calculations but substitute custom alpha
 		Int customDiffuse = (diffuse & 0x00ffffff) | (Alpha<< 24);//(0x80 << 16)|(0x90 << 8)|0xa0;
@@ -3174,7 +3198,7 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 				vb->y=vertex.Y;
 
 				// common to all the waving effects
-				phase = 25 * m_riverVOrigin + vertex.X * mapCoeff;
+				phase = 25 * m_riverVOrigin + vertex.X * mapCoeff + phaseOffset;
 				wave = (sin(phase) - 1.0f) * amplitude;
 
 				vb->z = (vertex.Z + wave);
@@ -3250,7 +3274,7 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 	DX8Wrapper::Set_Index_Buffer(ib_access,0);
 	DX8Wrapper::Set_Vertex_Buffer(vb_access);
 
-	setupFlatWaterShader();// lorenzen sez use the alpha shader
+	setupFlatWaterShader(featherPass);// lorenzen sez use the alpha shader
 
 	//If video card supports it and it's enabled, feather the water edge using destination alpha
 	if (DX8Wrapper::getBackBufferFormat() == WW3D_FORMAT_A8R8G8B8 && TheGlobalData->m_showSoftWaterEdge && TheWaterTransparency->m_transparentWaterDepth !=0)
