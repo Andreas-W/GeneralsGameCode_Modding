@@ -1967,6 +1967,8 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 
 	Bool doMultiPassWireFrame=FALSE;
 
+	bool doExtraWaterPass = false;  // NEW
+
 	if (((RTS3DScene *)rinfo.Camera.Get_User_Data())->getCustomPassMode() == SCENE_PASS_ALPHA_MASK ||
 		((SceneClass *)rinfo.Camera.Get_User_Data())->Get_Extra_Pass_Polygon_Mode() == SceneClass::EXTRA_PASS_CLEAR_LINE)
 	{
@@ -2040,6 +2042,18 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
  		W3DShaderManager::setTexture(1,m_stageZeroTexture);
  		W3DShaderManager::setTexture(2,m_stageTwoTexture);	//cloud
  		W3DShaderManager::setTexture(3,m_stageThreeTexture);//noise
+
+
+		//// #########################
+		//// TEST TEST TEST WATER SHADER STUFF TEST
+		if (st == W3DShaderManager::ST_TERRAIN_BASE_NOISE12 && !m_disableTextures) {
+			devicePasses += 1;
+			doExtraWaterPass = true;
+		}
+
+		//// #########################
+
+
 		//Disable writes to destination alpha channel (if there is one)
 		if (DX8Wrapper::getBackBufferFormat() == WW3D_FORMAT_A8R8G8B8)
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_COLORWRITEENABLE,D3DCOLORWRITEENABLE_BLUE|D3DCOLORWRITEENABLE_GREEN|D3DCOLORWRITEENABLE_RED);
@@ -2055,7 +2069,12 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
  				DX8Wrapper::Set_Shader(ShaderClass::_PresetOpaque2DShader);
  				DX8Wrapper::Set_Texture(0,NULL);
    			} else {
- 				W3DShaderManager::setShader(st, pass);
+					if (pass > 1 && doExtraWaterPass) {
+						W3DShaderManager::SetCustomTerrainPixelShader();
+					}
+					else {
+						W3DShaderManager::setShader(st, pass);
+					}
 			}
 		}
 

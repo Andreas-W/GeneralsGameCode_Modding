@@ -197,6 +197,11 @@ RTS3DScene::RTS3DScene()
 		m_occludedMaterialPass[i]=NULL;
 #endif
 
+	//FogEnabled = true;
+	//FogColor = { 0.5, 0.7, 0.8 };
+	//FogStart = 20;
+	//FogEnd = 250;
+
 }
 
 //=============================================================================

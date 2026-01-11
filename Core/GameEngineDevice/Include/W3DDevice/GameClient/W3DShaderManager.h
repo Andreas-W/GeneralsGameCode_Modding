@@ -113,6 +113,14 @@ public:
 	static Bool isRenderingToTexture(void) {return m_renderingToTexture; }
 	static void drawViewport(Int color);	///<draws 2 triangles covering the current tactical viewport
 
+//	static void init_new_shaders(void);
+
+	static void initCustomShaders();
+	static void shutdownCustomShaders();
+	static HRESULT LoadCustomTerrainPixelShader(const DWORD* pDeclaration, DWORD Usage, Bool ShaderType, DWORD* pHandle);
+	static HRESULT LoadCustomTerrainVertexShader(const DWORD* pDeclaration, DWORD Usage, Bool ShaderType, DWORD* pHandle);
+	static void SetCustomTerrainPixelShader();
+
 
 protected:
 	static TextureClass *m_Textures[8];	///textures assigned to each of the possible stages
@@ -130,7 +138,9 @@ protected:
 	static IDirect3DSurface8 *m_newRenderSurface;	///<new render target inside m_renderTexture
 	static IDirect3DSurface8 *m_oldDepthSurface;	///<previous depth buffer surface
 
-
+	// new shit;
+	static DWORD	m_terrainWaterPixelShader;
+	static DWORD	m_terrainWaterVertexShader;
 };
 
 class W3DFilterInterface

@@ -1511,6 +1511,7 @@ public:
 	DWORD					m_dwBaseNoise1PixelShader;	///<handle to terrain/single noise D3D pixel shader
 	DWORD					m_dwBaseNoise2PixelShader;	///<handle to terrain/double noise D3D pixel shader
 	DWORD					m_dwBase0PixelShader;	///<handle to terrain only pixel shader
+
 	virtual Int set(Int pass);		///<setup shader for the specified rendering pass.
 	virtual Int init(void);			///<perform any one time initialization and validation
 	virtual void reset(void);		///<do any custom resetting necessary to bring W3D in sync.
@@ -1984,6 +1985,14 @@ Int TerrainShaderPixelShader::init( void )
 			hr = W3DShaderManager::LoadAndCreateD3DShader("shaders\\terrainnoise2.pso", &Declaration[0], 0, false, &m_dwBaseNoise2PixelShader);
 			if (FAILED(hr))
 				return FALSE;
+
+
+			// Custom water terrain shader
+			//hr = W3DShaderManager::LoadCustomTerrainPixelShader(&Declaration[0], 0, false, &m_customTerrainPixelShader);
+			//if (FAILED(hr))
+			//	return FALSE;
+
+
 
 			W3DShaders[W3DShaderManager::ST_TERRAIN_BASE]=&terrainShaderPixelShader;
 			W3DShaders[W3DShaderManager::ST_TERRAIN_BASE_NOISE1]=&terrainShaderPixelShader;
@@ -2659,6 +2668,8 @@ void W3DShaderManager::init(void)
 	}
 
 	DEBUG_LOG(("ShaderManager ChipsetID %d", res));
+
+	initCustomShaders();
 }
 
 // W3DShaderManager::shutdown =======================================================
@@ -2691,6 +2702,9 @@ void W3DShaderManager::shutdown(void)
 			W3DFilters[i]->shutdown();
 		}
 	}
+
+	// new
+	shutdownCustomShaders();
 }
 
 //=============================================================================
@@ -3723,7 +3737,254 @@ void FlatTerrainShaderPixelShader::reset(void)
 	DX8Wrapper::Invalidate_Cached_Render_States();
 }
 
+// ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+unsigned long W3DShaderManager::m_terrainWaterVertexShader = 0;
+unsigned long W3DShaderManager::m_terrainWaterPixelShader = 0;
+
+
+HRESULT W3DShaderManager::LoadCustomTerrainPixelShader(const DWORD* pDeclaration, DWORD Usage, Bool ShaderType, DWORD* pHandle)
+{
+	if (getChipset() < DC_GENERIC_PIXEL_SHADER_1_1)
+		return E_FAIL;	//don't allow loading any shaders if hardware can't handle it.
+
+	HRESULT hr;
+	ID3DXBuffer* compiledShader;
+	//const char* shader =
+	//		"ps.1.1\n \
+	//		tex t0 \n\
+	//		tex t1 \n\
+	//		tex t2 \n\
+	//		tex t3 \n\
+	//		lrp r0, v0.a, t1, t0	;alpha blend between 2 textures \n\
+	//		mul r0, r0, v0; apply diffuse lighting \n\
+	//		mul r0, r0, t2; modulate with texture 2 \n\
+	//		mul r0, r0, t3; modulate with texture 3 \n\
+	//		add r0, r0, r0 \n";  //TEST - make everything brighter
+
+	//const char* shader = R"(
+	//	ps.1.1
+	//	tex t0              ; Sample texture (using t1 coordinates)
+	//	tex t1              ; Get world Y from t0.x
+
+	//	def c0, 0.0, 0.02, 0.0, 1.0   ; fog params: minHeight, density, unused, 1.0
+	//	def c1, 0.5, 0.5, 0.5, 1.0    ; fog color (gray)
+
+	//	; Calculate fog amount based on height
+	//	mul r0, t1, c0.y              ; height * density
+	//	max r0, r0, c0.x              ; clamp to 0
+	//	min r0, r0, c0.w              ; clamp to 1
+
+	//	; Blend texture with fog
+	//	lrp r1, r0, c1, t0            ; linear interpolate
+
+	//	mov r0, r1                    ; output
+	//)";
+
+	//const char* shader =
+	//	"ps.1.1\n"
+	//	"tex t0\n"               // Get world Y
+	//	"def c0, 0.0, 0.02, 0.0, 1.0\n"
+	//	"def c1, 0.0, 0.5, 1.0, 1.0\n"    // blue to white gradient
+	//	"def c2, 1.0, 1.0, 1.0, 1.0\n"    // white (high altitude)
+	//	"mul r0, t0, c0.y\n"     // height * density
+	//	"max r0, r0, c0.x\n"
+	//	"min r0, r0, c0.w\n"
+	//	"lrp r1, r0, c1, c2\n"   // blend between blue and white
+	//	"mov r0, r1\n";
+
+	//const char* shader =
+	//	"ps.1.1\n"
+	//	"mov r0, c0\n";  // Just output constant color
+
+		const char* shader =
+		"ps.1.1\n"
+		"tex t0\n"               // Get world Y
+		"def c0, 0.0, 0.02, 0.0, 1.0\n"
+		"def c1, 0.0, 0.5, 1.0, 1.0\n"    // blue to white gradient
+		//"def c2, 1.0, 1.0, 1.0, 1.0\n"    // white (high altitude)
+		"mul r0, t0, c0.y       ; height * density\n"
+		//"max r0, r0, c0.x       ; clamp to 0\n"
+		//"min r0, r0, c0.w       ; clamp to 1\n"
+		"mul r0, r0, c1         ; multiply by fog color\n"
+		"mov r0, r0\n";
+
+
+	hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, NULL);
+	if (FAILED(hr)) {
+		DEBUG_LOG(("D3DXAssembleShader failed: 0x%08X", hr));
+
+		// Get error details
+		if (compiledShader) {
+			DEBUG_LOG(("Error: %s", compiledShader->GetBufferPointer()));
+		}
+		return hr;
+	}
+
+	hr = DX8Wrapper::_Get_D3D_Device8()->CreatePixelShader((DWORD*)compiledShader->GetBufferPointer(), pHandle);
+	if (FAILED(hr)) {
+		DEBUG_LOG(("CreatePixelShader failed: 0x%08X", hr));
+	}
+	compiledShader->Release();
+
+	return hr;
+}
+
+// ---------------------------------------------------------------------
+
+HRESULT W3DShaderManager::LoadCustomTerrainVertexShader(const DWORD* pDeclaration, DWORD Usage, Bool ShaderType, DWORD* pHandle)
+{
+
+	HRESULT hr;
+	ID3DXBuffer* compiledShader;
+	const char* shader = R"(
+		vs.1.1
+		dcl_position v0     ; v0 = position (x, y, z)
+		dcl_texcoord v1     ; v1 = texture coords (u, v)
+
+		; Assume v0 is in world space
+		; Transform to screen
+		m4x4 oPos, v0, c0   ; c0-c3 = ViewProjection matrix
+
+		; Pass data to pixel shader
+		mov oT0.x, v0.y     ; World Y in red channel of texcoord 0
+		mov oT1, v1         ; Texture coords for sampling
+		)";
+	hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, NULL);
+	DEBUG_LOG((">>> LoadCustomTerrainVertexShader: hr = %d", hr));
+	if (hr == 0) {
+		hr = DX8Wrapper::_Get_D3D_Device8()->CreateVertexShader(pDeclaration, (DWORD*)compiledShader->GetBufferPointer(), pHandle, Usage);
+		compiledShader->Release();
+	}
+	return hr;
+}
+
+// ----
+
+void W3DShaderManager::SetCustomTerrainPixelShader()
+{
+	//force WW3D2 system to set it's states so it won't later overwrite our custom settings.
+	DX8Wrapper::Apply_Render_State_Changes();
+
+	Matrix4x4 view;
+	DX8Wrapper::_Get_DX8_Transform(D3DTS_VIEW, view);
+
+	Matrix4x4 proj;
+	DX8Wrapper::_Get_DX8_Transform(D3DTS_PROJECTION, proj);
+
+	Matrix4x4 viewProj = view * proj;
+
+	//setup vertex shader
+	IDirect3DDevice8* pd3dDevice = DX8Wrapper::_Get_D3D_Device8();
+
+	pd3dDevice->SetVertexShaderConstant(0, &viewProj, 4);
+
+	//float fogParams[4] = { 0.0f, 0.02f, 0.0f, 1.0f };  // minHeight, density
+	//float fogColor[4] = { 0.5f, 0.5f, 0.5f, 1.0f };    // gray fog
+
+	//pd3dDevice->SetPixelShaderConstant(0, fogParams, 1);
+	//pd3dDevice->SetPixelShaderConstant(1, fogColor, 1);
+
+	pd3dDevice->SetPixelShader(m_terrainWaterPixelShader);
+	pd3dDevice->SetVertexShader(m_terrainWaterVertexShader);
+
+
+	DX8Wrapper::_Get_D3D_Device8()->SetTexture(0, NULL);
+	DX8Wrapper::_Get_D3D_Device8()->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+	DX8Wrapper::_Get_D3D_Device8()->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TFACTOR);
+
+}
 
 
 
 
+void W3DShaderManager::initCustomShaders()
+{
+	//DWORD Declaration[] =
+	//{
+	//	(D3DVSD_STREAM(0)),
+	//	(D3DVSD_REG(0, D3DVSDT_FLOAT3)), // Position
+	//	(D3DVSD_REG(1, D3DVSDT_D3DCOLOR)), // Diffuse
+	//	(D3DVSD_REG(2, D3DVSDT_FLOAT2)), //  Texture Coordinates
+	//	(D3DVSD_REG(3, D3DVSDT_FLOAT2)), //  Texture Coordinates
+	//	(D3DVSD_END())
+	//};
+
+	DWORD Declaration[] =
+	{
+		(D3DVSD_STREAM(0)),
+		(D3DVSD_REG(0, D3DVSDT_FLOAT3)), // Position
+		(D3DVSD_REG(1, D3DVSDT_FLOAT2)), //  Texture Coordinates
+		(D3DVSD_END())
+	};
+
+	// Custom water terrain shader
+	HRESULT hr = W3DShaderManager::LoadCustomTerrainVertexShader(&Declaration[0], 0, false, &m_terrainWaterVertexShader);
+	if (FAILED(hr))
+		DEBUG_CRASH(("LoadCustomTerrainVertexShader::Failed to create shader"));
+
+	// Custom water terrain shader
+	hr = W3DShaderManager::LoadCustomTerrainPixelShader(&Declaration[0], 0, false, &m_terrainWaterPixelShader);
+	if (FAILED(hr))
+		DEBUG_CRASH(("LoadCustomTerrainPixelShader::Failed to create shader"));
+}
+
+void W3DShaderManager::shutdownCustomShaders()
+{
+	if (m_terrainWaterPixelShader)
+		DX8Wrapper::_Get_D3D_Device8()->DeletePixelShader(m_terrainWaterPixelShader);
+	if (m_terrainWaterVertexShader)
+		DX8Wrapper::_Get_D3D_Device8()->DeletePixelShader(m_terrainWaterVertexShader);
+
+	m_terrainWaterPixelShader = NULL;
+	m_terrainWaterVertexShader = NULL;
+}
+
+
+
+//void W3DShaderManager::init_new_shaders()
+//{
+//
+//	LPDIRECT3DDEVICE8 pDev = DX8Wrapper::_Get_D3D_Device8();
+//	HRESULT hr;
+//
+//	if (W3DShaderManager::getChipset() >= DC_GENERIC_PIXEL_SHADER_1_1)
+//	{
+//		ID3DXBuffer* compiledShader;
+//		const char* shader =
+//			"ps.1.1\n \
+//			tex t0 \n\
+//			tex t1	\n\
+//			tex t2	\n\
+//			tex t3\n\
+//			mul r0,v0,t0 ; blend vertex color into t0. \n\
+//			mul r1, t1, t2 ; mul\n\
+//			add r0.rgb, r0, t3\n\
+//			+mul r0.a, r0, t3\n\
+//			add r0.rgb, r0, r1\n";
+//		hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, NULL);
+//		if (hr == 0) {
+//			hr = DX8Wrapper::_Get_D3D_Device8()->CreateVertexShader((DWORD*)compiledShader->GetBufferPointer(), &m_terrainWaterVertexShader);
+//			compiledShader->Release();
+//
+//
+//		ID3DXBuffer* compiledShader;
+//		const char* shader =
+//			"ps.1.1\n \
+//			tex t0 \n\
+//			tex t1	\n\
+//			tex t2	\n\
+//			tex t3\n\
+//			mul r0,v0,t0 ; blend vertex color into t0. \n\
+//			mul r1, t1, t2 ; mul\n\
+//			add r0.rgb, r0, t3\n\
+//			+mul r0.a, r0, t3\n\
+//			add r0.rgb, r0, r1\n";
+//		hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, NULL);
+//		if (hr == 0) {
+//			hr = DX8Wrapper::_Get_D3D_Device8()->CreatePixelShader((DWORD*)compiledShader->GetBufferPointer(), &m_terrainWaterPixelShader);
+//			compiledShader->Release();
+//		}
+//		
+//	}
+//}
