@@ -64,6 +64,9 @@ public:
 	Real m_flightPathAdjustDistPerFrame;
 	Bool m_applyLauncherBonus;
 
+	Real m_dynamicHeightMinScale;
+	Real m_dynamicHeightMinRange;
+
 	DumbProjectileBehaviorModuleData();
 
 	static void buildFieldParse(MultiIniFieldParse& p);

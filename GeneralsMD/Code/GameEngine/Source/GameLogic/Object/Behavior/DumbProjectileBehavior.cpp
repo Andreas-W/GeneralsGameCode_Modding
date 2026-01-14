@@ -67,7 +67,9 @@ DumbProjectileBehaviorModuleData::DumbProjectileBehaviorModuleData() :
 	m_garrisonHitKillCount(0),
 	m_garrisonHitKillFX(NULL),
 	m_flightPathAdjustDistPerFrame(0.0f),
-	m_applyLauncherBonus(FALSE)
+	m_applyLauncherBonus(FALSE),
+	m_dynamicHeightMinScale(1.0),
+	m_dynamicHeightMinRange(1.0)
 {
 }
 
@@ -96,6 +98,9 @@ void DumbProjectileBehaviorModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "FlightPathAdjustDistPerSecond", INI::parseVelocityReal, NULL, offsetof( DumbProjectileBehaviorModuleData, m_flightPathAdjustDistPerFrame ) },
 
 		{ "ApplyLauncherBonus", INI::parseBool,  NULL, offsetof(DumbProjectileBehaviorModuleData, m_applyLauncherBonus) },
+
+		{ "DynamicHeightMinScale", INI::parseReal,  NULL, offsetof(DumbProjectileBehaviorModuleData, m_dynamicHeightMinScale) },
+		{ "DynamicHeightMinRange", INI::parseReal,  NULL, offsetof(DumbProjectileBehaviorModuleData, m_dynamicHeightMinRange) },
 
 		{ 0, 0, 0, 0 }
 	};
@@ -430,6 +435,20 @@ Bool DumbProjectileBehavior::calcFlightPath(Bool recalcNumSegments)
 	targetVector.Z = controlPoints[3].z - controlPoints[0].z;
 
 	Real targetDistance = targetVector.Length();
+
+	Real heightScale = 1.0;
+	if (d->m_dynamicHeightMinScale != 1.0 && m_detonationWeaponTmpl != NULL) {
+		//Object* launcher = TheGameLogic->findObjectByID(m_launcherID);
+		//if (launcher)
+		WeaponBonus bonus;
+		bonus.clear();
+		Real attackRange = m_detonationWeaponTmpl->getAttackRange(bonus);
+		Real clippedDistance = MIN(targetDistance, attackRange) - d->m_dynamicHeightMinRange;
+		Real distFactor = clippedDistance / (attackRange - d->m_dynamicHeightMinRange);
+		heightScale = 1.0 - (1.0 - distFactor) * (1.0 - d->m_dynamicHeightMinScale);
+		DEBUG_LOG(("DumbProjectileBehavior::calcFlightPath -- distFactor = %f, heightScale = %f", distFactor, heightScale));
+	}
+
 	targetVector.Normalize();
 	Vector3 firstPointAlongLine = targetVector * (targetDistance * d->m_firstPercentIndent );
 	Vector3 secondPointAlongLine = targetVector * (targetDistance * d->m_secondPercentIndent );
@@ -442,8 +461,8 @@ Bool DumbProjectileBehavior::calcFlightPath(Bool recalcNumSegments)
 	// Z's are determined using the highest intervening height so they won't hit hills, low end bounded by current Zs
 	highestInterveningTerrain = max( highestInterveningTerrain, controlPoints[0].z );
 	highestInterveningTerrain = max( highestInterveningTerrain, controlPoints[3].z );
-	controlPoints[1].z = highestInterveningTerrain + d->m_firstHeight;
-	controlPoints[2].z = highestInterveningTerrain + d->m_secondHeight;
+	controlPoints[1].z = highestInterveningTerrain + d->m_firstHeight * heightScale;
+	controlPoints[2].z = highestInterveningTerrain + d->m_secondHeight * heightScale;
 
 	// With four control points, we have a curve.  We will decide how many frames we want to take to get to the target,
 	// and fill our vector with those curve points.

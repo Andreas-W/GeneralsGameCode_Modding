@@ -420,7 +420,7 @@ static bool ccwLeavesAllowedArc(Real from, Real to, Real min, Real max)
 
 	Real disallowedCenter = normalizeAngle2PI(((max + min) / 2.0) + PI);
 	//DEBUG_LOG((">>> ccw check: from = %f, to = %f, min = %f, max = %f. disCenter = %f",
-		from * 180 / PI, to * 180 / PI, min * 180 / PI, max * 180 / PI, disallowedCenter * 180 / PI));
+	//	from * 180 / PI, to * 180 / PI, min * 180 / PI, max * 180 / PI, disallowedCenter * 180 / PI));
 
 	return (from < disallowedCenter && to > disallowedCenter);
 }
@@ -1315,7 +1315,14 @@ StateReturnType TurretAIAimTurretState::update()
 					Real dist = v.length();
 					if (range<1) range = 1; // paranoia. jba.
 					// As the unit gets closer, reduce the pitch so we don't shoot over him.
-					Real groundPitch = turret->getGroundUnitPitch() * (dist/range);
+			
+					Real groundPitch;
+					if (dist > range) {
+						groundPitch = turret->getGroundUnitPitch();
+					}
+					else {
+						groundPitch = turret->getGroundUnitPitch() * (dist / range);
+					}
 					desiredPitch = actualPitch+groundPitch;
 					if (desiredPitch < turret->getMinPitch()) {
 						desiredPitch = turret->getMinPitch();
