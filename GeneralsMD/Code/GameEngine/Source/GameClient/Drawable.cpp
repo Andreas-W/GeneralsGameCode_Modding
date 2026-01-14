@@ -886,7 +886,7 @@ Bool Drawable::getCurrentWorldspaceClientBonePositions(const char* boneName, Mat
 //-------------------------------------------------------------------------------------------------
 void Drawable::setTerrainDecal(TerrainDecalType type)
 {
-	DEBUG_LOG(("Drawable::setTerrainDecal - type = %d\n", type));
+	//DEBUG_LOG(("Drawable::setTerrainDecal - type = %d\n", type));
 	if (m_terrainDecalType == type)
 		return;
 

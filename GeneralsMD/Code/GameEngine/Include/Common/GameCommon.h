@@ -503,10 +503,13 @@ inline Real stdAngleDiff(Real a1, Real a2)
 	return normalizeAngle(a1 - a2);
 }
 
+// ------------------------------------------------------------------------
 // normalized angle difference between a1 and a2, respecting negative values and wraparound
-inline Real stdAngleDiffMod(Real a1, Real a2) {
-	return normalizeAngle(nmod(a1 - a2, 2 * PI));
-}
+extern Real stdAngleDiffMod(Real a1, Real a2);
+
+// ------------------------------------------------------------------------
+// normalize an angle between 0 and 2PI
+extern Real normalizeAngle2PI(Real angle);
 
 
 // ------------------------------------------------------------------------

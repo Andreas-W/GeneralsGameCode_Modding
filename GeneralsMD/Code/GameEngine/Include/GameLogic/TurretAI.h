@@ -353,6 +353,9 @@ private:
 	void stopRotOrPitchSound();						///< stop turret rotation sound
 	void removeSelfAsTargeter();
 
+	Bool getTurretRotationDir(Real desiredAngle, Real minAngle, Real maxAngle);  ///< Min/Max turn angle checks
+
+
 #ifdef INTER_TURRET_DELAY
 	void getOtherTurretWeaponInfo(Int& numSelf, Int& numSelfReloading, Int& numSelfReady, Int& numOther, Int& numOtherReloading, Int& numOtherReady) const;
 #endif

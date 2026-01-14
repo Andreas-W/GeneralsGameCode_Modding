@@ -394,9 +394,87 @@ void TurretAI::loadPostProcess( void )
 }
 
 //----------------------------------------------------------------------------------------------------------
+static bool IsInArc(Real a, Real min, Real max)
+{
+	if (min <= max)
+		return a >= min && a <= max;
+	else
+		return a >= min || a <= max;
+}
+// --
+static Real CCWDistance(Real from, Real to)
+{
+	Real d = to - from;
+	if (d < 0) d += TWO_PI;
+	return d;
+}
+// --
+static bool ccwLeavesAllowedArc(Real from, Real to, Real min, Real max)
+{
+	if (min > max) { // simplify
+		max += TWO_PI;
+	}
+	if (from > to) {
+		to += TWO_PI;
+	}
+
+	Real disallowedCenter = normalizeAngle2PI(((max + min) / 2.0) + PI);
+	//DEBUG_LOG((">>> ccw check: from = %f, to = %f, min = %f, max = %f. disCenter = %f",
+		from * 180 / PI, to * 180 / PI, min * 180 / PI, max * 180 / PI, disallowedCenter * 180 / PI));
+
+	return (from < disallowedCenter && to > disallowedCenter);
+}
+// -------
+// return True if CCW, False if CW
+Bool TurretAI::getTurretRotationDir(Real desiredAngle, Real minAngle, Real maxAngle)
+{
+	Real origAngle = getTurretAngle();
+
+	origAngle = normalizeAngle2PI(origAngle);
+	desiredAngle = normalizeAngle2PI(desiredAngle);
+
+	Bool wantCCW = stdAngleDiffMod(desiredAngle, origAngle) > 0;
+
+	// If allowed arc < 180°, shortest path is always safe
+	Real diff = maxAngle - minAngle;
+	if (abs(diff) < PI)
+	//if (stdAngleDiffMod(maxAngle, minAngle) < PI)
+		return wantCCW;
+
+	minAngle = normalizeAngle2PI(minAngle);
+	maxAngle = normalizeAngle2PI(maxAngle);
+
+	//minAngle = WWMath::Normalize_Angle(minAngle);
+	//maxAngle = WWMath::Normalize_Angle(maxAngle);
+
+	// Check if preferred direction leaves allowed arc
+	//DEBUG_LOG((">>> curAngle = %f, targetAngle = %f, shortest dir = %d",
+	//	origAngle*180/PI, desiredAngle*180/PI, wantCCW));
+
+	if (wantCCW)
+	{
+		if (ccwLeavesAllowedArc(origAngle, desiredAngle, minAngle, maxAngle)) {
+			//DEBUG_LOG((">>> >>> CCW check failed -> must turn CW"));
+			return false; // must go CW
+		}
+	}
+	else
+	{
+		// CW is reverse CCW
+		if (ccwLeavesAllowedArc(desiredAngle, origAngle, minAngle, maxAngle)) {
+			//DEBUG_LOG((">>> >>> CW check failed -> must turn CCW"));
+			return true; // must go CCW
+		}
+	}
+
+	return wantCCW;
+}
+
+//----------------------------------------------------------------------------------------------------------
 Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Real relThresh)
 {
-	desiredAngle = normalizeAngle(desiredAngle);
+	// desiredAngle = normalizeAngle(desiredAngle);
+	desiredAngle = WWMath::Normalize_Angle(desiredAngle);
 
 	// rotate turret back to zero angle
 	Real origAngle = getTurretAngle();
@@ -405,11 +483,11 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 	// Real angleDiff = normalizeAngle(desiredAngle - actualAngle);
 	Real angleDiff = stdAngleDiffMod(desiredAngle, actualAngle);
 
+	Real minAngle = getMinTurretAngle();
+	Real maxAngle = getMaxTurretAngle();
+
 	// ---
 	if (hasLimitedTurretAngle()) {
-		Real minAngle = getMinTurretAngle();
-		Real maxAngle = getMaxTurretAngle();
-
 		if (maxAngle < minAngle) { // This might be a backwards facing configuration
 			maxAngle = nmod(maxAngle, 2.0 * PI);
 			desiredAngle = nmod(desiredAngle, 2.0 * PI);
@@ -432,6 +510,7 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 		if (!isWithinLimit) {
 			// angleDiff = normalizeAngle(desiredAngle - actualAngle);
 			angleDiff = stdAngleDiffMod(desiredAngle, actualAngle);
+
 			// Are we close enough to the desired angle to just snap there?
 			if (fabs(angleDiff) < turnRate)
 			{
@@ -442,7 +521,13 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 			}
 			else
 			{
-				if (angleDiff > 0)
+				bool rotate_ccw = false;
+				if (hasLimitedTurretAngle())
+					rotate_ccw = getTurretRotationDir(desiredAngle, minAngle, maxAngle);
+				else
+					rotate_ccw = (angleDiff > 0);
+
+				if (rotate_ccw)
 					actualAngle += turnRate;
 				else
 					actualAngle -= turnRate;
@@ -451,7 +536,8 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 				m_playRotSound = true;
 			}
 
-			m_angle = normalizeAngle(actualAngle);
+			//m_angle = normalizeAngle(actualAngle);
+			m_angle = WWMath::Normalize_Angle(actualAngle);
 
 			if (m_angle != origAngle)
 				getOwner()->reactToTurretChange(m_whichTurret, origAngle, m_pitch);
@@ -460,7 +546,8 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 		}
 	}
 	// -----
-	desiredAngle = normalizeAngle(desiredAngle);
+	//desiredAngle = normalizeAngle(desiredAngle);
+	//desiredAngle = WWMath::Normalize_Angle(desiredAngle);
 
 	// Are we close enough to the desired angle to just snap there?
 	if (fabs(angleDiff) < turnRate)
@@ -472,7 +559,14 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 	}
 	else
 	{
-		if (angleDiff > 0)
+		// for limited angle check if we need to take the longer route to the target
+		bool rotate_ccw = false;
+		if (hasLimitedTurretAngle())
+			rotate_ccw = getTurretRotationDir(desiredAngle, minAngle, maxAngle);
+		else
+			rotate_ccw = (angleDiff > 0);
+
+		if (rotate_ccw)
 			actualAngle += turnRate;
 		else
 			actualAngle -= turnRate;
@@ -481,7 +575,8 @@ Bool TurretAI::friend_turnTowardsAngle(Real desiredAngle, Real rateModifier, Rea
 		m_playRotSound = true;
 	}
 
-	m_angle = normalizeAngle(actualAngle);
+	//m_angle = normalizeAngle(actualAngle);
+	m_angle = WWMath::Normalize_Angle(actualAngle);
 
 	if( m_angle != origAngle )
 		getOwner()->reactToTurretChange( m_whichTurret, origAngle, m_pitch );
