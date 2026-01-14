@@ -121,6 +121,7 @@ public:
 	static HRESULT LoadCustomTerrainVertexShader(const DWORD* pDeclaration, DWORD Usage, Bool ShaderType, DWORD* pHandle);
 	static void SetCustomTerrainPixelShader();
 
+	static void SetHeightFog();
 
 protected:
 	static TextureClass *m_Textures[8];	///textures assigned to each of the possible stages

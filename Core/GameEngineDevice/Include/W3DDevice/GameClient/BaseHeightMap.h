@@ -80,6 +80,9 @@ typedef struct {
 #define VERTEX_FORMAT VertexFormatXYZDUV2
 #define DX8_VERTEX_FORMAT DX8_FVF_XYZDUV2
 
+//#define VERTEX_FORMAT VertexFormatXYZDUV2FOG
+//#define DX8_VERTEX_FORMAT DX8_FVF_XYZDUV2FOG
+
 /// Custom render object that draws the heightmap and handles intersection tests.
 /**
 Custom W3D render object that's used to process the terrain.  It handles

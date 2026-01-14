@@ -2111,6 +2111,22 @@ Int TerrainShaderPixelShader::set(Int pass)
 		DX8Wrapper::_Get_D3D_Device8()->SetPixelShader(m_dwBasePixelShader);
 	}
 
+
+	// TEST FOG:
+	//IDirect3DDevice8* device = DX8Wrapper::_Get_D3D_Device8();
+	////DEBUG_LOG((">>>>>>>>TerrainShaderPixelShader::set"));
+	//// Enable fog
+	//device->SetRenderState(D3DRS_FOGENABLE, TRUE);
+	//Vector3 fogColor = { 0.5, 0.75, 1.0 };
+	//DX8Wrapper::Set_Fog(true, fogColor, 150, 2500);
+
+	//device->SetRenderState(
+	//	D3DRS_FOGCOLOR,
+	//	D3DCOLOR_COLORVALUE(r, g, b, 1.0f)
+	//);
+	////device->SetRenderState(D3DRS_FOGTABLEMODE, D3DFOG_NONE);
+	//device->SetRenderState(D3DRS_FOGVERTEXMODE, D3DFOG_LINEAR);
+
 	return TRUE;
 }
 
@@ -2669,7 +2685,8 @@ void W3DShaderManager::init(void)
 
 	DEBUG_LOG(("ShaderManager ChipsetID %d", res));
 
-	initCustomShaders();
+	//initCustomShaders();
+
 }
 
 // W3DShaderManager::shutdown =======================================================
@@ -2704,7 +2721,7 @@ void W3DShaderManager::shutdown(void)
 	}
 
 	// new
-	shutdownCustomShaders();
+	//shutdownCustomShaders();
 }
 
 //=============================================================================
@@ -3750,6 +3767,7 @@ HRESULT W3DShaderManager::LoadCustomTerrainPixelShader(const DWORD* pDeclaration
 
 	HRESULT hr;
 	ID3DXBuffer* compiledShader;
+	ID3DXBuffer* errorBuffer = NULL;
 	//const char* shader =
 	//		"ps.1.1\n \
 	//		tex t0 \n\
@@ -3782,42 +3800,78 @@ HRESULT W3DShaderManager::LoadCustomTerrainPixelShader(const DWORD* pDeclaration
 	//)";
 
 	//const char* shader =
-	//	"ps.1.1\n"
-	//	"tex t0\n"               // Get world Y
-	//	"def c0, 0.0, 0.02, 0.0, 1.0\n"
-	//	"def c1, 0.0, 0.5, 1.0, 1.0\n"    // blue to white gradient
-	//	"def c2, 1.0, 1.0, 1.0, 1.0\n"    // white (high altitude)
-	//	"mul r0, t0, c0.y\n"     // height * density
-	//	"max r0, r0, c0.x\n"
-	//	"min r0, r0, c0.w\n"
-	//	"lrp r1, r0, c1, c2\n"   // blend between blue and white
-	//	"mov r0, r1\n";
+	//	R"(ps.1.1
+	//	def c0, 0.0, 0.02, 0.0, 1.0   ; minY, density, unused, 1.0
+	//	def c1, 0.0, 0.5, 1.0, 1.0    ; Blue color gradient
+
+	//	tex t0                        ; World Y coordinate
+
+	//	mul r0, t0, c0.y              ; height * density
+	//	max r0, r0, c0.x              ; clamp to 0
+	//	min r0, r0, c0.w              ; clamp to 1
+	//	mul r0, r0, c1                ; apply blue color
+	//	mov r0, r0
+	//	)";
+
 
 	//const char* shader =
-	//	"ps.1.1\n"
-	//	"mov r0, c0\n";  // Just output constant color
+		//"ps.1.1\n"  // line 1
+		//"def c0, 0.0, 0.02, 0.0, 1.0\n"  // y = density
+		//"def c1, 0.0, 0.5, 1.0, 1.0\n"    // color 1 (blue)
+		////"def c2, 0.0, 1.0, 1.0, 1.0\n"    // color 2 (teal)
+		//"tex t0\n"               // Get world Y
+		//"mul r0, t0, c0.y\n"     // height * density
+		//"max r0, c0.x\n"     // line 7
+		//"min r0, c0.w\n"
+		////"lrp r0, r0, c1, t1\n"   // blend between blue and white
+		//"mov r0, r1\n";
+
+//	const char* shader =
+//R"(ps.1.1
+//def c0, 0.0, 0.0, 0.0, 0.0
+//def c1, 1.0, 1.0, 1.0, 1.0
+//def c2, 0.0, 0.5, 1.0, 1.0
+//tex t0  ; t0.x = interpolated fog factor
+//max r0, t0, c0     ; clamp low
+//min r0, r0, c1     ; clamp high
+//; invert fog factor if needed
+//; r0 = 1 - fog
+//; add r0, c1, -r0
+//; multiply fog color
+//mul r0, r0, c2
+//mov oC0, r0
+//		)";
+
+
+	// WORKING TEST SHADERS BELOW
 
 		const char* shader =
-		"ps.1.1\n"
-		"tex t0\n"               // Get world Y
-		"def c0, 0.0, 0.02, 0.0, 1.0\n"
-		"def c1, 0.0, 0.5, 1.0, 1.0\n"    // blue to white gradient
-		//"def c2, 1.0, 1.0, 1.0, 1.0\n"    // white (high altitude)
-		"mul r0, t0, c0.y       ; height * density\n"
-		//"max r0, r0, c0.x       ; clamp to 0\n"
-		//"min r0, r0, c0.w       ; clamp to 1\n"
-		"mul r0, r0, c1         ; multiply by fog color\n"
-		"mov r0, r0\n";
+			"ps.1.1\n"
+			"def c0, 1.0, 0.0, 0.0, 1.0\n"
+			"tex t0\n"
+			"mov r0, t0\n";
 
+	//const char* shader =
+	//	R"(
+	//	ps.1.1
+	//	def c0, 1.0, 0.0, 0.0, 1.0
+	//	tex t0
+	//	mov r0, t0)";
 
-	hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, NULL);
+	hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, &errorBuffer);
 	if (FAILED(hr)) {
-		DEBUG_LOG(("D3DXAssembleShader failed: 0x%08X", hr));
 
-		// Get error details
-		if (compiledShader) {
-			DEBUG_LOG(("Error: %s", compiledShader->GetBufferPointer()));
+		if (errorBuffer != NULL) {
+			// Cast the buffer to a string and log it
+			char* errorMsg = (char*)errorBuffer->GetBufferPointer();
+			DEBUG_LOG(("Shader assembly error: %s", errorMsg));
+
+			// You could also display it in a message box
+			MessageBoxA(NULL, errorMsg, "Shader Assembly Error", MB_OK | MB_ICONERROR);
+
+			errorBuffer->Release();
 		}
+
 		return hr;
 	}
 
@@ -3942,49 +3996,12 @@ void W3DShaderManager::shutdownCustomShaders()
 
 
 
-//void W3DShaderManager::init_new_shaders()
-//{
-//
-//	LPDIRECT3DDEVICE8 pDev = DX8Wrapper::_Get_D3D_Device8();
-//	HRESULT hr;
-//
-//	if (W3DShaderManager::getChipset() >= DC_GENERIC_PIXEL_SHADER_1_1)
-//	{
-//		ID3DXBuffer* compiledShader;
-//		const char* shader =
-//			"ps.1.1\n \
-//			tex t0 \n\
-//			tex t1	\n\
-//			tex t2	\n\
-//			tex t3\n\
-//			mul r0,v0,t0 ; blend vertex color into t0. \n\
-//			mul r1, t1, t2 ; mul\n\
-//			add r0.rgb, r0, t3\n\
-//			+mul r0.a, r0, t3\n\
-//			add r0.rgb, r0, r1\n";
-//		hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, NULL);
-//		if (hr == 0) {
-//			hr = DX8Wrapper::_Get_D3D_Device8()->CreateVertexShader((DWORD*)compiledShader->GetBufferPointer(), &m_terrainWaterVertexShader);
-//			compiledShader->Release();
-//
-//
-//		ID3DXBuffer* compiledShader;
-//		const char* shader =
-//			"ps.1.1\n \
-//			tex t0 \n\
-//			tex t1	\n\
-//			tex t2	\n\
-//			tex t3\n\
-//			mul r0,v0,t0 ; blend vertex color into t0. \n\
-//			mul r1, t1, t2 ; mul\n\
-//			add r0.rgb, r0, t3\n\
-//			+mul r0.a, r0, t3\n\
-//			add r0.rgb, r0, r1\n";
-//		hr = D3DXAssembleShader(shader, strlen(shader), 0, NULL, &compiledShader, NULL);
-//		if (hr == 0) {
-//			hr = DX8Wrapper::_Get_D3D_Device8()->CreatePixelShader((DWORD*)compiledShader->GetBufferPointer(), &m_terrainWaterPixelShader);
-//			compiledShader->Release();
-//		}
-//		
-//	}
-//}
+void W3DShaderManager::SetHeightFog()
+{
+	IDirect3DDevice8* device = DX8Wrapper::_Get_D3D_Device8();
+
+	// Enable fog
+	device->SetRenderState(D3DRS_FOGENABLE, TRUE);
+	device->SetRenderState(D3DRS_FOGTABLEMODE, D3DFOG_NONE);
+	device->SetRenderState(D3DRS_FOGVERTEXMODE, D3DFOG_LINEAR);
+}

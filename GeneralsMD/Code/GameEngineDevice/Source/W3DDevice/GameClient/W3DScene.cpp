@@ -199,8 +199,9 @@ RTS3DScene::RTS3DScene()
 
 	//FogEnabled = true;
 	//FogColor = { 0.5, 0.7, 0.8 };
-	//FogStart = 20;
-	//FogEnd = 250;
+	////FogColor = { 128, 168, 255 };
+	//FogStart = 150;
+	//FogEnd = 1250;
 
 }
 
@@ -1069,6 +1070,7 @@ void RTS3DScene::Render(RenderInfoClass & rinfo)
 			//Disable writes to color buffer to save memory bandwidth - we only need Z.
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_COLORWRITEENABLE,0);
 			DX8Wrapper::Set_DX8_Render_State (D3DRS_ZBIAS, 0);
+
 			Customized_Render(rinfo);
 			Flush(rinfo);
 			//Re-enable writes to color buffer.
@@ -1111,6 +1113,12 @@ void RTS3DScene::Customized_Render( RenderInfoClass &rinfo )
 #ifdef DIRTY_CONDITION_FLAGS
 	StDrawableDirtyStuffLocker lockDirtyStuff;
 #endif
+
+	// #################
+
+	//DEBUG_LOG((">>>>  RTS3DScene::Customized_Render, FogEnabled = %d", Get_Fog_Enable()));
+
+	// #################
 
 	RenderObjClass *terrainObject=NULL,*robj;
 	m_translucentObjectsCount = 0;	//start of new frame so no translucent objects

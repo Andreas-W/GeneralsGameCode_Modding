@@ -231,6 +231,19 @@ UnsignedInt HeightMapRenderObjClass::doTheDynamicLight(VERTEX_FORMAT *vb, VERTEX
 		shadeB += factor*ambient.Z;
 
 	}
+
+	//// Height based lighting test
+	//if (vb->z < 50.0) {
+	//	DEBUG_LOG((">>> TRY HEIGHT BASED LIGHTING FOG"));
+	//	Vector3 fogColor = { 0.25, 0.5, 0.8 };
+	//	Real factor =  1.0 - (vb->z / 50.0);
+
+	//	shadeR = shadeR * (1.0 - factor) + fogColor.X * factor;
+	//	shadeG = shadeG * (1.0 - factor) + fogColor.Y * factor;
+	//	shadeB = shadeB * (1.0 - factor) + fogColor.Z * factor;
+	//}
+
+
 	if (shadeR > 1.0) shadeR = 1.0;
 	if(shadeR < 0.0f) shadeR = 0.0f;
 	if (shadeG > 1.0) shadeG = 1.0;
@@ -394,6 +407,7 @@ Int HeightMapRenderObjClass::updateVB(DX8VertexBufferClass	*pVB, char *data, Int
 				vb->z=  ((float)pMap->getDisplayHeight(getXWithOrigin(i), getYWithOrigin(j)))*MAP_HEIGHT_SCALE;
 				vb->x = ADJUST_FROM_INDEX_TO_REAL(vb->x);
 				vb->y = ADJUST_FROM_INDEX_TO_REAL(vb->y);
+				//vb->fog = vb->z;
 				vb->u1=U[0];
 				vb->v1=V[0];
 				vb->u2=UA[0];
@@ -1391,6 +1405,9 @@ Int HeightMapRenderObjClass::initHeightData(Int x, Int y, WorldHeightMap *pMap, 
 //=============================================================================
 void HeightMapRenderObjClass::On_Frame_Update(void)
 {
+	// yes, this is called
+	//DEBUG_LOG((">>> HeightMapRenderObjClass::On_Frame_Update"));
+
 	BaseHeightMapRenderObjClass::On_Frame_Update();
 	Int i,j,k;
 	DX8VertexBufferClass	**pVB;
@@ -1967,7 +1984,7 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 
 	Bool doMultiPassWireFrame=FALSE;
 
-	bool doExtraWaterPass = false;  // NEW
+	//bool doExtraWaterPass = false;  // NEW
 
 	if (((RTS3DScene *)rinfo.Camera.Get_User_Data())->getCustomPassMode() == SCENE_PASS_ALPHA_MASK ||
 		((SceneClass *)rinfo.Camera.Get_User_Data())->Get_Extra_Pass_Polygon_Mode() == SceneClass::EXTRA_PASS_CLEAR_LINE)
@@ -2046,10 +2063,10 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 
 		//// #########################
 		//// TEST TEST TEST WATER SHADER STUFF TEST
-		if (st == W3DShaderManager::ST_TERRAIN_BASE_NOISE12 && !m_disableTextures) {
-			devicePasses += 1;
-			doExtraWaterPass = true;
-		}
+		//if (st == W3DShaderManager::ST_TERRAIN_BASE_NOISE12 && !m_disableTextures) {
+		//	devicePasses += 1;
+		//	doExtraWaterPass = true;
+		//}
 
 		//// #########################
 
@@ -2068,13 +2085,16 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
  			if (m_disableTextures ) {
  				DX8Wrapper::Set_Shader(ShaderClass::_PresetOpaque2DShader);
  				DX8Wrapper::Set_Texture(0,NULL);
+
    			} else {
-					if (pass > 1 && doExtraWaterPass) {
-						W3DShaderManager::SetCustomTerrainPixelShader();
-					}
-					else {
+					//if (pass > 1 && doExtraWaterPass) {
+					//	W3DShaderManager::SetCustomTerrainPixelShader();
+					//}
+					//else {
 						W3DShaderManager::setShader(st, pass);
-					}
+
+						//W3DShaderManager::SetHeightFog();
+					//}
 			}
 		}
 

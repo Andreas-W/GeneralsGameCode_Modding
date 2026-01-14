@@ -584,6 +584,21 @@ void BaseHeightMapRenderObjClass::doTheLight(VERTEX_FORMAT *vb, Vector3*light, V
 		shadeB += shade*terrainDiffuse->blue;
 	}
 
+// Height based lighting test
+	if (vb->z < 50.0) {
+		// DEBUG_LOG((">>> TRY HEIGHT BASED LIGHTING FOG"));
+		Vector3 fogColor = { 0.25, 0.5, 0.8 };
+		Real factor =  1.0 - (vb->z / 50.0);
+
+		//shadeR = shadeR * (1.0 - factor) + fogColor.X * factor;
+		//shadeG = shadeG * (1.0 - factor) + fogColor.Y * factor;
+		//shadeB = shadeB * (1.0 - factor) + fogColor.Z * factor;
+
+		shadeR = shadeR * (1.0 - factor) + shadeR * fogColor.X * factor;
+		shadeG = shadeG * (1.0 - factor) + shadeG * fogColor.Y * factor;
+		shadeB = shadeB * (1.0 - factor) + shadeB * fogColor.Z * factor;
+	}
+
 	if (shadeR > 1.0) shadeR = 1.0;
 	if(shadeR < 0.0f) shadeR = 0.0f;
 	if (shadeG > 1.0) shadeG = 1.0;
@@ -591,14 +606,16 @@ void BaseHeightMapRenderObjClass::doTheLight(VERTEX_FORMAT *vb, Vector3*light, V
 	if (shadeB > 1.0) shadeB = 1.0;
 	if(shadeB < 0.0f) shadeB = 0.0f;
 
-	if (m_useDepthFade && vb->z <= TheGlobalData->m_waterPositionZ)
-	{	//height is below water level
-		//reduce lighting values based on light fall off as it travels through water.
-		float depthScale = (1.4f - vb->z)/TheGlobalData->m_waterPositionZ;
-		shadeR *= 1.0f - depthScale * (1.0f-m_depthFade.X);
-		shadeG *= 1.0f - depthScale * (1.0f-m_depthFade.Y);
-		shadeB *= 1.0f - depthScale * (1.0f-m_depthFade.Z);
-	}
+	//Real waterHeight = 50; //TheGlobalData->m_waterPositionZ
+
+	//if (m_useDepthFade && vb->z <= waterHeight)
+	//{	//height is below water level
+	//	//reduce lighting values based on light fall off as it travels through water.
+	//	float depthScale = (1.4f - vb->z)/ waterHeight;
+	//	shadeR *= 1.0f - depthScale * (1.0f-m_depthFade.X);
+	//	shadeG *= 1.0f - depthScale * (1.0f-m_depthFade.Y);
+	//	shadeB *= 1.0f - depthScale * (1.0f-m_depthFade.Z);
+	//}
 
 	shadeR*=255.0f;
 	shadeG*=255.0f;
@@ -2354,6 +2371,8 @@ void BaseHeightMapRenderObjClass::removeTerrainBibDrawable(DrawableID id)
 //=============================================================================
 void BaseHeightMapRenderObjClass::staticLightingChanged( void )
 {
+	DEBUG_LOG((">>> BaseHeightMapRenderObjClass::staticLightingChanged"));
+
 	// Cause the terrain to get updated with new lighting.
 	m_needFullUpdate = true;
 
