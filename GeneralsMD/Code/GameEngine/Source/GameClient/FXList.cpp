@@ -129,14 +129,40 @@ void FXNugget::doFXObj(const Object* primary, const Object* secondary) const
 }
 
 //-------------------------------------------------------------------------------------------------
+static const char* const AllowedSurfaceNames[] =
+{
+	"ALL",
+	"LAND",
+	"WATER",
+	NULL
+};
+
+enum AllowedSurfaceType CPP_11(: Int) {
+	SURFACE_ALL = 0,
+	SURFACE_LAND,
+	SURFACE_WATER
+};
+
+//-------------------------------------------------------------------------------------------------
 class SoundFXNugget : public FXNugget
 {
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(SoundFXNugget, "SoundFXNugget")
 
 public:
 
+	SoundFXNugget()
+	{
+		m_soundName.clear();
+		m_maxAllowedHeight = INFINITY;
+		m_minAllowedHeight = -INFINITY;
+		m_allowedSurfaceType = SURFACE_ALL;
+	}
+
 	virtual void doFXPos(const Coord3D *primary, const Matrix3D* /*primaryMtx*/, const Real /*primarySpeed*/, const Coord3D * /*secondary*/, const Real /*overrideRadius*/ ) const
 	{
+		if (!isValidSurface(primary))
+			return;
+
 		AudioEventRTS sound(m_soundName);
 
 		if (primary)
@@ -149,6 +175,9 @@ public:
 
 	virtual void doFXObj(const Object* primary, const Object* secondary = NULL) const
 	{
+		if (!isValidSurface(primary->getPosition()))
+			return;
+
 		AudioEventRTS sound(m_soundName);
 		if (primary)
 		{
@@ -159,12 +188,15 @@ public:
 		TheAudio->addAudioEvent(&sound);
 	}
 
-
 	static void parse(INI *ini, void *instance, void* /*store*/, const void* /*userData*/)
 	{
 		static const FieldParse myFieldParse[] =
 		{
 			{ "Name",									INI::parseAsciiString,	NULL, offsetof( SoundFXNugget, m_soundName ) },
+			{ "MinAllowedHeight",			INI::parseReal,							NULL, offsetof(SoundFXNugget, m_minAllowedHeight) },
+			{ "MaxAllowedHeight",			INI::parseReal,							NULL, offsetof(SoundFXNugget, m_maxAllowedHeight) },
+			{ "AllowedSurface",				INI::parseIndexList,				AllowedSurfaceNames, offsetof(SoundFXNugget, m_allowedSurfaceType) },
+
 			{ 0, 0, 0, 0 }
 		};
 
@@ -174,7 +206,52 @@ public:
 	}
 
 private:
+
+
+	bool isValidSurface(const Coord3D* primary) const  //@TODO unify code with ParticleSystemFXNugget
+	{
+		if (!primary)
+			return false;
+
+		// Evaluate Height and allowed surfaces first.
+		if ((TheTerrainLogic != NULL) && (m_minAllowedHeight > -INFINITY || m_maxAllowedHeight < INFINITY || m_allowedSurfaceType != SURFACE_ALL )) {
+
+			Real groundHeight = 0;
+			PathfindLayerEnum layer = TheTerrainLogic->getLayerForDestination(primary);
+
+			if (layer != LAYER_GROUND) {  // Bridge
+				if (m_allowedSurfaceType == SURFACE_WATER) return false;  // No water effects over bridges.
+				groundHeight = TheTerrainLogic->getLayerHeight(primary->x, primary->y, layer);
+			}
+			else {  // Ground (Water or Land)
+				Real waterZ = 0;
+				Real terrainZ = 0;
+				if (m_allowedSurfaceType != SURFACE_ALL || TheGlobalData->m_heightAboveTerrainIncludesWater) { // Do water check
+					Bool isWater = TheTerrainLogic->isUnderwater(primary->x, primary->y, &waterZ, &terrainZ);
+
+					if (isWater) {
+						if (m_allowedSurfaceType == SURFACE_LAND) return false;
+						groundHeight = waterZ;
+					}
+					else {
+						if (m_allowedSurfaceType == SURFACE_WATER) return false;
+						groundHeight = terrainZ;
+					}
+				}
+			}
+
+			Real zOffset = primary->z - groundHeight;
+			if (zOffset < m_minAllowedHeight || zOffset > m_maxAllowedHeight) return false;
+		}
+
+		return true;
+	}
+
 	AsciiString		m_soundName;
+
+	Real						m_maxAllowedHeight;
+	Real						m_minAllowedHeight;
+	AllowedSurfaceType m_allowedSurfaceType;
 };
 EMPTY_DTOR(SoundFXNugget)
 
@@ -565,21 +642,6 @@ private:
 	Real	m_radius;
 };
 EMPTY_DTOR(TerrainScorchFXNugget)
-
-//-------------------------------------------------------------------------------------------------
-static const char* const AllowedSurfaceNames[] =
-{
-  "ALL",
-	"LAND",
-	"WATER",
-	NULL
-};
-
-enum AllowedSurfaceType CPP_11(: Int) {
-	SURFACE_ALL = 0,
-	SURFACE_LAND,
-	SURFACE_WATER
-};
 
 //-------------------------------------------------------------------------------------------------
 class ParticleSystemFXNugget : public FXNugget

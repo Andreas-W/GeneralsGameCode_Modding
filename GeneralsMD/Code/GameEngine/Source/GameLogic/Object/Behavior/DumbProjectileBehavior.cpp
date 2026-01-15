@@ -446,7 +446,7 @@ Bool DumbProjectileBehavior::calcFlightPath(Bool recalcNumSegments)
 		Real clippedDistance = MIN(targetDistance, attackRange) - d->m_dynamicHeightMinRange;
 		Real distFactor = clippedDistance / (attackRange - d->m_dynamicHeightMinRange);
 		heightScale = 1.0 - (1.0 - distFactor) * (1.0 - d->m_dynamicHeightMinScale);
-		DEBUG_LOG(("DumbProjectileBehavior::calcFlightPath -- distFactor = %f, heightScale = %f", distFactor, heightScale));
+		// DEBUG_LOG(("DumbProjectileBehavior::calcFlightPath -- distFactor = %f, heightScale = %f", distFactor, heightScale));
 	}
 
 	targetVector.Normalize();
