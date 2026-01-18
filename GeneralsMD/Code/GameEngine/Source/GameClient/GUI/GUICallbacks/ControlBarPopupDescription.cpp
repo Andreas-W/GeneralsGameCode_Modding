@@ -315,6 +315,27 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 			descrip = TheGameText->fetch(commandButton->getDescriptionLabel());
 
 			Drawable *draw = TheInGameUI->getFirstSelectedDrawable();
+
+			//For Specialpowers with cost, add text to the tooltip
+			if (commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER ||
+				commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_CONSTRUCT ||
+				commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_CONSTRUCT_FROM_SHORTCUT ||
+				commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT) {
+				const SpecialPowerTemplate* spt = commandButton->getSpecialPowerTemplate();
+				if (spt != nullptr && spt->getCost() > 0) {
+					isUseSpecialpowerButtonWithCost = true;
+
+					costToBuild = spt->getCost();
+					cost.format(TheGameText->fetch("TOOLTIP:Cost"), costToBuild);
+
+					if (player->getMoney()->countMoney() < costToBuild) {
+						descrip.concat(L"\n\n");
+						descrip.concat(TheGameText->fetch("TOOLTIP:TooltipNotEnoughMoneyToBuild"));
+					}
+				}
+			}
+
+
 			Object *selectedObject = draw ? draw->getObject() : NULL;
 			if( selectedObject )
 			{
@@ -337,26 +358,6 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 						}
 					}
 				}
-
-				//For Specialpowers with cost, add text to the tooltip
-				if (commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER ||
-					commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_CONSTRUCT ||
-					commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_CONSTRUCT_FROM_SHORTCUT ||
-					commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT) {
-					const SpecialPowerTemplate* spt = commandButton->getSpecialPowerTemplate();
-					if (spt != nullptr && spt->getCost() > 0) {
-						isUseSpecialpowerButtonWithCost = true;
-
-						costToBuild = spt->getCost();
-						cost.format(TheGameText->fetch("TOOLTIP:Cost"), costToBuild);
-
-						if (player->getMoney()->countMoney() < costToBuild) {
-							descrip.concat(L"\n\n");
-							descrip.concat(TheGameText->fetch("TOOLTIP:TooltipNotEnoughMoneyToBuild"));
-						}
-					}
-				}
-
 				//Special case: When building units & buildings, the CanMakeType determines reasons for not being able to buy stuff.
 				else if( thingTemplate )
 				{
