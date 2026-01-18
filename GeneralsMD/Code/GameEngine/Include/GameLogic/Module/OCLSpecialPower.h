@@ -71,6 +71,7 @@ public:
 	Bool											m_isOCLAdjustPositionToPassable; ///< Adjust target to nearest Passable cell
 
 	Bool											m_selectObject; ///< Select first created object
+	Real											m_minDistToSimilarRadius;
 
 	//We need to know what the final product is going to be for script placement calculations
 	//for construction sites like the sneak attack.

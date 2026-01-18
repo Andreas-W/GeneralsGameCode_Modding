@@ -482,6 +482,22 @@ Bool SpecialPowerModule::initiateIntentToDoSpecialPower( const Object *targetObj
 //-------------------------------------------------------------------------------------------------
 void SpecialPowerModule::triggerSpecialPower( const Coord3D *location )
 {
+
+	Int cost{ getSpecialPowerTemplate()->getCost() };
+	if ( cost > 0) {
+		Player* ply = getObject()->getControllingPlayer();
+		if (ply != nullptr && ply->getMoney()->countMoney() < cost) {
+			// Not enough money
+			return;
+		}
+		else if (ply!=nullptr) {
+			ply->getMoney()->withdraw(cost);
+		}
+		else {
+			DEBUG_LOG(("Cannot withdraw money for SpecialPower '%s', player is null", getSpecialPowerTemplate()->getName().str()));
+		}
+	}
+
 	aboutToDoSpecialPower( location );	// do BEFORE recharge
 
 	createViewObject(location);

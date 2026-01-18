@@ -44,6 +44,7 @@
 #include "GameLogic/Object.h"
 
 #include "GameLogic/Module/ProductionUpdate.h"
+#include "GameLogic/TerrainLogic.h"
 
 
 
@@ -177,6 +178,14 @@ GameMessageDisposition PlaceEventTranslator::translateGameMessage(const GameMess
 
 				// translate the screen position of start to world target location
 				TheTacticalView->screenToTerrain( &anchorStart, &world );
+
+				// If shipyard move up building to at least waterheight if lower
+				if (build->isKindOf(KINDOF_SHIPYARD)) {
+					Real waterZ{ 0 };
+					if (TheTerrainLogic->isUnderwater(world.x, world.y, &waterZ)) {
+						world.z = std::max(world.z, waterZ);
+					}
+				}
 
 				Object *builderObj = TheGameLogic->findObjectByID( TheInGameUI->getPendingPlaceSourceObjectID() );
 

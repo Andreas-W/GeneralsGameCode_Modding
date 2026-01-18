@@ -1705,11 +1705,15 @@ Object *DozerAIUpdate::construct( const ThingTemplate *what,
 	obj->setPosition( pos );
 	obj->setOrientation( angle );
 
-	// Flatten the terrain underneath the object, then adjust to the flattened height. jba.
-	TheTerrainLogic->flattenTerrain(obj);
-	Coord3D adjustedPos = *pos;
-	adjustedPos.z = TheTerrainLogic->getGroundHeight(pos->x, pos->y);
-	obj->setPosition(&adjustedPos);
+	// Do not flatten shipyards
+	if (!obj->isKindOf(KINDOF_SHIPYARD)) {
+
+		// Flatten the terrain underneath the object, then adjust to the flattened height. jba.
+		TheTerrainLogic->flattenTerrain(obj);
+		Coord3D adjustedPos = *pos;
+		adjustedPos.z = TheTerrainLogic->getGroundHeight(pos->x, pos->y);
+		obj->setPosition(&adjustedPos);
+	}
 
 	// Note - very important that we add to map AFTER we flatten terrain. jba.
 	TheAI->pathfinder()->addObjectToPathfindMap( obj );

@@ -91,6 +91,7 @@
 #include "GameLogic/Module/OverchargeBehavior.h"
 #include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/ScriptEngine.h"
+#include "Common/SpecialPower.h"
 
 #include "GameNetwork/NetworkInterface.h"
 
@@ -253,6 +254,9 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 	const ProductionPrerequisite *prereq;
 	Bool fireScienceButton = false;
 	UnsignedInt costToBuild = 0;
+	Bool isUseSpecialpowerButtonWithCost = false;
+
+
 
 	if(commandButton)
 	{
@@ -330,6 +334,25 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 								else
 									descrip.concat( TheGameText->fetch( "TOOLTIP:TooltipNukeReactorOverChargeIsOff" ) );
 							}
+						}
+					}
+				}
+
+				//For Specialpowers with cost, add text to the tooltip
+				if (commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER ||
+					commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_CONSTRUCT ||
+					commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_CONSTRUCT_FROM_SHORTCUT ||
+					commandButton->getCommandType() == GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT) {
+					const SpecialPowerTemplate* spt = commandButton->getSpecialPowerTemplate();
+					if (spt != nullptr && spt->getCost() > 0) {
+						isUseSpecialpowerButtonWithCost = true;
+
+						costToBuild = spt->getCost();
+						cost.format(TheGameText->fetch("TOOLTIP:Cost"), costToBuild);
+
+						if (player->getMoney()->countMoney() < costToBuild) {
+							descrip.concat(L"\n\n");
+							descrip.concat(TheGameText->fetch("TOOLTIP:TooltipNotEnoughMoneyToBuild"));
 						}
 					}
 				}
@@ -518,10 +541,13 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		{
 			TheScienceStore->getNameAndDescription(st, name, descrip);
 
-			costToBuild = TheScienceStore->getSciencePurchaseCost( st );
-			if( costToBuild > 0 )
-			{
-				cost.format( TheGameText->fetch("TOOLTIP:ScienceCost"), costToBuild );
+			// Do not override cost when special power has cost
+			if (!isUseSpecialpowerButtonWithCost) {
+				costToBuild = TheScienceStore->getSciencePurchaseCost(st);
+				if (costToBuild > 0)
+				{
+					cost.format(TheGameText->fetch("TOOLTIP:ScienceCost"), costToBuild);
+				}
 			}
 
 			// ask each prerequisite to give us a list of the non satisfied prerequisites

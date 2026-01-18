@@ -39,8 +39,9 @@
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/TerrainLogic.h"
 #include "GameLogic/Module/OCLSpecialPower.h"
-#include <Common/MessageStream.h>
-#include <GameClient/InGameUI.h>
+#include "Common/MessageStream.h"
+#include "GameClient/InGameUI.h"
+#include "Common/PlayerList.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // MODULE DATA ////////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +74,7 @@ OCLSpecialPowerModuleData::OCLSpecialPowerModuleData( void )
 	m_upgradeOCL.clear();
 	m_createLoc = CREATE_AT_EDGE_NEAR_SOURCE;
 	m_isOCLAdjustPositionToPassable = FALSE;
+	m_minDistToSimilarRadius = 0.0f;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -102,6 +104,7 @@ static void parseOCLUpgradePair( INI* ini, void * /*instance*/, void *store, con
 		{ "ReferenceObject", INI::parseAsciiString, NULL, offsetof( OCLSpecialPowerModuleData, m_referenceThingName ) },
 		{ "OCLAdjustPositionToPassable", INI::parseBool, NULL, offsetof( OCLSpecialPowerModuleData, m_isOCLAdjustPositionToPassable ) },
 		{ "SelectCreatedObject", INI::parseBool, NULL, offsetof( OCLSpecialPowerModuleData, m_selectObject ) },
+		{ "MinDistToSimilarRadius", INI::parseReal, NULL, offsetof(OCLSpecialPowerModuleData, m_minDistToSimilarRadius)},
 		{ 0, 0, 0, 0 }
 	};
 	p.add(dataFieldParse);
@@ -259,6 +262,41 @@ void OCLSpecialPower::doSpecialPower( UnsignedInt commandOptions )
 
 	Coord3D creationCoord;
 	creationCoord.set( getObject()->getPosition() );
+
+	// get the module data
+	const OCLSpecialPowerModuleData* modData = getOCLSpecialPowerModuleData();
+
+	if (modData->m_minDistToSimilarRadius > 0.0f) {
+		const ThingTemplate* checkFor = TheThingFactory->findTemplate(modData->m_referenceThingName);
+		if (checkFor != nullptr) {
+
+			PartitionFilterThing similarFilter(checkFor, true);
+
+			PartitionFilter* filters[2];
+			Int numFilters = 0;
+			filters[numFilters++] = &similarFilter;
+			filters[numFilters] = NULL;
+
+			ObjectIterator* iter = ThePartitionManager->iterateObjectsInRange(&creationCoord,
+				modData->m_minDistToSimilarRadius,
+				FROM_BOUNDINGSPHERE_2D,
+				filters,
+				ITER_FASTEST);
+			MemoryPoolObjectHolder holder(iter);
+
+			// We have a similar object nearby, do not trigger ocl
+			if (iter->first() != nullptr) {
+
+				if (getObject()->getControllingPlayer() == ThePlayerList->getLocalPlayer()) {
+					// play a can't do that sound (UI beep type sound)
+					static AudioEventRTS noCanDoSound("NoCanDoSound");
+					TheAudio->addAudioEvent(&noCanDoSound);
+				}
+
+				return;
+			}
+		}
+	}
 
 	// call the base class action cause we are *EXTENDING* functionality
 	SpecialPowerModule::doSpecialPowerAtLocation( &creationCoord, INVALID_ANGLE, commandOptions );

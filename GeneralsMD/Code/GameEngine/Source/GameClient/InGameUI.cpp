@@ -1634,10 +1634,10 @@ void InGameUI::handleBuildPlacements( void )
 
 		// If shipyard move up building to at least waterheight if lower
 		if (m_pendingPlaceType->isKindOf(KINDOF_SHIPYARD)) {
-			Real terrainZ{ 0 };
 			Real waterZ{ 0 };
-			TheTerrainLogic->isUnderwater(world.x, world.y, &waterZ, &terrainZ);
-			world.z = std::max(terrainZ, waterZ);
+			if (TheTerrainLogic->isUnderwater(world.x, world.y, &waterZ)) {
+				world.z = std::max(world.z, waterZ);
+			}
 		}
 
 		m_placeIcon[ 0 ]->setPosition( &world );

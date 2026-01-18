@@ -304,6 +304,7 @@ void SpecialPowerStore::parseSpecialPowerDefinition( INI *ini )
 	{ "EvaReadyOwn",						INI::parseEvaNameIndexList,			TheEvaMessageNames, offsetof(SpecialPowerTemplate, m_eva_ready_own) },
 	{ "EvaReadyAlly",						INI::parseEvaNameIndexList,			TheEvaMessageNames, offsetof(SpecialPowerTemplate, m_eva_ready_ally) },
 	{ "EvaReadyEnemy",						INI::parseEvaNameIndexList,			TheEvaMessageNames, offsetof(SpecialPowerTemplate, m_eva_ready_enemy) },
+	{ "Cost",											INI::parseInt,									NULL, offsetof(SpecialPowerTemplate, m_cost) },
 	{ NULL,	NULL, NULL,	0 }
 
 };
@@ -333,7 +334,7 @@ SpecialPowerTemplate::SpecialPowerTemplate()
 	m_eva_ready_own = EVA_Invalid;
 	m_eva_ready_ally = EVA_Invalid;
 	m_eva_ready_enemy = EVA_Invalid;
-
+	m_cost = 0;
 }
 
 //-------------------------------------------------------------------------------------------------

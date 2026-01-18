@@ -1435,6 +1435,10 @@ CommandAvailability ControlBar::getCommandAvailability( const CommandButton *com
 				GadgetButtonDrawInverseClock( applyToWin, percent, m_buildUpClockColor );
 				return COMMAND_NOT_READY;
 			}
+			else if (command->getSpecialPowerTemplate()->getCost() > 0 && player->getMoney()->countMoney() < command->getSpecialPowerTemplate()->getCost()) {
+				// Cannot afford
+				return COMMAND_CANT_AFFORD;
+			}
 			else if( SpecialAbilityUpdate *spUpdate = obj->findSpecialAbilityUpdate( command->getSpecialPowerTemplate()->getSpecialPowerType() ) )
 			{
 				if( spUpdate && spUpdate->isPowerCurrentlyInUse( command ) )

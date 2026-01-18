@@ -1546,6 +1546,14 @@ Bool ActionManager::canDoSpecialPowerAtLocation( const Object *obj, const Coord3
 				//Not fully ready
 				return false;
 			}
+
+			// Check for money cost
+			if (spTemplate->getCost() > 0) {
+				Player* ply = obj->getControllingPlayer();
+				if (ply != nullptr && ply->getMoney()->countMoney() < spTemplate->getCost()) {
+					return false;
+				}
+			}
 		}
 
 		// First check terrain type, if it is cared about.  Don't return a true, since there are more checks.
@@ -1677,6 +1685,14 @@ Bool ActionManager::canDoSpecialPowerAtObject( const Object *obj, const Object *
 			{
 				//Not fully ready
 				return false;
+			}
+
+			// Check for money cost
+			if (spTemplate->getCost() > 0) {
+				Player* ply = obj->getControllingPlayer();
+				if (ply != nullptr && ply->getMoney()->countMoney() < spTemplate->getCost()) {
+					return false;
+				}
 			}
 		}
 
@@ -2051,6 +2067,14 @@ Bool ActionManager::canDoSpecialPower( const Object *obj, const SpecialPowerTemp
 			{
 				//Not fully ready
 				return false;
+			}
+
+			// Check for money cost
+			if (spTemplate->getCost() > 0) {
+				Player* ply = obj->getControllingPlayer();
+				if (ply != nullptr && ply->getMoney()->countMoney() < spTemplate->getCost()) {
+					return false;
+				}
 			}
 		}
 

@@ -688,8 +688,15 @@ Bool CommandButton::isValidToUseOn(const Object *sourceObj, const Object *target
 Bool CommandButton::isReady(const Object *sourceObj) const
 {
 	SpecialPowerModuleInterface *mod = sourceObj->getSpecialPowerModule( m_specialPower );
-	if( mod && mod->getPercentReady() == 1.0f )
-		return true;
+	if (mod) {
+		bool ready = mod->getPercentReady() == 1.0f;
+		bool can_afford{ true };
+		if (m_specialPower->getCost() > 0) {
+			can_afford = sourceObj->getControllingPlayer()->getMoney()->countMoney() >= m_specialPower->getCost();
+		}
+
+		if (ready && can_afford) return true;
+	}
 
 	if (m_upgradeTemplate && sourceObj->affectedByUpgrade(m_upgradeTemplate) && !sourceObj->hasUpgrade(m_upgradeTemplate))
 		return true;
