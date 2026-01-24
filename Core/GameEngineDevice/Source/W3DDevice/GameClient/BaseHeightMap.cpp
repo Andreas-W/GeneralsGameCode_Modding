@@ -1,4 +1,4 @@
-/*
+﻿/*
 **	Command & Conquer Generals Zero Hour(tm)
 **	Copyright 2025 Electronic Arts Inc.
 **
@@ -492,6 +492,13 @@ void BaseHeightMapRenderObjClass::ReAcquireResources(void)
 	}
 }
 
+// --------
+static float invLerp(float a, float b, float v)
+{
+	if (a == b) return 0.0f; // avoid divide by zero
+	return (v - a) / (b - a);
+}
+
 //=============================================================================
 // BaseHeightMapRenderObjClass::doTheLight
 //=============================================================================
@@ -591,6 +598,99 @@ void BaseHeightMapRenderObjClass::doTheLight(VERTEX_FORMAT *vb, Vector3*light, V
 	if (shadeB > 1.0) shadeB = 1.0;
 	if(shadeB < 0.0f) shadeB = 0.0f;
 
+	// ---------------------------------------------
+	// Height based ambient light factor (for water)
+	// ---------------------------------------------
+	if (TheGlobalData &&
+		TheGlobalData->m_terrainHeightAmbientLightHeightStart > 0 &&
+		(TheGlobalData->m_terrainHeightAmbientLightHeight1 >= 0 || TheGlobalData->m_terrainHeightAmbientLightHeight2 >= 0) &&
+		vb->z <= TheGlobalData->m_terrainHeightAmbientLightHeightStart
+		) {
+		Real col1R, col1G, col1B, col2R, col2G, col2B;
+		//Real factor1 = 0.0;
+		//Real factor2 = 0.0;
+		Real height1 = -1;
+		Real height2 = -1;
+
+		Real colR;
+		Real colG;
+		Real colB;
+
+		// case 1: only one color
+		if (TheGlobalData->m_terrainHeightAmbientLightHeight1 <= 0)
+		{
+			col1R = TheGlobalData->m_terrainHeightAmbientLightColor2.red;
+			col1G = TheGlobalData->m_terrainHeightAmbientLightColor2.green;
+			col1B = TheGlobalData->m_terrainHeightAmbientLightColor2.blue;
+			height1 = TheGlobalData->m_terrainHeightAmbientLightHeight2;
+		}
+		else if (TheGlobalData->m_terrainHeightAmbientLightHeight2 <= 0) {
+			col1R = TheGlobalData->m_terrainHeightAmbientLightColor1.red;
+			col1G = TheGlobalData->m_terrainHeightAmbientLightColor1.green;
+			col1B = TheGlobalData->m_terrainHeightAmbientLightColor1.blue;
+			height1 = TheGlobalData->m_terrainHeightAmbientLightHeight1;
+		}
+		else
+		{ // case 2: both colors
+
+			col1R = TheGlobalData->m_terrainHeightAmbientLightColor1.red;
+			col1G = TheGlobalData->m_terrainHeightAmbientLightColor1.green;
+			col1B = TheGlobalData->m_terrainHeightAmbientLightColor1.blue;
+			col2R = TheGlobalData->m_terrainHeightAmbientLightColor2.red;
+			col2G = TheGlobalData->m_terrainHeightAmbientLightColor2.green;
+			col2B = TheGlobalData->m_terrainHeightAmbientLightColor2.blue;
+			height1 = TheGlobalData->m_terrainHeightAmbientLightHeight1;
+			height2 = TheGlobalData->m_terrainHeightAmbientLightHeight2;
+		}
+
+		bool multiply = !TheGlobalData->m_terrainHeightAmbientLightAdditive;
+		Real base;
+		if (multiply)
+			base = 1.0;
+		else
+			base = 0.0;
+
+		if (vb->z > height1) {
+			Real t = WWMath::Clamp(invLerp(TheGlobalData->m_terrainHeightAmbientLightHeightStart, height1, vb->z));
+			colR = col1R * t + (1.0 - t) * base;
+			colG = col1G * t + (1.0 - t) * base;
+			colB = col1B * t + (1.0 - t) * base;
+		}
+
+		// Between height1 and height2
+		else if (height2 > -1 && vb->z > height2)
+		{
+			Real t = WWMath::Clamp(invLerp(height1, height2, vb->z));
+			Real factor1 = 1.0f - t; // 1 → 0
+			Real factor2 = t;        // 0 → 1
+
+			colR = col1R * factor1 + col2R * factor2;
+			colG = col1G * factor1 + col2G * factor2;
+			colB = col1B * factor1 + col2B * factor2;
+		}
+		// below
+		else {
+			colR = col2R;
+			colG = col2G;
+			colB = col2B;
+		}
+
+		if (multiply) {
+			shadeR *= colR;
+			shadeG *= colG;
+			shadeB *= colB;
+		}
+		else {
+			shadeR = WWMath::Clamp(shadeR + colR);
+			shadeG = WWMath::Clamp(shadeG + colG);
+			shadeB = WWMath::Clamp(shadeB + colB);
+		}
+	}
+	// ---------------------------------------------
+
+
+
+	// Old, inactive code
 	if (m_useDepthFade && vb->z <= TheGlobalData->m_waterPositionZ)
 	{	//height is below water level
 		//reduce lighting values based on light fall off as it travels through water.
