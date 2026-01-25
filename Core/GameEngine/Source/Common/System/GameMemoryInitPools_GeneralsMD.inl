@@ -160,6 +160,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "DelayedUpgradeBehavior", 128, 64 },
 	{ "GenerateMinefieldBehavior", 32, 32 },
 	{ "HelicopterSlowDeathBehavior", 64, 32 },
+	{ "ShipSlowDeathBehavior", 64, 32 },
 	{ "ParkingPlaceBehavior", 32, 32 },
 	{ "FlightDeckBehavior", 8, 8 },
 #ifdef ALLOW_SURRENDER

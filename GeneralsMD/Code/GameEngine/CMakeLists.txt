@@ -350,6 +350,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/HealCrateCollide.h
     Include/GameLogic/Module/HeightDieUpdate.h
     Include/GameLogic/Module/HelicopterSlowDeathUpdate.h
+    Include/GameLogic/Module/ShipSlowDeathBehavior.h
     Include/GameLogic/Module/HelixContain.h
     Include/GameLogic/Module/MultiAddOnContain.h
     Include/GameLogic/Module/HighlanderBody.h
@@ -1064,6 +1065,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/FloatUpdate.cpp
     Source/GameLogic/Object/Update/HeightDieUpdate.cpp
     Source/GameLogic/Object/Update/HelicopterSlowDeathUpdate.cpp
+    Source/GameLogic/Object/Update/ShipSlowDeathBehavior.cpp
     Source/GameLogic/Object/Update/HijackerUpdate.cpp
     Source/GameLogic/Object/Update/HordeUpdate.cpp
     Source/GameLogic/Object/Update/LaserUpdate.cpp

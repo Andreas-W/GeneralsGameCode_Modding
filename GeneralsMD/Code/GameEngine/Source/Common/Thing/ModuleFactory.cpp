@@ -58,6 +58,7 @@
 #include "GameLogic/Module/ChronoDeathBehavior.h"
 #include "GameLogic/Module/SlowDeathBehavior.h"
 #include "GameLogic/Module/HelicopterSlowDeathUpdate.h"
+#include "GameLogic/Module/ShipSlowDeathBehavior.h"
 #include "GameLogic/Module/NeutronMissileSlowDeathUpdate.h"
 #include "GameLogic/Module/CaveContain.h"
 #include "GameLogic/Module/OpenContain.h"
@@ -362,6 +363,7 @@ void ModuleFactory::init( void )
 	addModule( ChronoDeathBehavior );
 	addModule( SlowDeathBehavior );
 	addModule( HelicopterSlowDeathBehavior );
+	addModule( ShipSlowDeathBehavior );
 	addModule( NeutronMissileSlowDeathBehavior );
 	addModule( CaveContain );
 	addModule( OpenContain );
