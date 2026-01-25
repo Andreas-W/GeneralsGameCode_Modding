@@ -128,7 +128,9 @@ public:
 	Real getHeightAboveTerrain() const;
 	Real getHeightAboveTerrainOrWater() const;
 
-	Bool isOverWater() const;
+	Bool isOverWater() const;  ///< Checks if the object is above or below a water surface
+	Bool isAboveWater() const;  ///< Checks if the object is above (but not below) a water surface
+	Bool isBelowWater() const;  ///< Checks if the object is below (but not above) a water surface
 
 	Bool isAboveTerrain() const { return getHeightAboveTerrain() > 0.0f; }
 	Bool isAboveTerrainOrWater() const { return getHeightAboveTerrainOrWater() > 0.0f; }

@@ -36,6 +36,8 @@
 
 enum ObjectID CPP_11(: Int);
 
+class FXList;
+
 enum PhysicsTurningType CPP_11(: Int)
 {
 	TURN_NEGATIVE = -1,
@@ -65,6 +67,11 @@ public:
 	Real	m_pitchRollYawFactor;
 	Bool    m_vehicleCrashAllowAirborne;
 	Real    m_bounceFactor;
+
+	Bool  m_doWaterPhysics;  //< We only do water collission checks if this is set!
+	Real  m_waterExtraFriction;
+	const FXList* m_waterImpactFX;
+
   
 	const WeaponTemplate* m_vehicleCrashesIntoBuildingWeaponTemplate;
 	const WeaponTemplate* m_vehicleCrashesIntoNonBuildingWeaponTemplate;
@@ -193,7 +200,10 @@ public:
 	void setExtraFriction(Real b) { m_extraFriction = b; }
 
 	void setBounceSound(const AudioEventRTS* bounceSound);
+	void setWaterImpactSound(const AudioEventRTS* waterImpactSound);
+	void setWaterImpactFX(const FXList* waterImpactFX);
 	const AudioEventRTS* getBounceSound() { return m_bounceSound ? &m_bounceSound->m_event : TheAudio->getValidSilentAudioEvent(); }
+	const AudioEventRTS* getWaterImpactSound() { return m_waterImpactSound ? &m_waterImpactSound->m_event : TheAudio->getValidSilentAudioEvent(); }
 
 	/**
 		Reset all values (vel, accel, etc) to starting values.
@@ -238,6 +248,8 @@ protected:
 
 	void testStunnedUnitForDestruction(void);
 
+	Real getExtraFriction() const;
+
 private:
 
 	enum PhysicsFlagsType
@@ -255,6 +267,7 @@ private:
 		IS_IN_FREEFALL									= 0x0200,
 		IS_IN_UPDATE										= 0x0400,
 		IS_STUNNED											= 0x0800,
+		WAS_ABOVE_WATER_LAST_FRAME      = 0x1000,
 	};
 
 	/*
@@ -266,6 +279,7 @@ private:
 	Real												m_rollRate;								///< rate of rotation around forward vector
 	Real												m_pitchRate;							///< rate or rotation around side vector
 	DynamicAudioEventRTS*				m_bounceSound;						///< The sound for when this thing bounces, or NULL
+	DynamicAudioEventRTS*				m_waterImpactSound;						///< The sound for when this thing hits the water surface, or NULL
 	Coord3D											m_accel;									///< current acceleration
 	Coord3D											m_prevAccel;							///< last frame's acceleration
 	Coord3D											m_vel;										///< current velocity
@@ -283,6 +297,8 @@ private:
 	mutable Real								m_velMag;									///< magnitude of cur vel (recalced when m_vel changes)
 
 	Bool												m_originalAllowBounce;		///< orignal state of allow bounce
+
+	const FXList*											m_waterImpactFX;
 
 	void setFlag(PhysicsFlagsType f, Bool set) { if (set) m_flags |= f; else m_flags &= ~f; }
 	Bool getFlag(PhysicsFlagsType f) const { return (m_flags & f) != 0; }

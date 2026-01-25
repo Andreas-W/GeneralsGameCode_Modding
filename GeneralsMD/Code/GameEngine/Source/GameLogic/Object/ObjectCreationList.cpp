@@ -731,6 +731,7 @@ public:
 
 	GenericObjectCreationNugget() :
 		m_requiresLivePlayer(FALSE),
+		m_debrisTemplateName(AsciiString::TheEmptyString),
 		m_debrisToGenerate(1),
 		m_mass(0),
 		m_extraBounciness(0),
@@ -887,6 +888,7 @@ public:
 	{
 		static const FieldParse myFieldParse[] =
 		{
+			{ "DebrisObject",						INI::parseAsciiString,		NULL, offsetof(GenericObjectCreationNugget, m_debrisTemplateName) },
 			{ "ModelNames",							parseDebrisObjectNames,							NULL,					0 },
 			{ "Mass",										INI::parsePositiveNonZeroReal,			NULL,					offsetof( GenericObjectCreationNugget, m_mass ) },
 			{ "AnimationSet",						parseAnimSet,												NULL,					offsetof( GenericObjectCreationNugget, m_animSets) },
@@ -895,6 +897,8 @@ public:
 			{ "MinLODRequired",					INI::parseStaticGameLODLevel,				NULL,					offsetof(GenericObjectCreationNugget, m_minLODRequired) },
 			{ "Shadow",									INI::parseBitString32,							TheShadowNames,	offsetof( GenericObjectCreationNugget, m_shadowType ) },
 			{ "BounceSound",						INI::parseAudioEventRTS,						NULL,					offsetof( GenericObjectCreationNugget, m_bounceSound) },
+			{ "WaterImpactSound",				INI::parseAudioEventRTS,						NULL,					offsetof( GenericObjectCreationNugget, m_waterImpactSound) },
+			{ "WaterImpactFX",				  INI::parseFXList,										NULL,					offsetof( GenericObjectCreationNugget, m_waterImpactFX) },
 			{ 0, 0, 0, 0 }
 		};
 
@@ -1148,6 +1152,8 @@ protected:
 				objUp->setExtraFriction(m_extraFriction);
 				objUp->setAllowBouncing(true);
 				objUp->setBounceSound(&m_bounceSound);
+				objUp->setWaterImpactSound(&m_waterImpactSound);
+				objUp->setWaterImpactFX(m_waterImpactFX);
 				DUMPREAL(m_extraBounciness);
 				DUMPREAL(m_extraFriction);
 
@@ -1316,7 +1322,11 @@ protected:
 
 	Object* reallyCreate(const Coord3D *pos, const Matrix3D *mtx, Real orientation, const Object *sourceObj, UnsignedInt lifetimeFrames ) const
 	{
-		static const ThingTemplate* debrisTemplate = TheThingFactory->findTemplate("GenericDebris");
+		const ThingTemplate* debrisTemplate;
+		if (!m_debrisTemplateName.isEmpty())
+			debrisTemplate = TheThingFactory->findTemplate(m_debrisTemplateName);
+		else
+			debrisTemplate = TheThingFactory->findTemplate("GenericDebris");
 
 		if (m_names.empty())
 			return NULL;
@@ -1363,6 +1373,7 @@ protected:
 					continue;
 
 				tmpl = debrisTemplate;
+				DEBUG_LOG((">>> CREATE DEBRIS TEMPLATE: %s", debrisTemplate->getName().str()));
 			}
 			DEBUG_ASSERTCRASH(tmpl, ("Object %s not found",m_names[pick].str()));
 			if (!tmpl)
@@ -1458,6 +1469,7 @@ private:
 		AsciiString								m_animFinal;
 	};
 	std::vector<AsciiString>	m_names;
+	AsciiString               m_debrisTemplateName;
 	AsciiString								m_putInContainer;
 	std::vector<AnimSet>			m_animSets;
 	const FXList*							m_fxFinal;
@@ -1488,6 +1500,8 @@ private:
 	Real											m_maxDistanceFormation;
 	Int												m_objectCount; // how many objects will there be?
 	AudioEventRTS							m_bounceSound;
+	AudioEventRTS							m_waterImpactSound;
+	const FXList*							m_waterImpactFX;
 	Bool											m_requiresLivePlayer;
 	Bool											m_experienceSink;
 	Bool											m_inheritsWeaponBonus;

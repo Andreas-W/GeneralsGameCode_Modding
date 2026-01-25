@@ -343,6 +343,26 @@ Bool Thing::isOverWater() const
 	return m_cachedIsOverWater;
 }
 
+// ------------------------------------------------------------------------------
+Bool Thing::isBelowWater() const
+{
+	if (!(m_cacheFlags & VALID_ALTITUDE_SEALEVEL))
+	{
+		getHeightAboveTerrainOrWater();
+	}
+	return m_cachedIsOverWater && m_cachedAltitudeAboveTerrainOrWater <= 0;
+}
+
+// ------------------------------------------------------------------------------
+Bool Thing::isAboveWater() const
+{
+	if (!(m_cacheFlags & VALID_ALTITUDE_SEALEVEL))
+	{
+		getHeightAboveTerrainOrWater();
+	}
+	return m_cachedIsOverWater && m_cachedAltitudeAboveTerrainOrWater > 0;
+}
+
 
 //=============================================================================
 /** If we treat this as airborne, then they slide down slopes.  This checks whether
