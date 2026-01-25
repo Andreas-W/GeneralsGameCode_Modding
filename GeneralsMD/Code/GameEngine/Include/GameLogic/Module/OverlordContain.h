@@ -112,6 +112,11 @@ public:
 	virtual Bool getContainerPipsToShow(Int& numTotal, Int& numFull);
 	virtual void createPayload();
 
+	virtual short getRiderSlot(ObjectID riderID) const;
+	virtual short getPortableSlot(ObjectID portableID) const;
+	virtual const ContainedItemsList* getAddOnList() const;
+	virtual ContainedItemsList* getAddOnList();
+
 private:
 	/**< An empty overlord is a conatiner, but a full one redirects calls to its passengers.  If this returns NULL,
 	we are either empty or carrying a non container.
