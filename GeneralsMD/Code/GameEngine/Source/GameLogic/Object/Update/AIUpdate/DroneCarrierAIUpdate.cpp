@@ -29,11 +29,14 @@
 #include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/Module/ContainModule.h"
 #include "GameLogic/Module/DroneCarrierContain.h"
+#include "GameLogic/Module/CarrierDroneAIUpdate.h"
 
 
 DroneCarrierAIUpdateModuleData::DroneCarrierAIUpdateModuleData()
 {
 	m_respawn_time = 0;
+	m_drones_enter_main_door = false;
+	m_slots = 0;
 	m_spawnTemplateNameData.clear();
 }
 //-------------------------------------------------------------------------------------------------
@@ -43,9 +46,10 @@ void DroneCarrierAIUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
 
 	static const FieldParse dataFieldParse[] =
 	{
-		{ "RespawnTime",			INI::parseDurationUnsignedInt,		NULL, offsetof(DroneCarrierAIUpdateModuleData, m_respawn_time) },
-		{ "DroneTemplateName",INI::parseAsciiStringVectorAppend,NULL, offsetof(DroneCarrierAIUpdateModuleData, m_spawnTemplateNameData) },
-		{ "Slots",						INI::parseInt,										NULL, offsetof(DroneCarrierAIUpdateModuleData, m_slots) },
+		{ "RespawnTime",					INI::parseDurationUnsignedInt,		NULL, offsetof(DroneCarrierAIUpdateModuleData, m_respawn_time) },
+		{ "DroneTemplateName",		INI::parseAsciiStringVectorAppend,NULL, offsetof(DroneCarrierAIUpdateModuleData, m_spawnTemplateNameData) },
+		{ "Slots",								INI::parseInt,										NULL, offsetof(DroneCarrierAIUpdateModuleData, m_slots) },
+		{ "DronesEnterMainDoor",	INI::parseBool,										NULL, offsetof(DroneCarrierAIUpdateModuleData, m_drones_enter_main_door) },
 
 		{ 0, 0, 0, 0 }
 	};
@@ -65,6 +69,7 @@ DroneCarrierAIUpdate::DroneCarrierAIUpdate(Thing* thing, const ModuleData* modul
 	m_designatedTarget = INVALID_ID;
 	m_designatedCommand = AICMD_NO_COMMAND;
 	m_designatedPosition.zero();
+	m_doorOpen = false;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -424,24 +429,24 @@ bool DroneCarrierAIUpdate::isDroneCombatReady(Object* drone) {
 		BodyModuleInterface* body = drone->getBodyModule();
 		if (body) {
 			if (body->getHealth() < body->getMaxHealth()) {
-				DEBUG_LOG(("Drone %d is contained annd not fully healed", drone->getID()));
+				//DEBUG_LOG(("Drone %d is contained annd not fully healed", drone->getID()));
 				return false;
 			}
 		}
 		if (drone->isFullAmmo()) {
-			DEBUG_LOG(("Drone %d is contained and full ammo", drone->getID()));
+			//DEBUG_LOG(("Drone %d is contained and full ammo", drone->getID()));
 		}
 		else {
-			DEBUG_LOG(("Drone %d is contained and but NOT full ammo", drone->getID()));
+			//DEBUG_LOG(("Drone %d is contained and but NOT full ammo", drone->getID()));
 		}
 		return drone->isFullAmmo();
 	}
 	else {
 		if (drone->isOutOfAmmo()) {
-			DEBUG_LOG(("Drone %d is outside and out of ammo", drone->getID()));
+			//DEBUG_LOG(("Drone %d is outside and out of ammo", drone->getID()));
 		}
 		else {
-			DEBUG_LOG(("Drone %d is outside and has ammo", drone->getID()));
+			//DEBUG_LOG(("Drone %d is outside and has ammo", drone->getID()));
 		}
 
 		// if not contained we can fight as long as we have ammo
@@ -487,6 +492,17 @@ void DroneCarrierAIUpdate::retrieveDrones()
 			}
 		}
 	}
+}
+
+bool DroneCarrierAIUpdate::areDronesApproaching()
+{
+	for (const auto& slave_id : m_spawnIDs)
+	{
+		Object* drone = TheGameLogic->findObjectByID(slave_id);
+		CarrierDroneAIUpdate* ai = static_cast<CarrierDroneAIUpdate*>(drone->getAIUpdateInterface());
+		if (ai && ai->isLanding()) return true;
+	}
+	return false;
 }
 
 void DroneCarrierAIUpdate::propagateOrderToSpecificDrone(Object* drone)
@@ -691,6 +707,30 @@ UpdateSleepTime DroneCarrierAIUpdate::update()
 		}
 	}
 
+	//Check if a drone is approaching and if a door needs to open or close
+	if (data->m_drones_enter_main_door && now % 2 == 0) {
+		// check every 2nd frame
+
+		bool dronesApproaching = areDronesApproaching();
+
+		if (!m_doorOpen && dronesApproaching) {
+			//Open the door
+			m_doorOpen = true;
+			Drawable* draw = getObject()->getDrawable();
+			if (draw) {
+				draw->clearAndSetModelConditionState(MODELCONDITION_CARRIER_DOOR_CLOSING, MODELCONDITION_CARRIER_DOOR_OPENING);
+			}
+		}
+		else if (m_doorOpen && !dronesApproaching) {
+			//Close the door
+			m_doorOpen = false;
+			Drawable* draw = getObject()->getDrawable();
+			if (draw){
+				draw->clearAndSetModelConditionState(MODELCONDITION_CARRIER_DOOR_OPENING, MODELCONDITION_CARRIER_DOOR_CLOSING);
+		  }
+		}
+	}
+
 	return AIUpdateInterface::update();
 }
 
@@ -761,6 +801,8 @@ void DroneCarrierAIUpdate::xfer(Xfer* xfer)
 	}
 
 	xfer->xferCoord3D(&m_designatedPosition);
+
+	xfer->xferBool(&m_doorOpen);
 
 }  // end xfer
 

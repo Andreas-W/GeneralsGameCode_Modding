@@ -213,6 +213,9 @@ const char* const ModelConditionFlags::s_bitNameList[] =
 	"LANDING",
 
 	"TELEPORT_RECOVER",
+
+	"CARRIER_DOOR_OPENING",
+	"CARRIER_DOOR_CLOSING",
 	
 	NULL
 };

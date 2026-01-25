@@ -39,6 +39,8 @@ public:
 	//stop contained drones from attacking
 	virtual void privateAttackPosition(const Coord3D* pos, Int maxShotsToFire, CommandSourceType cmdSource) override;						///< attack given spot
 
+	bool isLanding();
+
 private:
 	bool m_isContained;
 	UnsignedInt m_launchFrame;

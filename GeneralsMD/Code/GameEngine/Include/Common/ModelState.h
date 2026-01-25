@@ -281,6 +281,10 @@ enum ModelConditionFlagType CPP_11(: Int)
 	// Teleporter / Chrono Legionnaire
 	MODELCONDITION_TELEPORT_RECOVER,
 
+	// Carrier main door, triggered when drones are landing
+	MODELCONDITION_CARRIER_DOOR_OPENING,
+	MODELCONDITION_CARRIER_DOOR_CLOSING,
+
 //
 // Note: these values are saved in save files, so you MUST NOT REMOVE OR CHANGE
 // existing values!

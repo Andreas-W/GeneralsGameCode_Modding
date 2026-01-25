@@ -20,7 +20,7 @@ class DroneCarrierAIUpdateModuleData : public AIUpdateModuleData
 public:
 	Int										m_slots;
 	UnsignedInt						m_respawn_time;
-
+	Bool									m_drones_enter_main_door;
 	std::vector<AsciiString> m_spawnTemplateNameData;
 
 	DroneCarrierAIUpdateModuleData();
@@ -87,6 +87,8 @@ private:
 	void deployDrones(); ///< let all drones exit the transport
 	void retrieveDrones(); ///< order all drones to go back to the transport
 
+	bool areDronesApproaching(); ///< check if there is a drone currently trying to land
+
 	void propagateOrdersToDrones();
 	void propagateOrderToSpecificDrone(Object* drone);
 
@@ -103,6 +105,7 @@ private:
 	ObjectID											m_designatedTarget;
 	AICommandType									m_designatedCommand;
 	Coord3D												m_designatedPosition;
+	bool													m_doorOpen;
 };
 
 template bool DroneCarrierAIUpdate::targetInRange<Object>(const Object* target);

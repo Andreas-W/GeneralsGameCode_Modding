@@ -77,6 +77,11 @@ void CarrierDroneAIUpdate::privateAttackPosition(const Coord3D* pos, Int maxShot
 	}
 }
 
+bool CarrierDroneAIUpdate::isLanding()
+{
+	return m_isDocking && getStateMachine()->getCurrentStateID() == AI_ENTER && getGoalObject() != NULL;
+}
+
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 CarrierDroneAIUpdate::~CarrierDroneAIUpdate(void)
