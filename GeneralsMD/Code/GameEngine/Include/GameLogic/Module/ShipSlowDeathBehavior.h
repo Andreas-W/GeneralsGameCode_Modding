@@ -80,27 +80,47 @@ public:
 	UnsignedInt m_initialDelayVariance;
 	ShipToppleType m_toppleType;
 
-	Real m_initWobbleMaxPitch;
-	Real m_initWobbleMaxYaw;
-	Real m_initWobbleMaxRoll;
-	UnsignedInt m_initWobbleInterval;
+	Real m_wobbleMaxPitch;
+	Real m_wobbleMaxYaw;
+	Real m_wobbleMaxRoll;
+	UnsignedInt m_wobbleInterval;
 
+	Real m_toppleFrontMinPitch;
 	Real m_toppleFrontMaxPitch;
+	Real m_toppleBackMinPitch;
 	Real m_toppleBackMaxPitch;
+	Real m_toppleSideMinRoll;
 	Real m_toppleSideMaxRoll;
+	Real m_toppleHeightMinOffset;
+	Real m_toppleHeightMaxOffset;
+	//Real m_toppleDamping;
+	Real m_toppleAngleCorrectionRate;
 	UnsignedInt m_toppleDuration;
+	UnsignedInt m_toppleDurationVariance;
 
-	Real m_sinkWobbleMaxPitch;
-	Real m_sinkWobbleMaxYaw;
-	Real m_sinkWobbleMaxRoll;
-	UnsignedInt m_sinkWobbleInterval;
+	Real m_toppleMinPushForce;
+	Real m_toppleMaxPushForce;
+	Real m_toppleMinPushForceSide;
+	Real m_toppleMaxPushForceSide;
+
+	//Real m_sinkWobbleMaxPitch;
+	//Real m_sinkWobbleMaxYaw;
+	//Real m_sinkWobbleMaxRoll;
+	//UnsignedInt m_sinkWobbleInterval;
 
 	Real m_sinkHowFast;
 
 	AudioEventRTS m_deathSound;						///< Sound played during death sequence.
 	const ObjectCreationList* m_oclEjectPilot;	///< OCL for ejecting pilot
+
 	const FXList* m_fxHitGround;					///< fx for hitting the ground
 	const ObjectCreationList* m_oclHitGround;  ///< OCL at hit ground event
+
+	const FXList* m_fxStartTopple;					///< fx after init phase
+	const ObjectCreationList* m_oclStartTopple;  ///< OCL  after init phase
+
+	const FXList* m_fxStartSink;					///< fx after topple / before sinking phase
+	const ObjectCreationList* m_oclStartSink;  ///< OCL  after topple / before sinking phase
 
 	const ParticleSystemTemplate* m_attachParticleSystem;		///< particle system to attach
 	AsciiString m_attachParticleBone;			///< bone to attach particle system to
@@ -157,6 +177,8 @@ protected:
 	void doTopplePhase();
 	void doSinkPhase();
 
+	void doWobble();
+
 	void beginInitPhase();
 	void beginTopplePhase();
 	void beginSinkPhase();
@@ -179,4 +201,11 @@ protected:
 	UnsignedInt m_sinkStartFrame;
 	Bool m_shipSinkStarted;
 	Int m_chosenToppleType;
+
+	Real m_toppleVarianceRoll;
+
+	Real m_curPitch;
+	Real m_curYaw;
+	Real m_curRoll;
+	Real m_curZ;
 };
