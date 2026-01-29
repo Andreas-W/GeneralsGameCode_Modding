@@ -35,6 +35,7 @@
 #include "Common/RandomValue.h"
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
+#include "Common/ModelState.h"
 #include "Common/Xfer.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/FXList.h"
@@ -61,11 +62,8 @@
 //-------------------------------------------------------------------------------------------------
 ShipSlowDeathBehaviorModuleData::ShipSlowDeathBehaviorModuleData( void )
 {
-	m_attachParticleBone.clear();
+	m_attachParticleBoneNames.clear();
 	m_attachParticleSystem = NULL;
-	m_attachParticleLoc.x = 0.0f;
-	m_attachParticleLoc.y = 0.0f;
-	m_attachParticleLoc.z = 0.0f;
 	m_oclEjectPilot = NULL;
 	m_fxHitGround = NULL;
 	m_oclHitGround = NULL;
@@ -74,6 +72,10 @@ ShipSlowDeathBehaviorModuleData::ShipSlowDeathBehaviorModuleData( void )
 	m_fxStartSink = NULL;
 	m_oclStartSink = NULL;
 	//m_toppleDamping = 1.0;
+
+	m_conditionFlagInit = MODELCONDITION_RUBBLE;
+	m_conditionFlagTopple = MODELCONDITION_RUBBLE;
+	m_conditionFlagSink = MODELCONDITION_RUBBLE;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -86,6 +88,7 @@ ShipSlowDeathBehaviorModuleData::ShipSlowDeathBehaviorModuleData( void )
 	{
 		{ "InitialDelay", INI::parseDurationUnsignedInt, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_initialDelay) },
 		{ "InitialDelayVariance", INI::parseDurationUnsignedInt, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_initialDelayVariance) },
+		{ "InitialConditionFlag",	ModelConditionFlags::parseSingleBitFromINI,	NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_conditionFlagInit) },
 
 		{ "WobbleMaxAnglePitch", INI::parseAngleReal, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_wobbleMaxPitch) },
 		{ "WobbleMaxAngleYaw", INI::parseAngleReal, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_wobbleMaxYaw) },
@@ -108,6 +111,7 @@ ShipSlowDeathBehaviorModuleData::ShipSlowDeathBehaviorModuleData( void )
 		{ "ToppleMaxPushForce", INI::parseReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_toppleMaxPushForce) },
 		{ "ToppleMinPushForceSide", INI::parseReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_toppleMinPushForceSide) },
 		{ "ToppleMaxPushForceSide", INI::parseReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_toppleMaxPushForceSide) },
+		{ "ToppleConditionFlag",	ModelConditionFlags::parseSingleBitFromINI,	NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_conditionFlagTopple) },
 
 
 		{ "FXStartTopple", INI::parseFXList, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_fxStartTopple) },
@@ -115,7 +119,7 @@ ShipSlowDeathBehaviorModuleData::ShipSlowDeathBehaviorModuleData( void )
 
 		//{ "ToppleDampingDuration", INI::parseDurationUnsignedInt, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_toppleDampingDuration) },
 		//{ "ToppleDamping", INI::parseReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_toppleDamping) },
-		{ "ToppleAngleCorrectionRate", INI::parseAngleReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_toppleAngleCorrectionRate) },
+		{ "ToppleAngleCorrectionRate", INI::parseAngularVelocityReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_toppleAngleCorrectionRate) },
 
 		//{ "SinkWobbleMaxAnglePitch", INI::parseAngleReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_sinkWobbleMaxPitch) },
 		//{ "SinkWobbleMaxAngleYaw", INI::parseAngleReal, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_sinkWobbleMaxYaw) },
@@ -124,12 +128,11 @@ ShipSlowDeathBehaviorModuleData::ShipSlowDeathBehaviorModuleData( void )
 		{ "SinkHowFast", INI::parsePercentToReal, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_sinkHowFast) },
 		{ "FXStartSink", INI::parseFXList, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_fxStartSink) },
 		{ "OCLStartSink", INI::parseObjectCreationList, NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_oclStartSink) },
+		{ "SinkConditionFlag",	ModelConditionFlags::parseSingleBitFromINI,	NULL, offsetof(ShipSlowDeathBehaviorModuleData, m_conditionFlagSink) },
 
+		{ "SinkAttachParticle", INI::parseParticleSystemTemplate, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_attachParticleSystem ) },
+		{ "SinkAttachParticleBones", INI::parseAsciiStringVector, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_attachParticleBoneNames ) },
 
-		{ "AttachParticle", INI::parseParticleSystemTemplate, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_attachParticleSystem ) },
-		{ "AttachParticleBone", INI::parseAsciiString, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_attachParticleBone ) },
-		{ "AttachParticleLoc", INI::parseCoord3D, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_attachParticleLoc ) },
-		
 		{ "OCLEjectPilot", INI::parseObjectCreationList, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_oclEjectPilot ) },
 		
 		{ "FXHitGround", INI::parseFXList, NULL, offsetof( ShipSlowDeathBehaviorModuleData, m_fxHitGround ) },
@@ -324,26 +327,53 @@ inline Real fastSin01(Real x)
 // ------------------------------------------------------------------------------------------------
 void ShipSlowDeathBehavior::beginInitPhase()
 {
+	//DEBUG_LOG((">>> BEGIN INIT PHASE"));
 
+	const ShipSlowDeathBehaviorModuleData* d = getShipSlowDeathBehaviorModuleData();
+	Drawable* draw = getObject()->getDrawable();
+	if (draw) {
+		if (d->m_conditionFlagInit != MODELCONDITION_INVALID)
+			draw->clearAndSetModelConditionState(MODELCONDITION_RUBBLE, d->m_conditionFlagInit);
+	}
 }
 // ------------------------------------------------------------------------------------------------
 void ShipSlowDeathBehavior::beginTopplePhase()
 {
+	//DEBUG_LOG((">>> BEGIN TOPPLE PHASE"));
+
 	const ShipSlowDeathBehaviorModuleData* d = getShipSlowDeathBehaviorModuleData();
 	Object* obj = getObject();
 	// make effect
 	FXList::doFXObj(d->m_fxStartTopple, obj);
 	ObjectCreationList::create(d->m_oclStartTopple, obj, NULL);
 
+	Drawable* draw = getObject()->getDrawable();
+	if (draw) {
+
+		ModelConditionFlags flagsToClear;
+		ModelConditionFlags flagsToSet;
+
+		if (d->m_conditionFlagInit != MODELCONDITION_INVALID)
+			flagsToClear.set(d->m_conditionFlagInit);
+
+		if (d->m_conditionFlagTopple != MODELCONDITION_INVALID) {
+			flagsToSet.set(d->m_conditionFlagTopple);
+
+			draw->clearAndSetModelConditionFlags(flagsToClear, flagsToSet);
+		}
+	}
 }
 // ------------------------------------------------------------------------------------------------
 void ShipSlowDeathBehavior::beginSinkPhase()
 {
+	//DEBUG_LOG((">>> BEGIN SINK PHASE"));
+	m_shipSinkStarted = TRUE;
+
 	const ShipSlowDeathBehaviorModuleData* d = getShipSlowDeathBehaviorModuleData();
 	Object* obj = getObject();
 	// make effect
-	FXList::doFXObj(d->m_fxStartTopple, obj);
-	ObjectCreationList::create(d->m_oclStartTopple, obj, NULL);
+	//FXList::doFXObj(d->m_fxStartTopple, obj);
+	//ObjectCreationList::create(d->m_oclStartTopple, obj, NULL);
 
 	m_deathSound = d->m_deathSound;
 
@@ -359,12 +389,48 @@ void ShipSlowDeathBehavior::beginSinkPhase()
 				locomotor->setMaxLift(-TheGlobalData->m_gravity * (1.0f - d->m_sinkHowFast));
 	}
 
+	Drawable* draw = obj->getDrawable();
+	if (draw) {
+
+		ModelConditionFlags flagsToClear;
+		ModelConditionFlags flagsToSet;
+
+		if (d->m_conditionFlagTopple != MODELCONDITION_INVALID)
+			flagsToClear.set(d->m_conditionFlagInit);
+
+		if (d->m_conditionFlagSink != MODELCONDITION_INVALID) {
+			flagsToSet.set(d->m_conditionFlagSink);
+
+			draw->clearAndSetModelConditionFlags(flagsToClear, flagsToSet);
+		}
+
+		if (d->m_attachParticleSystem)
+		{
+			// If no bones are specified, create one instance
+			if (d->m_attachParticleBoneNames.empty()) {
+				ParticleSystem* pSys = TheParticleSystemManager->createParticleSystem(d->m_attachParticleSystem);
+				if (pSys)
+					pSys->attachToObject(obj);
+			}
+			else { // one for each bone
+				Coord3D pos;
+				for (AsciiString boneName : d->m_attachParticleBoneNames) {
+					ParticleSystem* pSys = TheParticleSystemManager->createParticleSystem(d->m_attachParticleSystem);
+					if (pSys) {
+						if (draw->getPristineBonePositions(boneName.str(), 0, &pos, NULL, 1))
+							pSys->setPosition(&pos);
+						pSys->attachToObject(obj);
+					}
+				}
+			}
+		}
+	}
 }
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 void ShipSlowDeathBehavior::doInitPhase()
 {
-	DEBUG_LOG((">>> SSD doInitPhase 0"));
+	//DEBUG_LOG((">>> SSD doInitPhase 0"));
 
 	//const ShipSlowDeathBehaviorModuleData* d = getShipSlowDeathBehaviorModuleData();
 
@@ -378,7 +444,7 @@ void ShipSlowDeathBehavior::doInitPhase()
 // ------------------------------------------------------------------------------------------------
 void ShipSlowDeathBehavior::doTopplePhase()
 {
-	DEBUG_LOG((">>> SSD doTopplePhase 0"));
+	//DEBUG_LOG((">>> SSD doTopplePhase 0"));
 
 		const ShipSlowDeathBehaviorModuleData* d = getShipSlowDeathBehaviorModuleData();
 
@@ -457,9 +523,9 @@ void ShipSlowDeathBehavior::doTopplePhase()
 		Real deltaRoll = targetRoll - m_curRoll;
 		Real deltaZ = targetZ - m_curZ;
 
-		Real R2D = 180.0 / PI;
-		DEBUG_LOG((">>> SSD TopplePhase: target(P/Y/R/z) = (%f, %f, %f, %f), delta(P/Y/R/Z) = (%f, %f, %f, %f)",
-			targetPitch*R2D, targetYaw*R2D, targetRoll*R2D, targetZ, deltaPitch*R2D, deltaYaw*R2D, deltaRoll*R2D, deltaZ));
+		//Real R2D = 180.0 / PI;
+		//DEBUG_LOG((">>> SSD TopplePhase: target(P/Y/R/z) = (%f, %f, %f, %f), delta(P/Y/R/Z) = (%f, %f, %f, %f)",
+		//	targetPitch*R2D, targetYaw*R2D, targetRoll*R2D, targetZ, deltaPitch*R2D, deltaYaw*R2D, deltaRoll*R2D, deltaZ));
 
 
 		mtx.Rotate_X(deltaRoll);
@@ -498,7 +564,7 @@ inline Real getDelta(Real angle, Real delta) {
 // ------------------------------------------------------------------------------------------------
 void ShipSlowDeathBehavior::doSinkPhase()
 {
-	DEBUG_LOG((">>> SSD doSinkPhase 0"));
+	//DEBUG_LOG((">>> SSD doSinkPhase 0"));
 
 	const ShipSlowDeathBehaviorModuleData* d = getShipSlowDeathBehaviorModuleData();
 
@@ -522,11 +588,11 @@ void ShipSlowDeathBehavior::doSinkPhase()
 		Real deltaYaw = getDelta(m_curYaw, angleRate);
 		Real deltaRoll = getDelta(m_curRoll, angleRate);
 
-		Real R2D = 180.0 / PI;
-		DEBUG_LOG((">>> SINK TOPPLE CORRECTION, curAngle(P/Y/R) = (%f, %f, %f), delta(P/Y/R) = (%f, %f, %f)",
-			m_curPitch*R2D, m_curYaw*R2D, m_curRoll*R2D,
-			deltaPitch*R2D, deltaYaw*R2D, deltaRoll*R2D
-			));
+		//Real R2D = 180.0 / PI;
+		//DEBUG_LOG((">>> SINK TOPPLE CORRECTION, curAngle(P/Y/R) = (%f, %f, %f), delta(P/Y/R) = (%f, %f, %f)",
+		//	m_curPitch*R2D, m_curYaw*R2D, m_curRoll*R2D,
+		//	deltaPitch*R2D, deltaYaw*R2D, deltaRoll*R2D
+		//	));
 
 		mtx.Rotate_X(deltaRoll);
 		mtx.Rotate_Y(deltaPitch);
@@ -539,39 +605,6 @@ void ShipSlowDeathBehavior::doSinkPhase()
 		m_curRoll += deltaRoll;
 
 	}
-
-	//// do the wobble
-	//if (d->m_sinkWobbleInterval > 0) {
-	//	UnsignedInt now = TheGameLogic->getFrame();
-	//	UnsignedInt timePassed = now - m_sinkStartFrame;
-	//	Real pInterval = INT_TO_REAL(timePassed % d->m_sinkWobbleInterval) / INT_TO_REAL(d->m_sinkWobbleInterval);
-
-	//	// short ease in
-	//	Real pTotal = INT_TO_REAL(timePassed) / 30.0;  // 1sec
-
-	//	Real progressTotal = smoothStep(pTotal);
-
-	//	Drawable* draw = getObject()->getDrawable();
-	//	if (draw) {
-	//		Matrix3D mx = *draw->getInstanceMatrix();
-
-	//		//Real pitch = progressInterval * progressTotal * d->m_initWobbleMaxPitch;
-	//		//Real yaw = progressInterval * progressTotal * d->m_initWobbleMaxYaw;
-	//		//Real roll = progressInterval * progressTotal * d->m_initWobbleMaxRoll;
-
-	//		Real pitch = sin(pInterval * TWO_PI) * progressTotal * d->m_sinkWobbleMaxPitch;
-	//		Real yaw = cos(pInterval * TWO_PI) * progressTotal * d->m_sinkWobbleMaxYaw;
-	//		Real roll = -sin(pInterval * TWO_PI * 2) * progressTotal * d->m_sinkWobbleMaxRoll;
-
-	//		mx.Make_Identity();
-	//		mx.Rotate_Z(roll);
-	//		mx.Rotate_Y(yaw);
-	//		mx.Rotate_X(pitch);
-
-	//		draw->setInstanceMatrix(&mx);
-	//	}
-	// }
-
 }
 // ------------------------------------------------------------------------------------------------
 void ShipSlowDeathBehavior::doWobble()
@@ -642,7 +675,6 @@ void ShipSlowDeathBehavior::xfer( Xfer *xfer )
 
 	// extend base class
 	SlowDeathBehavior::xfer( xfer );
-
 
 	xfer->xferUnsignedInt( &m_initStartFrame);
 	xfer->xferUnsignedInt( &m_toppleStartFrame);
