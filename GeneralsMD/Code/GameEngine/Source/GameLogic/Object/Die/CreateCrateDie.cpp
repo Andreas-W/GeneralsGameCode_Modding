@@ -208,7 +208,14 @@ Object *CreateCrateDie::createCrate( CrateTemplate const *currentCrateData )
 	fpOptions.minRadius = 0.0f;
 	fpOptions.maxRadius = 5.0f;
 	fpOptions.relationshipObject = getObject();
-	fpOptions.flags = FPF_IGNORE_ALLY_OR_NEUTRAL_UNITS; // So the dead guy won't block, nor will his dead hulk.
+	
+	if (currentCrateData->m_allowWater) {
+		fpOptions.flags = static_cast<FindPositionFlags>(FPF_IGNORE_ALLY_OR_NEUTRAL_UNITS | FPF_IGNORE_WATER);
+	}
+	else {
+		fpOptions.flags = FPF_IGNORE_ALLY_OR_NEUTRAL_UNITS; // So the dead guy won't block, nor will his dead hulk.
+	}
+
 	if (layer != LAYER_GROUND) {
 		creationPoint = centerPoint;
 		spotFound = true;
@@ -223,7 +230,13 @@ Object *CreateCrateDie::createCrate( CrateTemplate const *currentCrateData )
 		fpOptions.minRadius = 0.0f;
 		fpOptions.maxRadius = 125.0f;
 		fpOptions.relationshipObject = NULL;
-		fpOptions.flags = FPF_NONE;
+
+		if (currentCrateData->m_allowWater) {
+			fpOptions.flags = FPF_IGNORE_WATER;
+		}
+		else {
+			fpOptions.flags = FPF_NONE;
+		}
 		if( ThePartitionManager->findPositionAround( &centerPoint, &fpOptions, &creationPoint ) )
 		{
 			spotFound = TRUE;
@@ -232,6 +245,14 @@ Object *CreateCrateDie::createCrate( CrateTemplate const *currentCrateData )
 
 	if( spotFound )
 	{
+		//Move up to water surface if unterwater
+		if (currentCrateData->m_allowWater && getObject()->isOverWater()) {
+			Real waterZ{ 0 };
+			if (TheTerrainLogic->isUnderwater(creationPoint.x, creationPoint.y, &waterZ)) {
+				creationPoint.z = std::max(creationPoint.z, waterZ);
+			}
+		}
+
 		Object *newCrate = TheThingFactory->newObject( crateType, NULL );
 		newCrate->setPosition( &creationPoint );
 		newCrate->setOrientation( GameLogicRandomValueReal( 0, 2*PI ) );
