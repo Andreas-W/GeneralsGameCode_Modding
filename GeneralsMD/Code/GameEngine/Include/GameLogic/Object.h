@@ -659,6 +659,9 @@ public:
 	// player. These are friend_s for player.
 	void friend_adjustPowerForPlayer( Bool incoming );
 
+	// Get position where to enter this object
+	Coord3D getEnterPosition(ObjectID enteringObject) const;
+
 protected:
 
 	void setOrRestoreTeam( Team* team, Bool restoring );

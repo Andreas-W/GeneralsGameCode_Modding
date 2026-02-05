@@ -102,6 +102,7 @@ enum DamageType CPP_11(: Int)
 	
 	// Specific damage types with special logic attached
 	DAMAGE_TORPEDO, ///< can only attack units over water
+	DAMAGE_ANTI_TORPEDO, /// destroy torpedoes
 	DAMAGE_CHRONO_GUN,   ///< Disable target and remove them once health threshold is reached
 	DAMAGE_CHRONO_UNRESISTABLE,  ///< Used for recovery from CHRONO_GUN
 	// DAMAGE_ZOMBIE_VIRUS,  // TODO

@@ -257,6 +257,8 @@ protected:
 	virtual const ContainedItemsList* getAddOnList() const { return NULL; }
 	virtual ContainedItemsList* getAddOnList() { return NULL; }
 
+	virtual Coord3D getEnterPositionOffset(ObjectID object) const override { return Coord3D(0, 0, 0); };
+
 	void pruneDeadWanters();
 
 	ContainedItemsList	m_containList;						///< the list of contained objects

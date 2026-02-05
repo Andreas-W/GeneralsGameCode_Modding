@@ -31,6 +31,8 @@ DroneCarrierContainModuleData::DroneCarrierContainModuleData() : TransportContai
 {
 	m_launchVelocityBoost = 0.0f;
 	m_deathTypeToContained = DEATH_DETONATED;
+	m_enterPositionOffsets.clear();
+	m_keepSlotAssignment = false;
 }
 
 void DroneCarrierContainModuleData::buildFieldParse(MultiIniFieldParse& p)
@@ -41,6 +43,8 @@ void DroneCarrierContainModuleData::buildFieldParse(MultiIniFieldParse& p)
 	{
 		{ "ContainedUnitsDeathType", INI::parseIndexList, TheDeathNames, offsetof(DroneCarrierContainModuleData, m_deathTypeToContained) },
 		{ "LaunchVelocityBoost", INI::parseReal, NULL, offsetof(DroneCarrierContainModuleData, m_launchVelocityBoost) },
+		{ "EnterPositionOffset", DroneCarrierContainModuleData::parseEnterPositionOffset, NULL, 0},
+		{ "KeepSlotAssignment", INI::parseBool, NULL, offsetof(DroneCarrierContainModuleData, m_keepSlotAssignment)},
 		{ 0, 0, 0, 0 }
 	};
 	p.add(dataFieldParse);
@@ -51,11 +55,11 @@ void DroneCarrierContainModuleData::buildFieldParse(MultiIniFieldParse& p)
 DroneCarrierContain::DroneCarrierContain(Thing* thing, const ModuleData* moduleData) :
 	TransportContain(thing, moduleData)
 {
-	const TransportContainModuleData* data = dynamic_cast<const TransportContainModuleData*>(moduleData);
+	const DroneCarrierContainModuleData* data = dynamic_cast<const DroneCarrierContainModuleData*>(moduleData);
 	if (data != nullptr) {
 		m_contained_units.reserve(data->m_slotCapacity);
 		for (size_t i = 0; i < data->m_slotCapacity; i++) {
-			m_contained_units.emplace_back(INVALID_ID, 0);
+			m_contained_units.emplace_back(INVALID_ID, 0, false);
 		}
 	}
 }
@@ -240,7 +244,13 @@ void DroneCarrierContain::onRemoving(Object* rider)
 	// Remove unit from slot assign vector
 	for (size_t i = 0; i < m_contained_units.size(); i++) {
 		if (std::get<0>(m_contained_units[i]) == rider->getID()){
-			m_contained_units[i] = { INVALID_ID, 0 };
+			if (d->m_keepSlotAssignment) {
+				//keep id and flag as outside
+				m_contained_units[i] = { rider->getID(), 0, false };
+			}
+			else {
+				m_contained_units[i] = { INVALID_ID, 0, false };
+			}
 		}
 	}
 
@@ -260,12 +270,25 @@ void DroneCarrierContain::onContaining(Object* obj, Bool wasSelected)
 	if (draw != nullptr) {
 		draw->enableAmbientSound(false);
 	}
+	bool hasSlot{ false };
+	const DroneCarrierContainModuleData* d = getDroneCarrierContainModuleData();
+	if (d->m_keepSlotAssignment) {
+		for (size_t i = 0; i < m_contained_units.size() && !hasSlot; i++) {
+			if (std::get<0>(m_contained_units[i]) == obj->getID()) {
+				//Update enter time and inside flag
+				m_contained_units[i] = { obj->getID(), TheGameLogic->getFrame(), true };
+				hasSlot = true;
+			}
+		}
+	}
 
-	// Assing in first free slot
-	for (size_t i = 0; i < m_contained_units.size(); i++) {
-		if (std::get<0>(m_contained_units[i]) == INVALID_ID) {
-			m_contained_units[i] = { obj->getID(), TheGameLogic->getFrame() };
-			break;
+	if (!hasSlot) {
+		// Assing in first free slot
+		for (size_t i = 0; i < m_contained_units.size(); i++) {
+			if (std::get<0>(m_contained_units[i]) == INVALID_ID) {
+				m_contained_units[i] = { obj->getID(), TheGameLogic->getFrame(), true };
+				break;
+			}
 		}
 	}
 }
@@ -346,14 +369,40 @@ ContainedItemsList* DroneCarrierContain::getAddOnList()
 	return &m_containList;
 }
 
+Coord3D DroneCarrierContain::getEnterPositionOffset(ObjectID object) const
+{
+	const DroneCarrierContainModuleData* data = getDroneCarrierContainModuleData();
+	if (!data->m_enterPositionOffsets.empty()) {
+
+		short index = -1;
+		if (data->m_keepSlotAssignment) {
+			index = getRiderSlot(object);
+		}
+
+		if (index < 0) {
+			//get next free slot
+			for (size_t i = 0; i < m_contained_units.size() && index < 0; i++) {
+				if (std::get<0>(m_contained_units[i]) == INVALID_ID) {
+					index = i;
+				}
+			}
+		}
+
+		if (index > -1) {
+			return data->m_enterPositionOffsets.at(index % data->m_enterPositionOffsets.size());
+		}
+	}
+	return Coord3D(0, 0, 0);
+}
+
 // Similar to jet ai when parking
 void DroneCarrierContain::updateContainedReloadingStatus()
 {
 	UnsignedInt now = TheGameLogic->getFrame();
 
 	for (size_t i = 0; i < m_contained_units.size(); i++) {
-		const auto& [objectID, enteredFrame] = m_contained_units[i];
-		if (objectID != INVALID_ID) {
+		const auto& [objectID, enteredFrame, inside] = m_contained_units[i];
+		if (objectID != INVALID_ID && inside) {
 
 			Object* drone = TheGameLogic->findObjectByID(objectID);
 			if (drone != nullptr) {
@@ -374,6 +423,31 @@ void DroneCarrierContain::updateContainedReloadingStatus()
 			}
 		}
 	}
+}
+
+void DroneCarrierContain::onDroneDeath(ObjectID deadDrone)
+{
+	const DroneCarrierContainModuleData* data = getDroneCarrierContainModuleData();
+	if (!data->m_keepSlotAssignment) return;
+
+	for (size_t i = 0; i < m_contained_units.size(); i++) {
+		if (std::get<0>(m_contained_units[i]) == deadDrone) {
+			m_contained_units[i] = { INVALID_ID, 0, false };
+			return;
+		}
+	}
+	DEBUG_CRASH(("DroneCarrierContain: dead drone %d was not in contained units, this should not happen when keeping slot assignments!"));
+}
+
+void DroneCarrierContainModuleData::parseEnterPositionOffset(INI* ini, void* instance, void*, const void*)
+{
+	// Accept multiple listings of Coord3D's.
+	DroneCarrierContainModuleData* self = (DroneCarrierContainModuleData*)instance;
+
+	Coord3D offset(0,0,0);
+	INI::parseCoord3D(ini, NULL, &offset, NULL);
+
+	self->m_enterPositionOffsets.push_back(offset);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -403,18 +477,18 @@ void DroneCarrierContain::xfer(Xfer* xfer)
 	xfer->xferUnsignedShort(&listCount);
 
 	// xfer vector data
-	std::tuple<ObjectID, UnsignedInt> entry;
+	std::tuple<ObjectID, UnsignedInt, Bool> entry;
 	if (xfer->getXferMode() == XFER_SAVE || xfer->getXferMode() == XFER_CRC)
 	{
 		// save all tuples
-		std::vector< std::tuple<ObjectID, UnsignedInt> >::const_iterator it;
+		std::vector< std::tuple<ObjectID, UnsignedInt, Bool> >::const_iterator it;
 		for (it = m_contained_units.begin(); it != m_contained_units.end(); ++it)
 		{
 
 			entry = *it;
 			xfer->xferObjectID(&std::get<0>(entry));
 			xfer->xferUnsignedInt(&std::get<1>(entry));
-
+			xfer->xferBool(&std::get<2>(entry));
 		}  // end for
 
 	}  // end if, save
@@ -438,6 +512,7 @@ void DroneCarrierContain::xfer(Xfer* xfer)
 
 			xfer->xferObjectID(&std::get<0>(entry));
 			xfer->xferUnsignedInt(&std::get<1>(entry));
+			xfer->xferBool(&std::get<2>(entry));
 			m_contained_units.push_back(entry);
 
 		}  // end for, i

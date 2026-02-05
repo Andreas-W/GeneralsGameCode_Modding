@@ -216,6 +216,9 @@ const char* const ModelConditionFlags::s_bitNameList[] =
 
 	"CARRIER_DOOR_OPENING",
 	"CARRIER_DOOR_CLOSING",
+
+	"SHIP_TOPPLING",
+	"SHIP_SINKING",
 	
 	NULL
 };

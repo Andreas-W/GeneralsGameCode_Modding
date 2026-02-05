@@ -21,11 +21,13 @@ class DroneCarrierContainModuleData: public TransportContainModuleData
 public:
 	Real							m_launchVelocityBoost;
 	DeathType					m_deathTypeToContained;
+	std::vector<Coord3D> m_enterPositionOffsets;
+	Bool							m_keepSlotAssignment;
 
 	DroneCarrierContainModuleData();
 
 	static void buildFieldParse(MultiIniFieldParse& p);
-
+	static void parseEnterPositionOffset(INI* ini, void* instance, void* /*store*/, const void* /*userData*/);
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -56,15 +58,20 @@ public:
 	virtual const ContainedItemsList* getAddOnList() const override;
 	virtual ContainedItemsList* getAddOnList() override;
 
+	virtual Coord3D getEnterPositionOffset(ObjectID object) const override;
+
 	virtual void onDie(const DamageInfo* damageInfo) override;
 
 	// Called from the AI update to reload the contained drones
 	void updateContainedReloadingStatus();
 
+	// Called from Carrier AI if a drone dies
+	void onDroneDeath(ObjectID deadDrone);
+
 protected:
 
 	// Saves slot assignement and frame when entered
-	std::vector<std::tuple<ObjectID, UnsignedInt>> m_contained_units;
+	std::vector<std::tuple<ObjectID, UnsignedInt, Bool>> m_contained_units;
 };
 
 #endif // __TransportContain_H_

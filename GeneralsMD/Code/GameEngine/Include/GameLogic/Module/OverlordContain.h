@@ -117,6 +117,8 @@ public:
 	virtual const ContainedItemsList* getAddOnList() const;
 	virtual ContainedItemsList* getAddOnList();
 
+	virtual Coord3D getEnterPositionOffset(ObjectID object) const override { return Coord3D(0, 0, 0); };
+
 private:
 	/**< An empty overlord is a conatiner, but a full one redirects calls to its passengers.  If this returns NULL,
 	we are either empty or carrying a non container.

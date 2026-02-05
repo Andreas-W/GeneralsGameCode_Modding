@@ -155,6 +155,17 @@ void DroneCarrierAIUpdate::onSpawnDeath(ObjectID deadSpawn, DamageInfo* damageIn
 {
 	auto it = std::find(m_spawnIDs.begin(), m_spawnIDs.end(), deadSpawn);
 
+	Object* parent = getObject();
+	ContainModuleInterface* contain = parent->getContain();
+	if (contain != nullptr) {
+		DroneCarrierContain* dcontain = dynamic_cast<DroneCarrierContain*>(contain);
+		// If we have a contain inform it about spawn Death
+
+		if (dcontain != nullptr) {
+			dcontain->onDroneDeath(deadSpawn);
+		}
+	}
+
 	// If the iterator is at the end, we didn't find deadSpawn, so bail out.
 	// Otherwise, bad crash stuff will happen.
 	if (it == m_spawnIDs.end())

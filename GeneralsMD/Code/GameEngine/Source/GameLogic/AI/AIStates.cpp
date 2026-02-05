@@ -6470,7 +6470,7 @@ StateReturnType AIEnterState::onEnter()
 		if( !TheActionManager->canEnterObject( obj, goal, obj->getAI()->getLastCommandSource(), CHECK_CAPACITY ) )
 			return STATE_FAILURE;
 
-		m_goalPosition = *goal->getPosition();
+		m_goalPosition = goal->getEnterPosition(obj->getID());
 
 		ContainModuleInterface* contain = goal->getContain();
 		if (contain)
@@ -6548,8 +6548,9 @@ StateReturnType AIEnterState::update()
 			return STATE_FAILURE;
 		}
 
-		m_goalPosition = *goal->getPosition();
+		m_goalPosition = goal->getEnterPosition(obj->getID());
 		obj->getAI()->friend_setGoalObject(goal);
+		m_goalPosition = goal->getEnterPosition(obj->getID());// setGoalObject will override the goal position
 		if (!TheActionManager->canEnterObject(obj, goal, obj->getAI()->getLastCommandSource(), CHECK_CAPACITY))
 		{
 			/*

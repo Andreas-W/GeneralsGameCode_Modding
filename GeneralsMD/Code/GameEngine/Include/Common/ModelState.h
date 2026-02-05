@@ -285,6 +285,9 @@ enum ModelConditionFlagType CPP_11(: Int)
 	MODELCONDITION_CARRIER_DOOR_OPENING,
 	MODELCONDITION_CARRIER_DOOR_CLOSING,
 
+	// Ship death
+	MODELCONDITION_SHIP_TOPPLING,
+	MODELCONDITION_SHIP_SINKING,
 //
 // Note: these values are saved in save files, so you MUST NOT REMOVE OR CHANGE
 // existing values!

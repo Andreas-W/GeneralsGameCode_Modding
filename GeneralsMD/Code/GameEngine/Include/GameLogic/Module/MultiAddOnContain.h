@@ -134,6 +134,8 @@ public:
 	virtual const ContainedItemsList* getAddOnList() const { return &m_addOnList; }
 	virtual ContainedItemsList* getAddOnList() { return &m_addOnList; }
 
+	virtual Coord3D getEnterPositionOffset(ObjectID object) const override { return Coord3D(0,0,0); };
+
 private:
 	void parseAddOnEntry(INI* ini, void* instance, void* store, const void* /*userData*/);
 
