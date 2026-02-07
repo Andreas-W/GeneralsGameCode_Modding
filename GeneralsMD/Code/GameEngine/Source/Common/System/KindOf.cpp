@@ -182,6 +182,8 @@ const char* const KindOfMaskType::s_bitNameList[] =
 	"TELEPORTER",
 	"SHIPYARD",
 	"NO_MOVE_EFFECTS_ON_WATER",
+	"SHIP",
+	"SUBMARINE",
 
 	"EXTRA1",
 	"EXTRA2",

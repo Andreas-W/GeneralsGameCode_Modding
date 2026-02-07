@@ -150,6 +150,7 @@ UpdateSleepTime CarrierDroneAIUpdate::update()
 
 	Bool isDocking = false;
 	Real distanceToTargetSquared = 0;
+	bool isDead = getObject()->isEffectivelyDead();
 	Real dockingDistSquared = data->m_dockingDistance * data->m_dockingDistance;
 	if (getStateMachine()->getCurrentStateID() == AI_ENTER && getGoalObject() != NULL) {
 		distanceToTargetSquared = ThePartitionManager->getDistanceSquared(obj, getGoalObject(), FROM_CENTER_2D);
@@ -161,7 +162,7 @@ UpdateSleepTime CarrierDroneAIUpdate::update()
 
 	Locomotor* loco = getCurLocomotor();
 
-	if (isDocking && !m_isDocking) {
+	if (isDocking && !m_isDocking && !isDead) {
 		//DEBUG_LOG((">>> CarrierDroneAIUpdate::update() - ENTER LANDING STATE %d", obj->getID()));
 
 		//loco->setMaxSpeed(DOCKING_SPEED);
@@ -181,7 +182,7 @@ UpdateSleepTime CarrierDroneAIUpdate::update()
 
 		m_isDocking = true;
 	}
-	else if (!isDocking && m_isDocking) {
+	else if (!isDocking && m_isDocking && !isDead) {
 		//DEBUG_LOG(("<<< CarrierDroneAIUpdate::update() - EXIT LANDING STATE %d", obj->getID()));
 
 		obj->clearModelConditionState(MODELCONDITION_LANDING);
@@ -201,7 +202,7 @@ UpdateSleepTime CarrierDroneAIUpdate::update()
   // FLYING STATE (not a real AI State)
   // -------------
 	PhysicsBehavior* physics = obj->getPhysics();
-	if (!isDocking && physics->getVelocityMagnitude() > 0 && !obj->isContained()) {
+	if (!isDocking && !isDead && physics->getVelocityMagnitude() > 0 && !obj->isContained()) {
 		obj->setModelConditionState(MODELCONDITION_JETEXHAUST);
 	}
 	else {
