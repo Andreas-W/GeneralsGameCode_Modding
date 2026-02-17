@@ -56,7 +56,7 @@ HeightDieUpdateModuleData::HeightDieUpdateModuleData( void )
 	m_destroyAttachedParticlesAtHeight = -1.0f;
 	m_snapToGroundOnDeath = FALSE;
 	m_initialDelay = 0;
-
+	m_targetHeightIncludesWater = false;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -76,6 +76,7 @@ void HeightDieUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "DestroyAttachedParticlesAtHeight", INI::parseReal, nullptr, offsetof( HeightDieUpdateModuleData, m_destroyAttachedParticlesAtHeight ) },
 		{ "SnapToGroundOnDeath", INI::parseBool, nullptr, offsetof( HeightDieUpdateModuleData, m_snapToGroundOnDeath ) },
 		{ "InitialDelay", INI::parseDurationUnsignedInt, nullptr, offsetof( HeightDieUpdateModuleData, m_initialDelay ) },
+		{ "TargetHeightIncludesWater", INI::parseBool, nullptr, offsetof(HeightDieUpdateModuleData, m_targetHeightIncludesWater) },
 		{ nullptr, nullptr, nullptr, 0 }
 
 	};
@@ -161,7 +162,14 @@ UpdateSleepTime HeightDieUpdate::update( void )
 		}
 
 		// get the terrain height
-		Real terrainHeightAtPos = TheTerrainLogic->getGroundHeight( pos->x, pos->y );
+		Real terrainHeightAtPosNoWater = TheTerrainLogic->getGroundHeight(pos->x, pos->y);
+		Real terrainHeightAtPos{ terrainHeightAtPosNoWater };
+		if (modData->m_targetHeightIncludesWater) {
+			Real waterz{ 0 };
+			if (TheTerrainLogic->isUnderwater(pos->x, pos->y, &waterz)) {
+				terrainHeightAtPos = waterz;
+			}
+		}
 
 		// if including structures, check for bridges
 		if (modData->m_targetHeightIncludesStructures)
@@ -240,13 +248,13 @@ UpdateSleepTime HeightDieUpdate::update( void )
 
 			// if we're supposed to snap us to the ground on death do so
 			// AND: even if we're not snapping to ground, be sure we don't go BELOW ground
-			if( modData->m_snapToGroundOnDeath || pos->z < terrainHeightAtPos )
+			if( modData->m_snapToGroundOnDeath || pos->z < terrainHeightAtPosNoWater )
 			{
 				Coord3D ground;
 
 				ground.x = pos->x;
 				ground.y = pos->y;
-				ground.z = terrainHeightAtPos;
+				ground.z = terrainHeightAtPosNoWater;
 				getObject()->setPosition( &ground );
 
 			}
