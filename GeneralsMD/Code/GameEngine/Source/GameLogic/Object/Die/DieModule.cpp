@@ -37,6 +37,8 @@
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/DieModule.h"
 #include "GameLogic/Object.h"
+#include <GameLogic/TerrainLogic.h>
+
 
 
 
@@ -50,6 +52,8 @@ DieMuxData::DieMuxData() {
 	if (TheGlobalData) {
 		m_deathTypes &= ~TheGlobalData->m_defaultExcludedDeathTypes;
 	}
+	m_minWaterDepth = 0.0f;
+	m_maxWaterDepth = std::numeric_limits<Real>::infinity();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -61,7 +65,9 @@ const FieldParse* DieMuxData::getFieldParse()
 		{ "VeterancyLevels",	INI::parseVeterancyLevelFlags,			nullptr, offsetof( DieMuxData, m_veterancyLevels ) },
 		{ "ExemptStatus",			ObjectStatusMaskType::parseFromINI,	nullptr,	offsetof( DieMuxData, m_exemptStatus ) },
 		{ "RequiredStatus",		ObjectStatusMaskType::parseFromINI, nullptr,	offsetof( DieMuxData, m_requiredStatus ) },
-		{ nullptr, nullptr, nullptr, 0 }
+		{ "MinWaterDepth",    INI::parseReal,										nullptr, offsetof(DieMuxData, m_minWaterDepth )},
+		{ "MaxWaterDepth",    INI::parseReal,										nullptr, offsetof(DieMuxData, m_maxWaterDepth )},
+		{ nullptr, nullptr, nullptr, 0 } 
 	};
   return dataFieldParse;
 }
@@ -85,6 +91,27 @@ Bool DieMuxData::isDieApplicable(const Object* obj, const DamageInfo *damageInfo
 	// But only if we have a required status to check
 	if( m_requiredStatus.any()  &&  !obj->getStatusBits().testForAll( m_requiredStatus ) )
 		return false;
+
+	if (m_minWaterDepth > 0.0f || m_maxWaterDepth < std::numeric_limits<Short>::infinity() && obj != nullptr) {
+
+		// if on bride and we need water -> not applicable
+		if (obj->getLayer() > LAYER_GROUND && m_minWaterDepth > 0.0f) {
+			return false;
+		}
+
+		// Water level restriction
+		const Coord3D* pos = obj->getPosition();
+		Real waterZ{ 0 }, terrainZ{ 0 };
+
+		if (TheTerrainLogic->isUnderwater(pos->x, pos->y, &waterZ, &terrainZ)) {
+			Real depth = waterZ - terrainZ;
+			return depth >= m_minWaterDepth && depth < m_maxWaterDepth;
+		}
+		else {
+			// we are over land
+			if (m_minWaterDepth > 0.0f) return false;
+		}
+	}
 
 	return true;
 }

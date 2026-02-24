@@ -54,6 +54,8 @@ public:
 	VeterancyLevelFlags		m_veterancyLevels;
 	ObjectStatusMaskType	m_exemptStatus;						///< die module is ignored if any of these status bits are set
 	ObjectStatusMaskType	m_requiredStatus;					///< die module is ignored if any of these status bits are clear
+	Real									m_minWaterDepth;
+	Real                  m_maxWaterDepth;
 
 	DieMuxData();
 	static const FieldParse* getFieldParse();
