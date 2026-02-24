@@ -92,7 +92,7 @@ Bool DieMuxData::isDieApplicable(const Object* obj, const DamageInfo *damageInfo
 	if( m_requiredStatus.any()  &&  !obj->getStatusBits().testForAll( m_requiredStatus ) )
 		return false;
 
-	if (m_minWaterDepth > 0.0f || m_maxWaterDepth < std::numeric_limits<Short>::infinity() && obj != nullptr) {
+	if ((m_minWaterDepth > 0.0f || m_maxWaterDepth < std::numeric_limits<Short>::infinity()) && obj != nullptr) {
 
 		// if on bride and we need water -> not applicable
 		if (obj->getLayer() > LAYER_GROUND && m_minWaterDepth > 0.0f) {
