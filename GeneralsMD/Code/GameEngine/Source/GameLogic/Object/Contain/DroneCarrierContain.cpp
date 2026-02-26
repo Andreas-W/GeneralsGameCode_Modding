@@ -33,6 +33,8 @@ DroneCarrierContainModuleData::DroneCarrierContainModuleData() : TransportContai
 	m_deathTypeToContained = DEATH_DETONATED;
 	m_enterPositionOffsets.clear();
 	m_keepSlotAssignment = false;
+	m_numLaunchBones = 0;
+	m_launchBone.clear();
 }
 
 void DroneCarrierContainModuleData::buildFieldParse(MultiIniFieldParse& p)
@@ -45,6 +47,8 @@ void DroneCarrierContainModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "LaunchVelocityBoost", INI::parseReal, NULL, offsetof(DroneCarrierContainModuleData, m_launchVelocityBoost) },
 		{ "EnterPositionOffset", DroneCarrierContainModuleData::parseEnterPositionOffset, NULL, 0},
 		{ "KeepSlotAssignment", INI::parseBool, NULL, offsetof(DroneCarrierContainModuleData, m_keepSlotAssignment)},
+		{ "LaunchBone", INI::parseAsciiString, NULL, offsetof(DroneCarrierContainModuleData, m_launchBone)},
+		{ "NumLaunchBones", INI::parseInt, NULL, offsetof(DroneCarrierContainModuleData, m_numLaunchBones)},
 		{ 0, 0, 0, 0 }
 	};
 	p.add(dataFieldParse);
@@ -138,8 +142,31 @@ void DroneCarrierContain::onRemoving(Object* rider)
 		rider_draw->enableAmbientSound(true);
 	}
 
+	if (!d->m_launchBone.isEmpty() && d->m_numLaunchBones > 0)
+	{
+		Drawable* draw = getObject()->getDrawable();
+		if (draw)
+		{
+			Coord3D bonePos;
+			Matrix3D boneMat;
+
+			Int slot = m_containList.size();
+			if (slot >= 0) {
+				Int boneId = slot % d->m_numLaunchBones;
+				Int foundBones = draw->getPristineBonePositions(d->m_launchBone.str(), boneId + 1, &bonePos, &boneMat, 1);
+
+				if (foundBones > 0) {
+					Coord3D worldPos;
+					Matrix3D worldMat;
+					getObject()->convertBonePosToWorldPos(&bonePos, &boneMat, &worldPos, &worldMat);
+					rider->setPosition(&worldPos);
+					rider->setTransformMatrix(&worldMat);
+				}
+			}
+		}
+	}
 	// If we have a bone and no exit paths, put each rider at the numbered bone position
-	if (!d->m_exitBone.isEmpty() && d->m_numberOfExitPaths <= 0)
+	else if (!d->m_exitBone.isEmpty() && d->m_numberOfExitPaths <= 0)
 	{
 		Drawable* draw = getObject()->getDrawable();
 		if (draw)
@@ -346,9 +373,29 @@ void DroneCarrierContain::onDie(const DamageInfo* damageInfo)
 
 short DroneCarrierContain::getRiderSlot(ObjectID riderID) const
 {
-	for (size_t i = 0; i < m_contained_units.size(); i++) {
-		if (std::get<0>(m_contained_units[i]) == riderID) {
-			return i;
+	const DroneCarrierContainModuleData* data = getDroneCarrierContainModuleData();
+	if (data->m_keepSlotAssignment) {
+		for (size_t i = 0; i < m_contained_units.size(); i++) {
+			if (std::get<0>(m_contained_units[i]) == riderID) {
+				return i;
+			}
+		}
+	}
+	else {
+		// use the list
+		auto it = m_containList.begin();
+		short index = 0;
+
+		while (it != m_containList.end())
+		{
+			Object* object = *it;
+			DEBUG_ASSERTCRASH(object, ("Contain list must not contain NULL element"));
+			if (object->getID() == riderID) {
+				return index;
+			}
+
+			++index;
+			++it;
 		}
 	}
 	return -1;

@@ -23,6 +23,8 @@ public:
 	DeathType					m_deathTypeToContained;
 	std::vector<Coord3D> m_enterPositionOffsets;
 	Bool							m_keepSlotAssignment;
+	Int               m_numLaunchBones;
+	AsciiString				m_launchBone;
 
 	DroneCarrierContainModuleData();
 
