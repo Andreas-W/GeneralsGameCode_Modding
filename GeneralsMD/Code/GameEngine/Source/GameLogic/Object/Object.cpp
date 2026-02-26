@@ -1554,6 +1554,12 @@ Bool Object::getProgressBarShowingInfo(bool selected, Real& progress, Int& type,
 	color = { 255, 255, 255, 255 };  // Default = white
 	colorBG = { 0, 0, 0, 255 };  // Default = black
 
+
+	// AI Based progress bars:
+	if (getAI()->getProgressBarInfo(selected, progress, type, color, colorBG)) {
+		return true;
+	}
+
 	// Energy Shields
 	// TODO: This is kinda bad, there should be a better way to do this, if we have multiple shield sources.
 	// This should come from the Body?

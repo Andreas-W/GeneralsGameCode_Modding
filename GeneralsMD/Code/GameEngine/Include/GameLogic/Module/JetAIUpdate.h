@@ -63,6 +63,9 @@ public:
 	Real										m_lockonBlinky;
 	UnsignedInt							m_returnToBaseIdleTime;						///< if we're idle for this long, return to base
 
+	UnsignedInt							m_attackLocoMaxFrames;						///< max allowed time to be in attack locomotor
+	Bool										m_showAttackLocoProgress;
+
 	JetAIUpdateModuleData();
 	static void buildFieldParse(MultiIniFieldParse& p);
 };
@@ -130,6 +133,11 @@ public:
 	void friend_purgePendingCommand();
 	Bool isParkedInHangar() const;
 
+	void friend_resetAttackLocoTimeLeft() { m_attackLocoFramesLeft = getJetAIUpdateModuleData()->m_attackLocoMaxFrames; }
+
+	Bool getProgressBarInfo(Bool selected, Real& progress, Int& type, RGBAColorInt& color, RGBAColorInt& colorBG) const override;
+
+
 protected:
 
 	virtual AIStateMachine* makeStateMachine();
@@ -174,6 +182,8 @@ private:
 	Int											m_flags;
 	Coord3D									m_landingPosForHelipadStuff;
 	Bool										m_enginesOn;					///<
+
+	UnsignedInt							m_attackLocoFramesLeft;   ///< how long we can stay supersonic
 
 	void getProducerLocation();
 	void buildLockonDrawableIfNecessary();

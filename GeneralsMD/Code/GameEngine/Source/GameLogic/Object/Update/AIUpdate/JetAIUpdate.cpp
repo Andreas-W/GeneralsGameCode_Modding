@@ -1974,7 +1974,10 @@ public:
 				jetAI->setLocomotorGoalOrientation(ppinfo.parkingOrientation);
 			}
 		}
-		
+
+		// Reset Supersonic timer
+		jetAI->friend_resetAttackLocoTimeLeft();
+
 		m_reloadTime = 0;
 		for (Int i = 0; i < WEAPONSLOT_COUNT;	++i)
 		{
@@ -2222,6 +2225,8 @@ JetAIUpdateModuleData::JetAIUpdateModuleData()
 	m_lockonFreq = 0.5;
 	m_lockonAngleSpin = 720;
 	m_returnToBaseIdleTime = 0;
+	m_attackLocoMaxFrames = 0x3fffffff; // a very long time
+	m_showAttackLocoProgress = false;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2250,6 +2255,8 @@ JetAIUpdateModuleData::JetAIUpdateModuleData()
 		{ "LockonAngleSpin",							INI::parseAngleReal, nullptr, offsetof( JetAIUpdateModuleData, m_lockonAngleSpin ) },
 		{ "LockonBlinky",									INI::parseBool, nullptr, offsetof( JetAIUpdateModuleData, m_lockonBlinky ) },
 		{ "ReturnToBaseIdleTime",					INI::parseDurationUnsignedInt, nullptr, offsetof( JetAIUpdateModuleData, m_returnToBaseIdleTime ) },
+		{ "AttackLocomotorMaxTime",				INI::parseDurationUnsignedInt, nullptr, offsetof(JetAIUpdateModuleData, m_attackLocoMaxFrames) },
+		{ "ShowAttackLocomotorTimeLeftBar",	INI::parseBool, nullptr, offsetof(JetAIUpdateModuleData, m_showAttackLocoProgress) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
   p.add(dataFieldParse);
@@ -2309,6 +2316,8 @@ JetAIUpdate::JetAIUpdate( Thing *thing, const ModuleData* moduleData ) : AIUpdat
 
 	m_producerLocation.zero();
 	m_enginesOn = TRUE;
+
+	m_attackLocoFramesLeft = getJetAIUpdateModuleData()->m_attackLocoMaxFrames;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2542,20 +2551,32 @@ UpdateSleepTime JetAIUpdate::update()
 			draw->setInstanceMatrix(nullptr);
 		}
 	}
+	Bool isAirborne = false;
 
 	PhysicsBehavior* physics = jet->getPhysics();
-	if (physics->getVelocityMagnitude() > 0 && getFlag(ALLOW_AIR_LOCO))
+	if (physics->getVelocityMagnitude() > 0 && getFlag(ALLOW_AIR_LOCO)) {
 		jet->setModelConditionState(MODELCONDITION_JETEXHAUST);
-	else
+		isAirborne = true;
+	}
+	else {
 		jet->clearModelConditionState(MODELCONDITION_JETEXHAUST);
+	}
 
-	if (jet->testStatus(OBJECT_STATUS_IS_ATTACKING))
+
+	if (jet->testStatus(OBJECT_STATUS_IS_ATTACKING) && m_attackLocoFramesLeft > 0)
 	{
+		DEBUG_LOG((">>>> JetAI: m_attackLocoFramesLeft = %d", m_attackLocoFramesLeft));
 		m_attackLocoExpireFrame = now + d->m_attackLocoPersistTime;
 		m_attackersMissExpireFrame = now + d->m_attackersMissPersistTime;
+
+		if (isAirborne)
+			m_attackLocoFramesLeft--;
 	}
 	else
 	{
+		if (m_attackLocoFramesLeft <= 0)
+			setFlag(USE_SPECIAL_RETURN_LOCO, true);
+
 		if (m_attackLocoExpireFrame != 0 && now >= m_attackLocoExpireFrame)
 		{
 			m_attackLocoExpireFrame = 0;
@@ -2627,12 +2648,17 @@ Bool JetAIUpdate::chooseLocomotorSet(LocomotorSetType wst)
 	}
 	else if (m_attackLocoExpireFrame != 0)
 	{
+		DEBUG_LOG((">>> CHOOSE ATTACKING LOCO"));
 		wst = d->m_attackingLoco;
 	}
 	else if (getFlag(USE_SPECIAL_RETURN_LOCO))
 	{
+		DEBUG_LOG((">>> CHOOSE RETURN LOCO"));
 		wst = d->m_returningLoco;
 	}
+
+	DEBUG_LOG((">>> %s >> CHOOSE LOCO TYPE: %d", getObject()->getTemplate()->getName().str(), wst));
+
 	return AIUpdateInterface::chooseLocomotorSet(wst);
 }
 
@@ -2855,6 +2881,21 @@ Bool JetAIUpdate::isParkedInHangar() const
 		|| getObject()->isSignificantlyAboveTerrain()
 		|| isMoving()
 		|| isWaitingForPath());
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool JetAIUpdate::getProgressBarInfo(Bool selected, Real& progress, Int& type, RGBAColorInt& color, RGBAColorInt& colorBG) const
+{
+	if (!selected)
+		return false;
+
+	const JetAIUpdateModuleData* d = getJetAIUpdateModuleData();
+	if (!(d->m_showAttackLocoProgress && m_attackLocoFramesLeft < d->m_attackLocoMaxFrames && getObject()->testStatus(OBJECT_STATUS_IS_ATTACKING)))
+		return false;
+
+	if (d->m_attackLocoMaxFrames > 0)
+		progress = INT_TO_REAL(m_attackLocoFramesLeft) / INT_TO_REAL(d->m_attackLocoMaxFrames);
+
 }
 
 //----------------------------------------------------------------------------------------
@@ -3262,6 +3303,8 @@ void JetAIUpdate::xfer( Xfer *xfer )
 			m_enginesOn = FALSE;
 		}
 	}
+
+	xfer->xferUnsignedInt(&m_attackLocoFramesLeft);
 
 }
 

@@ -414,6 +414,9 @@ public:
 	void setPriorWaypointID( UnsignedInt id )   { m_priorWaypointID = id; };
 	void setCurrentWaypointID( UnsignedInt id ) { m_currentWaypointID = id; };
 
+	// To be overridden by children
+	virtual Bool getProgressBarInfo(Bool selected, Real& progress, Int& type, RGBAColorInt& color, RGBAColorInt& colorBG) const { return false; }
+
 	// Group ----------------------------------------------------------------------------------------------
 	// these three methods allow a group leader's path to be communicated to the other group members
 
