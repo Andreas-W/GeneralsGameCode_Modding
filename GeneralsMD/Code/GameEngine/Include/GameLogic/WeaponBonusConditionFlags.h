@@ -28,4 +28,8 @@
 
 #pragma once
 
-typedef UnsignedInt WeaponBonusConditionFlags;
+//typedef UnsignedInt WeaponBonusConditionFlags;
+
+#include "GameLogic/WeaponBonusConditionType.h"
+
+typedef BitFlags<WEAPONBONUSCONDITION_COUNT> WeaponBonusConditionFlags;

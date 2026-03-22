@@ -528,6 +528,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/WeaponSet.h
     Include/GameLogic/WeaponSetFlags.h
     Include/GameLogic/WeaponSetType.h
+    Include/GameLogic/WeaponBonusConditionType.h
     Include/GameLogic/WeaponStatus.h
 #    Include/GameNetwork/Connection.h
 #    Include/GameNetwork/ConnectionManager.h
