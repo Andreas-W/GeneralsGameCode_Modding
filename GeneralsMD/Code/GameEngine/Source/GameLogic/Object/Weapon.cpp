@@ -2151,14 +2151,15 @@ void Weapon::computeBonus(const Object *source, WeaponBonusConditionFlags extraB
 	bonus.clear();
 	WeaponBonusConditionFlags flags = bonusRefObj->getWeaponBonusCondition();
 	//CRCDEBUG_LOG(("Weapon::computeBonus() - flags are %X for %s", flags, DescribeObject(source).str()));
-	flags |= extraBonusFlags;
+	//flags |= extraBonusFlags;
+	flags.set(extraBonusFlags);
 
 	if (bonusRefObj->getContainedBy())
 	{
 		// We may be able to add in our container's flags
 		const ContainModuleInterface *theirContain = bonusRefObj->getContainedBy()->getContain();
 		if( theirContain && theirContain->isWeaponBonusPassedToPassengers() )
-			flags |= theirContain->getWeaponBonusPassedToPassengers();
+			flags.set(theirContain->getWeaponBonusPassedToPassengers());
 	}
 
 	if (TheGlobalData->m_weaponBonusSet)
@@ -4152,7 +4153,7 @@ void WeaponBonus::appendBonuses(WeaponBonus& bonus) const
 //-------------------------------------------------------------------------------------------------
 void WeaponBonusSet::parseWeaponBonusSet(INI* ini)
 {
-	WeaponBonusConditionType wb = (WeaponBonusConditionType)INI::scanIndexList(ini->getNextToken(), TheWeaponBonusNames);
+	WeaponBonusConditionType wb = (WeaponBonusConditionType)INI::scanIndexList(ini->getNextToken(), WeaponBonusConditionFlags::getBitNames());
 	WeaponBonus::Field wf = (WeaponBonus::Field)INI::scanIndexList(ini->getNextToken(), TheWeaponBonusFieldNames);
 	m_bonus[wb].setField(wf, INI::scanPercentToReal(ini->getNextToken()));
 }
@@ -4165,7 +4166,10 @@ void WeaponBonusSet::appendBonuses(WeaponBonusConditionFlags flags, WeaponBonus&
 
 	for (int i = 0; i < WEAPONBONUSCONDITION_COUNT; ++i)
 	{
-		if ((flags & (1 << i)) == 0)
+		//if ((flags & (1 << i)) == 0)
+		//	continue;
+
+		if (!flags.test(i))
 			continue;
 
 		this->m_bonus[i].appendBonuses(bonus);

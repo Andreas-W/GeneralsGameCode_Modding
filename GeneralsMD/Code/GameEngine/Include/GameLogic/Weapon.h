@@ -169,70 +169,69 @@ static const char *const TheWeaponCollideMaskNames[] =
 };
 #endif
 
-
-#ifdef DEFINE_WEAPONBONUSCONDITION_NAMES
-static const char *const TheWeaponBonusNames[] =
-{
-	// This is a RHS enum (weapon.ini will have WeaponBonus = IT) so it is all caps
-	"GARRISONED",
-	"HORDE",
-	"CONTINUOUS_FIRE_MEAN",
-	"CONTINUOUS_FIRE_FAST",
-	"NATIONALISM",
-	"PLAYER_UPGRADE",
-	"DRONE_SPOTTING",
-#ifdef ALLOW_DEMORALIZE
-	"DEMORALIZED",
-#else
-	"DEMORALIZED_OBSOLETE",
-#endif
-	"ENTHUSIASTIC",
-	"VETERAN",
-	"ELITE",
-	"HERO",
-	"BATTLEPLAN_BOMBARDMENT",
-	"BATTLEPLAN_HOLDTHELINE",
-	"BATTLEPLAN_SEARCHANDDESTROY",
-	"SUBLIMINAL",
-	"SOLO_HUMAN_EASY",
-	"SOLO_HUMAN_NORMAL",
-	"SOLO_HUMAN_HARD",
-	"SOLO_AI_EASY",
-	"SOLO_AI_NORMAL",
-	"SOLO_AI_HARD",
-	"TARGET_FAERIE_FIRE",
-  "FANATICISM", // FOR THE NEW GC INFANTRY GENERAL... adds to nationalism
-	"FRENZY_ONE",
-	"FRENZY_TWO",
-	"FRENZY_THREE",
-	"CONTAINED",
-	"FRENZY_FOUR",
-	"FRENZY_FIVE",
-	"BOOST_ONE",
-	"BOOST_TWO",
-	"BOOST_THREE",
-	"DEMORALIZED_ONE",
-	"DEMORALIZED_TWO",
-	"DEMORALIZED_THREE",
-	"TARGET_PAINT_ONE",
-	"TARGET_PAINT_TWO",
-	"TARGET_PAINT_THREE",
-	"CRYO_ONE",
-	"CRYO_TWO",
-	"CRYO_THREE",
-	"EXTRA1",
-	"EXTRA2",
-	"EXTRA3",
-	"EXTRA4",
-	"EXTRA5",
-	"EXTRA6",
-	"EXTRA7",
-	"EXTRA8",
-	nullptr
-};
-static_assert(ARRAY_SIZE(TheWeaponBonusNames) == WEAPONBONUSCONDITION_COUNT + 1, "Incorrect array size");
-#endif
-
+//
+//#ifdef DEFINE_WEAPONBONUSCONDITION_NAMES
+//static const char *const TheWeaponBonusNames[] =
+//{
+//	// This is a RHS enum (weapon.ini will have WeaponBonus = IT) so it is all caps
+//	"GARRISONED",
+//	"HORDE",
+//	"CONTINUOUS_FIRE_MEAN",
+//	"CONTINUOUS_FIRE_FAST",
+//	"NATIONALISM",
+//	"PLAYER_UPGRADE",
+//	"DRONE_SPOTTING",
+//#ifdef ALLOW_DEMORALIZE
+//	"DEMORALIZED",
+//#else
+//	"DEMORALIZED_OBSOLETE",
+//#endif
+//	"ENTHUSIASTIC",
+//	"VETERAN",
+//	"ELITE",
+//	"HERO",
+//	"BATTLEPLAN_BOMBARDMENT",
+//	"BATTLEPLAN_HOLDTHELINE",
+//	"BATTLEPLAN_SEARCHANDDESTROY",
+//	"SUBLIMINAL",
+//	"SOLO_HUMAN_EASY",
+//	"SOLO_HUMAN_NORMAL",
+//	"SOLO_HUMAN_HARD",
+//	"SOLO_AI_EASY",
+//	"SOLO_AI_NORMAL",
+//	"SOLO_AI_HARD",
+//	"TARGET_FAERIE_FIRE",
+//  "FANATICISM", // FOR THE NEW GC INFANTRY GENERAL... adds to nationalism
+//	"FRENZY_ONE",
+//	"FRENZY_TWO",
+//	"FRENZY_THREE",
+//	"CONTAINED",
+//	"FRENZY_FOUR",
+//	"FRENZY_FIVE",
+//	"BOOST_ONE",
+//	"BOOST_TWO",
+//	"BOOST_THREE",
+//	"DEMORALIZED_ONE",
+//	"DEMORALIZED_TWO",
+//	"DEMORALIZED_THREE",
+//	"TARGET_PAINT_ONE",
+//	"TARGET_PAINT_TWO",
+//	"TARGET_PAINT_THREE",
+//	"CRYO_ONE",
+//	"CRYO_TWO",
+//	"CRYO_THREE",
+//	"EXTRA1",
+//	"EXTRA2",
+//	"EXTRA3",
+//	"EXTRA4",
+//	"EXTRA5",
+//	"EXTRA6",
+//	"EXTRA7",
+//	"EXTRA8",
+//	nullptr
+//};
+//static_assert(ARRAY_SIZE(TheWeaponBonusNames) == WEAPONBONUSCONDITION_COUNT + 1, "Incorrect array size");
+//#endif
 
 typedef std::vector<WeaponBonusConditionType> WeaponBonusConditionTypeVec;
 

@@ -790,7 +790,7 @@ void INI::parseAsciiStringVectorAppend( INI* ini, void * /*instance*/, void *sto
 			asv->clear();
 			return;
 		}
-		asv->push_back((WeaponBonusConditionType)INI::scanIndexList(token, TheWeaponBonusNames));
+		asv->push_back((WeaponBonusConditionType)INI::scanIndexList(token, WeaponBonusConditionFlags::getBitNames()));
 	}
 }
 
@@ -807,7 +807,7 @@ void INI::parseAsciiStringVectorAppend( INI* ini, void * /*instance*/, void *sto
 			asv->clear();
 			return;
 		}
-		asv->push_back((WeaponBonusConditionType)INI::scanIndexList(token, TheWeaponBonusNames));
+		asv->push_back((WeaponBonusConditionType)INI::scanIndexList(token, WeaponBonusConditionFlags::getBitNames()));
 	}
 }
 

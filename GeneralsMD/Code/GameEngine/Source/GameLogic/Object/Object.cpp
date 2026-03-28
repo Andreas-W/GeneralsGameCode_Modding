@@ -4202,7 +4202,7 @@ void Object::crc( Xfer *xfer )
 	}
 #endif // DEBUG_CRC
 
-	m_weaponBonusConditionAgainst.xfer(xfer)
+	m_weaponBonusConditionAgainst.xfer(xfer);
 #ifdef DEBUG_CRC
 	if (doLogging)
 	{
@@ -4917,6 +4917,9 @@ void Object::setWeaponBonusCondition(WeaponBonusConditionType wst)
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
 	//m_weaponBonusCondition |= (1 << wst);
 	m_weaponBonusCondition.set(wst);
+
+	assert(&oldCondition != &m_weaponBonusCondition);
+
 	if( oldCondition != m_weaponBonusCondition )
 	{
 		// Our weapon bonus just changed, so we need to immediately update our weapons
@@ -4928,7 +4931,10 @@ void Object::setWeaponBonusCondition(WeaponBonusConditionType wst)
 void Object::clearWeaponBonusCondition(WeaponBonusConditionType wst)
 {
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-	m_weaponBonusCondition &= ~(1 << wst);
+	//m_weaponBonusCondition &= ~(1 << wst);
+	m_weaponBonusCondition.set(wst, 0);
+
+	assert(&oldCondition != &m_weaponBonusCondition);
 
 	if( oldCondition != m_weaponBonusCondition )
 	{
@@ -4943,7 +4949,7 @@ void Object::clearWeaponBonusCondition(WeaponBonusConditionType wst)
 void Object::applyWeaponBonusConditionFlags(WeaponBonusConditionFlags flags)
 {
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-	m_weaponBonusCondition |= flags;
+	m_weaponBonusCondition.set(flags);
 
 	if (oldCondition != m_weaponBonusCondition)
 	{
@@ -4956,7 +4962,8 @@ void Object::applyWeaponBonusConditionFlags(WeaponBonusConditionFlags flags)
 void Object::removeWeaponBonusConditionFlags(WeaponBonusConditionFlags flags)
 	{
 		WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-		m_weaponBonusCondition &= ~flags;
+		//m_weaponBonusCondition &= ~flags;
+		m_weaponBonusCondition.clear(flags);
 
 		if (oldCondition != m_weaponBonusCondition)
 		{

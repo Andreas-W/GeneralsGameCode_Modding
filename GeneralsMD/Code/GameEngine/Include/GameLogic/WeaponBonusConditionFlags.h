@@ -24,7 +24,7 @@
 
 // WeaponBonusConditionFlags.h ////////////////////////////////////////////////////////////////////
 // Part of header detangling
-// JKMCD Aug 2002
+// Andi W, March 26
 
 #pragma once
 
