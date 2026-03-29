@@ -36,6 +36,7 @@
 #include "Common/BitFlagsIO.h"
 #include "Common/ModelState.h"
 #include "GameLogic/ArmorSet.h"
+#include "GameLogic/WeaponBonusConditionFlags.h"
 
 template<>
 const char* const ModelConditionFlags::s_bitNameList[] =
@@ -242,3 +243,68 @@ const char* const ArmorSetFlags::s_bitNameList[] =
 	nullptr
 };
 static_assert(ARRAY_SIZE(ArmorSetFlags::s_bitNameList) == ArmorSetFlags::NumBits + 1, "Incorrect array size");
+
+
+
+template<>
+const char* const WeaponBonusConditionFlags::s_bitNameList[] =
+{
+	// This is a RHS enum (weapon.ini will have WeaponBonus = IT) so it is all caps
+	"GARRISONED",
+	"HORDE",
+	"CONTINUOUS_FIRE_MEAN",
+	"CONTINUOUS_FIRE_FAST",
+	"NATIONALISM",
+	"PLAYER_UPGRADE",
+	"DRONE_SPOTTING",
+#ifdef ALLOW_DEMORALIZE
+	"DEMORALIZED",
+#else
+	"DEMORALIZED_OBSOLETE",
+#endif
+	"ENTHUSIASTIC",
+	"VETERAN",
+	"ELITE",
+	"HERO",
+	"BATTLEPLAN_BOMBARDMENT",
+	"BATTLEPLAN_HOLDTHELINE",
+	"BATTLEPLAN_SEARCHANDDESTROY",
+	"SUBLIMINAL",
+	"SOLO_HUMAN_EASY",
+	"SOLO_HUMAN_NORMAL",
+	"SOLO_HUMAN_HARD",
+	"SOLO_AI_EASY",
+	"SOLO_AI_NORMAL",
+	"SOLO_AI_HARD",
+	"TARGET_FAERIE_FIRE",
+	"FANATICISM", // FOR THE NEW GC INFANTRY GENERAL... adds to nationalism
+	"FRENZY_ONE",
+	"FRENZY_TWO",
+	"FRENZY_THREE",
+	"CONTAINED",
+	"FRENZY_FOUR",
+	"FRENZY_FIVE",
+	"BOOST_ONE",
+	"BOOST_TWO",
+	"BOOST_THREE",
+	"DEMORALIZED_ONE",
+	"DEMORALIZED_TWO",
+	"DEMORALIZED_THREE",
+	"TARGET_PAINT_ONE",
+	"TARGET_PAINT_TWO",
+	"TARGET_PAINT_THREE",
+	"CRYO_ONE",
+	"CRYO_TWO",
+	"CRYO_THREE",
+	"EXTRA1",
+	"EXTRA2",
+	"EXTRA3",
+	"EXTRA4",
+	"EXTRA5",
+	"EXTRA6",
+	"EXTRA7",
+	"EXTRA8",
+	nullptr
+};
+static_assert(ARRAY_SIZE(WeaponBonusConditionFlags::s_bitNameList) == WEAPONBONUSCONDITION_COUNT + 1, "Incorrect array size");
+

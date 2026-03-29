@@ -90,7 +90,7 @@ void WeaponBonusUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "BonusDuration",					INI::parseDurationUnsignedInt,	NULL, offsetof( WeaponBonusUpdateModuleData, m_bonusDuration ) },
 		{ "BonusDelay",							INI::parseDurationUnsignedInt,	NULL, offsetof( WeaponBonusUpdateModuleData, m_bonusDelay ) },
 		{ "BonusRange",							INI::parseReal,									NULL, offsetof( WeaponBonusUpdateModuleData, m_bonusRange ) },
-		{ "BonusConditionType",			INI::parseIndexList,	TheWeaponBonusNames, offsetof( WeaponBonusUpdateModuleData, m_bonusConditionType ) },
+		{ "BonusConditionType",			INI::parseIndexList,	WeaponBonusConditionFlags::getBitNames(), offsetof( WeaponBonusUpdateModuleData, m_bonusConditionType ) },
 		{ "TintStatusType",			TintStatusFlags::parseSingleBitFromINI,	NULL, offsetof( WeaponBonusUpdateModuleData, m_tintStatus ) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};

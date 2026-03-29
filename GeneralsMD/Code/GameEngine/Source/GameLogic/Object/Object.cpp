@@ -4193,7 +4193,7 @@ void Object::crc( Xfer *xfer )
 	}
 #endif // DEBUG_CRC
 
-	xfer->xferUnsignedInt(&m_weaponBonusCondition);
+	m_weaponBonusCondition.xfer(xfer);
 #ifdef DEBUG_CRC
 	if (doLogging)
 	{
@@ -4202,7 +4202,7 @@ void Object::crc( Xfer *xfer )
 	}
 #endif // DEBUG_CRC
 
-	xfer->xferUnsignedInt(&m_weaponBonusConditionAgainst);
+	m_weaponBonusConditionAgainst.xfer(xfer);
 #ifdef DEBUG_CRC
 	if (doLogging)
 	{
@@ -4635,7 +4635,8 @@ void Object::xfer( Xfer *xfer )
 	{
 		// xfer the weaponSetFlags FIRST, since we need 'em to restore the weaponSet properly. (srj)
 		m_curWeaponSetFlags.xfer( xfer );
-		xfer->xferUnsignedInt(&m_weaponBonusCondition);
+		m_weaponBonusCondition.xfer(xfer);
+		//xfer->xferUnsignedInt(&m_weaponBonusCondition);
 		xfer->xferUser(&m_lastWeaponCondition, sizeof(m_lastWeaponCondition));
 
 		// do the weaponSet itself after all the weapon-related stuff, just in case
@@ -4655,7 +4656,7 @@ void Object::xfer( Xfer *xfer )
 	else
 		m_isReceivingDifficultyBonus = FALSE;
 
-	xfer->xferUnsignedInt(&m_weaponBonusConditionAgainst);
+	m_weaponBonusConditionAgainst.xfer(xfer);
 
 }  // end xfer
 
@@ -4914,7 +4915,9 @@ void Object::onDie( DamageInfo *damageInfo )
 void Object::setWeaponBonusCondition(WeaponBonusConditionType wst)
 {
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-	m_weaponBonusCondition |= (1 << wst);
+	m_weaponBonusCondition.set(wst);
+
+	assert(&oldCondition != &m_weaponBonusCondition);
 
 	if( oldCondition != m_weaponBonusCondition )
 	{
@@ -4927,7 +4930,9 @@ void Object::setWeaponBonusCondition(WeaponBonusConditionType wst)
 void Object::clearWeaponBonusCondition(WeaponBonusConditionType wst)
 {
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-	m_weaponBonusCondition &= ~(1 << wst);
+	m_weaponBonusCondition.set(wst, 0);
+
+	assert(&oldCondition != &m_weaponBonusCondition);
 
 	if( oldCondition != m_weaponBonusCondition )
 	{
@@ -4942,7 +4947,7 @@ void Object::clearWeaponBonusCondition(WeaponBonusConditionType wst)
 void Object::applyWeaponBonusConditionFlags(WeaponBonusConditionFlags flags)
 {
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-	m_weaponBonusCondition |= flags;
+	m_weaponBonusCondition.set(flags);
 
 	if (oldCondition != m_weaponBonusCondition)
 	{
@@ -4955,7 +4960,8 @@ void Object::applyWeaponBonusConditionFlags(WeaponBonusConditionFlags flags)
 void Object::removeWeaponBonusConditionFlags(WeaponBonusConditionFlags flags)
 	{
 		WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-		m_weaponBonusCondition &= ~flags;
+		//m_weaponBonusCondition &= ~flags;
+		m_weaponBonusCondition.clear(flags);
 
 		if (oldCondition != m_weaponBonusCondition)
 		{

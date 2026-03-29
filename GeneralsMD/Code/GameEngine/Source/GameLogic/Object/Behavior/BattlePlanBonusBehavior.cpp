@@ -42,6 +42,7 @@
 #include "GameLogic/Weapon.h"
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/AIUpdate.h"
+#include "GameLogic/WeaponBonusConditionFlags.h"
 //#include "Common/ObjectStatusTypes.h"
 
 
@@ -70,7 +71,7 @@ void BattlePlanBonusBehaviorModuleData::parseBPWeaponBonus(INI* ini, void* insta
 	if ((plan) == PLANSTATUS_NONE)
 		return;
 
-	self->m_weaponBonusEntries[plan-1] = (WeaponBonusConditionType)INI::scanIndexList(ini->getNextToken(), TheWeaponBonusNames);
+	self->m_weaponBonusEntries[plan-1] = (WeaponBonusConditionType)INI::scanIndexList(ini->getNextToken(), WeaponBonusConditionFlags::getBitNames());
 }
 //-------------------------------------------------------------------------------------------------
 void BattlePlanBonusBehaviorModuleData::parseBPWeaponSetFlag(INI* ini, void* instance, void* store, const void* userData)

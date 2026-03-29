@@ -891,7 +891,7 @@ UpdateSleepTime PhysicsBehavior::update()
 		airborneAtEnd = obj->isAboveTerrain();
 		if (d->m_doWaterPhysics) {
 			isUnderWater = obj->isBelowWater();
-			DEBUG_LOG((">>> WATER CHECK: %d", isUnderWater));
+			//DEBUG_LOG((">>> WATER CHECK: %d", isUnderWater));
 		}
 	}
 
@@ -974,7 +974,7 @@ UpdateSleepTime PhysicsBehavior::update()
 
 	if (d->m_doWaterPhysics && getFlag(WAS_ABOVE_WATER_LAST_FRAME) && isUnderWater)
 	{
-		DEBUG_LOG((">>> WATER IMPACT NOW!"));
+		//DEBUG_LOG((">>> WATER IMPACT NOW!"));
 		// do water splash sound
 		if (m_waterImpactSound) {
 			AudioEventRTS collisionSound = m_waterImpactSound->m_event;

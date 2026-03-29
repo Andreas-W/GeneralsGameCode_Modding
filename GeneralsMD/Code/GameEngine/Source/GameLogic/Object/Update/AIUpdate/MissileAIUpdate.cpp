@@ -1189,7 +1189,8 @@ void MissileAIUpdate::xfer( Xfer *xfer )
 
 	if (version >= 4)
 	{
-		xfer->xferUnsignedInt(&m_extraBonusFlags);
+		m_extraBonusFlags.xfer(xfer);
+		//xfer->xferUnsignedInt(&m_extraBonusFlags);
 		xfer->xferUser( &m_exhaustID, sizeof( m_exhaustID ) );
 	}
 

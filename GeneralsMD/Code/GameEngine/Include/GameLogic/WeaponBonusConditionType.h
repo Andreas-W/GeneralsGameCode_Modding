@@ -1,0 +1,104 @@
+/*
+**	Command & Conquer Generals Zero Hour(tm)
+**	Copyright 2025 Electronic Arts Inc.
+**
+**	This program is free software: you can redistribute it and/or modify
+**	it under the terms of the GNU General Public License as published by
+**	the Free Software Foundation, either version 3 of the License, or
+**	(at your option) any later version.
+**
+**	This program is distributed in the hope that it will be useful,
+**	but WITHOUT ANY WARRANTY; without even the implied warranty of
+**	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+**	GNU General Public License for more details.
+**
+**	You should have received a copy of the GNU General Public License
+**	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+////////////////////////////////////////////////////////////////////////////////
+//																																						//
+//  (c) 2001-2003 Electronic Arts Inc.																				//
+//																																						//
+////////////////////////////////////////////////////////////////////////////////
+
+// WeaponBonusConditionType.h ////////////////////////////////////////////////////////////////////////////////
+// Part of header detangling
+// Andi W, March 26
+
+#pragma once
+
+//-------------------------------------------------------------------------------------------------
+//
+// Note: these values are saved in save files, so you MUST NOT REMOVE OR CHANGE
+// existing values!
+//
+enum WeaponBonusConditionType CPP_11(: Int)
+{
+	// The access and use of this enum has the bit shifting built in, so this is a 0,1,2,3,4,5 enum
+	WEAPONBONUSCONDITION_INVALID = -1,
+
+	WEAPONBONUSCONDITION_GARRISONED = 0,
+	WEAPONBONUSCONDITION_HORDE,
+	WEAPONBONUSCONDITION_CONTINUOUS_FIRE_MEAN,
+	WEAPONBONUSCONDITION_CONTINUOUS_FIRE_FAST,
+	WEAPONBONUSCONDITION_NATIONALISM,
+	WEAPONBONUSCONDITION_PLAYER_UPGRADE,
+	WEAPONBONUSCONDITION_DRONE_SPOTTING,
+#ifdef ALLOW_DEMORALIZE
+	WEAPONBONUSCONDITION_DEMORALIZED,
+#else
+	WEAPONBONUSCONDITION_DEMORALIZED_OBSOLETE,
+#endif
+	WEAPONBONUSCONDITION_ENTHUSIASTIC,
+	WEAPONBONUSCONDITION_VETERAN,
+	WEAPONBONUSCONDITION_ELITE,
+	WEAPONBONUSCONDITION_HERO,
+	WEAPONBONUSCONDITION_BATTLEPLAN_BOMBARDMENT,
+	WEAPONBONUSCONDITION_BATTLEPLAN_HOLDTHELINE,
+	WEAPONBONUSCONDITION_BATTLEPLAN_SEARCHANDDESTROY,
+	WEAPONBONUSCONDITION_SUBLIMINAL,
+	WEAPONBONUSCONDITION_SOLO_HUMAN_EASY,
+	WEAPONBONUSCONDITION_SOLO_HUMAN_NORMAL,
+	WEAPONBONUSCONDITION_SOLO_HUMAN_HARD,
+	WEAPONBONUSCONDITION_SOLO_AI_EASY,
+	WEAPONBONUSCONDITION_SOLO_AI_NORMAL,
+	WEAPONBONUSCONDITION_SOLO_AI_HARD,
+	WEAPONBONUSCONDITION_TARGET_FAERIE_FIRE,
+	WEAPONBONUSCONDITION_FANATICISM, // FOR THE NEW GC INFANTRY GENERAL... adds to nationalism
+	WEAPONBONUSCONDITION_FRENZY_ONE,
+	WEAPONBONUSCONDITION_FRENZY_TWO,
+	WEAPONBONUSCONDITION_FRENZY_THREE,
+	// New added bonus types
+	WEAPONBONUSCONDITION_CONTAINED,  // applied by default when contained
+	WEAPONBONUSCONDITION_FRENZY_FOUR,
+	WEAPONBONUSCONDITION_FRENZY_FIVE,
+
+	WEAPONBONUSCONDITION_BOOST_ONE,
+	WEAPONBONUSCONDITION_BOOST_TWO,
+	WEAPONBONUSCONDITION_BOOST_THREE,
+
+	WEAPONBONUSCONDITION_DEMORALIZED_ONE,
+	WEAPONBONUSCONDITION_DEMORALIZED_TWO,
+	WEAPONBONUSCONDITION_DEMORALIZED_THREE,
+
+	WEAPONBONUSCONDITION_TARGET_PAINT_ONE,
+	WEAPONBONUSCONDITION_TARGET_PAINT_TWO,
+	WEAPONBONUSCONDITION_TARGET_PAINT_THREE,
+
+	WEAPONBONUSCONDITION_CRYO_ONE,
+	WEAPONBONUSCONDITION_CRYO_TWO,
+	WEAPONBONUSCONDITION_CRYO_THREE,
+
+	WEAPONBONUSCONDITION_EXTRA1,
+	WEAPONBONUSCONDITION_EXTRA2,
+	WEAPONBONUSCONDITION_EXTRA3,
+	WEAPONBONUSCONDITION_EXTRA4,
+	WEAPONBONUSCONDITION_EXTRA5,
+	WEAPONBONUSCONDITION_EXTRA6,
+	WEAPONBONUSCONDITION_EXTRA7,
+	WEAPONBONUSCONDITION_EXTRA8,
+
+
+	WEAPONBONUSCONDITION_COUNT
+};

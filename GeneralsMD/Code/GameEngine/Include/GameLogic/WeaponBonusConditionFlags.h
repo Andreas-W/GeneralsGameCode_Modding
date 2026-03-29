@@ -28,4 +28,7 @@
 
 #pragma once
 
-typedef UnsignedInt WeaponBonusConditionFlags;
+#include "GameLogic/WeaponBonusConditionType.h"
+
+// Updated by AW, Mar 2026: changed into BitFlags
+typedef BitFlags<WEAPONBONUSCONDITION_COUNT> WeaponBonusConditionFlags;

@@ -398,7 +398,7 @@ void FiringTracker::xfer( Xfer *xfer )
 	xfer->xferUnsignedInt( &m_frameToStartCooldown );
 
 	// currenly applied weaponBonus against the prev target
-	xfer->xferUnsignedInt(&m_prevTargetWeaponBonus);
+	m_prevTargetWeaponBonus.xfer(xfer);
 
 }  // end xfer
 
