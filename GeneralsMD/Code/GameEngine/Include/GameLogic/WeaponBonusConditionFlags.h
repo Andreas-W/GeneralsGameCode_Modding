@@ -24,10 +24,11 @@
 
 // WeaponBonusConditionFlags.h ////////////////////////////////////////////////////////////////////
 // Part of header detangling
-// Andi W, March 26
+// JKMCD Aug 2002
 
 #pragma once
 
 #include "GameLogic/WeaponBonusConditionType.h"
 
+// Updated by AW, Mar 2026: changed into BitFlags
 typedef BitFlags<WEAPONBONUSCONDITION_COUNT> WeaponBonusConditionFlags;

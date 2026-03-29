@@ -169,7 +169,9 @@ static const char *const TheWeaponCollideMaskNames[] =
 };
 #endif
 
-//
+
+// Update AW, Mar 2026: Moved to BitFlags.cpp
+
 //#ifdef DEFINE_WEAPONBONUSCONDITION_NAMES
 //static const char *const TheWeaponBonusNames[] =
 //{

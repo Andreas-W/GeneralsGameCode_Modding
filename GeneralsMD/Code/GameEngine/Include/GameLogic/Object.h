@@ -588,18 +588,12 @@ public:
 	void removeWeaponBonusConditionFlags(WeaponBonusConditionFlags flags);
 
 	// Weapon Bonus Against,  i.e. like Target Designator logic
-	//inline void setWeaponBonusConditionAgainst(WeaponBonusConditionType wst) { m_weaponBonusConditionAgainst |= (1 << wst); };
-	//inline void clearWeaponBonusConditionAgainst(WeaponBonusConditionType wst) { m_weaponBonusConditionAgainst &= ~(1 << wst); };
-
 	inline void setWeaponBonusConditionAgainst(WeaponBonusConditionType wst) { m_weaponBonusConditionAgainst.set(wst); }
-	inline void clearWeaponBonusConditionAgainst(WeaponBonusConditionType wst) { m_weaponBonusConditionAgainst.clear(wst); }
-
-	//Bool testWeaponBonusConditionAgainst(WeaponBonusConditionType wst) const { return (m_weaponBonusConditionAgainst & (1 << wst)) != 0; }
+	inline void clearWeaponBonusConditionAgainst(WeaponBonusConditionType wst) { m_weaponBonusConditionAgainst.set(wst, 0); }
 
 	Bool testWeaponBonusConditionAgainst(WeaponBonusConditionType wst) const { return m_weaponBonusConditionAgainst.test(wst); }
 	inline WeaponBonusConditionFlags getWeaponBonusConditionAgainst() const { return m_weaponBonusConditionAgainst; }
 	inline void setWeaponBonusConditionFlagsAgainst(WeaponBonusConditionFlags flags) { m_weaponBonusConditionAgainst = flags; }
-
 
 	Bool getSingleLogicalBonePosition(const char* boneName, Coord3D* position, Matrix3D* transform) const;
 	Bool getSingleLogicalBonePositionOnTurret(WhichTurretType whichTurret, const char* boneName, Coord3D* position, Matrix3D* transform) const;
