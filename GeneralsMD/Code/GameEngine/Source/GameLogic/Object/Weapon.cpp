@@ -2995,7 +2995,7 @@ Bool Weapon::privateFireWeapon(
 	WeaponBonus bonus;
 	computeBonus(sourceObj, extraBonusFlags, bonus);
 
-	debug_printWeaponBonus(&bonus, m_template->getName());
+	//debug_printWeaponBonus(&bonus, m_template->getName());
 
 	DEBUG_ASSERTCRASH(getStatus() != OUT_OF_AMMO, ("Hmm, firing weapon that is OUT_OF_AMMO"));
 	DEBUG_ASSERTCRASH(getStatus() == READY_TO_FIRE, ("Hmm, Weapon is firing more often than should be possible"));
@@ -4166,9 +4166,6 @@ void WeaponBonusSet::appendBonuses(WeaponBonusConditionFlags flags, WeaponBonus&
 
 	for (int i = 0; i < WEAPONBONUSCONDITION_COUNT; ++i)
 	{
-		//if ((flags & (1 << i)) == 0)
-		//	continue;
-
 		if (!flags.test(i))
 			continue;
 

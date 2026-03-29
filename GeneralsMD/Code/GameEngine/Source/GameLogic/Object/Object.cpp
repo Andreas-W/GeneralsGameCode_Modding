@@ -4915,7 +4915,6 @@ void Object::onDie( DamageInfo *damageInfo )
 void Object::setWeaponBonusCondition(WeaponBonusConditionType wst)
 {
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-	//m_weaponBonusCondition |= (1 << wst);
 	m_weaponBonusCondition.set(wst);
 
 	assert(&oldCondition != &m_weaponBonusCondition);
@@ -4931,7 +4930,6 @@ void Object::setWeaponBonusCondition(WeaponBonusConditionType wst)
 void Object::clearWeaponBonusCondition(WeaponBonusConditionType wst)
 {
 	WeaponBonusConditionFlags oldCondition = m_weaponBonusCondition;
-	//m_weaponBonusCondition &= ~(1 << wst);
 	m_weaponBonusCondition.set(wst, 0);
 
 	assert(&oldCondition != &m_weaponBonusCondition);
