@@ -266,9 +266,6 @@ public:
 	/// Return the closest waypoint on the labeled path
 	virtual Waypoint *getClosestWaypointOnPath( const Coord3D *pos, AsciiString label );
 
-	/// Return a vector of shipyard locations for this Label, expected to be ShipyardN where N is player index starting with 1
-	virtual std::vector<Waypoint*> getShipyardBuildPositions(const Coord3D* pos, AsciiString label);
-
 	/// Return true if the waypoint path containing pWay is labeled with the label.
 	virtual Bool isPurposeOfPath( Waypoint *pWay, AsciiString label );
 

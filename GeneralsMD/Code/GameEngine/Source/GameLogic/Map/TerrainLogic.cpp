@@ -1609,38 +1609,6 @@ Waypoint *TerrainLogic::getClosestWaypointOnPath( const Coord3D *pos, AsciiStrin
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Return shipyard building locations for a player sorted by distance to pos */
-//-------------------------------------------------------------------------------------------------
-std::vector<Waypoint*> TerrainLogic::getShipyardBuildPositions(const Coord3D* pos, AsciiString label)
-{
-	std::vector<Waypoint*> ret;
-	if (label.isEmpty()) {
-		DEBUG_LOG(("***Warning - asking for empty path label."));
-		return ret;
-	}
-
-	for (Waypoint* way = m_waypointListHead; way; way = way->getNext()) {
-		Bool match = false;
-		if (label.compareNoCase(way->getPathLabel1()) == 0) match = true;
-		if (label.compareNoCase(way->getPathLabel2()) == 0) match = true;
-		if (label.compareNoCase(way->getPathLabel3()) == 0) match = true;
-		if (match) {
-			ret.push_back(way);
-		}
-	}
-
-	std::sort(ret.begin(), ret.end(), [=](const Waypoint* a, const Waypoint* b) {
-		const Coord3D* posA = a->getLocation();
-		const Coord3D* posB = b->getLocation();
-		Real distAsqr = (posA->x - pos->x) * (posA->x - pos->x) + (posA->y - pos->y) * (posA->y - pos->y);
-		Real distBsqr = (posB->x - pos->x) * (posB->x - pos->x) + (posB->y - pos->y) * (posB->y - pos->y);
-		return distAsqr < distBsqr;
-		});
-
-	return ret;
-}
-
-//-------------------------------------------------------------------------------------------------
 /** Return true if the waypoint path containing pWay is labeled with the label. */
 //-------------------------------------------------------------------------------------------------
 Bool TerrainLogic::isPurposeOfPath( Waypoint *pWay, AsciiString label )
