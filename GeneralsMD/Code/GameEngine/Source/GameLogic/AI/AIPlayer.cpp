@@ -521,7 +521,14 @@ Object *AIPlayer::buildStructureWithDozer(const ThingTemplate *bldgPlan, BuildLi
 	}
 	// construct the building
 	Coord3D pos = *info->getLocation();
-	pos.z += TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+	if (bldgPlan->isKindOf(KINDOF_SHIPYARD)) {
+		Real waterZ, terrainZ;
+		TheTerrainLogic->isUnderwater(pos.x, pos.y, &waterZ, &terrainZ);
+		pos.z = std::max(waterZ, terrainZ);
+	}
+	else {
+		pos.z += TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+	}
 	if( !dozer->getAIUpdateInterface() )
 	{
 		return nullptr;
@@ -1751,6 +1758,18 @@ void AIPlayer::buildSpecificAIBuilding(const AsciiString &thingName)
 {
 	//
 	AsciiString teamStr = "Error : Solo ai doesn't support BuildSpecificBuilding. '";
+	teamStr.concat(thingName);
+	teamStr.concat("' not built.");
+	TheScriptEngine->AppendDebugMessage(teamStr, false);
+}
+
+// ------------------------------------------------------------------------------------------------
+/** Build a structure at shipyard location */
+// ------------------------------------------------------------------------------------------------
+void AIPlayer::buildAIShipyard(const AsciiString &thingName)
+{
+	//
+	AsciiString teamStr = "Error : Solo ai doesn't support BuildShipyard. '";
 	teamStr.concat(thingName);
 	teamStr.concat("' not built.");
 	TheScriptEngine->AppendDebugMessage(teamStr, false);

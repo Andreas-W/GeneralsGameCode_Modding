@@ -175,6 +175,7 @@ public: // AIPlayer interface, may be overridden by AISkirmishPlayer.  jba.
 
 	virtual void buildSpecificAIBuilding(const AsciiString &thingName); ///< Builds this building as soon as possible.
 
+	virtual void buildAIShipyard(const AsciiString& thingName); ///< Build structure at shipyard location
 
 	virtual void recruitSpecificAITeam(TeamPrototype *teamProto, Real recruitRadius); ///< Builds this team immediately.
 

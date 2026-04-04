@@ -298,6 +298,9 @@ public:
 
 	virtual void updateBridgeDamageStates(void); ///< Updates bridge's damage info.
 
+	/// Check if a point is in a NO_SHIPYARD area
+	virtual bool isInNoShipyardZone(const Coord3D * pos);
+
 	Bool anyBridgesDamageStatesChanged(void) {return m_bridgeDamageStatesChanged; } ///< Bridge damage states updated.
 	Bool isBridgeRepaired(const Object *bridge); ///< Is bridge repaired?
 	Bool isBridgeBroken(const Object *bridge); ///< Is bridge Broken?
@@ -317,6 +320,8 @@ public:
 
   void flattenTerrain(Object *obj);  ///< Flatten the terrain under a building.
   void createCraterInTerrain(Object *obj);  ///< Flatten the terrain under a building.
+
+	Real getShipyardPlacementAngle(const Coord3D& worldPos, const ThingTemplate* thing);
 
 protected:
 

@@ -615,6 +615,9 @@ public:
 	/// Build structure type on front or flank of base.  Gets passed to aiPlayer.
 	void buildBaseDefenseStructure(const AsciiString &thingName, Bool flank);
 
+	/// Build shipyard. Gets passed to aiPlayer.
+	void buildShipyard(const AsciiString& thingName);
+
 	/// Recruits an instance of a specific team.  Gets passed to aiPlayer.
 	void recruitSpecificTeam(TeamPrototype *teamProto, Real recruitRadius);
 

@@ -1640,6 +1640,21 @@ PolygonTrigger *TerrainLogic::getTriggerAreaByName( AsciiString name )
 	return nullptr;
 }
 
+//-------------------------------------------------------------------------------------------------
+/** check if point is in NO_SHIPYARD polygon */
+//-------------------------------------------------------------------------------------------------
+bool TerrainLogic::isInNoShipyardZone(const Coord3D* pos) {
+	ICoord3D iPos {std::round(pos->x), std::round(pos->y), std::round(pos->z)};
+	for (PolygonTrigger* pTrig = PolygonTrigger::getFirstPolygonTrigger(); pTrig; pTrig = pTrig->getNext()) {
+		if (pTrig->getTriggerName().startsWithNoCase("NO_SHIPYARD")) {
+			if (pTrig->pointInTrigger(iPos))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
 
 //-------------------------------------------------------------------------------------------------
 /** Finds the bridge at a given x/y coordinate.  */
@@ -2899,7 +2914,51 @@ void TerrainLogic::flattenTerrain(Object *obj)
 
 }
 
+Real TerrainLogic::getShipyardPlacementAngle(const Coord3D & worldPos, const ThingTemplate* thing) {
+	Real angle{ 0.0f };
 
+	if (thing == nullptr) return 0.0f;
+
+	const GeometryInfo& geom = thing->getTemplateGeometryInfo();
+
+	Real check_radius = 0.0f;
+	if (geom.getGeomType() == GEOMETRY_BOX)
+	{
+		check_radius = std::max(geom.getMinorRadius(), geom.getMajorRadius());
+	}  // end if
+	else if (geom.getGeomType() == GEOMETRY_SPHERE ||
+		geom.getGeomType() == GEOMETRY_CYLINDER)
+	{
+		check_radius = geom.getBoundingCircleRadius();
+	}  // end else if
+	else
+	{
+		DEBUG_ASSERTCRASH(0, ("InGameUI::handleBuildPlacements (Shipyard placement): Undefined geometry '%d' for '%s'", geom.getGeomType(), thing->getName().str()));
+		return 0.0f;
+	}  // end else
+
+	//Check 4 sample points
+	Real hx1 = TheTerrainLogic->getGroundHeight(worldPos.x + check_radius, worldPos.y);
+	Real hx2 = TheTerrainLogic->getGroundHeight(worldPos.x - check_radius, worldPos.y);
+	Real hy1 = TheTerrainLogic->getGroundHeight(worldPos.x, worldPos.y + check_radius);
+	Real hy2 = TheTerrainLogic->getGroundHeight(worldPos.x, worldPos.y - check_radius);
+
+	Real dx = hx1 - hx2;
+	Real dy = hy1 - hy2;
+
+	Coord2D v;
+	v.x = dx;
+	v.y = dy;
+	constexpr Real pi2 = PI * 2.0f;
+	angle = v.toAngle() + thing->getPlacementViewAngle();
+	if (angle < 0.0f) {
+		angle += pi2;
+	}
+	else if (angle > pi2) {
+		angle -= pi2;
+	}
+	return angle;
+}
 
 // ------------------------------------------------------------------------------------------------
 /** Dig a deep circular gorge into the terrain beneath an object. */
