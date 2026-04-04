@@ -1222,6 +1222,12 @@ Bool EditParameter::loadTriggerAreas(CComboBox *pCombo, AsciiString match)
 	trigName = WATER_GRID;
 	if (pCombo) pCombo->AddString(trigName.str());
 	if ((match==trigName)) didMatch = true;
+	trigName = MY_NAVAL_PERIMETER;
+	if (pCombo) pCombo->AddString(trigName.str());
+	if ((match == trigName)) didMatch = true;
+	trigName = ENEMY_NAVAL_PERIMETER;
+	if (pCombo) pCombo->AddString(trigName.str());
+	if ((match == trigName)) didMatch = true;
 	return didMatch;
 }
 
@@ -1904,6 +1910,8 @@ BOOL EditParameter::OnInitDialog()
 			pList->InsertString(-1, "Backdoor");
 			pList->InsertString(-1, "Flank");
 			pList->InsertString(-1, "Special");
+			pList->InsertString(-1, "Naval");
+			pList->InsertString(-1, "NavalFlank");
 			i = pList->FindStringExact(-1, m_parameter->getString().str());
 			if (i!=CB_ERR)
 				pList->SetCurSel(i);

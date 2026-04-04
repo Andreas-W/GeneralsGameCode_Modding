@@ -4089,6 +4089,14 @@ void ScriptEngine::init( void )
   curTemplate->m_uiStrings[0] = "Disable ";
   curTemplate->m_uiStrings[1] = "'s ambient sound.";
 
+	curTemplate = &m_actionTemplates[ScriptAction::SKIRMISH_BUILD_SHIPYARD];
+	curTemplate->m_internalName = "SKIRMISH_BUILD_SHIPYARD";
+	curTemplate->m_uiName = "Skirmish Only/Build/Build a Shipyard.";
+	curTemplate->m_numParameters = 1;
+	curTemplate->m_parameters[0] = Parameter::OBJECT_TYPE;
+	curTemplate->m_numUiStrings = 2;
+	curTemplate->m_uiStrings[0] = "Build a shipyard ";
+	curTemplate->m_uiStrings[1] = ", at next free shipyard waypoint.";
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -5228,6 +5236,13 @@ void ScriptEngine::init( void )
 	curTemplate->m_uiStrings[1] = " has lost an object of type ";
 	curTemplate->m_uiStrings[2] = " (can be an object type list).";
 
+	curTemplate = &m_conditionTemplates[Condition::SKIRMISH_SHIPS_ENABLED];
+	curTemplate->m_internalName = "SKIRMISH_SHIPS_ENABLED";
+	curTemplate->m_uiName = "Skirmish/ Ships are enabled.";
+	curTemplate->m_numParameters = 0;
+	curTemplate->m_numUiStrings = 1;
+	curTemplate->m_uiStrings[0] = "Ships are enabled on this map";
+
 	curTemplate = &m_actionTemplates[ScriptAction::SHOW_WEATHER];
 	curTemplate->m_internalName = "SHOW_WEATHER";
 	curTemplate->m_uiName = "Map/Environment/Show Weather.";
@@ -5905,18 +5920,20 @@ Handles skirmish name qualification.  */
 //-------------------------------------------------------------------------------------------------
 PolygonTrigger *ScriptEngine::getQualifiedTriggerAreaByName( AsciiString name )
 {
-	if (name == MY_INNER_PERIMETER || name == MY_OUTER_PERIMETER) {
+	if (name == MY_INNER_PERIMETER || name == MY_OUTER_PERIMETER || name == MY_NAVAL_PERIMETER) {
 		if (m_currentPlayer) {
 			Int ndx = m_currentPlayer->getMpStartIndex()+1;
-			if (name==MY_INNER_PERIMETER) {
+			if (name == MY_INNER_PERIMETER) {
 				name.format("%s%d", INNER_PERIMETER, ndx);
+			} else if (name == MY_NAVAL_PERIMETER) {
+				name.format("%s%d", NAVAL_PERIMETER, ndx);
 			}	else {
 				name.format("%s%d", OUTER_PERIMETER, ndx);
 			}
 		}	else {
 			return nullptr;
 		}
-	} else if (name == ENEMY_INNER_PERIMETER || name == ENEMY_OUTER_PERIMETER) {
+	} else if (name == ENEMY_INNER_PERIMETER || name == ENEMY_OUTER_PERIMETER || name == ENEMY_NAVAL_PERIMETER) {
 
 		Int mpNdx;
 		mpNdx = -1;
@@ -5926,8 +5943,10 @@ PolygonTrigger *ScriptEngine::getQualifiedTriggerAreaByName( AsciiString name )
 				mpNdx = enemy->getMpStartIndex()+1;
 			}
 		}
-		if (name==ENEMY_INNER_PERIMETER) {
+		if (name == ENEMY_INNER_PERIMETER) {
 			name.format("%s%d", INNER_PERIMETER, mpNdx);
+		} else if (name == ENEMY_NAVAL_PERIMETER) {
+			name.format("%s%d", NAVAL_PERIMETER, mpNdx);
 		}	else {
 			name.format("%s%d", OUTER_PERIMETER, mpNdx);
 		}

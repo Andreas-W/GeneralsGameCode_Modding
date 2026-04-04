@@ -54,6 +54,7 @@
 #define SKIRMISH_FLANK "Flank"
 #define SKIRMISH_BACKDOOR "Backdoor"
 #define SKIRMISH_SPECIAL "Special"
+#define SKIRMISH_SHIPYARD "Shipyard"
 
 // Skirmish Player Areas
 #define SKIRMISH_AREA_HOME_BASE				"Home Base"
@@ -62,11 +63,14 @@
 // Skirmish trigger names.
 #define MY_INNER_PERIMETER		"[Skirmish]MyInnerPerimeter"
 #define MY_OUTER_PERIMETER		"[Skirmish]MyOuterPerimeter"
+#define MY_NAVAL_PERIMETER		"[Skirmish]MyNavalPerimeter"
 #define ENEMY_OUTER_PERIMETER "[Skirmish]EnemyOuterPerimeter"
 #define ENEMY_INNER_PERIMETER "[Skirmish]EnemyInnerPerimeter"
+#define ENEMY_NAVAL_PERIMETER "[Skirmish]EnemyNavalPerimeter"
 
 #define INNER_PERIMETER "InnerPerimeter"
 #define OUTER_PERIMETER "OuterPerimeter"
+#define NAVAL_PERIMETER "NavalPerimeter"
 
 class Parameter;
 class Script;
@@ -543,6 +547,7 @@ public:
 		TEAM_SET_BOOBYTRAPPED,										///< Add boobytrap to all units on team.
 		SHOW_WEATHER,															///< show map defined weather.
 		AI_PLAYER_BUILD_TYPE_NEAREST_TEAM,				///< Tell the ai player to build an object nearest team.
+		SKIRMISH_BUILD_SHIPYARD,                  ///< Tell the ai player to build a shipyard
 		// add new items here, please
 		NUM_ITEMS
 	};
@@ -970,6 +975,8 @@ public:
 		SUPPLY_SOURCE_ATTACKED,									// True if our supply depot or dozer near depot was attacked.
 		START_POSITION_IS,											// True if our start position matches.
 		NAMED_HAS_FREE_CONTAINER_SLOTS,					///< Kris -- Checks if any given container has any free slots.
+
+		SKIRMISH_SHIPS_ENABLED,                 // True if ships are enabled on the played map
 
 		NUM_ITEMS		 // Always the last condition.
 	};

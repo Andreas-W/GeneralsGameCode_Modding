@@ -2496,6 +2496,14 @@ void Player::buildBaseDefenseStructure(const AsciiString &thingName, Bool flank)
 }
 
 //=============================================================================
+void Player::buildShipyard(const AsciiString &thingName) {
+	if (m_ai)
+	{
+		m_ai->buildAIShipyard(thingName);
+	}
+}
+
+//=============================================================================
 void Player::buildSpecificBuilding(const AsciiString &thingName)
 {
 	if (m_ai)

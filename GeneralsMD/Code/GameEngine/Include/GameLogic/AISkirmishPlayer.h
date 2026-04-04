@@ -34,6 +34,7 @@
 class BuildListInfo;
 class SpecialPowerTemplate;
 
+typedef BitFlags<10> UsedShipyardsMask;
 
 /**
  * The computer-controlled opponent.
@@ -65,6 +66,8 @@ public:	// AIPlayer interface methods.
 	virtual void buildAIBaseDefenseStructure(const AsciiString &thingName, Bool flank); ///< Builds base defense on front or flank of base.
 
 	virtual void recruitSpecificAITeam(TeamPrototype *teamProto, Real recruitRadius); ///< Builds this team immediately.
+
+	virtual void buildAIShipyard(const AsciiString& thingName) override; ///< Build structure at shipyard location
 
 	virtual Bool isSkirmishAI(void) {return true;}
 
@@ -110,6 +113,7 @@ protected:
 	Real m_curLeftFlankRightDefenseAngle;
 	Real m_curRightFlankLeftDefenseAngle;
 	Real m_curRightFlankRightDefenseAngle;
+	UsedShipyardsMask m_usedShipyards;
 
 	UnsignedInt m_frameToCheckEnemy;
 	Player			*m_currentEnemy;

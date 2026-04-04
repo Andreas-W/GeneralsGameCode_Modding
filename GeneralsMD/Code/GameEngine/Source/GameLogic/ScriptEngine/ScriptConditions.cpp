@@ -59,6 +59,7 @@
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/Scripts.h"
 #include "GameLogic/VictoryConditions.h"
+#include <Common/MapData.h>
 
 
 class ObjectTypesTemp
@@ -2607,6 +2608,11 @@ Bool ScriptConditions::evaluateSkirmishStartPosition(Parameter *pSkirmishPlayerP
 	return ndx == startNdx;
 }
 
+Bool ScriptConditions::evaluateSkirmishShipsEnabled()
+{
+	return TheMapData->m_enableShips;
+}
+
 //-------------------------------------------------------------------------------------------------
 Bool ScriptConditions::evaluateSkirmishPlayerHasBeenAttackedByPlayer(Parameter *pSkirmishPlayerParm, Parameter *pAttackedByParm )
 {
@@ -2981,6 +2987,8 @@ Bool ScriptConditions::evaluateCondition( Condition *pCondition )
 		case Condition::PLAYER_LOST_OBJECT_TYPE:
 			return evaluatePlayerLostObjectType(pCondition->getParameter(0), pCondition->getParameter(1));
 
+		case Condition::SKIRMISH_SHIPS_ENABLED:
+			return evaluateSkirmishShipsEnabled();
 
 	}
 }

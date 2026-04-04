@@ -1673,7 +1673,6 @@ void InGameUI::handleBuildPlacements( void )
 
 			if (m_pendingPlaceType->isKindOf(KINDOF_SHIPYARD)) {
 				// For shipyard sample the terrain an rotate according to descending terrain (water is lower)
-				const GeometryInfo& geom = m_pendingPlaceType->getTemplateGeometryInfo();
 
 				Coord3D worldPos;
 				TheTacticalView->screenToTerrain(&loc, &worldPos);
@@ -1683,42 +1682,7 @@ void InGameUI::handleBuildPlacements( void )
 				TheTerrainLogic->isUnderwater(worldPos.x, worldPos.y, &waterZ, &terrainZ);
 				worldPos.z = std::max(terrainZ, waterZ);
 
-				Real check_radius = 0.0f;
-				if (geom.getGeomType() == GEOMETRY_BOX)
-				{
-					check_radius = std::max(geom.getMinorRadius(), geom.getMajorRadius());
-				}  // end if
-				else if (geom.getGeomType() == GEOMETRY_SPHERE ||
-					geom.getGeomType() == GEOMETRY_CYLINDER)
-				{
-					check_radius = geom.getBoundingCircleRadius();
-				}  // end else if
-				else
-				{
-					DEBUG_ASSERTCRASH(0, ("InGameUI::handleBuildPlacements (Shipyard placement): Undefined geometry '%d' for '%s'", geom.getGeomType(), m_pendingPlaceType->getName().str()));
-					return;
-				}  // end else
-
-				//Check 4 sample points
-				Real hx1 = TheTerrainLogic->getGroundHeight(worldPos.x + check_radius, worldPos.y);
-				Real hx2 = TheTerrainLogic->getGroundHeight(worldPos.x - check_radius, worldPos.y);
-				Real hy1 = TheTerrainLogic->getGroundHeight(worldPos.x, worldPos.y + check_radius);
-				Real hy2 = TheTerrainLogic->getGroundHeight(worldPos.x, worldPos.y - check_radius);
-
-				Real dx = hx1 - hx2;
-				Real dy = hy1 - hy2;
-
-				Coord2D v;
-				v.x = dx;
-				v.y = dy;
-				constexpr Real pi2 = PI * 2.0f;
-				angle = v.toAngle() + m_pendingPlaceType->getPlacementViewAngle();
-				if (angle < 0.0f) {
-					angle += pi2;
-				}
-				else if (angle > pi2) {
-					angle -= pi2;
-				}
+				angle = TheTerrainLogic->getShipyardPlacementAngle(worldPos, m_pendingPlaceType);
 			}
 
 

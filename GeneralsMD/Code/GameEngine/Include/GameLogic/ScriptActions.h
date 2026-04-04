@@ -138,6 +138,7 @@ protected:
 	void doBuildUpgrade(const AsciiString& playerName, const AsciiString& upgrade);
 	void doBuildBaseDefense(Bool flank);
 	void doBuildBaseStructure(const AsciiString& buildingType, Bool flank);
+	void doBuildShipyard(const AsciiString& buildingType);
 	void createUnitOnTeamAt(const AsciiString& unitName, const AsciiString& objType, const AsciiString& teamName, const AsciiString& waypoint);
 	void doNamedAttackArea(const AsciiString& unitName, const AsciiString& areaName);
 	void doNamedAttackTeam(const AsciiString& unitName, const AsciiString& teamName);

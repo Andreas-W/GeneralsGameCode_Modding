@@ -59,13 +59,28 @@
 
 #define USE_DOZER 1
 
-
+template<>
+const char* const UsedShipyardsMask::s_bitNameList[] =
+{
+	"SHIPYARD_1_USED",
+	"SHIPYARD_2_USED",
+	"SHIPYARD_3_USED",
+	"SHIPYARD_4_USED",
+	"SHIPYARD_5_USED",
+	"SHIPYARD_6_USED",
+	"SHIPYARD_7_USED",
+	"SHIPYARD_8_USED",
+	"SHIPYARD_9_USED",
+	"SHIPYARD_10_USED",
+	nullptr
+};
+static_assert(ARRAY_SIZE(UsedShipyardsMask::s_bitNameList) == UsedShipyardsMask::NumBits + 1, "Incorrect array size");
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // PRIVATE DATA ///////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-AISkirmishPlayer::AISkirmishPlayer( Player *p ) :	AIPlayer(p),
+AISkirmishPlayer::AISkirmishPlayer(Player* p) : AIPlayer(p),
 m_curFlankBaseDefense(0),
 m_curFrontBaseDefense(0),
 m_curFrontLeftDefenseAngle(0),
@@ -74,6 +89,7 @@ m_curLeftFlankLeftDefenseAngle(0),
 m_curLeftFlankRightDefenseAngle(0),
 m_curRightFlankLeftDefenseAngle(0),
 m_curRightFlankRightDefenseAngle(0),
+m_usedShipyards(0),
 m_frameToCheckEnemy(0),
 m_currentEnemy(nullptr)
 
@@ -847,6 +863,61 @@ void AISkirmishPlayer::recruitSpecificAITeam(TeamPrototype *teamProto, Real recr
 	}
 }
 
+void AISkirmishPlayer::buildAIShipyard(const AsciiString& thingName)
+{
+	const ThingTemplate* tTemplate = TheThingFactory->findTemplate(thingName);
+	if (tTemplate == nullptr) {
+		DEBUG_CRASH(("Couldn't find shipyard structure '%s' for side %s", thingName.str(), m_player->getSide().str()));
+		return;
+	}
+
+	if (!tTemplate->isKindOf(KINDOF_SHIPYARD)) {
+		DEBUG_CRASH(("Cannot instruct AI to build non-Shipyard '%s' at shipyard position for side %s", thingName.str(), m_player->getSide().str()));
+	}
+
+	AsciiString wpLabel;
+	Int index{ 1 };
+	wpLabel.format("%s%d_%d", SKIRMISH_SHIPYARD, m_player->getMpStartIndex() + 1, index);
+	const Waypoint* shipyardWp = TheTerrainLogic->getWaypointByName(wpLabel);
+
+	while (shipyardWp != nullptr && index <= UsedShipyardsMask::NumBits) {
+		/* See if we can build there. */
+		Coord3D buildPos = *shipyardWp->getLocation();
+
+
+		//DEBUG_LOG(("SHIPYARD_BULDING: player %d flags: %u", m_player->getMpStartIndex() + 1, m_usedShipyards.toUnsignedInt()));
+		
+		// skip used index
+		if (!m_usedShipyards.test(index - 1)) {
+
+			//Adjust to water height
+			Real terrainZ{ 0 };
+			Real waterZ{ 0 };
+			TheTerrainLogic->isUnderwater(buildPos.x, buildPos.y, &waterZ, &terrainZ);
+			buildPos.z = std::max(terrainZ, waterZ);
+
+			Real placeAngle = TheTerrainLogic->getShipyardPlacementAngle(buildPos, tTemplate);
+
+			LegalBuildCode code = TheBuildAssistant->isLocationLegalToBuild(&buildPos, tTemplate, placeAngle,
+				BuildAssistant::TERRAIN_RESTRICTIONS | BuildAssistant::NO_OBJECT_OVERLAP, nullptr, m_player);
+
+			Bool canBuild = LBC_OK == code;
+
+			DEBUG_LOG(("SHIPYARD_BULDING: Location %d Legal to build for player %d (%s): %s, code: %d", index, m_player->getMpStartIndex() + 1, shipyardWp->getName().str(), canBuild ? "true" : "false", static_cast<Int>(code)));
+
+			TheTerrainVisual->removeAllBibs();	// isLocationLegalToBuild adds bib feedback, turn it off.  jba.
+			if (canBuild) {
+				m_usedShipyards.set(index - 1, 1);
+				m_player->addToPriorityBuildList(thingName, &buildPos, placeAngle);
+				break;
+			}
+		}
+		index++;
+		wpLabel.format("%s%d_%d", SKIRMISH_SHIPYARD, m_player->getMpStartIndex() + 1, index);
+		shipyardWp = TheTerrainLogic->getWaypointByName(wpLabel);
+	}
+}
+
 
 
 
@@ -1222,6 +1293,8 @@ void AISkirmishPlayer::xfer( Xfer *xfer )
 
 	// right flank right defense angle
 	xfer->xferReal( &m_curRightFlankRightDefenseAngle );
+
+	m_usedShipyards.xfer(xfer);
 
 }
 

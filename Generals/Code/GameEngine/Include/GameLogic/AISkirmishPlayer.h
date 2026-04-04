@@ -34,6 +34,7 @@
 class BuildListInfo;
 class SpecialPowerTemplate;
 
+typedef BitFlags<10> UsedShipyardLocationMask;
 
 /**
  * The computer-controlled opponent.
@@ -110,6 +111,7 @@ protected:
 	Real m_curLeftFlankRightDefenseAngle;
 	Real m_curRightFlankLeftDefenseAngle;
 	Real m_curRightFlankRightDefenseAngle;
+	UsedShipyardLocationMask m_usedShipyards;
 
 	UnsignedInt m_frameToCheckEnemy;
 	Player			*m_currentEnemy;

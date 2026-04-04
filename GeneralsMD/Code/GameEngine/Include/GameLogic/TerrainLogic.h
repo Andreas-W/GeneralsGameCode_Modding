@@ -266,6 +266,9 @@ public:
 	/// Return the closest waypoint on the labeled path
 	virtual Waypoint *getClosestWaypointOnPath( const Coord3D *pos, AsciiString label );
 
+	/// Return a vector of shipyard locations for this Label, expected to be ShipyardN where N is player index starting with 1
+	virtual std::vector<Waypoint*> getShipyardBuildPositions(const Coord3D* pos, AsciiString label);
+
 	/// Return true if the waypoint path containing pWay is labeled with the label.
 	virtual Bool isPurposeOfPath( Waypoint *pWay, AsciiString label );
 
@@ -298,6 +301,9 @@ public:
 
 	virtual void updateBridgeDamageStates(void); ///< Updates bridge's damage info.
 
+	/// Check if a point is in a NO_SHIPYARD area
+	virtual bool isInNoShipyardZone(const Coord3D * pos);
+
 	Bool anyBridgesDamageStatesChanged(void) {return m_bridgeDamageStatesChanged; } ///< Bridge damage states updated.
 	Bool isBridgeRepaired(const Object *bridge); ///< Is bridge repaired?
 	Bool isBridgeBroken(const Object *bridge); ///< Is bridge Broken?
@@ -317,6 +323,8 @@ public:
 
   void flattenTerrain(Object *obj);  ///< Flatten the terrain under a building.
   void createCraterInTerrain(Object *obj);  ///< Flatten the terrain under a building.
+
+	Real getShipyardPlacementAngle(const Coord3D& worldPos, const ThingTemplate* thing);
 
 protected:
 
