@@ -4862,7 +4862,7 @@ setTmpValue(now);
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-Bool AIUpdateInterface::friend_isAttackAngleValid(Real relAngle) const
+Bool AIUpdateInterface::friend_isAttackAngleValid(Real relAngle, Real angleThresh /*= 0*/) const
 {
 	const AIUpdateModuleData* data = getAIUpdateModuleData();
 	if (data->m_attackAngles.size() <= 0)
@@ -4871,8 +4871,8 @@ Bool AIUpdateInterface::friend_isAttackAngleValid(Real relAngle) const
 	relAngle = normalizeAngle2PI(relAngle);
 
 	for (AttackAngleData angles : data->m_attackAngles) {
-		Real minAngle = angles.m_minAngle;
-		Real maxAngle = angles.m_maxAngle;
+		Real minAngle = angles.m_minAngle - angleThresh;
+		Real maxAngle = angles.m_maxAngle + angleThresh;
 		Real curAngle = relAngle;
 
 		if (minAngle > maxAngle) {

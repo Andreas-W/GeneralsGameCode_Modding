@@ -684,7 +684,7 @@ public:
 #endif
 
 	// this is intended for use ONLY by AIAttackAimAtTargetState.
-	Bool friend_isAttackAngleValid(Real relAngle) const;
+	Bool friend_isAttackAngleValid(Real relAngle, Real angleThresh) const;
 	Real friend_getClosestAttackAngle(Real relAngle) const;
 
 	Object* getGoalObject() { return getStateMachine()->getGoalObject(); }	///< return the id of the current state of the machine
