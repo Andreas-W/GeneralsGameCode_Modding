@@ -416,8 +416,8 @@ Bool ActionManager::canRepairObject( const Object *obj, const Object *objectToRe
 	}
 
 	//GS So here's the ensuring that they can't be repaired
-	if( objectToRepair->isKindOf(KINDOF_BRIDGE) || objectToRepair->isKindOf(KINDOF_BRIDGE_TOWER) )
-		return FALSE;
+	//if (objectToRepair->isKindOf(KINDOF_BRIDGE) || objectToRepair->isKindOf(KINDOF_BRIDGE_TOWER))
+	//	return FALSE;
 
 	// nothing can be done with things that are under construction
 	if( obj->getStatusBits().test( OBJECT_STATUS_UNDER_CONSTRUCTION ) ||
