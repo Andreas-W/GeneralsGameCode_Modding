@@ -80,6 +80,7 @@ OpenContainModuleData::OpenContainModuleData( void )
  	m_allowAlliesInside = TRUE;
  	m_allowEnemiesInside = TRUE;
  	m_allowNeutralInside = TRUE;
+	m_passengerWeaponBonusVec.clear();
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -796,6 +797,11 @@ void OpenContain::onRemoving( Object *rider)
 		AudioEventRTS fallingSound = *rider->getTemplate()->getSoundFalling();
 		fallingSound.setObjectID(rider->getID());
 		TheAudio->addAudioEvent(&fallingSound);
+
+		const OpenContainModuleData* d = getOpenContainModuleData();
+		for (Int i = 0; i < d->m_passengerWeaponBonusVec.size(); i++) {
+			rider->clearWeaponBonusCondition(d->m_passengerWeaponBonusVec[i]);
+		}
 	}
 }
 
