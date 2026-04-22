@@ -304,6 +304,9 @@ private:
 public:
 	void appendBonuses(WeaponBonusConditionFlags flags, WeaponBonus& bonus) const;
 
+	//Copy bonues from other WeaponBonusSet, needed for WeaponExtend for deep copy
+	void copyFrom(const WeaponBonusSet& other);
+
 	void parseWeaponBonusSet(INI* ini);
 	static void parseWeaponBonusSet(INI* ini, void *instance, void* /*store*/, const void* /*userData*/);
 	static void parseWeaponBonusSetPtr(INI* ini, void *instance, void* /*store*/, const void* /*userData*/);

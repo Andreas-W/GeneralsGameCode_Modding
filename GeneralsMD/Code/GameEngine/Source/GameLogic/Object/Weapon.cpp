@@ -375,6 +375,17 @@ void WeaponTemplate::copy_from(const WeaponTemplate& other) {
 
 	// take all values from other
 	*this = other;
+	m_extraBonus = nullptr;
+
+	//WeaponBonusSet must be deep copied
+	if (other.m_extraBonus != nullptr) {
+		m_extraBonus = newInstance(WeaponBonusSet);
+		m_extraBonus->copyFrom(*other.m_extraBonus);
+	}
+
+	//just to make sure
+	this->m_historicDamage.clear();
+	this->m_historicDamageTriggerId = 0;
 
 	this->m_nextTemplate = nextTempl;
 	this->m_name = name;
@@ -4173,3 +4184,20 @@ void WeaponBonusSet::appendBonuses(WeaponBonusConditionFlags flags, WeaponBonus&
 	}
 }
 
+//-------------------------------------------------------------------------------------------------
+void WeaponBonusSet::copyFrom(const WeaponBonusSet& other)
+{
+	// Prevent self-assignment
+	if (this == &other)
+	{
+		return;
+	}
+
+	// Iterate through and copy each WeaponBonus struct individually.
+  // The compiler's default assignment operator for WeaponBonus will safely 
+	// copy the inner Real m_field[FIELD_COUNT] array.
+	for (int i = 0; i < WEAPONBONUSCONDITION_COUNT; ++i)
+	{
+		this->m_bonus[i] = other.m_bonus[i];
+	}
+}
