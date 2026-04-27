@@ -97,6 +97,8 @@ OCLUpdateModuleData::OCLUpdateModuleData()
 		{ "MaxDelay",			INI::parseDurationUnsignedInt,	nullptr, offsetof( OCLUpdateModuleData, m_maxDelay ) },
 		{ "CreateAtEdge",	INI::parseBool,									nullptr, offsetof( OCLUpdateModuleData, m_isCreateAtEdge ) },
 		{ "FactionTriggered",	INI::parseBool,							nullptr, offsetof( OCLUpdateModuleData, m_isFactionTriggered ) },
+		{ "DirectionalDelivery",	INI::parseBool,							nullptr, offsetof( OCLUpdateModuleData, m_isDirectionalDelivery) },
+		{ "DirectionalDeliveryFurthestEdge",	INI::parseBool,							nullptr, offsetof( OCLUpdateModuleData, m_isDirectionalDeliveryFurthestEdge) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
   p.add(dataFieldParse);
@@ -190,10 +192,18 @@ UpdateSleepTime OCLUpdate::update( void )
 		setNextCreationFrame();
 
 		Coord3D creationCoord;
-		if( getOCLUpdateModuleData()->m_isCreateAtEdge )
-			creationCoord = TheTerrainLogic->findClosestEdgePoint( getObject()->getPosition() );
+		if (data->m_isCreateAtEdge) {
+			if (data->m_isDirectionalDelivery) {
+				creationCoord = TheTerrainLogic->findEdgePointForAngle(getObject()->getPosition(), getObject()->getOrientation(), data->m_isDirectionalDeliveryFurthestEdge, FALSE);
+			}
+			else {
+				creationCoord = TheTerrainLogic->findClosestEdgePoint(getObject()->getPosition());
+			}
+		}
 		else
+		{
 			creationCoord = *getObject()->getPosition();
+		}
 
 		// If this is faction triggered, search through the faction specific OCLs to find the match
 		if (data->m_isFactionTriggered)

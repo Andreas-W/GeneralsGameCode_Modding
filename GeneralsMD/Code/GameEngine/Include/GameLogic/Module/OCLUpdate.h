@@ -54,6 +54,9 @@ public:
 	Bool												m_isCreateAtEdge;				///< Otherwise, it is created on top of myself
 	Bool												m_isFactionTriggered;		///< Faction has to be present before update will happen
 
+	Bool												m_isDirectionalDelivery;		///< Deliver payload aligned to source object
+	Bool												m_isDirectionalDeliveryFurthestEdge;		///< always get the furthest edge matching angle
+
 	OCLUpdateModuleData();
 
 	static void buildFieldParse(MultiIniFieldParse& p);

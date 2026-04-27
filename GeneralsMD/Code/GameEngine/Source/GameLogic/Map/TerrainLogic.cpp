@@ -2169,7 +2169,117 @@ Coord3D TerrainLogic::findFarthestEdgePoint( const Coord3D *farthestFrom ) const
 }
 
 
+//-------------------------------------------------------------------------------------------------
+/** Returns the ground aligned point on the bounding box closest to the given point*/
+//-------------------------------------------------------------------------------------------------
+Coord3D TerrainLogic::findEdgePointForAngle(const Coord3D* pos, Real angle, bool farthest/* = FALSE*/, bool closest/* = FALSE*/) const
+{
+	Region3D mapExtent;
+	getExtent(&mapExtent);
 
+	// Map bounds (XY only)
+	const Real minX = mapExtent.lo.x;
+	const Real minY = mapExtent.lo.y;
+	const Real maxX = mapExtent.hi.x;
+	const Real maxY = mapExtent.hi.y;
+
+	const Real x0 = pos->x;
+	const Real y0 = pos->y;
+
+	// Direction from angle
+	const Real dx = std::cos(angle);
+	const Real dy = std::sin(angle);
+
+	// Small epsilon for float comparisons
+	const Real eps = static_cast<Real>(1e-6);
+
+	struct Hit
+	{
+		Real t;
+		Real x;
+		Real y;
+	};
+
+	Hit hits[4];
+	int hitCount = 0;
+
+	auto addHit = [&](Real t)
+		{
+			if (t < 0) return; // only forward along the ray
+
+			const Real x = x0 + t * dx;
+			const Real y = y0 + t * dy;
+
+			// Keep only points that lie on the rectangle boundary
+			if (x >= minX - eps && x <= maxX + eps &&
+				y >= minY - eps && y <= maxY + eps)
+			{
+				// Avoid duplicates (corner hits can be found twice)
+				for (int i = 0; i < hitCount; ++i)
+				{
+					if (std::abs(hits[i].x - x) < eps &&
+						std::abs(hits[i].y - y) < eps)
+					{
+						return;
+					}
+				}
+
+				hits[hitCount++] = { t, x, y };
+			}
+		};
+
+	// Intersect ray P(t) = (x0,y0) + t(dx,dy), t >= 0
+	// with the 4 rectangle edges
+
+	// x = minX
+	if (std::abs(dx) > eps)
+		addHit((minX - x0) / dx);
+
+	// x = maxX
+	if (std::abs(dx) > eps)
+		addHit((maxX - x0) / dx);
+
+	// y = minY
+	if (std::abs(dy) > eps)
+		addHit((minY - y0) / dy);
+
+	// y = maxY
+	if (std::abs(dy) > eps)
+		addHit((maxY - y0) / dy);
+
+	// No hit should only happen if pos is invalid or outside map
+	if (hitCount == 0)
+		return *pos;
+
+	// Default behavior:
+	// - if closest == true  -> nearest hit
+	// - if farthest == true -> farthest hit
+	// - otherwise           -> nearest forward hit
+	int best = 0;
+
+	if (farthest)
+	{
+		for (int i = 1; i < hitCount; ++i)
+		{
+			if (hits[i].t > hits[best].t)
+				best = i;
+		}
+	}
+	else // closest or default
+	{
+		for (int i = 1; i < hitCount; ++i)
+		{
+			if (hits[i].t < hits[best].t)
+				best = i;
+		}
+	}
+
+	Coord3D result = *pos;
+	result.x = hits[best].x;
+	result.y = hits[best].y;
+	// preserve original Z (XY only matters)
+	return result;
+}
 
 
 //-------------------------------------------------------------------------------------------------
