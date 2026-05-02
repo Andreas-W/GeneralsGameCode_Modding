@@ -504,6 +504,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/DroneCarrierSlavedUpdate.h
     Include/GameLogic/Module/DroneCarrierContain.h
     Include/GameLogic/Module/CarrierDroneAIUpdate.h
+    Include/GameLogic/Module/BridgeTowerBody.h
     Include/GameLogic/Object.h
     Include/GameLogic/ObjectCreationList.h
     Include/GameLogic/BuffSystem.h
@@ -919,6 +920,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Body/InactiveBody.cpp
     Source/GameLogic/Object/Body/StructureBody.cpp
     Source/GameLogic/Object/Body/UndeadBody.cpp
+    Source/GameLogic/Object/Body/BridgeTowerBody.cpp
     Source/GameLogic/Object/Collide/CollideModule.cpp
     Source/GameLogic/Object/Collide/CrateCollide/ConvertToCarBombCrateCollide.cpp
     Source/GameLogic/Object/Collide/CrateCollide/ConvertToHijackedVehicleCrateCollide.cpp
