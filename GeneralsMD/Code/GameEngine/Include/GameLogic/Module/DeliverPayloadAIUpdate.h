@@ -334,7 +334,7 @@ public:
 	Int getVisibleItemsDelivered() const { return m_visibleItemsDelivered; }
 	void setVisibleItemsDelivered( Int num ) { m_visibleItemsDelivered = num; }
 
-	Bool isCloseEnoughToTarget();
+	Bool isCloseEnoughToTarget(Bool *isInBound = nullptr);
 	Bool isOffMap() const;
 	Real calcMinTurnRadius(Real* timeToTravelThatDist) const;
 

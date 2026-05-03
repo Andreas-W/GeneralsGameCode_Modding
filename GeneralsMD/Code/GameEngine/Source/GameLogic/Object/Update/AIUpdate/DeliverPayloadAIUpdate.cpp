@@ -369,7 +369,7 @@ Real DeliverPayloadAIUpdate::calcMinTurnRadius(Real* timeToTravelThatDist) const
 
 
 //-------------------------------------------------------------------------------------------------
-Bool DeliverPayloadAIUpdate::isCloseEnoughToTarget()
+Bool DeliverPayloadAIUpdate::isCloseEnoughToTarget(Bool* isInBound)
 {
 	// In addition to testing distance, it is also sensitive to being in/outward bound
 ////The new getPreOpenDistance() allows the deliver state to fire early, but only if inbound,
@@ -379,6 +379,9 @@ Bool DeliverPayloadAIUpdate::isCloseEnoughToTarget()
 	Real currentDistanceSqr = ThePartitionManager->getDistanceSquared( getObject(), getTargetPos(), FROM_CENTER_2D );
 	Bool inBound = m_previousDistanceSqr > currentDistanceSqr;
 	m_previousDistanceSqr = currentDistanceSqr;// for the next test
+
+	if (isInBound)
+		*isInBound = inBound;
 
 	if ( inBound )
 		allowedDistanceSqr = sqr(getAllowedDistanceToTarget() + getPreOpenDistance());
@@ -709,7 +712,8 @@ StateReturnType DeliveringState::update() // Kick a dude out every so often
 	m_didOpen = true;
 	m_dropDelayLeft = ai->getDropDelay();
 
-	if (!ai->isCloseEnoughToTarget())
+	Bool inBound;
+	if (!ai->isCloseEnoughToTarget(&inBound))
 		return STATE_FAILURE;
 
 	const ContainedItemsList* items = owner->getContain() ? owner->getContain()->getContainedItemsList() : nullptr;
@@ -720,7 +724,35 @@ StateReturnType DeliveringState::update() // Kick a dude out every so often
 		return STATE_SUCCESS;
 	}
 
-	//Handle contained payload delivery.
+	// TODO: solve this differently!
+
+
+	// Check if goal target needs to be updated:
+	//if (!inBound)
+	{
+		Real currentDistanceSqr = ThePartitionManager->getDistanceSquared(owner, ai->getGoalPosition(), FROM_CENTER_2D);
+		DEBUG_LOG(("DELIVER_PAYLOAD -> currentDistance = %f", sqrt(currentDistanceSqr)));
+		if (currentDistanceSqr < (50.0f * 50.0f)) {
+
+			const Coord3D* dir = owner->getUnitDirectionVector2D();
+
+			Real targetOffsetDist = 70.0f;
+
+			Coord3D newTarget;
+			newTarget.x = ai->getGoalPosition()->x + dir->x * targetOffsetDist;
+			newTarget.y = ai->getGoalPosition()->y + dir->y * targetOffsetDist;
+			newTarget.z = 0.0f;	// yeah, yeah, should be terrainpos, but doesn't really matter here...
+
+			ai->aiMoveToPosition(&newTarget, CMD_FROM_AI);
+
+			DEBUG_LOG(("DELIVER_PAYLOAD -> add extra target distance"));
+		}
+
+
+	}
+
+
+	// Handle contained payload delivery.
 	if( items )
 	{
 		Object* item = items->front();
