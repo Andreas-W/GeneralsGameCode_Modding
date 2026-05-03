@@ -43,6 +43,7 @@
 #include "GameLogic/ObjectIter.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameClient/Line2D.h"
+#include "GameClient/FXList.h"
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -91,6 +92,11 @@ void BridgeTowerBehavior::setTowerType( BridgeTowerType type )
 
 }
 
+static void createDebugFX(const Coord3D* pos, const char* name) {
+	const FXList* debug_fx1 = TheFXListStore->findFXList(name);
+	FXList::doFXPos(debug_fx1, pos);
+}
+
 // Pushes a unit off a bridge
 void pushUnitOffBridge(Coord2D& unitPos, const Coord2D& bridgePos, const Coord2D & sideVector, Real bridgeWidth, PhysicsBehavior* unitPhysics)
 {
@@ -130,8 +136,13 @@ void pushUnitOffBridge(Coord2D& unitPos, const Coord2D& bridgePos, const Coord2D
 		}
 
 		Coord3D pushforce(sideVector.x * pushDirection * pushAmount, sideVector.y * pushDirection * pushAmount, 0.0f);
-		DEBUG_LOG(("BRIDGE_PUSH: %f, %f, %f", pushforce.x, pushforce.y, pushforce.z));
+		DEBUG_LOG(("BRIDGE_PUSH: %f, %f, %f: %d -> %f", pushforce.x, pushforce.y, pushforce.z, pushDirection, pushAmount));
 		unitPhysics->applyForce(&pushforce);
+
+		Coord3D fxpos(unitPos.x + sideVector.x*50.0f, unitPos.y+ sideVector.y* 50.0f, 56.0f);
+
+		createDebugFX(&fxpos, "FX_DEBUG_MARKER_RED");
+
 		// Apply the push along the side vector
 		//unitPos->x += sideVector.x * pushDirection * pushAmount;
 		//unitPos->y += sideVector.y * pushDirection * pushAmount;
@@ -161,6 +172,11 @@ void pushObjectsOnBridgeRestore(const Object* bridge)
 		bridgePolygon[2] = bridgeInfo.toRight;
 		bridgePolygon[3] = bridgeInfo.toLeft;
 
+		//DEBUG_LOG(("BRIDGE_PUSH: FromLeft: %f, %f, %f", bridgeInfo.fromLeft.x, bridgeInfo.fromLeft.y, bridgeInfo.fromLeft.z));
+		//DEBUG_LOG(("BRIDGE_PUSH: FromRight: %f, %f, %f", bridgeInfo.fromRight.x, bridgeInfo.fromRight.y, bridgeInfo.fromRight.z));
+		//DEBUG_LOG(("BRIDGE_PUSH: ToRight: %f, %f, %f", bridgeInfo.toRight.x, bridgeInfo.toRight.y, bridgeInfo.toRight.z));
+		//DEBUG_LOG(("BRIDGE_PUSH: ToLeft: %f, %f, %f", bridgeInfo.toLeft.x, bridgeInfo.toLeft.y, bridgeInfo.toLeft.z));
+
 		//
 		// find the lowest Z point of the bridge area ... we will use this to figure out of
 		// objects in the bridge area are "on top" of the bridge
@@ -183,9 +199,22 @@ void pushObjectsOnBridgeRestore(const Object* bridge)
 		// Calculate the perpendicular "Sideways" vector of the bridge.
 		// If the bridge's forward vector is (Cos(angle), Sin(angle)),
 		// its sideways perpendicular vector is (-Sin(angle), Cos(angle)).
-		const Coord3D* rot = bridge->getUnitDirectionVector2D();
-		Coord2D sideVector(rot->x, rot->y);
-		sideVector.rotateByAngle(PI * 0.5f);
+		//const Coord3D* rot = bridge->getUnitDirectionVector2D();
+		//Coord2D sideVector(rot->x, rot->y);
+		//sideVector.rotateByAngle(PI * 0.5f);
+
+		Coord3D sideDir = bridgeInfo.fromRight;
+		sideDir.sub(&bridgeInfo.fromLeft);
+
+		Coord2D sideVector(sideDir.x, sideDir.y);
+		//sideVector.rotateByAngle(PI*0.5);
+		Real width = sideVector.length();
+
+		if (width == 0.0f) width = 0.01f; //avoid /0
+
+		//normalize without recalc length
+		sideVector.x /= width;
+		sideVector.y /= width;
 
 		//sideVector.x = -Sin(bridge->getOrientation());
 		//sideVector.y = Cos(bridge->getOrientation());
@@ -233,7 +262,7 @@ void pushObjectsOnBridgeRestore(const Object* bridge)
 				Coord2D upos(other->getPosition()->x, other->getPosition()->y);
 				Coord2D bpos(bridgePos->x, bridgePos->y);
 
-				pushUnitOffBridge(upos, bpos, sideVector, radius, physics);
+				pushUnitOffBridge(upos, bpos, sideVector, width, physics);
 			}
 
 			// if they have physics, let 'em fall, otherwise just kill 'em
