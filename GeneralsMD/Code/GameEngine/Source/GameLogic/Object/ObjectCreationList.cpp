@@ -259,6 +259,7 @@ public:
 		m_payload.clear();
 		m_putInContainerName.clear();
 		m_transportName.clear();
+		m_targetOffset = { 0.0, 0.0 };
 	}
 
 	virtual Object* create(const Object *primaryObj, const Coord3D *primary, const Coord3D *secondary, Real angle, UnsignedInt lifetimeFrames = 0 ) const
@@ -283,7 +284,9 @@ public:
 		//resultant vectors to the initial vectors, we can calculate the delta positions for each plane.
 		Real CCWx = 0.0f, CCWy = 0.0f, CWx = 0.0f, CWy = 0.0f;
 
-		if( m_formationSize > 1 )
+		Real targetOffsetX = 0.0f, targetOffsetY = 0.0f;
+
+		if (m_formationSize > 1 || m_targetOffset.x != 0.0f || m_targetOffset.y != 0.0f)
 		{
 			//Get the delta x and y values from the target to the origin.
 			Real dx = primary->x - secondary->x;
@@ -296,16 +299,19 @@ public:
 			dx /= length;
 			dy /= length;
 
+			targetOffsetX = dx * m_targetOffset.x - dy * m_targetOffset.y;
+			targetOffsetY = dy * m_targetOffset.x + dx * m_targetOffset.y;
+
 			//Rotate 90 degrees CCW.
 			Real radians = 90.0f * PI / 180.0f;
-			Real s = Sin( radians );
-			Real c = Cos( radians );
+			Real s = Sin(radians);
+			Real c = Cos(radians);
 			CCWx = dx * c + dy * -s + dx;
 			CCWy = dx * s + dy * c + dy;
 
 			//Rotate 90 degrees CW
-			s = Sin( -radians );
-			c = Cos( -radians );
+			s = Sin(-radians);
+			c = Cos(-radians);
 			CWx = dx * c + dy * -s + dx;
 			CWy = dx * s + dy * c + dy;
 		}
@@ -330,6 +336,9 @@ public:
 				offset.x = CWx * offsetMultiplier;
 				offset.y = CWy * offsetMultiplier;
 			}
+
+			offset.x += targetOffsetX;
+			offset.y += targetOffsetY;
 
 			Coord3D startPos = *primary;
 			Coord3D moveToPos = *secondary;
@@ -407,9 +416,9 @@ public:
 
 			static NameKeyType key_DeliverPayloadAIUpdate = NAMEKEY("DeliverPayloadAIUpdate");
 			DeliverPayloadAIUpdate *ai = (DeliverPayloadAIUpdate*)transport->findUpdateModule(key_DeliverPayloadAIUpdate);
-			if( ai )
+			if (ai)
 			{
-				if( m_startAtMaxSpeed && createOwner )
+				if (m_startAtMaxSpeed && createOwner)
 				{
 					PhysicsBehavior* physics = transport->getPhysics();
 					if (physics)
@@ -420,15 +429,24 @@ public:
 						startingForce.x *= factor;
 						startingForce.y *= factor;
 						startingForce.z *= factor;
-						physics->applyMotiveForce( &startingForce );
+						physics->applyMotiveForce(&startingForce);
 					}
 				}
 
 				// only the first guy in each formation gets a delivery decal
 				DeliverPayloadData data = m_data;
-				if (formationIndex != 0)
+				if (formationIndex != 0) {
 					data.m_deliveryDecalRadius = 0;
-				ai->deliverPayload( &moveToPos, &targetPos, &data );
+				}
+
+				if (targetOffsetX != 0.0 || targetOffsetY != 0.0) {
+					Coord3D decalOffset = { -targetOffsetX, -targetOffsetY };
+					ai->deliverPayload(&moveToPos, &targetPos, &data, &decalOffset);
+				}
+				else {
+					ai->deliverPayload(&moveToPos, &targetPos, &data);
+				}
+				
 				if( m_startAtPreferredHeight && createOwner )
 				{
 					startPos.z = TheTerrainLogic->getGroundHeight(startPos.x, startPos.y) + ai->getCurLocomotor()->getPreferredHeight();
@@ -538,6 +556,8 @@ public:
 			{ "WeaponErrorRadius",				INI::parseReal,									nullptr, offsetof( DeliverPayloadNugget, m_errorRadius ) },
 			{ "DelayDeliveryMax",					INI::parseDurationUnsignedInt,	nullptr, offsetof( DeliverPayloadNugget, m_delayDeliveryFramesMax ) },
 
+			{ "TargetOffset",					    INI::parseCoord2D,	            nullptr, offsetof( DeliverPayloadNugget, m_targetOffset ) },
+
 			//Payload information (it's all created now and stored inside)
 			{ "Payload",									parsePayload,									nullptr, 0 },
 			{ "PutInContainer",						INI::parseAsciiString,				nullptr, offsetof( DeliverPayloadNugget, m_putInContainerName) },
@@ -578,6 +598,8 @@ private:
 	UnsignedInt						m_formationSize;
 	Bool									m_startAtPreferredHeight;
 	Bool									m_startAtMaxSpeed;
+
+	Coord2D								m_targetOffset;
 
 	//AI specific data passed over to DeliverPayloadAIUpdate::deliver()
 	DeliverPayloadData		m_data;

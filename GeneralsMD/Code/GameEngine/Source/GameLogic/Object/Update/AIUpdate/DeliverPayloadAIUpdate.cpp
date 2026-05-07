@@ -254,7 +254,8 @@ UpdateSleepTime DeliverPayloadAIUpdate::update( void )
 void DeliverPayloadAIUpdate::deliverPayload(
 	const Coord3D *moveToPos,
 	const Coord3D *targetPos,
-	const DeliverPayloadData *data
+	const DeliverPayloadData *data,
+	const Coord3D *decalOffset /* = NULL*/
 )
 {
 
@@ -270,8 +271,18 @@ void DeliverPayloadAIUpdate::deliverPayload(
 	m_data			= *data;
 
 	m_deliveryDecal.clear();
-	m_data.m_deliveryDecalTemplate.createRadiusDecal(*targetPos,
-		m_data.m_deliveryDecalRadius, getObject()->getControllingPlayer(), m_deliveryDecal);
+
+	if (decalOffset != nullptr) {
+		Coord3D decalPos = *targetPos;
+		decalPos.add(decalOffset);
+		m_data.m_deliveryDecalTemplate.createRadiusDecal(decalPos,
+			m_data.m_deliveryDecalRadius, getObject()->getControllingPlayer(), m_deliveryDecal);
+	}
+	else {
+		m_data.m_deliveryDecalTemplate.createRadiusDecal(*targetPos,
+			m_data.m_deliveryDecalRadius, getObject()->getControllingPlayer(), m_deliveryDecal);
+	}
+	
 
 	if( m_data.m_diveStartDistance <= 0.0f )
 	{

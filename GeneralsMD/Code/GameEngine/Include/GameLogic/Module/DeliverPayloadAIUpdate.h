@@ -338,7 +338,7 @@ public:
 	Bool isOffMap() const;
 	Real calcMinTurnRadius(Real* timeToTravelThatDist) const;
 
-	void deliverPayload( const Coord3D *moveToPos, const Coord3D *targetPos, const DeliverPayloadData *data );
+	void deliverPayload( const Coord3D *moveToPos, const Coord3D *targetPos, const DeliverPayloadData *data, const Coord3D *decalOffset = nullptr );
 	void deliverPayloadViaModuleData( const Coord3D *moveToPos );
 
 	const DeliverPayloadData* getData() { return &m_data; }
