@@ -89,6 +89,7 @@ BridgeBehaviorModuleData::~BridgeBehaviorModuleData( void )
 		{ "VerticalScaffoldSpeed",		INI::parseVelocityReal, nullptr, offsetof( BridgeBehaviorModuleData, m_verticalScaffoldSpeed ) },
 		{ "BridgeDieFX",		parseFX,		nullptr,			offsetof( BridgeBehaviorModuleData, m_fx ) },
 		{ "BridgeDieOCL",		parseOCL,		nullptr,			offsetof( BridgeBehaviorModuleData, m_ocl ) },
+		{ "Restoreable", INI::parseBool, nullptr, offsetof(BridgeBehaviorModuleData, m_restoreable) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 
@@ -847,14 +848,18 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 {
 
 	// kill the towers associated with us
-	Object *tower;
-	for( Int i = 0; i < BRIDGE_MAX_TOWERS; ++i )
-	{
+	auto moduleData = getBridgeBehaviorModuleData();
 
-		tower = TheGameLogic->findObjectByID( getTowerID( (BridgeTowerType)i ) );
-		if( tower )
-			tower->kill();
+	if (!moduleData->m_restoreable) {
+		Object* tower;
+		for (Int i = 0; i < BRIDGE_MAX_TOWERS; ++i)
+		{
 
+			tower = TheGameLogic->findObjectByID(getTowerID((BridgeTowerType)i));
+			if (tower)
+				tower->kill();
+
+		}
 	}
 
 	// we need to handle anything that was on top of us now that we've been destroyed

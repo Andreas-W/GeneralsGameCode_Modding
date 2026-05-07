@@ -281,6 +281,7 @@
 #include "GameLogic/Module/HiveStructureBody.h"
 #include "GameLogic/Module/ShieldBody.h"
 #include "GameLogic/Module/UndeadBody.h"
+#include "GameLogic/Module/BridgeTowerBody.h"
 
 // contain includes
 // (none)
@@ -587,6 +588,7 @@ void ModuleFactory::init( void )
 	addModule( HiveStructureBody );
 	addModule( ShieldBody );
 	addModule( UndeadBody );
+	addModule( BridgeTowerBody );
 
 	// contain modules
 	// (none)

@@ -176,6 +176,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "OCLUpdate", 16, 16 },
 	{ "BodyParticleSystem", 196, 64 },
 	{ "HighlanderBody", 2048, 128 },
+	{ "BridgeTowerBody", 16, 16},
 	{ "UndeadBody", 32, 32 },
 	{ "HordeUpdate", 128, 32 },
 	{ "ImmortalBody", 128, 256 },

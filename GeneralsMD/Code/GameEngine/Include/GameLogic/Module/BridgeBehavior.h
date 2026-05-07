@@ -103,6 +103,7 @@ public:
 	Real m_verticalScaffoldSpeed;
 	BridgeFXList m_fx;							///< list of FX lists to execute
 	BridgeOCLList m_ocl;						///< list of OCL to execute
+	Bool m_restoreable;              ///< if bridge is repairable, towers do not fully die
 
 	static void parseFX( INI *ini, void *instance, void *store, const void* userData );
 	static void parseOCL( INI *ini, void *instance, void *store, const void* userData );
