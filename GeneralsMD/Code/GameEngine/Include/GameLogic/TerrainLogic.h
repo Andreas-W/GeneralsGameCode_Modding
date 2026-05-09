@@ -234,6 +234,10 @@ public:
 	virtual void getMaximumPathfindExtent( Region3D *extent ) const { DEBUG_CRASH(("not implemented"));  }		///< @todo This should not be a stub - this should own this functionality
 	virtual Coord3D findClosestEdgePoint( const Coord3D *closestTo ) const ;
 	virtual Coord3D findFarthestEdgePoint( const Coord3D *farthestFrom ) const ;
+
+	virtual Coord3D findEdgePointForAngle(const Coord3D* pos, Real angle, bool farthest = FALSE, bool closest = FALSE) const;
+
+
 	virtual Bool isClearLineOfSight(const Coord3D& pos, const Coord3D& posOther) const;
 
 	virtual AsciiString getSourceFilename( void ) { return m_filenameString; }
