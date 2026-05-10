@@ -327,6 +327,16 @@ public:
 															HAnimClass * motion1,
 															float frame1,
 															float percentage)											{ }
+	virtual void					Set_Animation(HAnimClass* motion0,
+															float frame0,
+															HAnimClass* motion1,
+															float frame1,
+															float percentage,
+															int mode0,
+															int mode1,
+															int fadeOutTime,
+															int startFadeTime = 0) { }
+
 	virtual void					Set_Animation( HAnimComboClass * anim_combo)							{ }
 
 	virtual HAnimClass *			Peek_Animation( void )														{ return nullptr; }

@@ -760,6 +760,129 @@ void HTreeClass::Blend_Update
 	}
 }
 
+/***********************************************************************************************
+ * HTreeClass::Blend_Update --  HRawAnimClass version										*
+ *                                                                                             *
+ * INPUT:                                                                                      *
+ *                                                                                             *
+ * OUTPUT:                                                                                     *
+ *                                                                                             *
+ * WARNINGS:                                                                                   *
+ *                                                                                             *
+ * HISTORY:                                                                                    *
+ *   3/4/98     GTH : Created.                                                                 *
+ *=============================================================================================*/
+void HTreeClass::Blend_Update
+(
+	const Matrix3D& root,
+	HRawAnimClass* motion0,
+	float									frame0,
+	HRawAnimClass* motion1,
+	float									frame1,
+	float									percentage		// 0.0 = motion0.  1.0 = motion1
+)
+{
+
+	//DEBUG_LOG((">>>htree Anim_Update - DOUBLE_ANIM (HRawAnimClass) - '%s'\n", Get_Name()));
+	PivotClass* pivot, * endpivot, * lastAnimPivot;
+
+	//Matrix3D mtx;
+
+	Pivot[0].Transform = root;
+	Pivot[0].IsVisible = true;
+
+	int num_anim_pivots = MIN(motion0->Get_Num_Pivots(), motion1->Get_Num_Pivots());
+
+	//Get integer frame
+	int iframe0 = WWMath::Float_To_Long(frame0);
+	if (iframe0 >= motion0->Get_Num_Frames())
+		iframe0 = 0;
+	int iframe1 = WWMath::Float_To_Long(frame1);
+	if (iframe1 >= motion1->Get_Num_Frames())
+		iframe1 = 0;
+
+	Vector3 trans0, trans1;
+	Quaternion q0, q1;
+	Matrix3D mtx;
+
+	struct NodeMotionStruct* nodeMotion0 = ((HRawAnimClass*)motion0)->Get_Node_Motion_Array();
+	struct NodeMotionStruct* nodeMotion1 = ((HRawAnimClass*)motion1)->Get_Node_Motion_Array();
+	nodeMotion0 += 1;	//skip the root node
+	nodeMotion1 += 1;	//skip the root node
+
+	pivot = &Pivot[1];
+	endpivot = pivot + (NumPivots - 1);
+	lastAnimPivot = &Pivot[num_anim_pivots];
+
+	for (int piv_idx = 1; pivot < endpivot; pivot++, nodeMotion0++, nodeMotion1++) {
+
+		// base pose
+		assert(pivot->Parent != NULL);
+		Matrix3D::Multiply(pivot->Parent->Transform, pivot->BaseTransform, &(pivot->Transform));
+
+		// Don't update this pivot if the HTree doesn't have animation data for it...
+		if (pivot < lastAnimPivot)
+		{
+
+			// animation
+			trans0.Set(0.0f, 0.0f, 0.0f);
+			trans1.Set(0.0f, 0.0f, 0.0f);
+			Matrix3D* xform = &pivot->Transform;
+
+			if (nodeMotion0->X != NULL)
+				nodeMotion0->X->Get_Vector(iframe0, &(trans0[0]));
+			if (nodeMotion0->Y != NULL)
+				nodeMotion0->Y->Get_Vector(iframe0, &(trans0[1]));
+			if (nodeMotion0->Z != NULL)
+				nodeMotion0->Z->Get_Vector(iframe0, &(trans0[2]));
+
+			if (nodeMotion1->X != NULL)
+				nodeMotion1->X->Get_Vector(iframe1, &(trans1[0]));
+			if (nodeMotion1->Y != NULL)
+				nodeMotion1->Y->Get_Vector(iframe1, &(trans1[1]));
+			if (nodeMotion1->Z != NULL)
+				nodeMotion1->Z->Get_Vector(iframe1, &(trans1[2]));
+
+			Vector3 lerped = (1.0 - percentage) * trans0 + (percentage)*trans1;
+
+			if (ScaleFactor == 1.0f)
+				xform->Translate(lerped);
+			else
+				xform->Translate(lerped * ScaleFactor);
+
+			if (nodeMotion0->Q != NULL)
+			{
+				Quaternion q;
+				nodeMotion0->Q->Get_Vector_As_Quat(iframe0, q0);
+
+				if (nodeMotion1->Q != NULL) {
+					nodeMotion1->Q->Get_Vector_As_Quat(iframe1, q1);
+					Fast_Slerp(q, q0, q1, percentage);
+				}
+				else {
+					q = q0;
+				}
+
+#ifdef ALLOW_TEMPORARIES
+				* xform = *xform * ::Build_Matrix3D(q, mtx);
+#else
+				xform->postMul(::Build_Matrix3D(q, mtx));
+#endif
+			}
+			// visibility
+			if (nodeMotion0->Vis != NULL)
+				pivot->IsVisible = (nodeMotion0->Vis->Get_Bit(iframe0) == 1);
+			else
+				pivot->IsVisible = 1;
+		}
+
+		if (pivot->Is_Captured())
+		{
+			pivot->Capture_Update();
+			pivot->IsVisible = true;
+		}
+	}
+}
 
 
 /***********************************************************************************************

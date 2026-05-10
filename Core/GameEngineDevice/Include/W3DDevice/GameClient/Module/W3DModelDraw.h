@@ -228,6 +228,10 @@ struct ModelConditionInfo
 	mutable Bool											m_hasRecoilBonesOrMuzzleFlashes[WEAPONSLOT_COUNT];
 	mutable Byte											m_validStuff;
 
+	// Animation Blending (needs WalkerDraw)
+	UnsignedInt m_animBlendTime;
+
+
 	enum
 	{
 		PRISTINE_BONES_VALID		= 0x0001,
@@ -491,6 +495,16 @@ private:
 		ParticleSystemID id;
 		Int				boneIndex;
 	};
+
+	struct AnimInfoHelper
+	{
+		Int		frameNum;
+		Int		mode;
+		float	numFrames;
+		float	fraction;
+	};
+	AnimInfoHelper m_prevAnimHelper;
+	AnimInfoHelper getCurrentAnimHelper() const;
 
 
 	typedef std::vector<WeaponRecoilInfo>	WeaponRecoilInfoVec;

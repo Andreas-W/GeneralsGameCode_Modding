@@ -2642,6 +2642,24 @@ void HLodClass::Set_Animation
 	Set_Sub_Object_Transforms_Dirty(true);
 }
 
+// ======================================
+void HLodClass::Set_Animation
+(
+	HAnimClass* motion0,
+	float frame0,
+	HAnimClass* motion1,
+	float frame1,
+	float percentage,
+	int mode0,
+	int mode1,
+	int fadeOutTime,
+	int startFadeTime
+)
+{
+	Animatable3DObjClass::Set_Animation(motion0, frame0, motion1, frame1, percentage, mode0, mode1, fadeOutTime, startFadeTime);
+	Set_Sub_Object_Transforms_Dirty(true);
+}
+
 
 /***********************************************************************************************
  * HLodClass::Set_Animation -- set animation state to a combination of anims                   *
