@@ -1658,6 +1658,7 @@ Bool ActionManager::canDoSpecialPowerAtLocation( const Object *obj, const Coord3
 			case SPECIAL_TIMED_CHARGES:
 			case SPECIAL_CASH_BOUNTY:
 			case SPECIAL_CHANGE_BATTLE_PLANS:
+			case SPECIAL_TOGGLE_DRAWBRIDGE:
 				return false;
 		}
 	}
@@ -1890,6 +1891,7 @@ Bool ActionManager::canDoSpecialPowerAtObject( const Object *obj, const Object *
 			case SPECIAL_CLEANUP_AREA:
 			case SPECIAL_LAUNCH_BAIKONUR_ROCKET:
 			case SPECIAL_SNEAK_ATTACK:
+			case SPECIAL_TOGGLE_DRAWBRIDGE:
 				return false;
 
 			case SPECIAL_REMOTE_CHARGES:
@@ -2051,6 +2053,10 @@ SpecialPowerType ActionManager::getFallbackBehaviorType(SpecialPowerType type) {
 	case SUPW_SPECIAL_CRYOBOMB:
 		return SPECIAL_LEAFLET_DROP;
 
+	case SPECIAL_TOGGLE_DRAWBRIDGE:
+		// this has special code
+		return SPECIAL_TOGGLE_DRAWBRIDGE;
+
 	default:
 		return SPECIAL_NEUTRON_MISSILE;
 	}
@@ -2157,6 +2163,7 @@ Bool ActionManager::canDoSpecialPower( const Object *obj, const SpecialPowerTemp
 			case SPECIAL_DETONATE_DIRTY_NUKE:
 			case SPECIAL_CHANGE_BATTLE_PLANS:
 			case SPECIAL_LAUNCH_BAIKONUR_ROCKET:
+			case SPECIAL_TOGGLE_DRAWBRIDGE:
 				//Detonate's any existing charges
 				return true;
 		}

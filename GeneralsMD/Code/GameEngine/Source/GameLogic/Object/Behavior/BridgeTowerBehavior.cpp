@@ -92,6 +92,30 @@ void BridgeTowerBehavior::setTowerType( BridgeTowerType type )
 
 }
 
+void BridgeTowerBehavior::onCapture(Player* oldOwner, Player* newOwner)
+{
+	Object* bridge = TheGameLogic->findObjectByID(getBridgeID());
+
+	// sanity
+	if (bridge == nullptr)
+		return;
+
+	// get the bridge behavior module for our bridge
+	BehaviorModule** bmi;
+	BridgeBehaviorInterface* bridgeInterface = nullptr;
+	for (bmi = bridge->getBehaviorModules(); *bmi; ++bmi)
+	{
+		bridgeInterface = (*bmi)->getBridgeBehaviorInterface();
+		if (bridgeInterface)
+			break;
+	}
+
+	if (bridgeInterface != nullptr) {
+		// broadcast capture to all towers via bridge
+		bridgeInterface->towerCaptured(oldOwner, newOwner, getObject());
+	}
+}
+
 static void createDebugFX(const Coord3D* pos, const char* name) {
 	const FXList* debug_fx1 = TheFXListStore->findFXList(name);
 	FXList::doFXPos(debug_fx1, pos);

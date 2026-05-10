@@ -72,6 +72,7 @@ public:
 	virtual void setBridge( Object *bridge );
 	virtual ObjectID getBridgeID( void );
 	virtual void setTowerType( BridgeTowerType type );
+	virtual void onCapture(Player* oldOwner, Player* newOwner) override;
 
 	static BridgeTowerBehaviorInterface *getBridgeTowerBehaviorInterfaceFromObject( Object *obj );
 

@@ -34,6 +34,7 @@
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h"
+#include "Common/Player.h"
 #include "GameClient/InGameUI.h"
 #include "GameClient/FXList.h"
 #include "GameClient/Line2D.h"
@@ -840,6 +841,22 @@ UpdateSleepTime BridgeBehavior::update( void )
 
 	return UPDATE_SLEEP_NONE;
 
+}
+
+void BridgeBehavior::towerCaptured(Player* oldOwner, Player* newOwner, const Object* fromTower)
+{
+	if (oldOwner != newOwner) {
+
+
+		for (Int i = 0; i < BRIDGE_MAX_TOWERS; ++i)
+		{
+			Object* tower = TheGameLogic->findObjectByID(getTowerID((BridgeTowerType)i));
+			if (tower != fromTower && (tower->getControllingPlayer() != newOwner)) {
+				tower->defect(newOwner->getDefaultTeam(), 0);
+			}
+		}
+
+	}
 }
 
 // ------------------------------------------------------------------------------------------------

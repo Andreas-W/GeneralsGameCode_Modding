@@ -36,6 +36,7 @@
 #include "GameLogic/Module/DamageModule.h"
 #include "GameLogic/Module/DieModule.h"
 #include "GameLogic/Module/UpdateModule.h"
+#include "GameLogic/Module/DrawBridgeTowerUpdate.h"
 
 // FORWARD REFERENCES /////////////////////////////////////////////////////////////////////////////
 enum BridgeTowerType CPP_11(: Int);
@@ -84,7 +85,8 @@ public:
 	virtual void removeScaffolding( void ) = 0;
 	virtual Bool isScaffoldInMotion( void ) = 0;
 	virtual Bool isScaffoldPresent( void ) = 0;
-
+	virtual void towerCaptured(Player* oldOwner, Player* newOwner, const Object* fromTower) {};
+	virtual void towerDrawBridgeUpdate(const Object* fromTower, DrawBridgeTowerInfo towerInfo) {};
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -148,6 +150,8 @@ public:
 	// Update methods
 	virtual UpdateModuleInterface *getUpdate( void ) { return this; }
 	virtual UpdateSleepTime update( void );
+
+	virtual void towerCaptured(Player* oldOwner, Player* newOwner, const Object* fromTower) override;
 
 	// our own methods
 	static BridgeBehaviorInterface *getBridgeBehaviorInterfaceFromObject( Object *obj );
