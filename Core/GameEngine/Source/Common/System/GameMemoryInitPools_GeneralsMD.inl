@@ -695,5 +695,6 @@ static PoolSizeRec PoolSizes[] =
 	{ "W3DDependencyCarrierDraw", 16, 16 },
 	{ "CarrierDroneAIUpdate", 16, 16 },
 	{ "DrawBridgeTowerUpdate", 8, 8 },
+	{ "DrawBridgeUpdate", 4, 4 },
 	{ 0, 0, 0 }
 };

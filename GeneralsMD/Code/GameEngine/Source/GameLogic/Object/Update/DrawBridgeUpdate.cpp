@@ -1,5 +1,5 @@
 
-// FILE: DrawBridgeTowerUpdate.cpp //////////////////////////////////////////////////////////////////////////
+// FILE: DrawBridgeUpdate.cpp //////////////////////////////////////////////////////////////////////////
 // Desc:   Update module to handle state change of draw bridges
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +23,8 @@
 #include "GameClient/FXList.h"
 #include "GameClient/ControlBar.h"
 
+#include "GameLogic/AI.h"
+#include "GameLogic/AIPathfind.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/Object.h"
@@ -31,7 +33,7 @@
 #include "GameLogic/Module/BridgeBehavior.h"
 #include "GameLogic/Module/BridgeTowerBehavior.h"
 #include "GameLogic/Module/SpecialPowerModule.h"
-#include "GameLogic/Module/DrawBridgeTowerUpdate.h"
+#include "GameLogic/Module/DrawBridgeUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Module/ActiveBody.h"
 #include "GameLogic/Module/AIUpdate.h"
@@ -39,43 +41,44 @@
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-DrawBridgeTowerUpdateModuleData::DrawBridgeTowerUpdateModuleData()
+DrawBridgeUpdateModuleData::DrawBridgeUpdateModuleData()
 {
 	m_specialPowerTemplate = nullptr;
 
 }
 
 //-------------------------------------------------------------------------------------------------
-/*static*/ void DrawBridgeTowerUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
+/*static*/ void DrawBridgeUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
 {
 	ModuleData::buildFieldParse(p);
 
 	static const FieldParse dataFieldParse[] =
 	{
-		{ "SpecialPowerTemplate",									INI::parseSpecialPowerTemplate,	nullptr, offsetof(DrawBridgeTowerUpdateModuleData, m_specialPowerTemplate) },
-
+		{ "SpecialPowerTemplate",									INI::parseSpecialPowerTemplate,	nullptr, offsetof(DrawBridgeUpdateModuleData, m_specialPowerTemplate) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 	p.add(dataFieldParse);
 }
 
 //-------------------------------------------------------------------------------------------------
-DrawBridgeTowerUpdate::DrawBridgeTowerUpdate(Thing* thing, const ModuleData* moduleData) :
+DrawBridgeUpdate::DrawBridgeUpdate(Thing* thing, const ModuleData* moduleData) :
 	SpecialPowerUpdateModule(thing, moduleData)
 {
+	m_bridgeOpened = false;
+
 	m_specialPowerModule = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-DrawBridgeTowerUpdate::~DrawBridgeTowerUpdate(void)
+DrawBridgeUpdate::~DrawBridgeUpdate(void)
 {
 }
 
 // ------------------------------------------------------------------------------------------------
 /** On delete */
 // ------------------------------------------------------------------------------------------------
-void DrawBridgeTowerUpdate::onDelete()
+void DrawBridgeUpdate::onDelete()
 {
 	// extend base class
 	UpdateModule::onDelete();
@@ -85,14 +88,14 @@ void DrawBridgeTowerUpdate::onDelete()
 //-------------------------------------------------------------------------------------------------
 // Validate that we have the necessary data from the ini file.
 //-------------------------------------------------------------------------------------------------
-void DrawBridgeTowerUpdate::onObjectCreated()
+void DrawBridgeUpdate::onObjectCreated()
 {
-	const DrawBridgeTowerUpdateModuleData* data = getDrawBridgeTowerUpdateModuleData();
+	const DrawBridgeUpdateModuleData* data = getDrawBridgeUpdateModuleData();
 	Object* obj = getObject();
 
 	if (!data->m_specialPowerTemplate)
 	{
-		DEBUG_CRASH(("%s object's BattlePlanUpdate lacks access to the SpecialPowerTemplate. Needs to be specified in ini.", obj->getTemplate()->getName().str()));
+		DEBUG_CRASH(("%s object's DrawBridgeUpdate lacks access to the SpecialPowerTemplate. Needs to be specified in ini.", obj->getTemplate()->getName().str()));
 		return;
 	}
 
@@ -100,107 +103,55 @@ void DrawBridgeTowerUpdate::onObjectCreated()
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool DrawBridgeTowerUpdate::initiateIntentToDoSpecialPower(const SpecialPowerTemplate* specialPowerTemplate, const Object* targetObj, const Coord3D* targetPos, const Waypoint* way, UnsignedInt commandOptions)
+Bool DrawBridgeUpdate::initiateIntentToDoSpecialPower(const SpecialPowerTemplate* specialPowerTemplate, const Object* targetObj, const Coord3D* targetPos, const Waypoint* way, UnsignedInt commandOptions)
 {
-	if (m_specialPowerModule->getSpecialPowerTemplate() != specialPowerTemplate)
-	{
-		DEBUG_LOG(("DRAWBRIDGE: Special Power Temmplate is not connected!."));
-		return false;
-	}
-
-	bool drawBridgeOpened{ false };
-
-	//Set the desired status based on the command button option!
-	if (BitIsSet(commandOptions, OPTION_ONE))
-	{
-		drawBridgeOpened = false;
-
-	}
-	else if (BitIsSet(commandOptions, OPTION_TWO))
-	{
-		drawBridgeOpened = true;
-
-	}
-	else
-	{
-		DEBUG_LOG(("DRAWBRIDGE: Selected an unsupported state for draw bridge."));
-		return false;
-	}
-
-	auto* update = getDrawBridgeUpdate();
-	if (update != nullptr) {
-
-		update->setDrawBridgeState(drawBridgeOpened, getObject());
-		return true;
-	}
-	return false;
+	
+	return TRUE;
 }
 
-Bool DrawBridgeTowerUpdate::isPowerCurrentlyInUse(const CommandButton* command) const
+Bool DrawBridgeUpdate::isPowerCurrentlyInUse(const CommandButton* command) const
 {
 	//@todo -- perhaps we may need this one day...
 	return false;
 }
 
 //-------------------------------------------------------------------------------------------------
-CommandOption DrawBridgeTowerUpdate::getCommandOption() const
+CommandOption DrawBridgeUpdate::getCommandOption() const
 {
-	auto* update = getDrawBridgeUpdate();
-	if (update != nullptr) {
-		return update->getCommandOption();
-	}
-	else {
-		return (CommandOption)0;
-	}
+	return m_bridgeOpened ? OPTION_TWO : OPTION_ONE;
 }
 
-DrawBridgeUpdate* DrawBridgeTowerUpdate::getDrawBridgeUpdate() const
+void DrawBridgeUpdate::setDrawBridgeState(bool opened, const Object* fromTower)
 {
-	Object* bridge = getBridge();
-	if (bridge == nullptr) {
-		DEBUG_CRASH(("%s: DrawBridgeTowerUpdate requires a BridgeTowerInterface with linked bridge!", obj->getTemplate()->getName().str()));
-		return nullptr;
+	if (m_bridgeOpened != opened) {
+		m_bridgeOpened = opened;
+
+		// bridge state was changed, we need to update
+		Bridge* bridge = TheTerrainLogic->findBridgeAt(getObject()->getPosition());
+		if (bridge != nullptr)
+			TheAI->pathfinder()->changeBridgeState(bridge->getLayer(), !m_bridgeOpened);
+
+		if (m_bridgeOpened) {
+			getObject()->clearAndSetModelConditionState(MODELCONDITION_DOOR_1_CLOSING, MODELCONDITION_DOOR_1_OPENING);
+		}
+		else {
+			getObject()->clearAndSetModelConditionState(MODELCONDITION_DOOR_1_OPENING, MODELCONDITION_DOOR_1_CLOSING);
+		}
 	}
-
-	static NameKeyType key_drawBridgeUpdate = NAMEKEY("DrawBridgeUpdate");
-	DrawBridgeUpdate* update = (DrawBridgeUpdate*)bridge->findUpdateModule(key_drawBridgeUpdate);
-
-	return update;
 }
-
-Object* DrawBridgeTowerUpdate::getBridge() const
-{
-	BehaviorModule** bmi;
-	BridgeTowerBehaviorInterface* bridgeTowerInterface = nullptr;
-	for (bmi = getObject()->getBehaviorModules(); *bmi; ++bmi)
-	{
-		bridgeTowerInterface = (*bmi)->getBridgeTowerBehaviorInterface();
-		if (bridgeTowerInterface)
-			break;
-	}
-
-	if (bridgeTowerInterface == nullptr) {
-		DEBUG_CRASH(("%s: DrawBridgeTowerUpdate requires a BridgeTowerInterface!", obj->getTemplate()->getName().str()));
-		return nullptr;
-	}
-
-	Object* bridge = TheGameLogic->findObjectByID(bridgeTowerInterface->getBridgeID());
-
-	return bridge;
-}
-
 
 //-------------------------------------------------------------------------------------------------
 /** The update callback. */
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime DrawBridgeTowerUpdate::update()
+UpdateSleepTime DrawBridgeUpdate::update()
 {
 
-	return UPDATE_SLEEP_NONE;
+	return UPDATE_SLEEP_FOREVER; //UPDATE_SLEEP_NONE;
 }
 
+
 //------------------------------------------------------------------------------------------------
-void DrawBridgeTowerUpdate::crc(Xfer* xfer)
+void DrawBridgeUpdate::crc(Xfer* xfer)
 {
 
 	// extend base class
@@ -213,7 +164,7 @@ void DrawBridgeTowerUpdate::crc(Xfer* xfer)
 //	Version Info:
 //	1: Initial version
 //------------------------------------------------------------------------------------------------
-void DrawBridgeTowerUpdate::xfer(Xfer* xfer)
+void DrawBridgeUpdate::xfer(Xfer* xfer)
 {
 
 	// version
@@ -223,10 +174,13 @@ void DrawBridgeTowerUpdate::xfer(Xfer* xfer)
 
 	// extend base class
 	UpdateModule::xfer(xfer);
+
+	xfer->xferBool(&m_bridgeOpened);
+
 }
 
 //------------------------------------------------------------------------------------------------
-void DrawBridgeTowerUpdate::loadPostProcess(void)
+void DrawBridgeUpdate::loadPostProcess(void)
 {
 	
 	// extend base class

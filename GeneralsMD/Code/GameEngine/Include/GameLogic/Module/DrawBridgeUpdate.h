@@ -1,4 +1,4 @@
-// FILE: DrawBridgeTowerUpdate.h //////////////////////////////////////////////////////////////////////////
+// FILE: DrawBridgeUpdate.h //////////////////////////////////////////////////////////////////////////
 // Desc:   Update module to handle draw bridge toggling
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -7,8 +7,7 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "Common/KindOf.h"
 #include "GameLogic/Module/SpecialPowerUpdateModule.h"
-#include "GameLogic/Module/DrawBridgeUpdate.h"
-#include "UpdateModule.h"
+#include "SpecialPowerModule.h"
 
 // FORWARD REFERENCES /////////////////////////////////////////////////////////////////////////////
 class SpecialPowerModule;
@@ -19,56 +18,30 @@ enum  CommandOption CPP_11(: Int);
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-class DrawBridgeTowerUpdateModuleData : public ModuleData
+class DrawBridgeUpdateModuleData : public ModuleData
 {
 public:
 	SpecialPowerTemplate *m_specialPowerTemplate;
 
-	DrawBridgeTowerUpdateModuleData();
+	DrawBridgeUpdateModuleData();
 	static void buildFieldParse(MultiIniFieldParse& p);
 
 private:
 
 };
 
-enum BridgeTransitionStatus CPP_11(: Int)
-{
-	  TRANSITIONSTATUS_CLOSED,
-		TRANSITIONSTATUS_OPENING,
-		TRANSITIONSTATUS_OPENED,
-		TRANSITIONSTATUS_CLOSING,
-
-		TRANSITIONSTATUS_COUNT
-};
-
-enum BridgeState CPP_11(: Int)
-{
-	  BRIDGESTATE_CLOSE,
-		BRIDGESTATE_OPEN,
-							
-		BRIDGESTATE_COUNT
-};
-
-struct DrawBridgeTowerInfo {
-	BridgeState currentState;
-	BridgeState desiredState;
-	BridgeTransitionStatus transitionStatus;
-
-	UnsignedInt nextReadyFrame;
-};
-
 //-------------------------------------------------------------------------------------------------
 /** The default	update module */
 //-------------------------------------------------------------------------------------------------
-class DrawBridgeTowerUpdate : public SpecialPowerUpdateModule
+class DrawBridgeUpdate : public SpecialPowerUpdateModule
 {
 
-	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE( DrawBridgeTowerUpdate, "DrawBridgeTowerUpdate" )
-	MAKE_STANDARD_MODULE_MACRO_WITH_MODULE_DATA( DrawBridgeTowerUpdate, DrawBridgeTowerUpdateModuleData );
+	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE( DrawBridgeUpdate, "DrawBridgeUpdate" )
+	MAKE_STANDARD_MODULE_MACRO_WITH_MODULE_DATA( DrawBridgeUpdate, DrawBridgeUpdateModuleData );
 
 public:
 
-	DrawBridgeTowerUpdate( Thing *thing, const ModuleData* moduleData );
+	DrawBridgeUpdate( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
 	// SpecialPowerUpdateInterface
@@ -88,9 +61,11 @@ public:
 
 	virtual CommandOption getCommandOption() const;
 
+	void setDrawBridgeState(bool opened, const Object* fromTower);
+
 protected:
-	DrawBridgeUpdate* getDrawBridgeUpdate() const;
-	Object* getBridge() const;
+
+	bool m_bridgeOpened;
 
 	SpecialPowerModuleInterface *m_specialPowerModule;
 };
