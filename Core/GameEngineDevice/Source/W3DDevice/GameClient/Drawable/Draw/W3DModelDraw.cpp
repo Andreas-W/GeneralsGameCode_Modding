@@ -1398,6 +1398,28 @@ static void parseParticleSysBone(INI* ini, void *instance, void * store, const v
 }
 
 //-------------------------------------------------------------------------------------------------
+static void parseFXEvent(INI* ini, void* instance, void* store, const void* /*userData*/)
+{
+	//const char* token;
+	FXEventInfo info;
+
+	// Frame
+	//token = ini->getNextToken();
+	//info.frame = ini->scanUnsignedInt(token);
+	ini->parseUnsignedInt(ini, instance, &(info.frame), nullptr);
+
+	// BoneName
+	info.boneName = ini->getNextAsciiString();
+	info.boneName.toLower();
+
+	// FXName
+	ini->parseFXList(ini, instance, &(info.fx), nullptr);
+
+	ModelConditionInfo* self = (ModelConditionInfo*)instance;
+	self->m_fxEvents.push_back(info);
+}
+
+//-------------------------------------------------------------------------------------------------
 static void parseRealRange( INI *ini, void *instance, void *store, const void* /*userData*/ )
 {
 	ModelConditionInfo *self = (ModelConditionInfo *)instance;
@@ -1511,8 +1533,8 @@ void W3DModelDrawModuleData::parseConditionState(INI* ini, void *instance, void 
 		{ "WaitForStateToFinishIfPossible", parseLowercaseNameKey, nullptr, offsetof(ModelConditionInfo, m_allowToFinishKey) },
 		{ "Flags", INI::parseBitString32, ACBitsNames, offsetof(ModelConditionInfo, m_flags) },
 		{ "ParticleSysBone", parseParticleSysBone, nullptr, 0 },
+		{ "FXEvent", parseFXEvent, nullptr, 0 },
 		{ "AnimationSpeedFactorRange", parseRealRange, nullptr, 0 },
-		// Not used in the base class, but needs to be defined here to avoid massive refactoring
 		{ "AnimationBlendTime", INI::parseUnsignedInt, nullptr, offsetof(ModelConditionInfo, m_animBlendTime) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -2216,6 +2238,10 @@ void W3DModelDraw::doDrawModule(const Matrix3D* transformMtx)
 
   handleClientRecoil();
 
+	handleFXEvents();
+
+	m_prevAnimHelper = getCurrentAnimHelper();
+
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2909,6 +2935,142 @@ Bool W3DModelDraw::updateBonesForClientParticleSystems()
 }
 
 
+//-------------------------------------------------------------------------------------------------
+/*
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+
+	This function must not EVER do ANYTHING which can in any way, shape, or form
+	affect GameLogic in any way; if it does, net desyncs will occur and we
+	will all lose our jobs. This must remain pure-client-only, and ensure
+	that nothing it does can be detected, even in read-only form, by GameLogic!
+
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+*/
+void W3DModelDraw::handleFXEvents()
+{
+
+	const Drawable* drawable = getDrawable();
+	if (drawable != nullptr)
+	{
+
+		if (m_curState != nullptr && ! m_curState->m_fxEvents.empty())
+		{
+			AnimInfoHelper curAnimHelper = getCurrentAnimHelper();
+
+			for (std::vector<FXEventInfo>::const_iterator it = m_curState->m_fxEvents.begin(); it != m_curState->m_fxEvents.end(); ++it)
+			{
+				// Check frame timing
+				if (it->frame <= curAnimHelper.frameNum && it->frame > m_prevAnimHelper.frameNum) {
+					// Get bone position
+					Coord3D pos;
+					pos.zero();
+					//Real rotation = 0.0f;
+
+					Int boneIndex = m_renderObject ? m_renderObject->Get_Bone_Index(it->boneName.str()) : 0;
+					if (boneIndex != 0)
+					{
+						//// ugh... kill the mtx so we get it in modelspace, not world space
+						//Matrix3D originalTransform = m_renderObject->Get_Transform();	// save the transform
+						//Matrix3D tmp(true);
+						//tmp.Scale(getDrawable()->getScale());
+						//m_renderObject->Set_Transform(tmp);					// set to identity transform
+
+						//const Matrix3D boneTransform = m_renderObject->Get_Bone_Transform(boneIndex);
+						//Vector3 vpos = boneTransform.Get_Translation();
+						//rotation = boneTransform.Get_Z_Rotation();
+
+						//m_renderObject->Set_Transform(originalTransform);					// restore it
+
+						//pos.x = vpos.X;
+						//pos.y = vpos.Y;
+						//pos.z = vpos.Z;
+
+						if (!m_renderObject->Is_Hidden())
+						{
+							// I can ask the drawable's bone position if I am not hidden (if I have no object I have no choice)
+							Matrix3D mtx = m_renderObject->Get_Bone_Transform(boneIndex);
+							Coord3D pos;
+							pos.x = mtx.Get_X_Translation();
+							pos.y = mtx.Get_Y_Translation();
+							pos.z = mtx.Get_Z_Translation();
+
+							DEBUG_LOG((">>> FXEVENT: CurrentFrame = %d, PrevFrame = %d, Frame=%d, Bone=%s, FXList=%s, X/Y/Z = %f/%f/f",
+								curAnimHelper.frameNum,
+								m_prevAnimHelper.frameNum,
+								it->frame,
+								it->boneName.str(),
+								"TODO",
+								pos.x,
+								pos.y,
+								pos.z
+								));
+
+							FXList::doFXPos(it->fx, &pos, &mtx, 0.0f, nullptr, 0.0f);
+						}
+					}
+				}
+
+				//ParticleSystem* sys = TheParticleSystemManager->createParticleSystem(it->particleSystemTemplate);
+				//if (sys != nullptr)
+				//{
+				//	Coord3D pos;
+				//	pos.zero();
+				//	Real rotation = 0.0f;
+
+				//	Int boneIndex = m_renderObject ? m_renderObject->Get_Bone_Index(it->boneName.str()) : 0;
+				//	if (boneIndex != 0)
+				//	{
+				//		// ugh... kill the mtx so we get it in modelspace, not world space
+				//		Matrix3D originalTransform = m_renderObject->Get_Transform();	// save the transform
+				//		Matrix3D tmp(true);
+				//		tmp.Scale(getDrawable()->getScale());
+				//		m_renderObject->Set_Transform(tmp);					// set to identity transform
+
+				//		const Matrix3D boneTransform = m_renderObject->Get_Bone_Transform(boneIndex);
+				//		Vector3 vpos = boneTransform.Get_Translation();
+				//		rotation = boneTransform.Get_Z_Rotation();
+
+				//		m_renderObject->Set_Transform(originalTransform);					// restore it
+
+				//		pos.x = vpos.X;
+				//		pos.y = vpos.Y;
+				//		pos.z = vpos.Z;
+				//	}
+
+				//	// got the bone position...
+				//	sys->setPosition(&pos);
+
+				//	// and the direction, so that the system is oriented like the bone is
+				//	sys->rotateLocalTransformZ(rotation);
+
+				//	// Attach it to the object...
+				//	sys->attachToDrawable(drawable);
+
+				//	// important: mark it as do-not-save, since we'll just re-create it when we reload.
+				//	sys->setSaveable(FALSE);
+
+				//	if (drawable->isDrawableEffectivelyHidden() || m_fullyObscuredByShroud)
+				//	{
+				//		sys->stop(); // don't start the systems for drawables that are hidden.
+				//	}
+
+				//	// store the particle system id so we can kill it later.
+
+				//	ParticleSysTrackerType tracker;
+				//	tracker.id = sys->getSystemID();
+				//	tracker.boneIndex = boneIndex;
+
+				//	m_particleSystemIDs.push_back(tracker);
+				//}
+			}
+		}
+	}
+
+}
 
 
 //-------------------------------------------------------------------------------------------------
@@ -3179,7 +3341,6 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 	}
 
 	// get this here, before we change anything... we'll need it to pass to adjustAnimation (srj)
-	m_prevAnimHelper = getCurrentAnimHelper();
 	Real prevAnimFraction = getCurrentAnimFraction();
 
 	//

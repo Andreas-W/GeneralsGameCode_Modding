@@ -93,7 +93,7 @@ UpdateSleepTime AnimationSteeringUpdate::update( void )
 			if (targetPos != nullptr) {
 				// get angle between object and target
 				Real angleRel = ThePartitionManager->getRelativeAngle2D(getObject(), targetPos);
-				DEBUG_LOG((">>> ASU: RelativeAngle = %f", angleRel * 180.0 / PI));
+				//DEBUG_LOG((">>> ASU: RelativeAngle = %f", angleRel * 180.0 / PI));
 
 				if (abs(angleRel) < data->m_minAngle) {
 					return UPDATE_SLEEP_NONE;

@@ -129,6 +129,16 @@ struct ParticleSysBoneInfo
 typedef std::vector<ParticleSysBoneInfo> ParticleSysBoneInfoVector;
 
 //-------------------------------------------------------------------------------------------------
+struct FXEventInfo
+{
+	AsciiString boneName;
+	const FXList* fx;
+	UnsignedInt frame;
+};
+
+typedef std::vector<FXEventInfo> FXEventInfoVector;
+
+//-------------------------------------------------------------------------------------------------
 struct PristineBoneInfo
 {
 	Matrix3D mtx;
@@ -221,6 +231,8 @@ struct ModelConditionInfo
 	TransitionSig											m_transitionSig;
 	Real															m_animMinSpeedFactor; //Min speed factor (randomized each time it's played)
 	Real															m_animMaxSpeedFactor; //Max speed factor (randomized each time it's played)
+
+	FXEventInfoVector									m_fxEvents;			///<frames, Bone names and attached FXLists
 
 	mutable PristineBoneInfoMap				m_pristineBones;
 	mutable TurretInfo								m_turrets[MAX_TURRETS];
@@ -437,6 +449,8 @@ public:
 	///@todo: I had to make this public because W3DDevice needs access for casting shadows -MW
 	RenderObjClass *getRenderObject() { return m_renderObject; }
 	virtual Bool updateBonesForClientParticleSystems( void );///< this will reposition particle systems on the fly ML
+
+	virtual void handleFXEvents();  // Check frame times and trigger FX events at correct positions
 
 	virtual void onDrawableBoundToObject();
 	virtual void setTerrainDecalSize(Real x, Real y);
