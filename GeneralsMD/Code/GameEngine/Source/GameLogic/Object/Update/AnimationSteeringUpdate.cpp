@@ -35,8 +35,10 @@
 #include "GameClient/Drawable.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
+#include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/AnimationSteeringUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
+#include "GameLogic/PartitionManager.h"
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -78,6 +80,26 @@ UpdateSleepTime AnimationSteeringUpdate::update( void )
 	if( physics && draw && now >= m_nextTransitionFrame )
 	{
 		PhysicsTurningType currentTurn = physics->getTurning();
+
+		if (data->m_minAngle > 0 && m_currentTurnAnim == MODELCONDITION_INVALID) {
+			AIUpdateInterface* ai = getObject()->getAI();
+
+			const Coord3D* targetPos;
+			if (ai->getGoalObject() != nullptr)
+				targetPos = ai->getGoalObject()->getPosition();
+			else
+				targetPos = ai->getGoalPosition();
+
+			if (targetPos != nullptr) {
+				// get angle between object and target
+				Real angleRel = ThePartitionManager->getRelativeAngle2D(getObject(), targetPos);
+				DEBUG_LOG((">>> ASU: RelativeAngle = %f", angleRel * 180.0 / PI));
+
+				if (abs(angleRel) < data->m_minAngle) {
+					return UPDATE_SLEEP_NONE;
+				}
+			}
+		}
 
 		switch( m_currentTurnAnim )
 		{

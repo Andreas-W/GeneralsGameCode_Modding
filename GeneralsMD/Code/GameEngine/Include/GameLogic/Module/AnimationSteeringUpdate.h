@@ -50,6 +50,7 @@ public:
 		static const FieldParse dataFieldParse[] =
 		{
 			{ "MinTransitionTime", INI::parseDurationUnsignedInt, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_transitionFrames ) },
+			{ "MinAngle", INI::parseAngleReal, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_minAngle ) },
 			{ 0, 0, 0, 0 }
 		};
     p.add(dataFieldParse);
@@ -57,6 +58,7 @@ public:
 	}
 
 	UnsignedInt m_transitionFrames;
+	Real m_minAngle;
 };
 
 //-------------------------------------------------------------------------------------------------
