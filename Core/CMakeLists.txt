@@ -19,7 +19,7 @@ target_sources(corei_libraries_include PRIVATE
     Libraries/Include/Lib/trig.h
     Libraries/Include/rts/debug.h
     Libraries/Include/rts/profile.h
-)
+ "GameEngineDevice/Source/W3DDevice/GameClient/Drawable/Draw/W3DModelDraw (2).cpp")
 target_link_libraries(corei_always INTERFACE
     core_config
     core_utility

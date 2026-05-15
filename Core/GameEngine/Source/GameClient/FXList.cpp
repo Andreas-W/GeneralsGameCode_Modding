@@ -30,6 +30,8 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#define DEFINE_SHADOW_NAMES
+
 #include "GameClient/FXList.h"
 
 #include "Common/DrawModule.h"
@@ -50,6 +52,9 @@
 #include "GameClient/Drawable.h"
 #include "GameClient/ParticleSys.h"
 #include "GameLogic/PartitionManager.h"
+#include "GameClient/Shadow.h"
+#include "../../../GameEngineDevice/Include/W3DDevice/GameClient/Module/W3DModelDraw.h"
+#include "../../../GameEngineDevice/Include/W3DDevice/GameClient/W3DShadow.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // PUBLIC DATA ////////////////////////////////////////////////////////////////////////////////////
@@ -466,6 +471,152 @@ private:
 	Coord3D					m_secondaryOffset;
 };
 EMPTY_DTOR(RayEffectFXNugget)
+
+
+//-------------------------------------------------------------------------------------------------
+class DecalFXNugget : public FXNugget
+{
+	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(DecalFXNugget, "DecalFXNugget")
+public:
+
+	DecalFXNugget()
+	{
+		m_templateName.set("GenericDecal"); // TODO
+		m_templateName = AsciiString::TheEmptyString;
+		m_textureName = AsciiString::TheEmptyString;
+		m_opacity = 1.0;		///< value between 0 and 1
+		m_color = 0;		///< color in ARGB format. (Alpha is ignored).
+		m_lifetime = 0;
+		m_fadeOutTime = 0;
+		m_fadeInTime = 0;
+		m_type = 0;		/// type of projection
+		m_decalSizeX = 0.0;		/// 1/(world space extent of texture in x direction)
+		m_decalSizeY = 0.0;		/// 1/(world space extent of texture in y direction)
+		m_angle = 0.0;
+		m_orientToObject = FALSE;
+		m_randomAngle = FALSE;
+		m_probability = 1.0f;
+	}
+
+	virtual void doFXPos(const Coord3D* primary, const Matrix3D* primaryMtx, const Real primarySpeed, const Coord3D* secondary, const Real /*overrideRadius*/, FXSurfaceInfo* /*surfaceInfo*/) const
+	{
+		if (m_probability <= GameClientRandomValueReal(0, 1))
+			return;
+
+		if (primary)
+		{
+			Drawable* drawable = TheThingFactory->newDrawable(TheThingFactory->findTemplate(m_templateName));
+			if (!drawable)
+				return;
+
+			// Does it even make sense to set the matrix?
+			if (primaryMtx && m_orientToObject)
+				drawable->setTransformMatrix(primaryMtx);
+			drawable->setPosition(primary);
+
+			//TODO:
+			//TracerDrawInterface* tdi = nullptr;
+			//for (DrawModule** d = drawable->getDrawModules(); *d; ++d)
+			//{
+			//	if ((tdi = (*d)->getTracerDrawInterface()) != nullptr)
+			//	{
+			//		tdi->setTracerParms(speed, m_length, m_width, m_color, 1.0f);
+			//	}
+			//}
+
+			Object* obj = drawable->getObject();
+			GeometryInfo newGeom(GEOMETRY_BOX, TRUE, 1.0f, m_decalSizeX/2.0f, m_decalSizeY/2.0f);
+			obj->setGeometryInfo(newGeom);
+
+			if (m_randomAngle)
+				drawable->setOrientation(GameClientRandomValueReal(0, PI * 2));
+
+			drawable->setExpirationDate(TheGameLogic->getFrame() + m_lifetime);
+
+			//Set Shadow
+			for (DrawModule** d = drawable->getDrawModules(); *d; ++d)
+			{
+				W3DModelDraw* draw = (W3DModelDraw*) (*d);
+				if (draw) {
+					RenderObjClass* robj = draw->getRenderObject();
+
+					Shadow::ShadowTypeInfo shadowInfo;
+					strlcpy(shadowInfo.m_ShadowName, m_textureName.str(), ARRAY_SIZE(shadowInfo.m_ShadowName));
+					shadowInfo.allowUpdates = FALSE;		//shadow image will never update
+					shadowInfo.allowWorldAlign = TRUE;	//shadow image will wrap around world objects
+					shadowInfo.m_type = m_type;
+					shadowInfo.m_sizeX = m_decalSizeX;
+					shadowInfo.m_sizeY = m_decalSizeY;
+					Shadow* shadow = TheW3DShadowManager->addShadow(robj, &shadowInfo);
+					//if (shadow)
+					//{
+					//	shadow->enableShadowInvisible(m_fullyObscuredByShroud);
+					//	if (m_renderObject->Is_Hidden() || !m_shadowEnabled)
+					//		shadow->enableShadowRender(FALSE);
+					//}
+
+				}
+				break;
+			}
+
+			//static const NameKeyType key_draw = NAMEKEY("W3DModelDraw");
+			//W3DModelDraw* draw = (W3DModelDraw*)obj->findUpdateModule(key_centerUpdate);
+			//if (centerModule)
+
+		}
+		else
+		{
+			DEBUG_CRASH(("You must have a primary source for this effect"));
+		}
+	}
+
+	static void parse(INI* ini, void* instance, void* /*store*/, const void* /*userData*/)
+	{
+		static const FieldParse myFieldParse[] =
+		{
+			{ "DecalName",			INI::parseAsciiString,			nullptr, offsetof(TracerFXNugget, m_tracerName) },
+			{ "Texture",				INI::parseAsciiString,			nullptr, offsetof(TracerFXNugget, m_textureName) },
+			{ "Style",					INI::parseBitString32,			TheShadowNames,		offsetof(TracerFXNugget, m_shadowType) },
+			{ "Color",					INI::parseColorInt,					nullptr, offsetof(TracerFXNugget, m_color) },
+			{ "Opacity",        INI::parsePercentToReal,     nullptr, offsetof(TracerFXNugget, m_opacity) },
+			{ "Lifetime",        INI::parseDurationUnsignedInt, nullptr, offsetof(TracerFXNugget, m_lifetime) },
+			{ "FadeInTime",      INI::parseDurationUnsignedInt, nullptr, offsetof(TracerFXNugget, m_fadeInTime) },
+			{ "FadeOutTime",     INI::parseDurationUnsignedInt, nullptr, offsetof(TracerFXNugget, m_fadeOutTime) },
+			{ "SizeX",					INI::parseReal,             nullptr, offsetof(TracerFXNugget, m_decalSizeX) },
+			{ "SizeY",					INI::parseReal,             nullptr, offsetof(TracerFXNugget, m_decalSizeY) },
+			{ "Angle",					INI::parseReal,             nullptr, offsetof(TracerFXNugget, m_angle) },
+			{ "RandomAngle",		INI::parseBool,             nullptr, offsetof(TracerFXNugget, m_randomAngle) },
+			{ "OrientToObject",		INI::parseBool,             nullptr, offsetof(TracerFXNugget, m_orientToObject) },
+			{ "Probability",		INI::parseReal,             nullptr, offsetof(TracerFXNugget, m_probability) },
+			{ nullptr, nullptr, nullptr, 0 }
+		};
+
+		DecalFXNugget* nugget = newInstance(DecalFXNugget);
+		ini->initFromINI(nugget, myFieldParse);
+		((FXList*)instance)->addFXNugget(nugget);
+	}
+
+private:
+	AsciiString	m_templateName;
+	AsciiString	m_textureName;
+	Real m_opacity;		///< value between 0 and 1
+	UnsignedInt m_color;		///< color in ARGB format. (Alpha is ignored).
+	UnsignedInt m_lifetime;
+	UnsignedInt m_fadeOutTime;
+	UnsignedInt m_fadeInTime;
+	ShadowType m_type;		/// type of projection
+	Real m_decalSizeX;		/// 1/(world space extent of texture in x direction)
+	Real m_decalSizeY;		/// 1/(world space extent of texture in y direction)
+	Real m_angle;
+	Bool m_orientToObject;
+	Bool m_randomAngle;
+
+	// spawn parameters
+	Real m_probability;
+  // TODO: Height/Surface, etc.
+};
+EMPTY_DTOR(TracerFXNugget)
+
 
 //-------------------------------------------------------------------------------------------------
 class LightPulseFXNugget : public FXNugget
