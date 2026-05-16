@@ -30,14 +30,20 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include <stdlib.h>
 
+#define DEFINE_SHADOW_NAMES
+
 #include "Common/Thing.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h"
 #include "GameLogic/Object.h"
 #include "GameClient/Drawable.h"
+#include "GameClient/Shadow.h"
+#include "GameLogic/GameLogic.h"
+#include "W3DDevice/GameClient/W3DDisplay.h"
 #include "W3DDevice/GameClient/Module/W3DDecalDraw.h"
-#include "W3DDevice/GameClient/BaseHeightMap.h"
-
+#include "W3DDevice/GameClient/W3DProjectedShadow.h"
+//#include "W3DDevice/GameClient/BaseHeightMap.h"
+#include "W3DDevice/GameClient/W3DScene.h"
 
 //-------------------------------------------------------------------------------------------------
 W3DDecalDrawModuleData::W3DDecalDrawModuleData()
@@ -55,8 +61,14 @@ void W3DDecalDrawModuleData::buildFieldParse(MultiIniFieldParse& p)
   ModuleData::buildFieldParse(p);
 	static const FieldParse dataFieldParse[] =
 	{
-		// TODO: Add all the fields here and it will be defined in ini
-		//{ "ModelName", INI::parseAsciiString, nullptr, offsetof(W3DDecalDrawModuleData, m_modelName) },
+		{ "Texture", INI::parseAsciiString, nullptr, offsetof(W3DDecalDrawModuleData, m_textureName) },
+		{ "Color", INI::parseColorInt, nullptr, offsetof(W3DDecalDrawModuleData, m_color) },
+		{ "Opacity", INI::parsePercentToReal, nullptr, offsetof(W3DDecalDrawModuleData, m_opacity) },
+		{ "Style", INI::parseBitString32,	TheShadowNames, offsetof(W3DDecalDrawModuleData, m_type) },
+		{ "FadeOutTime", INI::parseDurationUnsignedInt, nullptr, offsetof(W3DDecalDrawModuleData, m_fadeOutTime) },
+		{ "FadeInTime", INI::parseDurationUnsignedInt, nullptr, offsetof(W3DDecalDrawModuleData, m_fadeInTime) },
+		{ "SizeX", INI::parseReal, nullptr, offsetof(W3DDecalDrawModuleData, m_decalSizeX) },
+		{ "SizeY", INI::parseReal, nullptr, offsetof(W3DDecalDrawModuleData, m_decalSizeY) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
   p.add(dataFieldParse);
@@ -73,10 +85,16 @@ void W3DDecalDrawModuleData::buildFieldParse(MultiIniFieldParse& p)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-W3DDecalDraw::W3DDecalDraw( Thing *thing, const ModuleData* moduleData ) : DrawModule( thing, moduleData ),
-m_propAdded(false)
+W3DDecalDraw::W3DDecalDraw( Thing *thing, const ModuleData* moduleData ) : DrawModule( thing, moduleData )
 {
+	//Drawable* draw = getDrawable();
+	//const W3DDecalDrawModuleData* data = getW3DDecalDrawModuleData();
+	// draw->getExpirationDate();
 
+	m_fullyObscuredByShroud = false;
+	m_renderBox = nullptr;
+	m_shadow = nullptr;
+	m_frameCreated = 0;
 }
 
 
@@ -84,35 +102,153 @@ m_propAdded(false)
 //-------------------------------------------------------------------------------------------------
 W3DDecalDraw::~W3DDecalDraw( void )
 {
+	if (m_shadow)
+		m_shadow->release();
+	m_shadow = nullptr;
+
+	if (m_renderBox) {
+		if (W3DDisplay::m_3DScene != nullptr)
+			W3DDisplay::m_3DScene->Remove_Render_Object(m_renderBox);
+		REF_PTR_RELEASE(m_renderBox);
+		m_renderBox = nullptr;
+	}
+
+}
+//-------------------------------------------------------------------------------------------------
+void W3DDecalDraw::init_shadow()
+{
+	const W3DDecalDrawModuleData* data = getW3DDecalDrawModuleData();
+
+	Shadow::ShadowTypeInfo shadowInfo;
+	strlcpy(shadowInfo.m_ShadowName, data->m_textureName.str(), ARRAY_SIZE(shadowInfo.m_ShadowName));
+	shadowInfo.allowUpdates = FALSE;		//shadow image will never update
+	shadowInfo.allowWorldAlign = TRUE;	//shadow image will wrap around world objects
+	shadowInfo.m_type = data->m_type;
+	shadowInfo.m_sizeX = data->m_decalSizeX;
+	shadowInfo.m_sizeY = data->m_decalSizeY;
+	shadowInfo.m_offsetX = 0.0f; // TODO
+	shadowInfo.m_offsetY = 0.0f; // TODO
+	//shadowInfo.m_hasDynamicLength = FALSE;
+
+	DEBUG_ASSERTCRASH(m_shadow == nullptr, ("m_shadow is not null"));
+
+	//Drawable* draw = getDrawable();
+
+	if (TheProjectedShadowManager)
+		m_shadow = TheProjectedShadowManager->addDecal(m_renderBox, &shadowInfo);
+	if (m_shadow)
+	{
+		m_shadow->setColor(data->m_color);
+		m_shadow->setOpacity(REAL_TO_INT(data->m_opacity * 255.0f));
+		m_shadow->enableShadowInvisible(m_fullyObscuredByShroud);
+		m_shadow->enableShadowRender(true);
+	}
+}
+//-------------------------------------------------------------------------------------------------
+void W3DDecalDraw::init_renderBox(const Matrix3D* transformMtx)
+{
+	const W3DDecalDrawModuleData* data = getW3DDecalDrawModuleData();
+
+	Vector3 center = { 0, 0, 0 };
+	Vector3 extent = { data->m_decalSizeX, data->m_decalSizeY, 1.0f };
+
+	m_renderBox = NEW OBBoxRenderObjClass(
+		OBBoxClass(center, extent)
+	);
+
+	if (W3DDisplay::m_3DScene != nullptr)
+		W3DDisplay::m_3DScene->Add_Render_Object(m_renderBox);
+	m_renderBox->Set_Transform(*transformMtx);
+
 }
 
 //-------------------------------------------------------------------------------------------------
-//void W3DDecalDraw::reactToTransformChange( const Matrix3D *oldMtx,
-//																							 const Coord3D *oldPos,
-//																							 Real oldAngle )
+void W3DDecalDraw::setFullyObscuredByShroud(Bool fullyObscured)
+{
+	if (m_fullyObscuredByShroud != fullyObscured)
+	{
+		m_fullyObscuredByShroud = fullyObscured;
+
+		if (m_shadow)
+			m_shadow->enableShadowInvisible(m_fullyObscuredByShroud);
+	}
+}
+
+//void W3DDecalDraw::setShadowsEnabled(Bool enable)
 //{
-//	Drawable *draw = getDrawable();
-//	if (m_propAdded) {
-//		return;
-//	}
-//	if (draw->getPosition()->x==0.0f && draw->getPosition()->y == 0.0f) {
-//		return;
-//	}
-//	m_propAdded = true;
-//	const W3DDecalDrawModuleData *moduleData = getW3DDecalDrawModuleData();
-//	if (!moduleData) {
-//		return;
-//	}
-//	Real scale = draw->getScale();
-//	TheTerrainRenderObject->addProp((Int)draw->getID(), *draw->getPosition(),
-//		draw->getOrientation(), scale, moduleData->m_modelName);
-//
+//	if (m_shadow)
+//		m_shadow->enableShadowRender(enable);
+//	m_shadowEnabled = enable;
 //}
+
+//-------------------------------------------------------------------------------------------------
+void W3DDecalDraw::reactToTransformChange( const Matrix3D *oldMtx,
+																							 const Coord3D *oldPos,
+																							 Real oldAngle )
+{
+	if (m_renderBox)
+	{
+		m_renderBox->Set_Transform(*getDrawable()->getTransformMatrix());
+	}
+
+}
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 void W3DDecalDraw::doDrawModule(const Matrix3D* transformMtx)
 {
+	//DEBUG_LOG(("W3DDecalDraw::doDrawModule 1"));
+
+	if (m_renderBox == nullptr) {
+
+		init_renderBox(transformMtx);
+
+		init_shadow();
+	}
+
+	if (m_shadow == nullptr) {
+		init_shadow();
+	}
+
+	if (m_renderBox)
+	{
+		Matrix3D mtx = *transformMtx;
+		m_renderBox->Set_Transform(mtx);
+	}
+
+	// Update decal opacity from lifetime
+	const W3DDecalDrawModuleData* data = getW3DDecalDrawModuleData();
+	UnsignedInt expDate = getDrawable()->getExpirationDate();
+
+	Real opacity = data->m_opacity;
+
+	UnsignedInt now = TheGameLogic->getFrame();
+	if (m_frameCreated == 0)
+		m_frameCreated = now;
+
+	if (data->m_fadeInTime > 0) {
+		opacity = INT_TO_REAL(now - m_frameCreated) / INT_TO_REAL(data->m_fadeInTime);
+		if (opacity > 1.0f)
+			opacity = 1.0f;
+	}
+
+	if (data->m_fadeOutTime > 0 && expDate != 0) {
+		opacity *= INT_TO_REAL(expDate - now) / INT_TO_REAL(data->m_fadeOutTime);
+		if (opacity > 1.0f)
+			opacity = 1.0f;
+		else if (opacity < 0.0f)
+			opacity = 0.0f;
+	}
+
+	if (opacity != data->m_opacity)
+		m_shadow->setOpacity(REAL_TO_INT(opacity * 255.0f));
+
+	//if (expDate != 0)
+	//{
+	//	Real decay = m_opacity / (expDate - TheGameLogic->getFrame());
+	//	m_opacity -= decay;
+	//	m_theTracer->Set_Opacity(m_opacity);
+	//}
 
 	return;
 

@@ -332,6 +332,8 @@ public:
 
 	Bool															m_showForOwnerOnly;  ///< show this model only to the owning player 
 
+	Bool															m_keepRecoilAcrossStates;  ///< Don't reset recoil bones when switching states
+
 	// Bool															m_disableMoveEffectsOverWater;  ///< disable track marks and tread/wheel anims over water
 
 	W3DModelDrawModuleData();
@@ -550,7 +552,7 @@ private:
 	Real getCurrentAnimFraction() const;
 	void applyCorrectModelStateAnimation();
 	const ModelConditionInfo* findTransitionForSig(TransitionSig sig) const;
-	void rebuildWeaponRecoilInfo(const ModelConditionInfo* state);
+	void rebuildWeaponRecoilInfo(const ModelConditionInfo* state, bool clear = TRUE);
 	void doHideShowProjectileObjects( UnsignedInt showCount, UnsignedInt maxCount, WeaponSlotType slot );///< Means effectively, show m of n.
 	void nukeCurrentRender(Matrix3D* xform);
 	void doStartOrStopParticleSys();

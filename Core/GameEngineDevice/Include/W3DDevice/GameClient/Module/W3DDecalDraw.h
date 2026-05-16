@@ -33,11 +33,22 @@
 #include "Common/DrawModule.h"
 #include "WW3D2/line3d.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
+#include "WW3D2/boxrobj.h"
 
 //-------------------------------------------------------------------------------------------------
 class W3DDecalDrawModuleData : public ModuleData
 {
 public:
+
+	AsciiString	m_textureName;
+	Real m_opacity;		///< value between 0 and 1
+	UnsignedInt m_color;		///< color in ARGB format. (Alpha is ignored).
+	// UnsignedInt m_lifetime;
+	UnsignedInt m_fadeOutTime;
+	UnsignedInt m_fadeInTime;
+	ShadowType m_type;		/// type of projection
+	Real m_decalSizeX;		/// 1/(world space extent of texture in x direction)
+	Real m_decalSizeY;		/// 1/(world space extent of texture in y direction)
 
 	W3DDecalDrawModuleData();
 	~W3DDecalDrawModuleData();
@@ -64,8 +75,8 @@ public:
 	virtual void setShadowsEnabled(Bool enable) { }
 	virtual void releaseShadows(void) {};	///< we don't care about preserving temporary shadows.
 	virtual void allocateShadows(void) {};	///< we don't care about preserving temporary shadows.
-	virtual void setFullyObscuredByShroud(Bool fullyObscured) { }
-	virtual void reactToTransformChange(const Matrix3D* oldMtx, const Coord3D* oldPos, Real oldAngle) { }
+	virtual void setFullyObscuredByShroud(Bool fullyObscured);
+	virtual void reactToTransformChange(const Matrix3D* oldMtx, const Coord3D* oldPos, Real oldAngle);
 	virtual void reactToGeometryChange() { }
 
 
@@ -76,6 +87,14 @@ public:
 
 
 protected:
-	Bool m_propAdded;
+	//Bool m_propAdded;
 
+	OBBoxRenderObjClass* m_renderBox;  // The render object
+	Shadow* m_shadow;  // the decal
+	Bool m_fullyObscuredByShroud;
+	UnsignedInt m_frameCreated;
+
+private:
+	void init_shadow();
+	void init_renderBox(const Matrix3D* transformMtx);
 };

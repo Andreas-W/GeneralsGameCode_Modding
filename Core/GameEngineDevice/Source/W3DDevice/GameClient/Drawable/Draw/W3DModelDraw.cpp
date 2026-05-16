@@ -1075,6 +1075,7 @@ W3DModelDrawModuleData::W3DModelDrawModuleData() :
 	m_ignoreAnimScaling = FALSE;
 	m_ignoreRotation = FALSE;
 	m_showForOwnerOnly = FALSE;
+	m_keepRecoilAcrossStates = FALSE;
 
 	// m_ignoreConditionStates defaults to all zero, which is what we want
 }
@@ -1254,6 +1255,7 @@ void W3DModelDrawModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "IgnoreAnimationSpeedScaling", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_ignoreAnimScaling) },
 		{ "IgnoreRotation", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_ignoreRotation) },
 		{ "OnlyVisibleToOwningPlayer", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_showForOwnerOnly) },
+		{ "KeepRecoilAcrossStates", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_keepRecoilAcrossStates) },
 		//{ "DisableMovementEffectsOverWater", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_disableMoveEffectsOverWater) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -2186,6 +2188,12 @@ void W3DModelDraw::doDrawModule(const Matrix3D* transformMtx)
 	{
 		if (m_curState != nullptr && m_nextState != nullptr)
 		{
+
+			if (stricmp(m_curState->m_modelName.str(), "avjug_deploy") == 0) {
+				int i = 0;
+				i += 1;
+			}
+
 			//DEBUG_LOG(("transition %s is complete",m_curState->m_description.str()));
 			const ModelConditionInfo* nextState = m_nextState;
 			UnsignedInt nextDuration = m_nextStateAnimLoopDuration;
@@ -2722,6 +2730,11 @@ void W3DModelDraw::handleClientRecoil()
 	// do recoil, if any
 	for (int wslot = 0; wslot < WEAPONSLOT_COUNT; ++wslot)
 	{
+		if (wslot == 0 && stricmp(m_curState->m_modelName.str(), "avjug_deploy") == 0) {
+			int i = 0;
+			i += 1;
+		}
+
 		if (!m_curState->m_hasRecoilBonesOrMuzzleFlashes[wslot])
 			continue;
 
@@ -3270,6 +3283,12 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 	const ModelConditionInfo* nextState = nullptr;
 	if (m_curState != nullptr && newState != nullptr)
 	{
+
+		if (stricmp(m_curState->m_modelName.str(), "avjug_deploy") == 0) {
+			int i = 0;
+			i += 1;
+		}
+
 		// if the requested state is the current state (and nothing is pending),
 		// or if the requested state is pending, just punt.
 		//
@@ -3391,7 +3410,10 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 		newState->validateStuff(m_renderObject, draw->getScale(), getW3DModelDrawModuleData()->m_extraPublicBones);
 		// ensure that any muzzle flashes from the *new* state, start out hidden...
 //		hideAllMuzzleFlashes(newState, m_renderObject);//moved to above
-		rebuildWeaponRecoilInfo(newState);
+
+		//if (!getW3DModelDrawModuleData()->m_keepRecoilAcrossStates)
+		rebuildWeaponRecoilInfo(newState, !getW3DModelDrawModuleData()->m_keepRecoilAcrossStates);
+
 		doHideShowSubObjs(&newState->m_hideShowVec);
 
 #if defined(RTS_DEBUG)	//art wants to see buildings without flags as a test.
@@ -3519,7 +3541,9 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 		//BONEPOS_DUMPREAL(getDrawable()->getScale());
 
 		newState->validateStuff(m_renderObject, getDrawable()->getScale(), getW3DModelDrawModuleData()->m_extraPublicBones);
-		rebuildWeaponRecoilInfo(newState);
+
+		//if (!getW3DModelDrawModuleData()->m_keepRecoilAcrossStates)
+		rebuildWeaponRecoilInfo(newState, !getW3DModelDrawModuleData()->m_keepRecoilAcrossStates);
 
 		// ensure that any muzzle flashes from the *previous* state, are hidden...
 //		hideAllMuzzleFlashes(m_curState, m_renderObject);// moved to above
@@ -4296,7 +4320,7 @@ Real W3DModelDraw::getAnimationScrubScalar( void ) const
 #endif
 
 //-------------------------------------------------------------------------------------------------
-void W3DModelDraw::rebuildWeaponRecoilInfo(const ModelConditionInfo* state)
+void W3DModelDraw::rebuildWeaponRecoilInfo(const ModelConditionInfo* state, bool clear /*=TRUE*/)
 {
 	Int wslot;
 
@@ -4318,9 +4342,11 @@ void W3DModelDraw::rebuildWeaponRecoilInfo(const ModelConditionInfo* state)
 				m_weaponRecoilInfoVec[wslot].resize(ncount, tmp);
 			}
 
-			for (WeaponRecoilInfoVec::iterator it = m_weaponRecoilInfoVec[wslot].begin(); it != m_weaponRecoilInfoVec[wslot].end(); ++it)
-			{
-				it->clear();
+			if (clear) {
+				for (WeaponRecoilInfoVec::iterator it = m_weaponRecoilInfoVec[wslot].begin(); it != m_weaponRecoilInfoVec[wslot].end(); ++it)
+				{
+					it->clear();
+				}
 			}
 		}
 	}
