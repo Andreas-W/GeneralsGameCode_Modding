@@ -141,7 +141,9 @@ public:
 	ObjectID				bridgeObjectID;
 	ObjectID				towerObjectID[ BRIDGE_MAX_TOWERS ];
 	Bool						damageStateChanged;
-
+	// For destroyed bridges or open drawbridges there is an area of the bridge that should not collide, this should be a subarea of the bridge rectangle
+	Coord3D					fromLeftHole, fromRightHole, toLeftHole, toRightHole; /// The 4 corners of the rectangle for a hole in the bridge
+	Bool						drawBridgeOpened;
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -191,7 +193,7 @@ public:
 	/// Get the bridges logical info.
 	void getBridgeInfo(class BridgeInfo *pInfo) {*pInfo = m_bridgeInfo; }
 	/// See if the point is on the bridge.
-	Bool isPointOnBridge(const Coord3D *pLoc);
+	Bool isPointOnBridge(const Coord3D *pLoc, bool ignoreHole = true);
 	Drawable *pickBridge(const Vector3 &from, const Vector3 &to, Vector3 *pos);
 	void updateDamageState(void); ///< Updates a bridge's damage info.
 	const BridgeInfo *peekBridgeInfo(void) const {return &m_bridgeInfo;}
@@ -205,6 +207,9 @@ public:
 	void setBridgeObjectID( ObjectID id ) { m_bridgeInfo.bridgeObjectID = id; }
 	void setTowerObjectID( ObjectID id, BridgeTowerType which ) { m_bridgeInfo.towerObjectID[ which ] = id; }
 
+	Bool hasHoleArea(); // check if this bridge has defined a hole area for damaged/drawbridge state
+	Bool hasHole(); // Check if bridge currently has a hole (destroyed/drawbridge open)
+	void setDrawBridgeStage(bool open); // change if bridge is open/closed 
 };
 
 //-------------------------------------------------------------------------------------------------

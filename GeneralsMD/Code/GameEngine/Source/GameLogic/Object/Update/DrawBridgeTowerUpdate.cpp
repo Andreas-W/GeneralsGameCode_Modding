@@ -130,8 +130,7 @@ Bool DrawBridgeTowerUpdate::initiateIntentToDoSpecialPower(const SpecialPowerTem
 	auto* update = getDrawBridgeUpdate();
 	if (update != nullptr) {
 
-		update->setDrawBridgeState(drawBridgeOpened, getObject());
-		return true;
+		return update->setDrawBridgeState(drawBridgeOpened, getObject());
 	}
 	return false;
 }

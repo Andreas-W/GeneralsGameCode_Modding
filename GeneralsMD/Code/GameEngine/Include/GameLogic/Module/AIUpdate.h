@@ -505,6 +505,7 @@ public:
 	Bool isBlockedAndStuck(void) const {return m_isBlockedAndStuck;}
 	Bool canComputeQuickPath(void); ///< Returns true if we can quickly comput a path.  Usually missiles & the like that just move straight to the destination.
 	Bool computeQuickPath(const Coord3D *destination); ///< Computes a quick path to the destination.
+	Bool arePathLayersStillValid(); ///< Check if the current used layers are still passable
 
 	Bool isMoving() const;
 	Bool isMovingAwayFrom(Object* obj) const;

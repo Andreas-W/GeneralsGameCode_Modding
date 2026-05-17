@@ -454,6 +454,11 @@ void BridgeTowerBehavior::onHealing( DamageInfo *damageInfo )
 			if (body->getHealth() >= body->getMaxHealth() && bridgeBody->getHealth() <= 0.0f) {
 				bridge->attemptHealing(bridgeBody->getMaxHealth(), getObject());
 
+				Bridge* terrainBridge = TheTerrainLogic->findBridgeAt(bridge->getPosition());
+				if (terrainBridge != nullptr) {
+					terrainBridge->setDrawBridgeStage(false);
+				}
+
 				pushObjectsOnBridgeRestore(bridge);
 				//TODO Heal UP effect, condition state?
 				/*BridgeBehaviorInterface* bbi = BridgeBehavior::getBridgeBehaviorInterfaceFromObject(bridge);

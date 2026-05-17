@@ -43,8 +43,8 @@
 //-------------------------------------------------------------------------------------------------
 DrawBridgeUpdateModuleData::DrawBridgeUpdateModuleData()
 {
-	m_specialPowerTemplate = nullptr;
-
+	m_openingDuration = 0U;
+	m_closingDuration = 0U;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -54,7 +54,8 @@ DrawBridgeUpdateModuleData::DrawBridgeUpdateModuleData()
 
 	static const FieldParse dataFieldParse[] =
 	{
-		{ "SpecialPowerTemplate",									INI::parseSpecialPowerTemplate,	nullptr, offsetof(DrawBridgeUpdateModuleData, m_specialPowerTemplate) },
+		{ "OpeningDuration", INI::parseDurationUnsignedInt, nullptr, offsetof(DrawBridgeUpdateModuleData, m_openingDuration)},
+		{ "ClosingDuration", INI::parseDurationUnsignedInt, nullptr, offsetof(DrawBridgeUpdateModuleData, m_closingDuration)},
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 	p.add(dataFieldParse);
@@ -62,11 +63,10 @@ DrawBridgeUpdateModuleData::DrawBridgeUpdateModuleData()
 
 //-------------------------------------------------------------------------------------------------
 DrawBridgeUpdate::DrawBridgeUpdate(Thing* thing, const ModuleData* moduleData) :
-	SpecialPowerUpdateModule(thing, moduleData)
+	UpdateModule(thing, moduleData)
 {
 	m_bridgeOpened = false;
-
-	m_specialPowerModule = nullptr;
+	m_nextReadyFrame = 0U;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -90,29 +90,6 @@ void DrawBridgeUpdate::onDelete()
 //-------------------------------------------------------------------------------------------------
 void DrawBridgeUpdate::onObjectCreated()
 {
-	const DrawBridgeUpdateModuleData* data = getDrawBridgeUpdateModuleData();
-	Object* obj = getObject();
-
-	if (!data->m_specialPowerTemplate)
-	{
-		DEBUG_CRASH(("%s object's DrawBridgeUpdate lacks access to the SpecialPowerTemplate. Needs to be specified in ini.", obj->getTemplate()->getName().str()));
-		return;
-	}
-
-	m_specialPowerModule = obj->getSpecialPowerModule(data->m_specialPowerTemplate);
-}
-
-//-------------------------------------------------------------------------------------------------
-Bool DrawBridgeUpdate::initiateIntentToDoSpecialPower(const SpecialPowerTemplate* specialPowerTemplate, const Object* targetObj, const Coord3D* targetPos, const Waypoint* way, UnsignedInt commandOptions)
-{
-	
-	return TRUE;
-}
-
-Bool DrawBridgeUpdate::isPowerCurrentlyInUse(const CommandButton* command) const
-{
-	//@todo -- perhaps we may need this one day...
-	return false;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -121,23 +98,41 @@ CommandOption DrawBridgeUpdate::getCommandOption() const
 	return m_bridgeOpened ? OPTION_TWO : OPTION_ONE;
 }
 
-void DrawBridgeUpdate::setDrawBridgeState(bool opened, const Object* fromTower)
+bool DrawBridgeUpdate::setDrawBridgeState(bool opened, const Object* fromTower)
 {
-	if (m_bridgeOpened != opened) {
-		m_bridgeOpened = opened;
+	UnsignedInt now = TheGameLogic->getFrame();
 
-		// bridge state was changed, we need to update
-		Bridge* bridge = TheTerrainLogic->findBridgeAt(getObject()->getPosition());
-		if (bridge != nullptr)
-			TheAI->pathfinder()->changeBridgeState(bridge->getLayer(), !m_bridgeOpened);
+	if (m_nextReadyFrame <= now) {
 
-		if (m_bridgeOpened) {
-			getObject()->clearAndSetModelConditionState(MODELCONDITION_DOOR_1_CLOSING, MODELCONDITION_DOOR_1_OPENING);
+		const DrawBridgeUpdateModuleData* data = getDrawBridgeUpdateModuleData();
+
+		m_nextReadyFrame = now + (m_bridgeOpened ? data->m_closingDuration : data->m_openingDuration);
+
+		if (m_bridgeOpened != opened) {
+			m_bridgeOpened = opened;
+
+			Object* obj = getObject();
+
+			// bridge state was changed, we need to update
+			Bridge* bridge = TheTerrainLogic->findBridgeAt(obj->getPosition());
+			if (bridge != nullptr) {
+				TheAI->pathfinder()->changeBridgeState(bridge->getLayer(), !m_bridgeOpened);
+				bridge->setDrawBridgeStage(m_bridgeOpened);
+			}
+
+			if (m_bridgeOpened) {
+				obj->clearAndSetModelConditionState(MODELCONDITION_DOOR_1_CLOSING, MODELCONDITION_DOOR_1_OPENING);
+				GeometryInfo openBridgeGeom(GeometryType::GEOMETRY_BOX, true, 0.0f, 0.0f, 0.0f);
+				obj->setGeometryInfo(openBridgeGeom);
+			}
+			else {
+				obj->clearAndSetModelConditionState(MODELCONDITION_DOOR_1_OPENING, MODELCONDITION_DOOR_1_CLOSING);
+				obj->setGeometryInfo(obj->getTemplate()->getTemplateGeometryInfo());
+			}
 		}
-		else {
-			getObject()->clearAndSetModelConditionState(MODELCONDITION_DOOR_1_OPENING, MODELCONDITION_DOOR_1_CLOSING);
-		}
+		return true;
 	}
+	return false;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -177,6 +172,7 @@ void DrawBridgeUpdate::xfer(Xfer* xfer)
 
 	xfer->xferBool(&m_bridgeOpened);
 
+	xfer->xferUnsignedInt(&m_nextReadyFrame);
 }
 
 //------------------------------------------------------------------------------------------------

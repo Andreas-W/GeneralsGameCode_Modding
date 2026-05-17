@@ -760,6 +760,11 @@ public:
 
 	PathfindLayerEnum addBridge(Bridge *theBridge); // Adds a bridge layer, and returns the layer id.
 
+	// return if the passed layer is currently passable (checks for destroyed bridges)
+	inline Bool isPathfindLayerPassable(PathfindLayerEnum layer) {
+		return !m_layers[layer].isUnused() && !m_layers[layer].isDestroyed();
+	}
+
 	void addWallPiece(Object *wallPiece); // Adds a wall piece.
 	void removeWallPiece(Object *wallPiece);  // Removes a wall piece.
 	Real getWallHeight(void) {return m_wallHeight;}

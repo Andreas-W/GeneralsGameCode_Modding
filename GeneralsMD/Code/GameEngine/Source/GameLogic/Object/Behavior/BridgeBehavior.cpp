@@ -878,6 +878,14 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 
 		}
 	}
+	else {
+		// for destroy/repairable bridges set it to have a hole at death
+		Bridge* bridge = TheTerrainLogic->findBridgeAt(getObject()->getPosition());
+		if (bridge)
+		{
+			bridge->setDrawBridgeStage(true);
+		}
+	}
 
 	// we need to handle anything that was on top of us now that we've been destroyed
 	handleObjectsOnBridgeOnDie();

@@ -5593,3 +5593,17 @@ Bool AIUpdateInterface::hasLocomotorForSurface(LocomotorSurfaceType surfaceType)
 }
 
 // ------------------------------------------------------------------------------------------------
+Bool AIUpdateInterface::arePathLayersStillValid() {
+	Path* path = getPath();
+	if (path != nullptr) {
+		const PathNode* node = nullptr;
+		for (node = path->getFirstNode(); node != nullptr; node = node->getNextOptimized()) {
+			PathfindLayerEnum layer = node->getLayer();
+			if (layer > LAYER_GROUND && layer < LAYER_LAST) {
+				// check if layer is still valid
+				if (!TheAI->pathfinder()->isPathfindLayerPassable(layer)) return false;
+			}
+		}
+	}
+	return true;
+}

@@ -115,7 +115,11 @@ BridgeInfo::BridgeInfo()
 	bridgeObjectID = INVALID_ID;
 	for( Int i = 0; i < BRIDGE_MAX_TOWERS; ++i )
 		towerObjectID[ i ] = INVALID_ID;
-
+	fromLeftHole.zero();
+	fromRightHole.zero();
+	toLeftHole.zero();
+	toRightHole.zero();
+	drawBridgeOpened = false;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -384,6 +388,22 @@ Bridge::Bridge(Object *bridgeObj)
 		return;
 	}
 
+	// if defined, set hole are for destroyable bridges/drawbridges
+	if (bridgeTemplate->getBridgeHoleAreaPercentage() > 0.0f) {
+		Real factor = std::clamp(bridgeTemplate->getBridgeHoleAreaPercentage(), 0.0f, 1.0f);
+		Real holeSizeX = bridgeObj->getGeometryInfo().getMajorRadius() * factor;
+		m_bridgeInfo.fromLeftHole.set(pos->x - holeSizeX * c - halfsizeY * s, pos->y + halfsizeY * c - holeSizeX * s, pos->z);
+		m_bridgeInfo.toLeftHole.set(pos->x + holeSizeX * c - halfsizeY * s, pos->y + halfsizeY * c + holeSizeX * s, pos->z);
+		m_bridgeInfo.fromRightHole.set(pos->x - holeSizeX * c + halfsizeY * s, pos->y - halfsizeY * c - holeSizeX * s, pos->z);
+		m_bridgeInfo.toRightHole.set(pos->x + holeSizeX * c + halfsizeY * s, pos->y - halfsizeY * c + holeSizeX * s, pos->z);
+	}
+	else {
+		m_bridgeInfo.fromLeftHole.zero();
+		m_bridgeInfo.toLeftHole.zero();
+		m_bridgeInfo.fromRightHole.zero();
+		m_bridgeInfo.toRightHole.zero();
+	}
+
 	Coord2D v;
 	v.x = m_bridgeInfo.toLeft.x - m_bridgeInfo.toRight.x;
 	v.y = m_bridgeInfo.toLeft.y - m_bridgeInfo.toRight.y;
@@ -443,11 +463,26 @@ Bridge::~Bridge()
 
 }
 
+Bool Bridge::hasHoleArea() {
+	const Coord3D zero(0,0,0);
+	return !(m_bridgeInfo.fromLeftHole == zero &&
+		m_bridgeInfo.fromRightHole == zero &&
+		m_bridgeInfo.toLeftHole == zero &&
+		m_bridgeInfo.toRightHole == zero);
+}
+
+Bool Bridge::hasHole() {
+	return m_bridgeInfo.drawBridgeOpened;
+}
+
+void Bridge::setDrawBridgeStage(bool open) {
+	m_bridgeInfo.drawBridgeOpened = open;
+}
 
 //-------------------------------------------------------------------------------------------------
 /** isPointOnBridge - see if point is on bridge. */
 //-------------------------------------------------------------------------------------------------
-Bool Bridge::isPointOnBridge(const Coord3D *pLoc)
+Bool Bridge::isPointOnBridge(const Coord3D *pLoc, bool ignoreHole)
 {
 	if (pLoc->x < m_bounds.lo.x) return(false);
 	if (pLoc->x > m_bounds.hi.x) return(false);
@@ -455,12 +490,29 @@ Bool Bridge::isPointOnBridge(const Coord3D *pLoc)
 	if (pLoc->y > m_bounds.hi.y) return(false);
 
 	Vector3 testPt(pLoc->x, pLoc->y, pLoc->z);
+	unsigned char flags{ 0U };
+
+	// If bridge has hole and point is in hole area -> not on bridge
+	if (!ignoreHole && hasHole() && hasHoleArea()) {
+		Vector3 left1(m_bridgeInfo.fromLeftHole.x, m_bridgeInfo.fromLeftHole.y, m_bridgeInfo.fromLeftHole.z);
+		Vector3 right1(m_bridgeInfo.fromRightHole.x, m_bridgeInfo.fromRightHole.y, m_bridgeInfo.fromRightHole.z);
+		Vector3 left2(m_bridgeInfo.toLeftHole.x, m_bridgeInfo.toLeftHole.y, m_bridgeInfo.toLeftHole.z);
+		Vector3 right2(m_bridgeInfo.toRightHole.x, m_bridgeInfo.toRightHole.y, m_bridgeInfo.toRightHole.z);
+
+		//If point is in hole area -> not on bridge
+		if (Point_In_Triangle_2D(left1, right1, left2, testPt, 0, 1, flags)) {
+			return false;
+		}
+		if (Point_In_Triangle_2D(right1, left2, right2, testPt, 0, 1, flags)) {
+			return false;
+		}
+	}
+
+	// Check full bridge rectangle
 	Vector3 left1(m_bridgeInfo.fromLeft.x, m_bridgeInfo.fromLeft.y, m_bridgeInfo.fromLeft.z);
 	Vector3 right1(m_bridgeInfo.fromRight.x, m_bridgeInfo.fromRight.y, m_bridgeInfo.fromRight.z);
 	Vector3 left2(m_bridgeInfo.toLeft.x, m_bridgeInfo.toLeft.y, m_bridgeInfo.toLeft.z);
 	Vector3 right2(m_bridgeInfo.toRight.x, m_bridgeInfo.toRight.y, m_bridgeInfo.toRight.z);
-
-	unsigned char flags;
 
 	if (Point_In_Triangle_2D(left1, right1, left2, testPt, 0, 1, flags)) {
 		return true;
@@ -854,7 +906,7 @@ Drawable *Bridge::pickBridge(const Vector3 &from, const Vector3 &to, Vector3 *po
 	loc.y = intersectPos.Y;
 	loc.z = intersectPos.Z;
 
-	if (isPointOnBridge(&loc)) {
+	if (isPointOnBridge(&loc, true)) {
 		*pos = intersectPos;
 		//DEBUG_LOG(("Picked bridge %.2f, %.2f, %.2f", intersectPos.X, intersectPos.Y, intersectPos.Z));
 		Object *bridge = TheGameLogic->findObjectByID(m_bridgeInfo.bridgeObjectID);
@@ -1664,7 +1716,7 @@ Bridge * TerrainLogic::findBridgeAt( const Coord3D *pLoc) const
 
 	Bridge *pBridge = getFirstBridge();
 	while (pBridge) {
-		if (pBridge->isPointOnBridge(pLoc)) {
+		if (pBridge->isPointOnBridge(pLoc, true)) {
 			return(pBridge);
 		}
 		pBridge = pBridge->getNext();
@@ -1683,7 +1735,7 @@ Bridge * TerrainLogic::findBridgeLayerAt( const Coord3D *pLoc, PathfindLayerEnum
 	Bridge *pBridge = getFirstBridge();
 	while (pBridge)
 	{
-		if (pBridge->getLayer() == layer && (!clip || pBridge->isPointOnBridge(pLoc)))
+		if (pBridge->getLayer() == layer && (!clip || pBridge->isPointOnBridge(pLoc, true)))
 		{
 			return(pBridge);
 		}
@@ -1714,7 +1766,8 @@ PathfindLayerEnum TerrainLogic::getLayerForDestination(const Coord3D *pos)
 	}
 
 	while (pBridge ) {
-		if (pBridge->isPointOnBridge(pos) ) {
+		// filter out destroyed bridges or open draw bridges
+		if (pBridge->isPointOnBridge(pos, false) ) {
 			Real delta = fabs(pos->z-pBridge->getBridgeHeight(pos, nullptr));
 			if (delta<bestDistance) {
 				bestLayer = pBridge->getLayer();
@@ -1751,7 +1804,8 @@ PathfindLayerEnum TerrainLogic::getHighestLayerForDestination(const Coord3D *pos
 		if (onlyHealthyBridges && pBridge->peekBridgeInfo()->curDamageState == BODY_RUBBLE)
 			continue;
 
-		if (pBridge->isPointOnBridge(pos) ) {
+		//filter out bridges that are currently destroyed or open drawbridges
+		if (pBridge->isPointOnBridge(pos, false)) {
 			Real delta = pos->z - pBridge->getBridgeHeight(pos, nullptr);
 			// must be ABOVE (or on) the bridge for this call. (srj)
 			if (delta >= 0 && fabs(delta) < fabs(bestDistance)) {
@@ -1780,10 +1834,10 @@ Bool TerrainLogic::objectInteractsWithBridgeLayer(Object *obj, Int layer, Bool c
 	}
 	Bridge *pBridge = getFirstBridge();
 
-	while (pBridge ) {
+	while (pBridge) {
 		if (pBridge->getLayer() == layer) {
 			Bool match = false;
-			if (pBridge->isPointOnBridge(obj->getPosition()) ) {
+			if (pBridge->isPointOnBridge(obj->getPosition(), false) ) {
 				match = true;
 			}
 
