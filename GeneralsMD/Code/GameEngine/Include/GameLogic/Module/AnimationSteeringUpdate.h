@@ -51,6 +51,7 @@ public:
 		{
 			{ "MinTransitionTime", INI::parseDurationUnsignedInt, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_transitionFrames ) },
 			{ "MinAngle", INI::parseAngleReal, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_minAngle ) },
+			{ "SkipCenteringAnims", INI::parseBool, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_skipCenteringAnims ) },
 			{ 0, 0, 0, 0 }
 		};
     p.add(dataFieldParse);
@@ -59,6 +60,7 @@ public:
 
 	UnsignedInt m_transitionFrames;
 	Real m_minAngle;
+	Bool m_skipCenteringAnims;
 };
 
 //-------------------------------------------------------------------------------------------------

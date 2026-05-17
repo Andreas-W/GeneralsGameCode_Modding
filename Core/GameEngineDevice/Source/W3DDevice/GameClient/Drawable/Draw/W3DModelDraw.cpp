@@ -2400,7 +2400,7 @@ void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real pre
 				prevState->m_animations[0].getAnimHandle() &&
 				m_renderObject->Class_ID() == RenderObjClass::CLASSID_HLOD) {
 
-				DEBUG_LOG((">>>>BLEND ANIMS!!"));
+				//DEBUG_LOG((">>>>BLEND ANIMS!!"));
 
 				HLodClass* hlod = (HLodClass*)m_renderObject;
 
@@ -2977,31 +2977,15 @@ void W3DModelDraw::handleFXEvents()
 			for (std::vector<FXEventInfo>::const_iterator it = m_curState->m_fxEvents.begin(); it != m_curState->m_fxEvents.end(); ++it)
 			{
 				// Check frame timing
+				// TODO: Make this work for backwards animations as well!
 				if (it->frame <= curAnimHelper.frameNum && it->frame > m_prevAnimHelper.frameNum) {
 					// Get bone position
 					Coord3D pos;
 					pos.zero();
-					//Real rotation = 0.0f;
-
 					Int boneIndex = m_renderObject ? m_renderObject->Get_Bone_Index(it->boneName.str()) : 0;
 					if (boneIndex != 0)
 					{
-						//// ugh... kill the mtx so we get it in modelspace, not world space
-						//Matrix3D originalTransform = m_renderObject->Get_Transform();	// save the transform
-						//Matrix3D tmp(true);
-						//tmp.Scale(getDrawable()->getScale());
-						//m_renderObject->Set_Transform(tmp);					// set to identity transform
-
-						//const Matrix3D boneTransform = m_renderObject->Get_Bone_Transform(boneIndex);
-						//Vector3 vpos = boneTransform.Get_Translation();
-						//rotation = boneTransform.Get_Z_Rotation();
-
-						//m_renderObject->Set_Transform(originalTransform);					// restore it
-
-						//pos.x = vpos.X;
-						//pos.y = vpos.Y;
-						//pos.z = vpos.Z;
-
+		
 						if (!m_renderObject->Is_Hidden())
 						{
 							// I can ask the drawable's bone position if I am not hidden (if I have no object I have no choice)
@@ -3011,7 +2995,7 @@ void W3DModelDraw::handleFXEvents()
 							pos.y = mtx.Get_Y_Translation();
 							pos.z = mtx.Get_Z_Translation();
 
-							DEBUG_LOG((">>> FXEVENT: CurrentFrame = %d, PrevFrame = %d, Frame=%d, Bone=%s, FXList=%s, X/Y/Z = %f/%f/f",
+							/*DEBUG_LOG((">>> FXEVENT: CurrentFrame = %d, PrevFrame = %d, Frame=%d, Bone=%s, FXList=%s, X/Y/Z = %f/%f/f",
 								curAnimHelper.frameNum,
 								m_prevAnimHelper.frameNum,
 								it->frame,
@@ -3020,65 +3004,12 @@ void W3DModelDraw::handleFXEvents()
 								pos.x,
 								pos.y,
 								pos.z
-								));
+								));*/
 
 							FXList::doFXPos(it->fx, &pos, &mtx, 0.0f, nullptr, 0.0f);
 						}
 					}
 				}
-
-				//ParticleSystem* sys = TheParticleSystemManager->createParticleSystem(it->particleSystemTemplate);
-				//if (sys != nullptr)
-				//{
-				//	Coord3D pos;
-				//	pos.zero();
-				//	Real rotation = 0.0f;
-
-				//	Int boneIndex = m_renderObject ? m_renderObject->Get_Bone_Index(it->boneName.str()) : 0;
-				//	if (boneIndex != 0)
-				//	{
-				//		// ugh... kill the mtx so we get it in modelspace, not world space
-				//		Matrix3D originalTransform = m_renderObject->Get_Transform();	// save the transform
-				//		Matrix3D tmp(true);
-				//		tmp.Scale(getDrawable()->getScale());
-				//		m_renderObject->Set_Transform(tmp);					// set to identity transform
-
-				//		const Matrix3D boneTransform = m_renderObject->Get_Bone_Transform(boneIndex);
-				//		Vector3 vpos = boneTransform.Get_Translation();
-				//		rotation = boneTransform.Get_Z_Rotation();
-
-				//		m_renderObject->Set_Transform(originalTransform);					// restore it
-
-				//		pos.x = vpos.X;
-				//		pos.y = vpos.Y;
-				//		pos.z = vpos.Z;
-				//	}
-
-				//	// got the bone position...
-				//	sys->setPosition(&pos);
-
-				//	// and the direction, so that the system is oriented like the bone is
-				//	sys->rotateLocalTransformZ(rotation);
-
-				//	// Attach it to the object...
-				//	sys->attachToDrawable(drawable);
-
-				//	// important: mark it as do-not-save, since we'll just re-create it when we reload.
-				//	sys->setSaveable(FALSE);
-
-				//	if (drawable->isDrawableEffectivelyHidden() || m_fullyObscuredByShroud)
-				//	{
-				//		sys->stop(); // don't start the systems for drawables that are hidden.
-				//	}
-
-				//	// store the particle system id so we can kill it later.
-
-				//	ParticleSysTrackerType tracker;
-				//	tracker.id = sys->getSystemID();
-				//	tracker.boneIndex = boneIndex;
-
-				//	m_particleSystemIDs.push_back(tracker);
-				//}
 			}
 		}
 	}
