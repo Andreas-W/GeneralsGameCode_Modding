@@ -48,6 +48,7 @@ FramePacer::FramePacer()
 	m_perfFreq = freq.QuadPart;
 	m_lastLogicUpdate = tick.QuadPart;
 
+	m_logicFramePhase = 1.0f;
 	m_enableFpsLimit = FALSE;
 	m_enableLogicTimeScale = FALSE;
 	m_isTimeFrozen = FALSE;
@@ -62,16 +63,33 @@ FramePacer::~FramePacer()
 
 void FramePacer::update()
 {
-	// TheSuperHackers @bugfix xezon 05/08/2025 Re-implements the frame rate limiter
-	// with higher resolution counters to cap the frame rate more accurately to the desired limit.
-	const UnsignedInt maxFps = getActualFramesPerSecondLimit();// allowFpsLimit ? getFramesPerSecondLimit() : RenderFpsPreset::UncappedFpsValue;
+	// Uses a high resolution counter to cap the frame rate more accurately to the desired limit than retail did.
+	const UnsignedInt maxFps = getActualFramesPerSecondLimit();
 	m_updateTime = m_frameRateLimit.wait(maxFps);
+
+	if (TheGameLogic != nullptr)
+	{
+		// Set or advance the logic frame phase by the render step that the next update will draw.
+		// It is capped at a whole logic frame, because the render steps in between can add up to more than one.
+		// Consumers are expected to interpolate towards the next logic frame and not extrapolate past it.
+		const Real timeScale = getActualLogicTimeScaleOverFpsRatio();
+
+		if (TheGameLogic->hasUpdated())
+		{
+			m_logicFramePhase = timeScale;
+		}
+		else
+		{
+			m_logicFramePhase = min(1.0f, m_logicFramePhase + timeScale);
+		}
+	}
 }
 
 void FramePacer::reset()
 {
 	m_frameRateLimit.reset();
 	m_updateTime = 1.0f / (Real)getActualFramesPerSecondLimit();
+	m_logicFramePhase = 1.0f;
 }
 
 void FramePacer::setFramesPerSecondLimit( Int fps )
@@ -254,8 +272,7 @@ Real FramePacer::getActualLogicTimeScaleRatio(LogicTimeQueryFlags flags) const
 
 Real FramePacer::getActualLogicTimeScaleOverFpsRatio(LogicTimeQueryFlags flags) const
 {
-	// TheSuperHackers @info Clamps ratio to min 1, because the logic
-	// frame rate is currently capped by the render frame rate.
+	// Clamps ratio to min 1, because the logic frame rate is currently capped by the render frame rate.
 	return min(1.0f, (Real)getActualLogicTimeScaleFps(flags) / getUpdateFps());
 }
 
@@ -292,4 +309,9 @@ void FramePacer::updateLogicInterpolation()
 	QueryPerformanceCounter(&tick);
 	const double elapsedSeconds = static_cast<double>(tick.QuadPart - m_lastLogicUpdate) / m_perfFreq;
 	m_logicInterpolation = (Real)std::min(elapsedSeconds * logicFps, 1.0);
+}
+
+Real FramePacer::getLogicFramePhase() const
+{
+	return m_logicFramePhase;
 }
