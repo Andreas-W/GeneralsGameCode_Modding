@@ -104,6 +104,14 @@ public:
 													float						frame1,
 													float						percentage);
 
+	void					Blend_Update(const Matrix3D& root,
+		HRawAnimClass* motion0,
+		float						frame0,
+		HRawAnimClass* motion1,
+		float						frame1,
+		float						percentage);
+
+
 	void					Combo_Update(		const Matrix3D &		root,
 													HAnimComboClass *		anim);
 

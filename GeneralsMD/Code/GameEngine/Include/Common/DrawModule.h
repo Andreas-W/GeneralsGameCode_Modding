@@ -51,6 +51,7 @@ class DebrisDrawInterface;
 class TracerDrawInterface;
 class RopeDrawInterface;
 class LaserDrawInterface;
+class DecalDrawInterface;
 class FXList;
 enum TerrainDecalType CPP_11(: Int);
 enum ShadowType CPP_11(: Int);
@@ -108,6 +109,9 @@ public:
 	virtual LaserDrawInterface* getLaserDrawInterface() { return nullptr; }
 	virtual const LaserDrawInterface* getLaserDrawInterface() const { return nullptr; }
 
+	//virtual DecalDrawInterface* getDecalDrawInterface() { return nullptr; }
+	//virtual const DecalDrawInterface* getDecalDrawInterface() const { return nullptr; }
+
 };
 inline DrawModule::DrawModule( Thing *thing, const ModuleData* moduleData ) : DrawableModule( thing, moduleData ) { }
 inline DrawModule::~DrawModule() { }
@@ -147,6 +151,13 @@ class LaserDrawInterface
 public:
 	virtual Real getLaserTemplateWidth() const = 0;
 };
+
+//-------------------------------------------------------------------------------------------------
+//class DecalDrawInterface
+//{
+//public:
+//	virtual void initDecal(AsciiString texture, Real opacity, Int color, ShadowType type, UnsignedInt lifetime, UnsignedInt fadeOutTime, UnsignedInt fadeInTime, Real sizeX, Real sizeY) = 0;
+//};
 
 //-------------------------------------------------------------------------------------------------
 class ObjectDrawInterface

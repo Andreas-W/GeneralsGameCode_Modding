@@ -48,6 +48,7 @@
 #include "W3DDevice/GameClient/Module/W3DTracerDraw.h"
 #include "W3DDevice/GameClient/Module/W3DTreeDraw.h"
 #include "W3DDevice/GameClient/Module/W3DPropDraw.h"
+#include "W3DDevice/GameClient/Module/W3DDecalDraw.h"
 #include "W3DDevice/GameClient/Module/W3DDependencyCarrierDraw.h"
 
 //-------------------------------------------------------------------------------------------------
@@ -79,6 +80,7 @@ void W3DModuleFactory::init( void )
 	addModule( W3DTankTruckDraw );
 	addModule( W3DTreeDraw );
 	addModule( W3DPropDraw );
+	addModule( W3DDecalDraw );
 	addModule( W3DDependencyCarrierDraw );
 
 }

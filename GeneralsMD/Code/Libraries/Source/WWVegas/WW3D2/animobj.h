@@ -82,16 +82,29 @@ public:
 	virtual void					Set_Animation(void);
 	virtual void					Set_Animation( HAnimClass * motion,
 															float frame, int anim_mode = ANIM_MODE_MANUAL);
-	virtual void					Set_Animation( HAnimClass * motion0,
+	virtual void					Set_Animation(HAnimClass* motion0,
 															float frame0,
-															HAnimClass * motion1,
+															HAnimClass* motion1,
 															float frame1,
 															float percentage);
-	virtual void					Set_Animation( HAnimComboClass * anim_combo);
+	virtual void					Set_Animation(HAnimClass* motion0,
+															float frame0,
+															HAnimClass* motion1,
+															float frame1,
+															float percentage,
+															int mode0,
+															int mode1,
+															int fadeOutTime,
+															int startFadeTime = 0);
+	virtual void					Set_Animation(HAnimComboClass* anim_combo);
 
 	virtual void					Set_Animation_Frame_Rate_Multiplier(float multiplier);	// 020607 srj -- added
+	virtual void					Set_Animation_Frame_Rate_Multiplier(float multiplier0, float multiplier1);
 
-	virtual HAnimClass *	Peek_Animation_And_Info(float& frame, int& numFrames, int& mode, float& mult);	// 020710 srj -- added
+	virtual HAnimClass* Peek_Animation_And_Info(float& frame, int& numFrames, int& mode, float& mult);	// 020710 srj -- added
+	virtual HAnimClass* Peek_Animation_And_Info(float& frame0, int& numFrames0, int& mode0, float& mult0,
+		HAnimClass** anim1, float& frame1, int& numFrames1, int& mode1, float& mult1,
+		float& percentage, int& fadeOutTime, int& startFadeTime);
 
 	virtual HAnimClass *			Peek_Animation( void );
 	virtual bool					Is_Animation_Complete( void ) const;
@@ -114,6 +127,8 @@ public:
 	virtual bool					Simple_Evaluate_Bone(int boneindex, Matrix3D *tm) const;
 	virtual bool					Simple_Evaluate_Bone(int boneindex, float frame, Matrix3D *tm) const;
 
+	virtual bool					Is_Double_Anim(void) const;
+
 	// (gth) TESTING DYNAMICALLY SWAPPING SKELETONS!
 	virtual void					Set_HTree(HTreeClass * htree);
 	///Generals change so we can set sub-object transforms directly without having them revert to base pose
@@ -124,6 +139,9 @@ protected:
 
 	// internally used to compute the current frame if the object is in ANIM_MODE_MANUAL
 	float								Compute_Current_Frame(float *newDirection=nullptr) const;
+
+	//Double anim version
+	float								Compute_Current_Frame(float* frame0, float* frame1, float* newDirection = NULL) const;
 
 	// Update the sub-object transforms according to the current anim state and root transform.
 	virtual	void					Update_Sub_Object_Transforms(void);
@@ -195,11 +213,20 @@ protected:
 
 			HAnimClass *			Motion0;
 			HAnimClass *			Motion1;
+			int						AnimMode0;
+			int						AnimMode1;
 			float		  				Frame0;
 			float		  				Frame1;
 			float						PrevFrame0;
 			float						PrevFrame1;
 			float		  				Percentage;
+			mutable int				    LastSyncTime;
+			int							FadeOutTime;
+			int							StartFadeTime;
+			float							animDirection0;
+			float							frameRateMultiplier0;
+			float							animDirection1;
+			float							frameRateMultiplier1;
 		} ModeInterp;
 
 		// CurMotionMode == MULTIPLE_ANIM
@@ -210,6 +237,12 @@ protected:
 	};
 
 	friend class SkinClass;
+
+private:
+	float Compute_Current_Frame_For_Anim(HAnimClass* anim, int animMode, float frame, float& direction) const;
+
+	float Compute_Current_Percentage() const;
+
 };
 
 
@@ -293,8 +326,13 @@ inline void Animatable3DObjClass::Blend_Update
 	/*
 	** Apply motion to the base pose
 	*/
-	if (HTree) {
-		HTree->Blend_Update(root,motion0,frame0,motion1,frame1,percentage);
+	if ((motion0) && (motion1) && (HTree)) {
+		if (ModeInterp.Motion0->Class_ID() == HAnimClass::CLASSID_HRAWANIM && ModeInterp.Motion1->Class_ID() == HAnimClass::CLASSID_HRAWANIM) {
+			HTree->Blend_Update(root, (HRawAnimClass*)ModeInterp.Motion0, frame0, (HRawAnimClass*)ModeInterp.Motion1, frame1, percentage);
+		}
+		else {
+			HTree->Blend_Update(root, motion0, frame0, motion1, frame1, percentage);
+		}
 	}
 	Set_Hierarchy_Valid(true);
 }
