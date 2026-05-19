@@ -2396,47 +2396,47 @@ void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real pre
 
 			// ANIMATION BLENDING
 			if (prevState &&
-				m_curState->m_animBlendTime > 0 &&
-				prevState->m_animations[0].getAnimHandle() &&
-				m_renderObject->Class_ID() == RenderObjClass::CLASSID_HLOD) {
-
-				//DEBUG_LOG((">>>>BLEND ANIMS!!"));
-
-				HLodClass* hlod = (HLodClass*)m_renderObject;
+				m_curState->m_animBlendTime > 0) {
 
 				const W3DAnimationInfo& animInfoPrev = prevState->m_animations[m_whichAnimInPrevState];
-
 				HAnimClass* animHandlePrev = animInfoPrev.getAnimHandle();
 
-				Real factor = GameClientRandomValueReal(m_curState->m_animMinSpeedFactor, m_curState->m_animMaxSpeedFactor);
+				if (animHandlePrev != nullptr && m_renderObject->Class_ID() == RenderObjClass::CLASSID_HLOD) {
 
-				Int startFramePrev = REAL_TO_INT(prevAnimFraction * m_prevAnimHelper.numFrames - 1);
+						//DEBUG_LOG((">>>>BLEND ANIMS!!"));
 
-				// maxBlendTime = currentAnim duration in milliseconds
-				Int animBlendTime = m_curState->m_animBlendTime;
-				Int curAnimDurMS = REAL_TO_INT((animHandle->Get_Num_Frames() * 1000.0f / animHandle->Get_Frame_Rate()) * factor);
-				if (animBlendTime > curAnimDurMS) {
-					animBlendTime = curAnimDurMS;
+						HLodClass* hlod = (HLodClass*)m_renderObject;
+
+						Real factor = GameClientRandomValueReal(m_curState->m_animMinSpeedFactor, m_curState->m_animMaxSpeedFactor);
+
+						Int startFramePrev = REAL_TO_INT(prevAnimFraction * m_prevAnimHelper.numFrames - 1);
+
+						// maxBlendTime = currentAnim duration in milliseconds
+						Int animBlendTime = m_curState->m_animBlendTime;
+						Int curAnimDurMS = REAL_TO_INT((animHandle->Get_Num_Frames() * 1000.0f / animHandle->Get_Frame_Rate()) * factor);
+						if (animBlendTime > curAnimDurMS) {
+							animBlendTime = curAnimDurMS;
+						}
+						hlod->Set_Animation(
+							animHandle,
+							startFrame,
+							animHandlePrev,
+							startFramePrev,
+							1.0f, //We start with prev anim and fade into the new anim
+							m_curState->m_mode,
+							m_prevAnimHelper.mode,
+							animBlendTime
+						);
+						// Let's ignore speed factor for prev anim for now
+						// We need to find out when the prev anim is supposed to fade out:
+
+						hlod->Set_Animation_Frame_Rate_Multiplier(factor); //This might need to be different
 				}
-				hlod->Set_Animation(
-					animHandle,
-					startFrame,
-					animHandlePrev,
-					startFramePrev,
-					1.0f, //We start with prev anim and fade into the new anim
-					m_curState->m_mode,
-					m_prevAnimHelper.mode,
-					animBlendTime
-				);
+
 				REF_PTR_RELEASE(animHandle);
 				REF_PTR_RELEASE(animHandlePrev);
 				animHandle = NULL;
 				animHandlePrev = NULL;
-
-				// Let's ignore speed factor for prev anim for now
-				// We need to find out when the prev anim is supposed to fade out:
-
-				hlod->Set_Animation_Frame_Rate_Multiplier(factor); //This might need to be different
 			}
 			else {
 				m_renderObject->Set_Animation(animHandle, startFrame, m_curState->m_mode);

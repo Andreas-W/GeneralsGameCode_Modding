@@ -559,35 +559,47 @@ void Animatable3DObjClass::Set_Animation
 	float percentage
 )
 {
-	Release();
+	if ((motion0) && (motion1)) {
+		motion0->Add_Ref();
+		motion1->Add_Ref();
+		Release();
+		CurMotionMode = DOUBLE_ANIM;
+		ModeInterp.Motion0 = motion0;
+		ModeInterp.Motion1 = motion1;
+		ModeInterp.PrevFrame0 = ModeInterp.Frame0;
+		ModeInterp.PrevFrame1 = ModeInterp.Frame1;
+		ModeInterp.Frame0 = frame0;
+		ModeInterp.Frame1 = frame1;
+		ModeInterp.Percentage = percentage;
+		ModeInterp.LastSyncTime = WW3D::Get_Logic_Time_Milliseconds();
+		//Set_Hierarchy_Valid(false);
 
-	CurMotionMode = DOUBLE_ANIM;
-	ModeInterp.Motion0 = motion0;
-	ModeInterp.Motion1 = motion1;
-	ModeInterp.PrevFrame0 = ModeInterp.Frame0;
-	ModeInterp.PrevFrame1 = ModeInterp.Frame1;
-	ModeInterp.Frame0 = frame0;
-	ModeInterp.Frame1 = frame1;
-	ModeInterp.Percentage = percentage;
+		//if ( ModeInterp.Motion0 != nullptr )
+		{
+			//ModeInterp.Motion0->Add_Ref();
+			const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion0);
+			if (sound_name) {
+				int bone_index = Get_Bone_Index(sound_name);
+				motion0->Set_Embedded_Sound_Bone_Index(bone_index);
+			}
+		}
+
+		//if ( ModeInterp.Motion1 != nullptr )
+		{
+			//ModeInterp.Motion1->Add_Ref();
+			const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion1);
+			if (sound_name) {
+				int bone_index = Get_Bone_Index(sound_name);
+				motion1->Set_Embedded_Sound_Bone_Index(bone_index);
+			}
+		}
+	}
+	else {
+		CurMotionMode = BASE_POSE;
+		Release();
+	}
+
 	Set_Hierarchy_Valid(false);
-
-	if ( ModeInterp.Motion0 != nullptr ) {
-		ModeInterp.Motion0->Add_Ref();
-		const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion0);
-		if (sound_name) {
-			int bone_index = Get_Bone_Index(sound_name);
-			motion0->Set_Embedded_Sound_Bone_Index(bone_index);
-		}
-	}
-
-	if ( ModeInterp.Motion1 != nullptr ) {
-		ModeInterp.Motion1->Add_Ref();
-		const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion1);
-		if (sound_name) {
-			int bone_index = Get_Bone_Index(sound_name);
-			motion1->Set_Embedded_Sound_Bone_Index(bone_index);
-		}
-	}
 }
 
 
@@ -608,60 +620,72 @@ void Animatable3DObjClass::Set_Animation
 	//DEBUG_LOG2((">>> animobj.cpp - Set_Animation DOUBLE_ANIM - with mode0 '%d' and mode1 '%d'\n", mode0, mode1));
 	Release();
 
-	CurMotionMode = DOUBLE_ANIM;
-	ModeInterp.Motion0 = motion0;
-	ModeInterp.Motion1 = motion1;
-	ModeInterp.PrevFrame0 = ModeInterp.Frame0;
-	ModeInterp.PrevFrame1 = ModeInterp.Frame1;
-	ModeInterp.Frame0 = frame0;
-	ModeInterp.Frame1 = frame1;
-	ModeInterp.Percentage = percentage;
-	ModeInterp.LastSyncTime = WW3D::Get_Sync_Time();
-	ModeInterp.frameRateMultiplier0 = 1.0;
-	ModeInterp.animDirection0 = 1.0;
-	ModeInterp.frameRateMultiplier1 = 1.0;
-	ModeInterp.animDirection1 = 1.0;
-	ModeInterp.FadeOutTime = fadeOutTime;  // This should be in milliseconds
-	if (startFadeTime == 0) {
-		ModeInterp.StartFadeTime = ModeInterp.LastSyncTime;
+	if ((motion0) && (motion1)) {
+		motion0->Add_Ref();
+		motion1->Add_Ref();
+		Release();
+		CurMotionMode = DOUBLE_ANIM;
+		ModeInterp.Motion0 = motion0;
+		ModeInterp.Motion1 = motion1;
+		ModeInterp.PrevFrame0 = ModeInterp.Frame0;
+		ModeInterp.PrevFrame1 = ModeInterp.Frame1;
+		ModeInterp.Frame0 = frame0;
+		ModeInterp.Frame1 = frame1;
+		ModeInterp.Percentage = percentage;
+		ModeInterp.LastSyncTime = WW3D::Get_Sync_Time();
+		ModeInterp.frameRateMultiplier0 = 1.0;
+		ModeInterp.animDirection0 = 1.0;
+		ModeInterp.frameRateMultiplier1 = 1.0;
+		ModeInterp.animDirection1 = 1.0;
+		ModeInterp.FadeOutTime = fadeOutTime;  // This should be in milliseconds
+		if (startFadeTime == 0) {
+			ModeInterp.StartFadeTime = ModeInterp.LastSyncTime;
+		}
+		else {
+			ModeInterp.StartFadeTime = startFadeTime;
+		}
+
+		ModeInterp.AnimMode0 = mode0;
+		ModeInterp.AnimMode1 = mode1;
+
+		if (mode0 < ANIM_MODE_LOOP_BACKWARDS)
+			ModeInterp.animDirection0 = 1.0f;	//assume playing forwards
+		else
+			ModeInterp.animDirection0 = -1.0f;	//reverse animation playback
+
+		if (mode1 < ANIM_MODE_LOOP_BACKWARDS)
+			ModeInterp.animDirection1 = 1.0f;	//assume playing forwards
+		else
+			ModeInterp.animDirection1 = -1.0f;	//reverse animation playback
+
+		//if (ModeInterp.Motion0 != NULL)
+		{
+			//ModeInterp.Motion0->Add_Ref();
+			const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion0);
+			if (sound_name) {
+				int bone_index = Get_Bone_Index(sound_name);
+				motion0->Set_Embedded_Sound_Bone_Index(bone_index);
+			}
+		}
+
+		//if (ModeInterp.Motion1 != NULL)
+		{
+			//ModeInterp.Motion1->Add_Ref();
+			const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion1);
+			if (sound_name) {
+				int bone_index = Get_Bone_Index(sound_name);
+				motion1->Set_Embedded_Sound_Bone_Index(bone_index);
+			}
+		}
 	}
 	else {
-		ModeInterp.StartFadeTime = startFadeTime;
+		CurMotionMode = BASE_POSE;
+		Release();
 	}
-
-	ModeInterp.AnimMode0 = mode0;
-	ModeInterp.AnimMode1 = mode1;
-
-	if (mode0 < ANIM_MODE_LOOP_BACKWARDS)
-		ModeInterp.animDirection0 = 1.0f;	//assume playing forwards
-	else
-		ModeInterp.animDirection0 = -1.0f;	//reverse animation playback
-
-	if (mode1 < ANIM_MODE_LOOP_BACKWARDS)
-		ModeInterp.animDirection1 = 1.0f;	//assume playing forwards
-	else
-		ModeInterp.animDirection1 = -1.0f;	//reverse animation playback
 
 
 	Set_Hierarchy_Valid(false);
 
-	if (ModeInterp.Motion0 != NULL) {
-		ModeInterp.Motion0->Add_Ref();
-		const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion0);
-		if (sound_name) {
-			int bone_index = Get_Bone_Index(sound_name);
-			motion0->Set_Embedded_Sound_Bone_Index(bone_index);
-		}
-	}
-
-	if (ModeInterp.Motion1 != NULL) {
-		ModeInterp.Motion1->Add_Ref();
-		const char* sound_name = AnimatedSoundMgrClass::Get_Embedded_Sound_Name(motion1);
-		if (sound_name) {
-			int bone_index = Get_Bone_Index(sound_name);
-			motion1->Set_Embedded_Sound_Bone_Index(bone_index);
-		}
-	}
 }
 
 
@@ -897,8 +921,8 @@ void Animatable3DObjClass::Update_Sub_Object_Transforms(void)
 	*/
 	CompositeRenderObjClass::Update_Sub_Object_Transforms();
 
-	HRawAnimClass* motion0 = nullptr;
-	HRawAnimClass* motion1 = nullptr;
+	//HRawAnimClass* motion0 = nullptr;
+	//HRawAnimClass* motion1 = nullptr;
 
 	/*
 	** Update the transforms
@@ -1221,7 +1245,7 @@ float Animatable3DObjClass::Compute_Current_Frame(float* newFrame0, float* newFr
 	}
 	break;
 	}
-
+	return 0;
 }
 
 float Animatable3DObjClass::Compute_Current_Frame_For_Anim(HAnimClass* anim, int animMode, float frame, float& direction) const {
@@ -1284,7 +1308,7 @@ float Animatable3DObjClass::Compute_Current_Frame_For_Anim(HAnimClass* anim, int
 	return frame;
 }
 
-
+// -------------------------
 float Animatable3DObjClass::Compute_Current_Percentage() const
 {
 	if (CurMotionMode == SINGLE_ANIM) {
@@ -1305,6 +1329,7 @@ float Animatable3DObjClass::Compute_Current_Percentage() const
 		}
 		return 0.0f;
 	}
+	return 0.0f;
 }
 
 /***********************************************************************************************
@@ -1459,6 +1484,7 @@ HAnimClass* Animatable3DObjClass::Peek_Animation_And_Info(float& frame0, int& nu
 
 		return ModeInterp.Motion0;
 	}
+	return nullptr;
 	//DEBUG_LOG2((">>> animobj.cpp - Peek_Animation_And_Info - Done'\n"));
 }
 
