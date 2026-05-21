@@ -60,6 +60,7 @@
 #include "GameLogic/Module/SupplyWarehouseDockUpdate.h"
 #include "GameLogic/Module/SpecialPowerModule.h"
 #include "GameLogic/Module/SpecialAbilityUpdate.h"
+#include "GameLogic/Module/SpecialPowerDesignatorUpdate.h"
 #include "GameLogic/Weapon.h"
 
 #include "GameLogic/ExperienceTracker.h"//LORENZEN
@@ -1566,6 +1567,65 @@ Bool ActionManager::canDoSpecialPowerAtLocation( const Object *obj, const Coord3
 				}
 			}
 		}
+
+		// Check target designator
+
+		if (spTemplate->isNeedsTargetDesignator()) {
+			bool isDesignatorInRange = false;
+			static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+
+			//Iterate over all object and find this module!
+
+			//PartitionFilterRelationship relationship( obj, PartitionFilterRelationship::ALLOW_ALLIES );
+			PartitionFilterSamePlayer filterPlayer(obj->getControllingPlayer());
+			PartitionFilterSameMapStatus filterMapStatus(obj);
+			PartitionFilterAlive filterAlive;
+			PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
+			PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterMapStatus, &filterKindOf, NULL };
+			Real max_scan_range = 2000.0f; //Should be all units on screen + margin
+			// scan objects in our region
+			ObjectIterator* iter = ThePartitionManager->iterateObjectsInRange(loc, max_scan_range, FROM_CENTER_2D, filters);
+			Object* obj2;
+			MemoryPoolObjectHolder hold(iter);
+			for (obj2 = iter->first(); obj2; obj2 = iter->next()) {
+
+				SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj2->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+				if (update) {
+					if (update->isValidDesignatorForSpecialPower(spTemplate)) {
+
+						Real distSqr = ThePartitionManager->getDistanceSquared(obj2, loc, FROM_CENTER_2D);
+						Real radiusSqr = update->getDesignatorRadius();
+						if (distSqr <= radiusSqr) {
+							isDesignatorInRange = true;
+							break;
+						}
+					}
+				}
+			}
+			if (!isDesignatorInRange)
+				return FALSE;
+		}
+
+		//static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+
+		//PartitionFilterSamePlayer filterPlayer(ThePlayerList->getLocalPlayer());
+		//PartitionFilterAlive filterAlive;
+		//PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
+		//PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterKindOf, NULL };
+		//// scan objects on entire map
+		//ObjectIterator* iter = ThePartitionManager->iterateAllObjects(filters);
+		//Object* obj;
+		//MemoryPoolObjectHolder hold(iter);
+		//for (obj = iter->first(); obj; obj = iter->next()) {
+
+		//	SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+		//	if (update) {
+		//		if (update->isValidDesignatorForSpecialPower(powerTemplate)) {
+		//			update->setActive(true);
+		//		}
+		//	}
+		//}
+
 
 		// First check terrain type, if it is cared about.  Don't return a true, since there are more checks.
 		switch(behaviorType)

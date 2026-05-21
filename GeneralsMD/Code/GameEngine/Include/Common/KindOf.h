@@ -213,6 +213,8 @@ enum KindOfType CPP_11(: Int)
 	KINDOF_EXTRA15,
 	KINDOF_EXTRA16,
 
+	KINDOF_TARGET_DESIGNATOR,
+
 	KINDOF_COUNT,										// total number of kindofs
 	KINDOF_FIRST = 0,
 };

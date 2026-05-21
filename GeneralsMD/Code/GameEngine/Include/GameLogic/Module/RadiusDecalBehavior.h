@@ -83,6 +83,7 @@ public:
 
 protected:
 
+	void clearDecal(void);
 
 	virtual void upgradeImplementation()
 	{
@@ -119,7 +120,6 @@ private:
 
 	RadiusDecal m_radiusDecal;
 
-	void clearDecal( void );
 };
 
 #endif // __RadiusDecalBehavior_H_

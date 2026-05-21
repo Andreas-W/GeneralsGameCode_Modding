@@ -687,6 +687,9 @@ protected:
 	void handleBuildPlacements( void );													///< handle updating of placement icons based on mouse pos
 	void handleRadiusCursor();																	///< handle updating of "radius cursors" that follow the mouse pos
 
+	void showDesignatorDecals(const SpecialPowerTemplate* powerTemplate);
+	void hideDesignatorDecals(void);
+
 	void incrementSelectCount( void ) { ++m_selectCount; }			///< Increase by one the running total of "selected" drawables
 	void decrementSelectCount( void ) { --m_selectCount; }			///< Decrease by one the running total of "selected" drawables
 	virtual View *createView( void ) = 0;												///< Factory for Views
@@ -968,6 +971,11 @@ protected:
 	Int													m_currentIdleWorkerDisplay;
 
 	DrawableID									m_soloNexusSelectedDrawableID;  ///< The drawable of the nexus, if only one angry mob is selected, otherwise, null
+
+	// UI Decals
+	Bool							m_showDesignatorDecals;
+	const CommandButton* m_designatorCommand;
+
 
 	// ----------------------------------------------------------------------------------------------
 	// STATIC Protected Data -------------------------------------------------------------------------------

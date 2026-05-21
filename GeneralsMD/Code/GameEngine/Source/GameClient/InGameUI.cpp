@@ -84,6 +84,7 @@
 #include "GameLogic/Module/ContainModule.h"
 #include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/Module/SpecialPowerModule.h"
+#include "GameLogic/Module/SpecialPowerDesignatorUpdate.h"
 #include "GameLogic/Module/StealthUpdate.h"
 #include "GameLogic/Module/SupplyWarehouseDockUpdate.h"
 #include "GameLogic/Module/MobMemberSlavedUpdate.h"//ML
@@ -3255,6 +3256,13 @@ void InGameUI::setGUICommand( const CommandButton *command )
 		setRadiusCursor(command->getRadiusCursorType(), //*****************************************************************
 										command->getSpecialPowerTemplate(),
 										command->getWeaponSlot());
+
+		const SpecialPowerTemplate* sp = command->getSpecialPowerTemplate();
+		if (sp != nullptr && sp->isNeedsTargetDesignator()) {
+			m_showDesignatorDecals = TRUE;
+			showDesignatorDecals(command->getSpecialPowerTemplate());
+			m_designatorCommand = command;
+		}
 	}
 	else
 	{
@@ -6427,5 +6435,96 @@ void InGameUI::drawPlayerInfoList()
 		m_playerInfoList.values[PlayerInfoList::ValueType_Name][row]->draw(labelX, drawY, rowColors[row], m_playerInfoListDropColor);
 
 		drawY += lineH;
+	}
+}
+
+// ----------------------------------------------------------
+//static void showDesignatorDecal(Object* obj, void* userData)
+//{
+//	//SpecialPowerTemplate *powerTemplate = (SpecialPowerTemplate*)userData;
+//	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+//
+//	if (obj) {
+//		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+//		if (update) { // && update->getSpecialPowerTemplate() == powerTemplate) {
+//			//update->showDesignatorDecal(true);
+//
+//			Drawable* draw = obj->getDrawable();
+//			draw->setTerrainDecal(TERRAIN_DECAL_RING);
+//			Real size = 3.0f * update->getDesignatorRadius();
+//			draw->setTerrainDecalSize(size, size);
+//
+//			// if (update->getSpecialPowerTemplate() == powerTemplate) {
+//
+//			// 	Real distSqr = ThePartitionManager->getDistanceSquared(obj2, loc, FROM_CENTER_2D);
+//			// 	Real dist = sqrt(distSqr);
+//			// 	if (dist <= update->getDesignatorRadius()) {
+//			// 		isDesignatorInRange = true;
+//			// 		break;
+//			// 	}
+//			// }
+//		}
+//	}
+//}
+//
+//static void hideDesignatorDecal(Object* obj, void* userData)
+//{
+//	//SpecialPowerTemplate *powerTemplate = (SpecialPowerTemplate*)userData;
+//	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+//
+//	if (obj) {
+//		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+//		if (update) { // && update->getSpecialPowerTemplate() == powerTemplate) {
+//			//update->showDesignatorDecal(false);
+//			Drawable* draw = obj->getDrawable();
+//			draw->setTerrainDecal(TERRAIN_DECAL_NONE);
+//		}
+//	}
+//}
+
+
+// -------------
+void InGameUI::showDesignatorDecals(const SpecialPowerTemplate* powerTemplate) {
+	
+	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+
+	PartitionFilterSamePlayer filterPlayer(ThePlayerList->getLocalPlayer());
+	PartitionFilterAlive filterAlive;
+	PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
+	PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterKindOf, NULL };
+	// scan objects on entire map
+	ObjectIterator* iter = ThePartitionManager->iterateAllObjects(filters);
+	Object* obj;
+	MemoryPoolObjectHolder hold(iter);
+	for (obj = iter->first(); obj; obj = iter->next()) {
+
+		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+		if (update) {
+			if (update->isValidDesignatorForSpecialPower(powerTemplate)) {
+				update->setActive(true);
+			}
+		}
+	}
+}
+
+void InGameUI::hideDesignatorDecals() { //const SpecialPowerTemplate *powerTemplate) {
+	//ThePlayerList->getLocalPlayer()->iterateObjects( hideDesignatorDecal, &powerTemplate );
+
+	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+
+	PartitionFilterSamePlayer filterPlayer(ThePlayerList->getLocalPlayer());
+	PartitionFilterAlive filterAlive;
+	PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
+	PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterKindOf, NULL };
+	// scan objects on entire map
+	ObjectIterator* iter = ThePartitionManager->iterateAllObjects(filters);
+	Object* obj;
+	MemoryPoolObjectHolder hold(iter);
+	for (obj = iter->first(); obj; obj = iter->next()) {
+
+		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+		if (update) {
+			update->setActive(false);
+		}
 	}
 }
