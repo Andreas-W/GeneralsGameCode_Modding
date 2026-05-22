@@ -1102,6 +1102,9 @@ InGameUI::InGameUI()
 
 	m_tooltipsDisabledUntil = 0;
 
+	m_showDesignatorDecals = FALSE;
+	m_designatorCommand = NULL;
+
 	// init hint lists
 	for( i = 0; i < MAX_MOVE_HINTS; i++ )
 	{
@@ -3246,6 +3249,21 @@ void InGameUI::setGUICommand( const CommandButton *command )
 	// set the command
 	m_pendingGUICommand = command;
 
+	// Target designator checks
+	if (m_designatorCommand && m_designatorCommand != m_pendingGUICommand) {
+		hideDesignatorDecals();
+		m_designatorCommand = NULL;
+	}
+
+	if (command && BitIsSet(command->getOptions(), COMMAND_OPTION_NEED_TARGET)) {
+		const SpecialPowerTemplate* sp = command->getSpecialPowerTemplate();
+		if (sp != nullptr && sp->isNeedsTargetDesignator()) {
+			m_showDesignatorDecals = TRUE;
+			showDesignatorDecals(command->getSpecialPowerTemplate());
+			m_designatorCommand = command;
+		}
+	}
+
 	// set the mouse cursor for commands that need a targeting or to normal with no command
 	if( command && BitIsSet( command->getOptions(), COMMAND_OPTION_NEED_TARGET ) && !command->isContextCommand() )
 	{
@@ -3256,13 +3274,6 @@ void InGameUI::setGUICommand( const CommandButton *command )
 		setRadiusCursor(command->getRadiusCursorType(), //*****************************************************************
 										command->getSpecialPowerTemplate(),
 										command->getWeaponSlot());
-
-		const SpecialPowerTemplate* sp = command->getSpecialPowerTemplate();
-		if (sp != nullptr && sp->isNeedsTargetDesignator()) {
-			m_showDesignatorDecals = TRUE;
-			showDesignatorDecals(command->getSpecialPowerTemplate());
-			m_designatorCommand = command;
-		}
 	}
 	else
 	{

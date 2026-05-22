@@ -71,7 +71,7 @@ public:
 	// UpdateModuleInterface
 	virtual UpdateSleepTime update();
 
-	//virtual DisabledMaskType getDisabledTypesToProcess() const { return MAKE_DISABLED_MASK(DISABLED_HELD); }
+	// virtual DisabledMaskType getDisabledTypesToProcess() const { return getSpecialPowerDesignatorUpdateModuleData()->m_worksWhileContained ? DISABLEDMASK_ALL : MAKE_DISABLED_MASK(DISABLED_HELD); }
 
 	Real getDesignatorRadius() { return getSpecialPowerDesignatorUpdateModuleData()->m_designatorRadius; }
 

@@ -1594,8 +1594,8 @@ Bool ActionManager::canDoSpecialPowerAtLocation( const Object *obj, const Coord3
 					if (update->isValidDesignatorForSpecialPower(spTemplate)) {
 
 						Real distSqr = ThePartitionManager->getDistanceSquared(obj2, loc, FROM_CENTER_2D);
-						Real radiusSqr = update->getDesignatorRadius();
-						if (distSqr <= radiusSqr) {
+						Real radius = update->getDesignatorRadius();
+						if (distSqr <= (radius*radius)) {
 							isDesignatorInRange = true;
 							break;
 						}

@@ -57,6 +57,7 @@ SpecialPowerDesignatorUpdateModuleData::SpecialPowerDesignatorUpdateModuleData()
     { "SpecialPowerTemplate",				INI::parseSpecialPowerTemplate,		NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_specialPowerTemplate) },
 		{ "DesignatorRadius",					INI::parseReal,						NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_designatorRadius) },
 		{ "AlwaysShowDecal",					INI::parseBool,						NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_alwaysShowDecal) },
+		// { "WorksWhileContained",					INI::parseBool,						NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_worksWhileContained) },
 		{ "TriggerStatusTime",			INI::parseDurationUnsignedInt,	NULL,	offsetof(SpecialPowerDesignatorUpdateModuleData, m_triggerStatusTime) },
 		{ "TriggerStatusType",			ObjectStatusMaskType::parseSingleBitFromINI,	NULL,	offsetof(SpecialPowerDesignatorUpdateModuleData, m_triggerStatusType) },
 		{ "DecalRadius",			INI::parseReal,									NULL,	offsetof( RadiusDecalBehaviorModuleData, m_decalRadius) },
@@ -107,6 +108,8 @@ SpecialPowerDesignatorUpdate::~SpecialPowerDesignatorUpdate( void )
 //-------------------------------------------------------------------------------------------------
 void SpecialPowerDesignatorUpdate::setActive(bool status)
 {
+	DEBUG_LOG((">>> SpecialPowerDesignatorUpdate::setActive = %d", status));
+
 	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
 
 	m_targetingActive = status;
@@ -149,30 +152,36 @@ UpdateSleepTime SpecialPowerDesignatorUpdate::update( void )
 {
 	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
 
+	UpdateSleepTime result = UPDATE_SLEEP_FOREVER;
 	// First handle status
 	if (m_statusClearFrame > 0 && data->m_triggerStatusType != OBJECT_STATUS_NONE) {
 		if (TheGameLogic->getFrame() == m_statusClearFrame) {
 			getObject()->clearStatus(MAKE_OBJECT_STATUS_MASK(data->m_triggerStatusType));
 		}
 		else {
-			return UPDATE_SLEEP_NONE;
+			result = UPDATE_SLEEP_NONE;
 		}
   }
 
-  // Then decal
+	//if (m_statusClearFrame > 0 && data->m_triggerStatusType != OBJECT_STATUS_NONE && TheGameLogic->getFrame() == m_statusClearFrame) {
+	//	getObject()->clearStatus(MAKE_OBJECT_STATUS_MASK(data->m_triggerStatusType));
+	//}
 
+  // Then decal
 	if (!m_targetingActive && !data->m_alwaysShowDecal) {
-		return UPDATE_SLEEP_FOREVER;
+		return MIN(result, UPDATE_SLEEP_FOREVER);
 	}
 
-	return RadiusDecalBehavior::update();
+	return MIN(RadiusDecalBehavior::update(), UPDATE_SLEEP_FOREVER);
 }
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 Bool SpecialPowerDesignatorUpdate::isValidDesignatorForSpecialPower(const SpecialPowerTemplate* templ)
 {
-	return (isUpgradeActive() && templ == getSpecialPowerDesignatorUpdateModuleData()->m_specialPowerTemplate);
+	return isUpgradeActive() && templ == getSpecialPowerDesignatorUpdateModuleData()->m_specialPowerTemplate &&
+		(getSpecialPowerDesignatorUpdateModuleData()->m_worksWhileContained || !getObject()->isDisabledByType(DISABLED_HELD));
+
 }
 
 // ------------------------------------------------------------------------------------------------
