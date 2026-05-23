@@ -60,7 +60,6 @@ SpecialPowerDesignatorUpdateModuleData::SpecialPowerDesignatorUpdateModuleData()
     { "SpecialPowerTemplate",				INI::parseSpecialPowerTemplate,		NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_specialPowerTemplate) },
 		{ "DesignatorRadius",					INI::parseReal,						NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_designatorRadius) },
 		{ "AlwaysShowDecal",					INI::parseBool,						NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_alwaysShowDecal) },
-		// { "WorksWhileContained",					INI::parseBool,						NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_worksWhileContained) },
 		{ "TriggerStatusTime",			INI::parseDurationUnsignedInt,	NULL,	offsetof(SpecialPowerDesignatorUpdateModuleData, m_triggerStatusTime) },
 		{ "TriggerStatusType",			ObjectStatusMaskType::parseSingleBitFromINI,	NULL,	offsetof(SpecialPowerDesignatorUpdateModuleData, m_triggerStatusType) },
 		{ "DecalRadius",			INI::parseReal,									NULL,	offsetof( RadiusDecalBehaviorModuleData, m_decalRadius) },
@@ -76,17 +75,7 @@ SpecialPowerDesignatorUpdateModuleData::SpecialPowerDesignatorUpdateModuleData()
 //-------------------------------------------------------------------------------------------------
 SpecialPowerDesignatorUpdate::SpecialPowerDesignatorUpdate( Thing *thing, const ModuleData* moduleData ) : RadiusDecalBehavior( thing, moduleData )
 {
-	m_targetingActive = false;
 	m_statusClearFrame = 0;
-
-	/*if (getSpecialPowerDesignatorUpdateModuleData()->m_initiallyActive)
-	{
-		giveSelfUpgrade();
-	}
-	else {
-		clearDecal();
-		setWakeFrame(getObject(), UPDATE_SLEEP_FOREVER);
-	}*/
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -95,34 +84,6 @@ SpecialPowerDesignatorUpdate::~SpecialPowerDesignatorUpdate( void )
 {
 }
 
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
-//void SpecialPowerDesignatorUpdate::createRadiusDecal( void )
-//{
-//	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
-//
-//	if (data->m_alwaysShowDecal || m_targetingActive) {
-//		RadiusDecalBehavior::createRadiusDecal();
-//	}
-//	else {
-//		setWakeFrame(getObject(), UPDATE_SLEEP_FOREVER);
-//	}
-//}
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
-//void SpecialPowerDesignatorUpdate::setActive(bool status)
-//{
-//	DEBUG_LOG((">>> SpecialPowerDesignatorUpdate::setActive = %d", status));
-//
-//	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
-//
-//	m_targetingActive = status;
-//
-//	if (!status && !data->m_alwaysShowDecal)
-//		clearDecal();
-//
-//	setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
-//}
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 void SpecialPowerDesignatorUpdate::triggerSpecialPower()
@@ -137,28 +98,12 @@ void SpecialPowerDesignatorUpdate::triggerSpecialPower()
 
 	FXList::doFXObj(data->m_triggerFX, getObject());
 }
-//
-////-------------------------------------------------------------------------------------------------
-////-------------------------------------------------------------------------------------------------
-//void SpecialPowerDesignatorUpdate::killRadiusDecal()
-//{
-//	clearDecal();
-//	setWakeFrame(getObject(), UPDATE_SLEEP_FOREVER);
-//}
-//
-//// -----------------------------------------------------------------------------------------------
-//void SpecialPowerDesignatorUpdate::clearDecal()
-//{
-//	m_radiusDecal.clear();
-//}
-//
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime SpecialPowerDesignatorUpdate::update( void )
 {
 	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
 
-	//UpdateSleepTime result = UPDATE_SLEEP_FOREVER;
 	// First handle status
 	if (m_statusClearFrame > 0 && data->m_triggerStatusType != OBJECT_STATUS_NONE) {
 		if (TheGameLogic->getFrame() == m_statusClearFrame) {
@@ -216,7 +161,6 @@ void SpecialPowerDesignatorUpdate::xfer( Xfer *xfer )
 	// extend base class
 	RadiusDecalBehavior::xfer( xfer );
 
-	xfer->xferBool(&m_targetingActive);
 	xfer->xferUnsignedInt(&m_statusClearFrame);
 
 

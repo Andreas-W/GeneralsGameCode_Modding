@@ -67,58 +67,18 @@ public:
 	SpecialPowerDesignatorUpdate( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
-	//void createRadiusDecal( void );
-	//void killRadiusDecal( void );
-
 	// UpdateModuleInterface
 	virtual UpdateSleepTime update();
-
-	// virtual DisabledMaskType getDisabledTypesToProcess() const { return getSpecialPowerDesignatorUpdateModuleData()->m_worksWhileContained ? DISABLEDMASK_ALL : MAKE_DISABLED_MASK(DISABLED_HELD); }
 
 	Real getDesignatorRadius() { return getSpecialPowerDesignatorUpdateModuleData()->m_designatorRadius; }
 
 	Bool isValidDesignatorForSpecialPower(const SpecialPowerTemplate* templ);
 
-	//void setActive(bool status);
-
 	void triggerSpecialPower();
 
 protected:
 
-	//virtual void upgradeImplementation()
-	//{
-	//	createRadiusDecal();
-	//	setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
-	//}
-
-	//virtual void getUpgradeActivationMasks(UpgradeMaskType& activation, UpgradeMaskType& conflicting) const
-	//{
-	//	getSpecialPowerDesignatorUpdateModuleData()->m_upgradeMuxData.getUpgradeActivationMasks(activation, conflicting);
-	//}
-
-	//virtual void performUpgradeFX()
-	//{
-	//	getSpecialPowerDesignatorUpdateModuleData()->m_upgradeMuxData.performUpgradeFX(getObject());
-	//}
-
-	//virtual void processUpgradeRemoval()
-	//{
-	//	// I can't take it any more.  Let the record show that I think the UpgradeMux multiple inheritence is CRAP.
-	//	getSpecialPowerDesignatorUpdateModuleData()->m_upgradeMuxData.muxDataProcessUpgradeRemoval(getObject());
-	//}
-
-	//virtual Bool requiresAllActivationUpgrades() const
-	//{
-	//	return getSpecialPowerDesignatorUpdateModuleData()->m_upgradeMuxData.m_requiresAllTriggers;
-	//}
-
-	//inline Bool isUpgradeActive() const { return isAlreadyUpgraded(); }
-
-	//virtual Bool isSubObjectsUpgrade() { return false; }
-
 private:
-
-	Bool m_targetingActive;  // We are currently looking for targets
 
 	UnsignedInt m_statusClearFrame;
 
