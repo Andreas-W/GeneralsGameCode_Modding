@@ -42,7 +42,7 @@ class RadiusDecalBehaviorModuleData : public UpdateModuleData
 public:
 	UpgradeMuxData				m_upgradeMuxData;
 	Bool						m_initiallyActive;
-
+	Bool						m_worksWhileContained;
 	RadiusDecalTemplate	        m_decalTemplate;
 	Real					    m_decalRadius;
 
@@ -83,6 +83,7 @@ public:
 
 protected:
 
+	void clearDecal(void);
 
 	virtual void upgradeImplementation()
 	{
@@ -115,11 +116,9 @@ protected:
 
 	virtual Bool isSubObjectsUpgrade() { return false; }
 
-private:
 
 	RadiusDecal m_radiusDecal;
 
-	void clearDecal( void );
 };
 
 #endif // __RadiusDecalBehavior_H_

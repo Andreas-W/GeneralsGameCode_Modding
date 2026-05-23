@@ -415,6 +415,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/RadarUpgrade.h
     Include/GameLogic/Module/RadiusDecalUpdate.h
     Include/GameLogic/Module/RadiusDecalBehavior.h
+    Include/GameLogic/Module/SpecialPowerDesignatorUpdate.h
     Include/GameLogic/Module/RailedTransportAIUpdate.h
     Include/GameLogic/Module/RailedTransportContain.h
     Include/GameLogic/Module/RailedTransportDockUpdate.h
@@ -1090,6 +1091,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/RadarUpdate.cpp
     Source/GameLogic/Object/Update/RadiusDecalUpdate.cpp
     Source/GameLogic/Object/Update/RadiusDecalBehavior.cpp
+    Source/GameLogic/Object/Update/SpecialPowerDesignatorUpdate.cpp
     Source/GameLogic/Object/Update/ResetSpecialPowerTimerWhileAliveUpdate.cpp
     Source/GameLogic/Object/Update/ScatterShotUpdate.cpp
     Source/GameLogic/Object/Update/SlavedUpdate.cpp
@@ -1220,7 +1222,6 @@ endif()
 add_library(z_gameengine STATIC)
 
 target_sources(z_gameengine PRIVATE ${GAMEENGINE_SRC})
-
 target_include_directories(z_gameengine PUBLIC
     Include
 )

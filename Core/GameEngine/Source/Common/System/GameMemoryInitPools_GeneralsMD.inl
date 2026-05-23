@@ -198,6 +198,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "BaikonurLaunchPower", 4, 4 },
 	{ "RadiusDecalUpdate", 16, 16 },
 	{ "RadiusDecalBehavior", 32, 32 },
+	{ "SpecialPowerDesignatorUpdate", 32, 32 },
 	{ "BattlePlanUpdate", 32, 32 },
 	{ "LifetimeUpdate", 32, 32 },
 	{ "LocomotorSetUpgrade", 512, 128 },
