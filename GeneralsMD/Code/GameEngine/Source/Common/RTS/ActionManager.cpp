@@ -1582,9 +1582,9 @@ Bool ActionManager::canDoSpecialPowerAtLocation( const Object *obj, const Coord3
 			PartitionFilterAlive filterAlive;
 			PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
 			PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterMapStatus, &filterKindOf, NULL };
-			Real max_scan_range = 2000.0f; //Should be all units on screen + margin
+			Real MAX_SCAN_RANGE = 5000.0f; //TODO: GlobalData?
 			// scan objects in our region
-			ObjectIterator* iter = ThePartitionManager->iterateObjectsInRange(loc, max_scan_range, FROM_CENTER_2D, filters);
+			ObjectIterator* iter = ThePartitionManager->iterateObjectsInRange(loc, MAX_SCAN_RANGE, FROM_CENTER_2D, filters);
 			Object* obj2;
 			MemoryPoolObjectHolder hold(iter);
 			for (obj2 = iter->first(); obj2; obj2 = iter->next()) {

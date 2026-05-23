@@ -1102,7 +1102,7 @@ InGameUI::InGameUI()
 
 	m_tooltipsDisabledUntil = 0;
 
-	m_showDesignatorDecals = FALSE;
+	//m_showDesignatorDecals = FALSE;
 	m_designatorCommand = NULL;
 
 	// init hint lists
@@ -3251,15 +3251,15 @@ void InGameUI::setGUICommand( const CommandButton *command )
 
 	// Target designator checks
 	if (m_designatorCommand && m_designatorCommand != m_pendingGUICommand) {
-		hideDesignatorDecals();
+		//hideDesignatorDecals();
 		m_designatorCommand = NULL;
 	}
 
 	if (command && BitIsSet(command->getOptions(), COMMAND_OPTION_NEED_TARGET)) {
 		const SpecialPowerTemplate* sp = command->getSpecialPowerTemplate();
 		if (sp != nullptr && sp->isNeedsTargetDesignator()) {
-			m_showDesignatorDecals = TRUE;
-			showDesignatorDecals(command->getSpecialPowerTemplate());
+		/*	m_showDesignatorDecals = TRUE;
+			showDesignatorDecals(command->getSpecialPowerTemplate());*/
 			m_designatorCommand = command;
 		}
 	}
@@ -6495,47 +6495,57 @@ void InGameUI::drawPlayerInfoList()
 
 
 // -------------
-void InGameUI::showDesignatorDecals(const SpecialPowerTemplate* powerTemplate) {
-	
-	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+// -------------
+const SpecialPowerTemplate* InGameUI::getTargetDesignatorPower()
+{
+	if (m_designatorCommand != nullptr)
+		return m_designatorCommand->getSpecialPowerTemplate();
 
-	PartitionFilterSamePlayer filterPlayer(ThePlayerList->getLocalPlayer());
-	PartitionFilterAlive filterAlive;
-	PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
-	PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterKindOf, NULL };
-	// scan objects on entire map
-	ObjectIterator* iter = ThePartitionManager->iterateAllObjects(filters);
-	Object* obj;
-	MemoryPoolObjectHolder hold(iter);
-	for (obj = iter->first(); obj; obj = iter->next()) {
-
-		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
-		if (update) {
-			if (update->isValidDesignatorForSpecialPower(powerTemplate)) {
-				update->setActive(true);
-			}
-		}
-	}
+	return nullptr;
 }
-
-void InGameUI::hideDesignatorDecals() { //const SpecialPowerTemplate *powerTemplate) {
-	//ThePlayerList->getLocalPlayer()->iterateObjects( hideDesignatorDecal, &powerTemplate );
-
-	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
-
-	PartitionFilterSamePlayer filterPlayer(ThePlayerList->getLocalPlayer());
-	PartitionFilterAlive filterAlive;
-	PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
-	PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterKindOf, NULL };
-	// scan objects on entire map
-	ObjectIterator* iter = ThePartitionManager->iterateAllObjects(filters);
-	Object* obj;
-	MemoryPoolObjectHolder hold(iter);
-	for (obj = iter->first(); obj; obj = iter->next()) {
-
-		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
-		if (update) {
-			update->setActive(false);
-		}
-	}
-}
+// -------------
+// -------------
+//void InGameUI::showDesignatorDecals(const SpecialPowerTemplate* powerTemplate) {
+//	
+//	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+//
+//	PartitionFilterSamePlayer filterPlayer(ThePlayerList->getLocalPlayer());
+//	PartitionFilterAlive filterAlive;
+//	PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
+//	PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterKindOf, NULL };
+//	// scan objects on entire map
+//	ObjectIterator* iter = ThePartitionManager->iterateAllObjects(filters);
+//	Object* obj;
+//	MemoryPoolObjectHolder hold(iter);
+//	for (obj = iter->first(); obj; obj = iter->next()) {
+//
+//		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+//		if (update) {
+//			if (update->isValidDesignatorForSpecialPower(powerTemplate)) {
+//				update->setActive(true);
+//			}
+//		}
+//	}
+//}
+//
+//void InGameUI::hideDesignatorDecals() { //const SpecialPowerTemplate *powerTemplate) {
+//	//ThePlayerList->getLocalPlayer()->iterateObjects( hideDesignatorDecal, &powerTemplate );
+//
+//	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+//
+//	PartitionFilterSamePlayer filterPlayer(ThePlayerList->getLocalPlayer());
+//	PartitionFilterAlive filterAlive;
+//	PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
+//	PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterKindOf, NULL };
+//	// scan objects on entire map
+//	ObjectIterator* iter = ThePartitionManager->iterateAllObjects(filters);
+//	Object* obj;
+//	MemoryPoolObjectHolder hold(iter);
+//	for (obj = iter->first(); obj; obj = iter->next()) {
+//
+//		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+//		if (update) {
+//			update->setActive(false);
+//		}
+//	}
+//}

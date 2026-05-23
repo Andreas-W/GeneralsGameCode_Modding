@@ -48,7 +48,9 @@
 #include "GameLogic/Module/UpdateModule.h"
 #include "GameLogic/Module/SpecialPowerModule.h"
 #include "GameLogic/Module/SpecialPowerUpdateModule.h"
+#include "GameLogic/Module/SpecialPowerDesignatorUpdate.h"
 #include "GameLogic/ScriptEngine.h"
+#include "GameLogic/PartitionManager.h"
 
 #include "GameClient/Eva.h"
 #include "GameClient/InGameUI.h"
@@ -500,6 +502,8 @@ void SpecialPowerModule::triggerSpecialPower( const Coord3D *location )
 
 	aboutToDoSpecialPower( location );	// do BEFORE recharge
 
+	handleTargetDesignator(location);
+
 	createViewObject(location);
 
 	// we won't be able to use the power for X number of frames now
@@ -552,7 +556,6 @@ void SpecialPowerModule::markSpecialPowerTriggered( const Coord3D *location )
 {
 	triggerSpecialPower( location );
 }
-
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -947,6 +950,58 @@ UnsignedInt SpecialPowerModule::getReadyFrame( void ) const
 		return m_availableOnFrame;
 	}
 }
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+void SpecialPowerModule::handleTargetDesignator(const Coord3D* loc)
+{
+	const SpecialPowerModuleData* data = getSpecialPowerModuleData();
+	if (!data->m_specialPowerTemplate->isNeedsTargetDesignator())
+		return;
+
+	// Get closest Target designator object
+	static NameKeyType key_SpecialPowerDesignatorUpdate = NAMEKEY("SpecialPowerDesignatorUpdate");
+
+	//Iterate over all object and find this module!
+	Object* obj = getObject();
+
+	//PartitionFilterRelationship relationship( obj, PartitionFilterRelationship::ALLOW_ALLIES );
+	PartitionFilterSamePlayer filterPlayer(obj->getControllingPlayer());
+	PartitionFilterSameMapStatus filterMapStatus(obj);
+	PartitionFilterAlive filterAlive;
+	PartitionFilterAcceptByKindOf filterKindOf(MAKE_KINDOF_MASK(KINDOF_TARGET_DESIGNATOR), KINDOFMASK_NONE);
+	PartitionFilter* filters[] = { &filterPlayer, &filterAlive, &filterMapStatus, &filterKindOf, NULL };
+	Real MAX_SCAN_RANGE = 5000.0f; //TODO: GlobalData?
+	// scan objects in our region
+	ObjectIterator* iter = ThePartitionManager->iterateObjectsInRange(loc, MAX_SCAN_RANGE, FROM_CENTER_2D, filters);
+	Object* obj2;
+	//Object* closestObj = nullptr;
+	SpecialPowerDesignatorUpdate* closestObjUpdate = nullptr;
+	MemoryPoolObjectHolder hold(iter);
+	Real minDistSqr = INFINITY;
+	for (obj2 = iter->first(); obj2; obj2 = iter->next()) {
+
+		SpecialPowerDesignatorUpdate* update = (SpecialPowerDesignatorUpdate*)obj2->findUpdateModule(key_SpecialPowerDesignatorUpdate);
+		if (update) {
+			if (update->isValidDesignatorForSpecialPower(data->m_specialPowerTemplate)) {
+
+				Real distSqr = ThePartitionManager->getDistanceSquared(obj2, loc, FROM_CENTER_2D);
+				Real radius = update->getDesignatorRadius();
+				if (distSqr <= (radius * radius) && minDistSqr) {
+					if (distSqr < minDistSqr) {
+						//closestObj = obj2;
+						closestObjUpdate = update;
+						minDistSqr = distSqr;
+					}
+				}
+			}
+		}
+	}
+	if (closestObjUpdate != nullptr)
+		closestObjUpdate->triggerSpecialPower();
+		
+}
+
 
 // ------------------------------------------------------------------------------------------------
 /** CRC */

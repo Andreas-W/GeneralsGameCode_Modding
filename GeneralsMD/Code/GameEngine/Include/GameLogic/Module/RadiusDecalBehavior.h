@@ -116,7 +116,6 @@ protected:
 
 	virtual Bool isSubObjectsUpgrade() { return false; }
 
-private:
 
 	RadiusDecal m_radiusDecal;
 

@@ -36,6 +36,7 @@
 // FORWARD REFERENCES /////////////////////////////////////////////////////////
 class SpecialPowerTemplate;
 class Thing;
+class FXList;
 
 //-------------------------------------------------------------------------------------------------
 class SpecialPowerDesignatorUpdateModuleData : public RadiusDecalBehaviorModuleData
@@ -46,6 +47,7 @@ public:
 	Bool m_alwaysShowDecal;
 	ObjectStatusTypes m_triggerStatusType;
 	UnsignedInt m_triggerStatusTime;
+	const FXList* m_triggerFX;
 
 	SpecialPowerDesignatorUpdateModuleData();
 
@@ -77,7 +79,7 @@ public:
 
 	Bool isValidDesignatorForSpecialPower(const SpecialPowerTemplate* templ);
 
-	void setActive(bool status);
+	//void setActive(bool status);
 
 	void triggerSpecialPower();
 

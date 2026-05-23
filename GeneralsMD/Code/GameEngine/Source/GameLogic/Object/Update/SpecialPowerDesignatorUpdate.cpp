@@ -33,6 +33,8 @@
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/SpecialPowerDesignatorUpdate.h"
 #include "GameLogic/Object.h"
+#include "GameClient/FXList.h"
+#include "GameClient/InGameUI.h"
 
 
 
@@ -46,6 +48,7 @@ SpecialPowerDesignatorUpdateModuleData::SpecialPowerDesignatorUpdateModuleData()
 	m_alwaysShowDecal = false;
 	m_triggerStatusTime = 0;
 	m_triggerStatusType = OBJECT_STATUS_NONE;
+	m_triggerFX = nullptr;
 }
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -61,6 +64,7 @@ SpecialPowerDesignatorUpdateModuleData::SpecialPowerDesignatorUpdateModuleData()
 		{ "TriggerStatusTime",			INI::parseDurationUnsignedInt,	NULL,	offsetof(SpecialPowerDesignatorUpdateModuleData, m_triggerStatusTime) },
 		{ "TriggerStatusType",			ObjectStatusMaskType::parseSingleBitFromINI,	NULL,	offsetof(SpecialPowerDesignatorUpdateModuleData, m_triggerStatusType) },
 		{ "DecalRadius",			INI::parseReal,									NULL,	offsetof( RadiusDecalBehaviorModuleData, m_decalRadius) },
+		{ "TriggerFX", INI::parseFXList, NULL, offsetof(SpecialPowerDesignatorUpdateModuleData, m_triggerFX) },
 		{ 0, 0, 0, 0 }
 	};
 
@@ -106,19 +110,19 @@ SpecialPowerDesignatorUpdate::~SpecialPowerDesignatorUpdate( void )
 //}
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void SpecialPowerDesignatorUpdate::setActive(bool status)
-{
-	DEBUG_LOG((">>> SpecialPowerDesignatorUpdate::setActive = %d", status));
-
-	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
-
-	m_targetingActive = status;
-
-	if (!status && !data->m_alwaysShowDecal)
-		clearDecal();
-
-	setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
-}
+//void SpecialPowerDesignatorUpdate::setActive(bool status)
+//{
+//	DEBUG_LOG((">>> SpecialPowerDesignatorUpdate::setActive = %d", status));
+//
+//	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
+//
+//	m_targetingActive = status;
+//
+//	if (!status && !data->m_alwaysShowDecal)
+//		clearDecal();
+//
+//	setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
+//}
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 void SpecialPowerDesignatorUpdate::triggerSpecialPower()
@@ -130,6 +134,8 @@ void SpecialPowerDesignatorUpdate::triggerSpecialPower()
 		m_statusClearFrame = TheGameLogic->getFrame() + data->m_triggerStatusTime;
 		setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
 	}
+
+	FXList::doFXObj(data->m_triggerFX, getObject());
 }
 //
 ////-------------------------------------------------------------------------------------------------
@@ -152,27 +158,26 @@ UpdateSleepTime SpecialPowerDesignatorUpdate::update( void )
 {
 	const SpecialPowerDesignatorUpdateModuleData* data = getSpecialPowerDesignatorUpdateModuleData();
 
-	UpdateSleepTime result = UPDATE_SLEEP_FOREVER;
+	//UpdateSleepTime result = UPDATE_SLEEP_FOREVER;
 	// First handle status
 	if (m_statusClearFrame > 0 && data->m_triggerStatusType != OBJECT_STATUS_NONE) {
 		if (TheGameLogic->getFrame() == m_statusClearFrame) {
 			getObject()->clearStatus(MAKE_OBJECT_STATUS_MASK(data->m_triggerStatusType));
 		}
-		else {
-			result = UPDATE_SLEEP_NONE;
-		}
   }
 
-	//if (m_statusClearFrame > 0 && data->m_triggerStatusType != OBJECT_STATUS_NONE && TheGameLogic->getFrame() == m_statusClearFrame) {
-	//	getObject()->clearStatus(MAKE_OBJECT_STATUS_MASK(data->m_triggerStatusType));
-	//}
+	if (data->m_alwaysShowDecal)
+		return RadiusDecalBehavior::update();
 
-  // Then decal
-	if (!m_targetingActive && !data->m_alwaysShowDecal) {
-		return MIN(result, UPDATE_SLEEP_FOREVER);
+	const SpecialPowerTemplate *tmpl = TheInGameUI->getTargetDesignatorPower();
+	if (tmpl != nullptr && tmpl == data->m_specialPowerTemplate) {
+		RadiusDecalBehavior::update();
+	}
+	else if (!m_radiusDecal.isEmpty()) {
+			clearDecal();
 	}
 
-	return MIN(RadiusDecalBehavior::update(), UPDATE_SLEEP_FOREVER);
+	return UPDATE_SLEEP_NONE;
 }
 
 // ------------------------------------------------------------------------------------------------

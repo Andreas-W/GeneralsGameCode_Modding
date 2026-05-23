@@ -618,6 +618,8 @@ public:
 	virtual void DEBUG_addFloatingText(const AsciiString& text,const Coord3D * pos, Color color);
 #endif
 
+	const SpecialPowerTemplate* getTargetDesignatorPower();
+
 protected:
 	// snapshot methods
 	virtual void crc( Xfer *xfer );
@@ -687,8 +689,8 @@ protected:
 	void handleBuildPlacements( void );													///< handle updating of placement icons based on mouse pos
 	void handleRadiusCursor();																	///< handle updating of "radius cursors" that follow the mouse pos
 
-	void showDesignatorDecals(const SpecialPowerTemplate* powerTemplate);
-	void hideDesignatorDecals(void);
+	//void showDesignatorDecals(const SpecialPowerTemplate* powerTemplate);
+	//void hideDesignatorDecals(void);
 
 	void incrementSelectCount( void ) { ++m_selectCount; }			///< Increase by one the running total of "selected" drawables
 	void decrementSelectCount( void ) { --m_selectCount; }			///< Decrease by one the running total of "selected" drawables
@@ -973,7 +975,7 @@ protected:
 	DrawableID									m_soloNexusSelectedDrawableID;  ///< The drawable of the nexus, if only one angry mob is selected, otherwise, null
 
 	// UI Decals
-	Bool							m_showDesignatorDecals;
+	//Bool							m_showDesignatorDecals;
 	const CommandButton* m_designatorCommand;
 
 
