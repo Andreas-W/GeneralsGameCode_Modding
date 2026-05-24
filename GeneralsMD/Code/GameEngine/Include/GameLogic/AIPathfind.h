@@ -175,6 +175,15 @@ public:
 	/// Given a location, return closest location on path, and along-path dist to end as function result
 	void markOptimized(void) {m_isOptimized = true;}
 
+	inline Bool needCheckBridges( void ) const { return m_moveUnderBridges != 0U; };
+
+	static inline UnsignedShort layerIndexToBitFlag(UnsignedShort layer_index) {
+		return static_cast<UnsignedShort>(1u << layer_index);
+	};
+
+	inline void setPathBelowBridge(PathfindLayerEnum layer) { BitSet(m_moveUnderBridges, layerIndexToBitFlag(static_cast<UnsignedShort>(layer))); };
+	inline Bool isPathBelowBridge(UnsignedShort layer_index) { return BitIsSet(m_moveUnderBridges, layerIndexToBitFlag(layer_index)); };
+
 protected:
 	// snapshot interface
 	virtual void crc( Xfer *xfer );
@@ -195,6 +204,9 @@ protected:
 	Coord3D									m_cpopIn;
 	ClosestPointOnPathInfo	m_cpopOut;
 	const PathNode*					m_cpopRecentStart;
+
+	// Stores opened/destroyed bridges that this path moves below.
+	UnsignedShort m_moveUnderBridges; // 16bit -> use as bitset for PATHFIND LAYER ENUMS (2-14 for bridges)
 };
 
 //----------------------------------------------------------------------------------------------------------
@@ -372,6 +384,11 @@ public:
 	Short getWaterLevel(void) const { return m_waterLevel; }
 	void setWaterLevel(Short level) { m_waterLevel = level; }
 
+	UnsignedByte getBridgeHeight(void) const { return m_bridgeHeight; }
+	void setBridgeHeight(UnsignedByte height) { m_bridgeHeight = height; }
+	PathfindLayerEnum getBridgeLayer(void) const { return (PathfindLayerEnum)m_bridgeLayer; }
+	void setBridgeLayer(PathfindLayerEnum layer) { m_bridgeLayer = (UnsignedByte)layer; }
+
 	Bool allocateInfo(const ICoord2D &pos);
 	void releaseInfo(void);
 	Bool hasInfo(void) const {return m_info!=nullptr;}
@@ -392,6 +409,9 @@ public:
 	void setConnectLayer( PathfindLayerEnum layer ) { m_connectsToLayer = layer; }	///< set the cell layer	connect id
 	PathfindLayerEnum getConnectLayer( void ) const { return (PathfindLayerEnum)m_connectsToLayer; }				///< get the cell layer connect id
 
+	/// Get the layer if this cell under a bridge that is currently destroyed or opened or LAYER_INVALID if not
+	PathfindLayerEnum getUnderDestroyedBridgeLayer( void ) const;
+
 private:
 	PathfindCellInfo *m_info;
 	ObjectID m_obstacleID;	                  ///< the object ID who overlaps this cell
@@ -409,6 +429,9 @@ private:
 	UnsignedByte m_layer : 4;                 ///< Layer of this cell.
 	//This is added for ship pathing
 	Short m_waterLevel:8; ///< how far away is this cell from land (distance transform), capped at 15
+	//This is added for bridge pathing, determine if unit can go under bridge or not
+	UnsignedByte m_bridgeHeight : 4;  // stored as number 0-15, rounded from 0.0-150.0 float. Space below bridge (to ground or water)
+	UnsignedByte m_bridgeLayer : 4; // Layer number of bridge above this cell
 };
 
 typedef PathfindCell *PathfindCellP;
@@ -660,7 +683,7 @@ public:
 	void xfer( Xfer *xfer );
 	void loadPostProcess( void );
 
-	Bool clientSafeQuickDoesPathExist( const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to );  ///< Can we build any path at all between the locations	(terrain & buildings check - fast)
+	Bool clientSafeQuickDoesPathExist( const LocomotorSet& locomotorSet, Short requiredBridgeHeight, const Coord3D *from, const Coord3D *to );  ///< Can we build any path at all between the locations	(terrain & buildings check - fast)
 	Bool clientSafeQuickDoesPathExistForUI( const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to );  ///< Can we build any path at all between the locations	(terrain onlyk - fast)
 	Bool slowDoesPathExist( Object *obj, const Coord3D *from,
 		const Coord3D *to, ObjectID ignoreObject=INVALID_ID );  ///< Can we build any path at all between the locations	(terrain, buildings & units check - slower)
@@ -709,9 +732,9 @@ public:
 
 	void setIgnoreObstacleID( ObjectID objID );					///< if non-zero, the pathfinder will ignore the given obstacle
 
-	Bool validMovementPosition( Bool isCrusher, LocomotorSurfaceTypeMask acceptableSurfaces, Int requiredWaterLevel, PathfindCell *toCell, PathfindCell *fromCell = NULL );		///< Return true if given position is a valid movement location
-	Bool validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Int x, Int y );					///< Return true if given position is a valid movement location
-	Bool validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, const Coord3D *pos );		///< Return true if given position is a valid movement location
+	Bool validMovementPosition( Bool isCrusher, LocomotorSurfaceTypeMask acceptableSurfaces, Int requiredWaterLevel, Short requiredBridgeHeight, PathfindCell *toCell, PathfindCell *fromCell = NULL );		///< Return true if given position is a valid movement location
+	Bool validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Short requiredBridgeHeight, Int x, Int y );					///< Return true if given position is a valid movement location
+	Bool validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Short requiredBridgeHeight, const Coord3D *pos );		///< Return true if given position is a valid movement location
 	Bool validMovementTerrain( PathfindLayerEnum layer, const Locomotor* locomotor, const Coord3D *pos );		///< Return true if given position is a valid movement location
 
 	Locomotor* chooseBestLocomotorForPosition(PathfindLayerEnum layer,  LocomotorSet* locomotorSet, const Coord3D* pos );
@@ -924,18 +947,18 @@ inline void Pathfinder::worldToGrid( const Coord3D *pos, ICoord2D *cellIndex )
 	cellIndex->y = REAL_TO_INT(pos->y/PATHFIND_CELL_SIZE);
 }
 
-inline Bool Pathfinder::validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Int x, Int y )
+inline Bool Pathfinder::validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Short requiredBridgeHeight, Int x, Int y )
 {
-	return validMovementPosition( isCrusher, locomotorSet.getValidSurfaces(), locomotorSet.getRequiredWaterLevel(), getCell(layer, x, y));
+	return validMovementPosition( isCrusher, locomotorSet.getValidSurfaces(), locomotorSet.getRequiredWaterLevel(), requiredBridgeHeight, getCell(layer, x, y));
 }
 
-inline Bool Pathfinder::validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, const Coord3D *pos )
+inline Bool Pathfinder::validMovementPosition( Bool isCrusher, PathfindLayerEnum layer, const LocomotorSet& locomotorSet, Short requiredBridgeHeight, const Coord3D *pos )
 {
 
 	Int x = REAL_TO_INT(pos->x/PATHFIND_CELL_SIZE);
 	Int y = REAL_TO_INT(pos->y/PATHFIND_CELL_SIZE);
 
-	return validMovementPosition( isCrusher, layer, locomotorSet, x, y );
+	return validMovementPosition( isCrusher, layer, locomotorSet, requiredBridgeHeight, x, y );
 }
 
 inline const Coord3D *Pathfinder::getDebugPathPosition( void )

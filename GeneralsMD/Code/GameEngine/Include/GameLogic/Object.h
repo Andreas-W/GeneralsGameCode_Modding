@@ -666,6 +666,8 @@ public:
 	// Get position where to enter this object
 	Coord3D getEnterPosition(ObjectID enteringObject) const;
 
+	// When moving below a bridge, how high does it need to be, simplified to 0-15, where 1 is 10.0 height
+	Short getRequiredBridgeHeight() const;
 protected:
 
 	void setOrRestoreTeam( Team* team, Bool restoring );
