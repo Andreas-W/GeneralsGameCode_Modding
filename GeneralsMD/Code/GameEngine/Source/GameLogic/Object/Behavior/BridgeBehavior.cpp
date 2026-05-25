@@ -63,6 +63,9 @@ BridgeBehaviorModuleData::BridgeBehaviorModuleData( void )
 	m_lateralScaffoldSpeed = 1.0f;
 	m_verticalScaffoldSpeed = 1.0f;
 
+	m_restoreable = false;
+	m_repairPushDuration = 0U;
+	m_repairPushForce = 0.0f;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -91,6 +94,8 @@ BridgeBehaviorModuleData::~BridgeBehaviorModuleData( void )
 		{ "BridgeDieFX",		parseFX,		nullptr,			offsetof( BridgeBehaviorModuleData, m_fx ) },
 		{ "BridgeDieOCL",		parseOCL,		nullptr,			offsetof( BridgeBehaviorModuleData, m_ocl ) },
 		{ "Restoreable", INI::parseBool, nullptr, offsetof(BridgeBehaviorModuleData, m_restoreable) },
+		{ "RepairPushDuration", INI::parseDurationUnsignedInt, nullptr, offsetof(BridgeBehaviorModuleData, m_repairPushDuration)},
+		{ "RepairPushForce", INI::parseAccelerationReal, nullptr, offsetof(BridgeBehaviorModuleData, m_repairPushForce)},
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 
@@ -260,7 +265,7 @@ BridgeBehavior::BridgeBehavior( Thing *thing, const ModuleData *moduleData )
 	}
 
 	m_deathFrame = 0;
-
+	m_repairedFrame = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -703,6 +708,100 @@ void BridgeBehavior::onBodyDamageStateChange( const DamageInfo* damageInfo,
 
 }
 
+// This method pushes all units sideways away from the bridge area, direction depends if left or right of center.
+// It is called every frame for a defined duration after the bridge is repaired and displaying an animation.
+// Units already ON top of the bridge are not pushed. This shall move units that are now inside the bridge when repairing
+void BridgeBehavior::pushObjectsOnBridgeSideways() {
+	// lateral acceleration to apply; if no push force is configured, do nothing.
+	// The force is scaled by each object's mass below so this is the acceleration every unit feels.
+	Real pushAccel = getBridgeBehaviorModuleData()->m_repairPushForce;
+	if( pushAccel <= 0.0f )
+		return;
+
+	Object* bridge = getObject();
+	const Coord3D* bridgePos = bridge->getPosition();
+
+	Bridge* terrainBridge = TheTerrainLogic->findBridgeAt(bridgePos);
+	if (terrainBridge)
+	{
+		BridgeInfo bridgeInfo;
+		terrainBridge->getBridgeInfo( &bridgeInfo );
+
+		// polygon describing the bridge surface, used to test which objects are on it
+		Coord3D bridgePolygon[ 4 ];
+		bridgePolygon[ 0 ] = bridgeInfo.fromLeft;
+		bridgePolygon[ 1 ] = bridgeInfo.fromRight;
+		bridgePolygon[ 2 ] = bridgeInfo.toRight;
+		bridgePolygon[ 3 ] = bridgeInfo.toLeft;
+
+		// scan radius reaches from the bridge center out to a corner, covering the whole surface
+		Coord2D v;
+		v.x = bridgeInfo.toLeft.x - bridgePos->x;
+		v.y = bridgeInfo.toLeft.y - bridgePos->y;
+		Real radius = v.length();
+
+		// sideways axis = direction across the bridge width (fromLeft -> fromRight)
+		Coord2D sideVector;
+		sideVector.x = bridgeInfo.fromRight.x - bridgeInfo.fromLeft.x;
+		sideVector.y = bridgeInfo.fromRight.y - bridgeInfo.fromLeft.y;
+		Real width = sideVector.length();
+		if( width == 0.0f )
+			return;		// degenerate bridge, no sensible sideways direction
+		sideVector.x /= width;
+		sideVector.y /= width;
+
+		// scan all objects within the bridge radius
+		ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( bridgePos, radius, FROM_CENTER_2D );
+		MemoryPoolObjectHolder hold( iter );
+		Object *other;
+		for( other = iter->first(); other; other = iter->next() )
+		{
+			// never push the bridge itself or its towers
+			if( other->isKindOf( KINDOF_BRIDGE ) || other->isKindOf( KINDOF_BRIDGE_TOWER ) )
+				continue;
+
+			// don't shove fixed structures or already-dead objects
+			if( other->isKindOf( KINDOF_IMMOBILE ) || other->isEffectivelyDead() )
+				continue;
+
+			// leave airborne units alone, only things resting on the bridge get pushed
+			if( other->isAirborneTarget() )
+				continue;
+
+			// Only push units below the bridge. Units already trying to traverse the repaired bridge are not pushed
+			if (other->getLayer() == terrainBridge->getLayer())
+				continue;
+
+			// only push objects actually standing in the bridge area
+			if( PointInsideArea2D( other->getPosition(), bridgePolygon, 4 ) == FALSE )
+				continue;
+
+			// only things with physics can be shoved
+			PhysicsBehavior *physics = other->getPhysics();
+			if( physics == nullptr )
+				continue;
+
+			// project the object's offset from the center onto the sideways axis; the sign tells us
+			// which side of the center line it is on, so we push it further toward that same side
+			Coord2D toObj;
+			toObj.x = other->getPosition()->x - bridgePos->x;
+			toObj.y = other->getPosition()->y - bridgePos->y;
+			Real side = toObj.x * sideVector.x + toObj.y * sideVector.y;
+			Real pushDir = ( side >= 0.0f ) ? 1.0f : -1.0f;
+
+			// F = m*a, so scaling by mass makes the resulting acceleration uniform across all units
+			Real strength = physics->getMass() * pushAccel;
+			Coord3D force;
+			force.x = sideVector.x * pushDir * strength;
+			force.y = sideVector.y * pushDir * strength;
+			force.z = 0.0f;
+			// applyMotiveForce, not applyForce: a moving (motive) unit would otherwise have this force
+			// reprojected onto its own facing axis, sending it along the bridge instead of across it.
+			physics->applyMotiveForce( &force );
+		}
+	}
+}
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 UpdateSleepTime BridgeBehavior::update( void )
@@ -837,6 +936,22 @@ UpdateSleepTime BridgeBehavior::update( void )
 
 		}
 
+	}
+
+	if (m_repairedFrame > 0) {
+
+		// get module data
+		const BridgeBehaviorModuleData* modData = getBridgeBehaviorModuleData();
+		if (TheGameLogic->getFrame() < m_repairedFrame + modData->m_repairPushDuration) {
+
+			// push objects away, bridge just got repaired
+			pushObjectsOnBridgeSideways();
+
+		}
+		else {
+			// stop the push
+			m_repairedFrame = 0;
+		}
 	}
 
 	return UPDATE_SLEEP_NONE;
@@ -1395,6 +1510,11 @@ Bool BridgeBehavior::isScaffoldInMotion( void )
 
 }
 
+void BridgeBehavior::onRepaired(void)
+{
+	m_repairedFrame = TheGameLogic->getFrame();
+}
+
 // ------------------------------------------------------------------------------------------------
 /** CRC */
 // ------------------------------------------------------------------------------------------------
@@ -1499,6 +1619,7 @@ void BridgeBehavior::xfer( Xfer *xfer )
 	// death frame
 	xfer->xferUnsignedInt( &m_deathFrame );
 
+	xfer->xferUnsignedInt( &m_repairedFrame );
 }
 
 // ------------------------------------------------------------------------------------------------
