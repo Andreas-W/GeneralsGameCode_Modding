@@ -2391,11 +2391,12 @@ void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real pre
 					isCommonMaintainFrameFlagSet(m_curState->m_flags, prevState->m_flags) &&
 					prevAnimFraction >= 0.0)
 			{
-				startFrame = REAL_TO_INT(prevAnimFraction * animHandle->Get_Num_Frames()-1);
+				startFrame = REAL_TO_INT(prevAnimFraction * (animHandle->Get_Num_Frames()-1));
 			}
 
 			// ANIMATION BLENDING
 			if (prevState &&
+				m_whichAnimInPrevState >= 0 &&
 				m_curState->m_animBlendTime > 0) {
 
 				const W3DAnimationInfo& animInfoPrev = prevState->m_animations[m_whichAnimInPrevState];
@@ -2409,7 +2410,7 @@ void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real pre
 
 						Real factor = GameClientRandomValueReal(m_curState->m_animMinSpeedFactor, m_curState->m_animMaxSpeedFactor);
 
-						Int startFramePrev = REAL_TO_INT(prevAnimFraction * m_prevAnimHelper.numFrames - 1);
+						Int startFramePrev = REAL_TO_INT(m_prevAnimHelper.frameNum);
 
 						// maxBlendTime = currentAnim duration in milliseconds
 						Int animBlendTime = m_curState->m_animBlendTime;
