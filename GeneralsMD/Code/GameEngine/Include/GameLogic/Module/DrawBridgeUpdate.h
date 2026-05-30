@@ -23,6 +23,8 @@ public:
 	//SpecialPowerTemplate *m_specialPowerTemplate;
 	UnsignedInt m_openingDuration;
 	UnsignedInt m_closingDuration;
+	Real m_openingPushForce;
+	UnsignedInt m_closingDamageTime;
 
 	DrawBridgeUpdateModuleData();
 	static void buildFieldParse(MultiIniFieldParse& p);
@@ -54,8 +56,13 @@ public:
 	bool setDrawBridgeState(bool opened, const Object* fromTower);
 
 protected:
+	void pushObjectsOnOpeningDrawbridge( void );
+	void destroyObjectsUnderClosingDrawbridge (void );
 
 	bool m_bridgeOpened;
 
 	UnsignedInt m_nextReadyFrame;
+
+	UnsignedInt m_openingFrame;            ///< frame bridge started to open
+	UnsignedInt m_closingDamageFrame;      ///< frame damage will be applied when closing
 };

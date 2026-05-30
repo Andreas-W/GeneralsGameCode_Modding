@@ -4563,7 +4563,7 @@ static void calculateBridgeHeights(IRegion2D bounds, PathfindCell** map)
 {
 	if (!TheTerrainLogic) return;
 
-	DEBUG_LOG(("BRIDGE_HEIGHT: Checking all bridges..."));
+	//DEBUG_LOG(("BRIDGE_HEIGHT: Checking all bridges..."));
 	for (Bridge* bridge = TheTerrainLogic->getFirstBridge(); bridge; bridge = bridge->getNext()) {
 		const Region2D* bridgeBounds = bridge->getBounds();
 		PathfindLayerEnum layer = bridge->getLayer();
@@ -4606,8 +4606,8 @@ static void calculateBridgeHeights(IRegion2D bounds, PathfindCell** map)
 				Int encoded = (Int)(gap / 10.0f);
 				if (encoded > 15) encoded = 15;
 
-				DEBUG_LOG(("BRIDGE_HEIGHT: (%d, %d) -> %d", i, j, encoded));
-				DEBUG_LOG(("BRIDGE_HEIGHT: (%d, %d) -> Layer %d", i, j, static_cast<int>(layer)));
+				//DEBUG_LOG(("BRIDGE_HEIGHT: (%d, %d) -> %d", i, j, encoded));
+				//DEBUG_LOG(("BRIDGE_HEIGHT: (%d, %d) -> Layer %d", i, j, static_cast<int>(layer)));
 				map[i][j].setBridgeHeight((UnsignedByte)encoded);
 				map[i][j].setBridgeLayer(layer);
 			}
