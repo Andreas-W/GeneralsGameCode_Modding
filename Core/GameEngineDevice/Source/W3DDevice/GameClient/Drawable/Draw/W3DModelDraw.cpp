@@ -642,10 +642,26 @@ void ModelConditionInfo::validateCachedBones(RenderObjClass* robj, Real scale) c
 	int						mode = 0;
 	float					mult = 1.0f;
 
+	HAnimClass* curAnim1 = NULL;
+	int						numFrames1 = 0;
+	float					frame1 = 0.0f;
+	int						mode1 = 0;
+	float					mult1 = 1.0f;
+	float					percentage = 1.0f;
+	int						fadeOutTime = 0;
+	int						startFadeTime = 0;
+
+
 	if (robj->Class_ID() == RenderObjClass::CLASSID_HLOD)
 	{
 		hlod = (HLodClass*)robj;
-		curAnim = hlod->Peek_Animation_And_Info(frame, numFrames, mode, mult);
+		if (hlod->Is_Double_Anim()) {
+			curAnim = hlod->Peek_Animation_And_Info(frame, numFrames, mode, mult, &curAnim1, frame1, numFrames1, mode1, mult1, percentage, fadeOutTime, startFadeTime);
+		}
+		else
+		{
+			curAnim = hlod->Peek_Animation_And_Info(frame, numFrames, mode, mult);
+		}
 	}
 
 	// if we have any animations in this state, always choose the first, since the animations
@@ -704,8 +720,14 @@ void ModelConditionInfo::validateCachedBones(RenderObjClass* robj, Real scale) c
 	}
 
 	robj->Set_Transform(originalTransform);			// restore previous transform
-	if (curAnim != nullptr)
+	if (curAnim1 != nullptr) {
+		// DOUBLE_ANIM
+		robj->Set_Animation(curAnim, frame, curAnim1, frame1, percentage, mode, mode1, fadeOutTime, startFadeTime);
+		hlod->Set_Animation_Frame_Rate_Multiplier(mult, mult1);
+	}
+	else if (curAnim != nullptr)
 	{
+		// SINGlE_ANIM
 		robj->Set_Animation(curAnim, frame, mode);
 		hlod->Set_Animation_Frame_Rate_Multiplier(mult);
 	}
@@ -1021,6 +1043,7 @@ void ModelConditionInfo::clear()
 	m_animMaxSpeedFactor = 1.0f;
 	m_pristineBones.clear();
 	m_validStuff = 0;
+	m_animBlendTime = 0;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1052,6 +1075,7 @@ W3DModelDrawModuleData::W3DModelDrawModuleData() :
 	m_ignoreAnimScaling = FALSE;
 	m_ignoreRotation = FALSE;
 	m_showForOwnerOnly = FALSE;
+	m_keepRecoilAcrossStates = FALSE;
 
 	// m_ignoreConditionStates defaults to all zero, which is what we want
 }
@@ -1231,6 +1255,7 @@ void W3DModelDrawModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "IgnoreAnimationSpeedScaling", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_ignoreAnimScaling) },
 		{ "IgnoreRotation", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_ignoreRotation) },
 		{ "OnlyVisibleToOwningPlayer", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_showForOwnerOnly) },
+		{ "KeepRecoilAcrossStates", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_keepRecoilAcrossStates) },
 		//{ "DisableMovementEffectsOverWater", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_disableMoveEffectsOverWater) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -1375,6 +1400,28 @@ static void parseParticleSysBone(INI* ini, void *instance, void * store, const v
 }
 
 //-------------------------------------------------------------------------------------------------
+static void parseFXEvent(INI* ini, void* instance, void* store, const void* /*userData*/)
+{
+	//const char* token;
+	FXEventInfo info;
+
+	// Frame
+	//token = ini->getNextToken();
+	//info.frame = ini->scanUnsignedInt(token);
+	ini->parseUnsignedInt(ini, instance, &(info.frame), nullptr);
+
+	// BoneName
+	info.boneName = ini->getNextAsciiString();
+	info.boneName.toLower();
+
+	// FXName
+	ini->parseFXList(ini, instance, &(info.fx), nullptr);
+
+	ModelConditionInfo* self = (ModelConditionInfo*)instance;
+	self->m_fxEvents.push_back(info);
+}
+
+//-------------------------------------------------------------------------------------------------
 static void parseRealRange( INI *ini, void *instance, void *store, const void* /*userData*/ )
 {
 	ModelConditionInfo *self = (ModelConditionInfo *)instance;
@@ -1488,7 +1535,9 @@ void W3DModelDrawModuleData::parseConditionState(INI* ini, void *instance, void 
 		{ "WaitForStateToFinishIfPossible", parseLowercaseNameKey, nullptr, offsetof(ModelConditionInfo, m_allowToFinishKey) },
 		{ "Flags", INI::parseBitString32, ACBitsNames, offsetof(ModelConditionInfo, m_flags) },
 		{ "ParticleSysBone", parseParticleSysBone, nullptr, 0 },
+		{ "FXEvent", parseFXEvent, nullptr, 0 },
 		{ "AnimationSpeedFactorRange", parseRealRange, nullptr, 0 },
+		{ "AnimationBlendTime", INI::parseUnsignedInt, nullptr, offsetof(ModelConditionInfo, m_animBlendTime) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 
@@ -1790,6 +1839,11 @@ W3DModelDraw::W3DModelDraw(Thing *thing, const ModuleData* moduleData) : DrawMod
 	}
 	m_needRecalcBoneParticleSystems = false;
 	m_fullyObscuredByShroud = false;
+
+	m_prevAnimHelper.frameNum = 0;
+	m_prevAnimHelper.mode = 0;
+	m_prevAnimHelper.numFrames = -1;
+	m_prevAnimHelper.fraction = -1;
 
 	// only validate the current time-of-day and weather conditions by default.
 	getW3DModelDrawModuleData()->validateStuffForTimeAndWeather(getDrawable(),
@@ -2134,6 +2188,12 @@ void W3DModelDraw::doDrawModule(const Matrix3D* transformMtx)
 	{
 		if (m_curState != nullptr && m_nextState != nullptr)
 		{
+
+			if (stricmp(m_curState->m_modelName.str(), "avjug_deploy") == 0) {
+				int i = 0;
+				i += 1;
+			}
+
 			//DEBUG_LOG(("transition %s is complete",m_curState->m_description.str()));
 			const ModelConditionInfo* nextState = m_nextState;
 			UnsignedInt nextDuration = m_nextStateAnimLoopDuration;
@@ -2186,6 +2246,10 @@ void W3DModelDraw::doDrawModule(const Matrix3D* transformMtx)
 
   handleClientRecoil();
 
+	handleFXEvents();
+
+	m_prevAnimHelper = getCurrentAnimHelper();
+
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2227,10 +2291,53 @@ Real W3DModelDraw::getCurrentAnimFraction() const
 }
 
 //-------------------------------------------------------------------------------------------------
+W3DModelDraw::AnimInfoHelper W3DModelDraw::getCurrentAnimHelper() const
+{
+
+	AnimInfoHelper helper;
+	helper.frameNum = 0;
+	helper.mode = 0;
+	helper.numFrames = -1.0;
+	helper.fraction = -1.0;
+
+	if (m_curState != nullptr
+		// && isAnyMaintainFrameFlagSet(m_curState->m_flags)
+		&& m_renderObject != nullptr
+		&& m_renderObject->Class_ID() == RenderObjClass::CLASSID_HLOD)
+	{
+		float framenum, dummy;
+		int mode, numFrames;
+
+		HLodClass* hlod = (HLodClass*)m_renderObject;
+		/*HAnimClass* anim =*/ hlod->Peek_Animation_And_Info(framenum, numFrames, mode, dummy);
+		if (framenum < 0.0)
+			helper.fraction = 0.0;
+		else if (framenum >= numFrames)
+			helper.fraction = 1.0;
+		else
+			helper.fraction = (Real)framenum / ((Real)numFrames - 1);
+		helper.frameNum = framenum;
+		helper.mode = mode;
+		helper.numFrames = numFrames;
+	}
+#if defined(_DEBUG2)
+	else {
+		DEBUG_LOG((">*>*> W3DMD getCurrentAnimHelper - m_curState = '%s'\n",
+			m_curState == NULL ? "NULL" : "NOT NULL"));
+	}
+#endif
+
+
+	return helper;
+}
+
+//-------------------------------------------------------------------------------------------------
 void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real prevAnimFraction)
 {
 	if (!m_curState)
 		return;
+
+	Int m_whichAnimInPrevState = m_whichAnimInCurState;
 
 	// if the current state has m_animations associated, do the right thing
 	Int numAnims = m_curState->m_animations.size();
@@ -2287,15 +2394,61 @@ void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real pre
 				startFrame = REAL_TO_INT(prevAnimFraction * animHandle->Get_Num_Frames()-1);
 			}
 
-			m_renderObject->Set_Animation(animHandle, startFrame, m_curState->m_mode);
-			REF_PTR_RELEASE(animHandle);
-			animHandle = nullptr;
+			// ANIMATION BLENDING
+			if (prevState &&
+				m_curState->m_animBlendTime > 0) {
 
-			if (m_renderObject->Class_ID() == RenderObjClass::CLASSID_HLOD)
-			{
-				HLodClass *hlod = (HLodClass*)m_renderObject;
-				Real factor = GameClientRandomValueReal( m_curState->m_animMinSpeedFactor, m_curState->m_animMaxSpeedFactor );
-				hlod->Set_Animation_Frame_Rate_Multiplier( factor );
+				const W3DAnimationInfo& animInfoPrev = prevState->m_animations[m_whichAnimInPrevState];
+				HAnimClass* animHandlePrev = animInfoPrev.getAnimHandle();
+
+				if (animHandlePrev != nullptr && m_renderObject->Class_ID() == RenderObjClass::CLASSID_HLOD) {
+
+						//DEBUG_LOG((">>>>BLEND ANIMS!!"));
+
+						HLodClass* hlod = (HLodClass*)m_renderObject;
+
+						Real factor = GameClientRandomValueReal(m_curState->m_animMinSpeedFactor, m_curState->m_animMaxSpeedFactor);
+
+						Int startFramePrev = REAL_TO_INT(prevAnimFraction * m_prevAnimHelper.numFrames - 1);
+
+						// maxBlendTime = currentAnim duration in milliseconds
+						Int animBlendTime = m_curState->m_animBlendTime;
+						Int curAnimDurMS = REAL_TO_INT((animHandle->Get_Num_Frames() * 1000.0f / animHandle->Get_Frame_Rate()) * factor);
+						if (animBlendTime > curAnimDurMS) {
+							animBlendTime = curAnimDurMS;
+						}
+						hlod->Set_Animation(
+							animHandle,
+							startFrame,
+							animHandlePrev,
+							startFramePrev,
+							1.0f, //We start with prev anim and fade into the new anim
+							m_curState->m_mode,
+							m_prevAnimHelper.mode,
+							animBlendTime
+						);
+						// Let's ignore speed factor for prev anim for now
+						// We need to find out when the prev anim is supposed to fade out:
+
+						hlod->Set_Animation_Frame_Rate_Multiplier(factor); //This might need to be different
+				}
+
+				REF_PTR_RELEASE(animHandle);
+				REF_PTR_RELEASE(animHandlePrev);
+				animHandle = NULL;
+				animHandlePrev = NULL;
+			}
+			else {
+				m_renderObject->Set_Animation(animHandle, startFrame, m_curState->m_mode);
+				REF_PTR_RELEASE(animHandle);
+				animHandle = NULL;
+
+				if (m_renderObject->Class_ID() == RenderObjClass::CLASSID_HLOD)
+				{
+					HLodClass* hlod = (HLodClass*)m_renderObject;
+					Real factor = GameClientRandomValueReal(m_curState->m_animMinSpeedFactor, m_curState->m_animMaxSpeedFactor);
+					hlod->Set_Animation_Frame_Rate_Multiplier(factor);
+				}
 			}
 		}
 
@@ -2577,6 +2730,11 @@ void W3DModelDraw::handleClientRecoil()
 	// do recoil, if any
 	for (int wslot = 0; wslot < WEAPONSLOT_COUNT; ++wslot)
 	{
+		if (wslot == 0 && stricmp(m_curState->m_modelName.str(), "avjug_deploy") == 0) {
+			int i = 0;
+			i += 1;
+		}
+
 		if (!m_curState->m_hasRecoilBonesOrMuzzleFlashes[wslot])
 			continue;
 
@@ -2790,6 +2948,73 @@ Bool W3DModelDraw::updateBonesForClientParticleSystems()
 }
 
 
+//-------------------------------------------------------------------------------------------------
+/*
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+
+	This function must not EVER do ANYTHING which can in any way, shape, or form
+	affect GameLogic in any way; if it does, net desyncs will occur and we
+	will all lose our jobs. This must remain pure-client-only, and ensure
+	that nothing it does can be detected, even in read-only form, by GameLogic!
+
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+	DANGER WARNING READ ME
+*/
+void W3DModelDraw::handleFXEvents()
+{
+
+	const Drawable* drawable = getDrawable();
+	if (drawable != nullptr)
+	{
+
+		if (m_curState != nullptr && ! m_curState->m_fxEvents.empty())
+		{
+			AnimInfoHelper curAnimHelper = getCurrentAnimHelper();
+
+			for (std::vector<FXEventInfo>::const_iterator it = m_curState->m_fxEvents.begin(); it != m_curState->m_fxEvents.end(); ++it)
+			{
+				// Check frame timing
+				// TODO: Make this work for backwards animations as well!
+				if (it->frame <= curAnimHelper.frameNum && it->frame > m_prevAnimHelper.frameNum) {
+					// Get bone position
+					Coord3D pos;
+					pos.zero();
+					Int boneIndex = m_renderObject ? m_renderObject->Get_Bone_Index(it->boneName.str()) : 0;
+					if (boneIndex != 0)
+					{
+		
+						if (!m_renderObject->Is_Hidden())
+						{
+							// I can ask the drawable's bone position if I am not hidden (if I have no object I have no choice)
+							Matrix3D mtx = m_renderObject->Get_Bone_Transform(boneIndex);
+							Coord3D pos;
+							pos.x = mtx.Get_X_Translation();
+							pos.y = mtx.Get_Y_Translation();
+							pos.z = mtx.Get_Z_Translation();
+
+							/*DEBUG_LOG((">>> FXEVENT: CurrentFrame = %d, PrevFrame = %d, Frame=%d, Bone=%s, FXList=%s, X/Y/Z = %f/%f/f",
+								curAnimHelper.frameNum,
+								m_prevAnimHelper.frameNum,
+								it->frame,
+								it->boneName.str(),
+								"TODO",
+								pos.x,
+								pos.y,
+								pos.z
+								));*/
+
+							FXList::doFXPos(it->fx, &pos, &mtx, 0.0f, nullptr, 0.0f);
+						}
+					}
+				}
+			}
+		}
+	}
+
+}
 
 
 //-------------------------------------------------------------------------------------------------
@@ -2989,6 +3214,12 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 	const ModelConditionInfo* nextState = nullptr;
 	if (m_curState != nullptr && newState != nullptr)
 	{
+
+		if (stricmp(m_curState->m_modelName.str(), "avjug_deploy") == 0) {
+			int i = 0;
+			i += 1;
+		}
+
 		// if the requested state is the current state (and nothing is pending),
 		// or if the requested state is pending, just punt.
 		//
@@ -3106,10 +3337,14 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 		//BONEPOS_LOG(("validateStuff() from within W3DModelDraw::setModelState()"));
 		//BONEPOS_DUMPREAL(draw->getScale());
 
+		//TODO ! (idk what, but there was a TODO here?!)
 		newState->validateStuff(m_renderObject, draw->getScale(), getW3DModelDrawModuleData()->m_extraPublicBones);
 		// ensure that any muzzle flashes from the *new* state, start out hidden...
 //		hideAllMuzzleFlashes(newState, m_renderObject);//moved to above
-		rebuildWeaponRecoilInfo(newState);
+
+		//if (!getW3DModelDrawModuleData()->m_keepRecoilAcrossStates)
+		rebuildWeaponRecoilInfo(newState, !getW3DModelDrawModuleData()->m_keepRecoilAcrossStates);
+
 		doHideShowSubObjs(&newState->m_hideShowVec);
 
 #if defined(RTS_DEBUG)	//art wants to see buildings without flags as a test.
@@ -3237,7 +3472,9 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 		//BONEPOS_DUMPREAL(getDrawable()->getScale());
 
 		newState->validateStuff(m_renderObject, getDrawable()->getScale(), getW3DModelDrawModuleData()->m_extraPublicBones);
-		rebuildWeaponRecoilInfo(newState);
+
+		//if (!getW3DModelDrawModuleData()->m_keepRecoilAcrossStates)
+		rebuildWeaponRecoilInfo(newState, !getW3DModelDrawModuleData()->m_keepRecoilAcrossStates);
 
 		// ensure that any muzzle flashes from the *previous* state, are hidden...
 //		hideAllMuzzleFlashes(m_curState, m_renderObject);// moved to above
@@ -3973,6 +4210,8 @@ void W3DModelDraw::setAnimationFrame( int frame )
 //-------------------------------------------------------------------------------------------------
 void W3DModelDraw::setPauseAnimation(Bool pauseAnim)
 {
+	// TODO: Animation Blending here?
+
 	if (m_pauseAnimation == pauseAnim)
 	{
 		return;
@@ -4012,7 +4251,7 @@ Real W3DModelDraw::getAnimationScrubScalar( void ) const
 #endif
 
 //-------------------------------------------------------------------------------------------------
-void W3DModelDraw::rebuildWeaponRecoilInfo(const ModelConditionInfo* state)
+void W3DModelDraw::rebuildWeaponRecoilInfo(const ModelConditionInfo* state, bool clear /*=TRUE*/)
 {
 	Int wslot;
 
@@ -4034,9 +4273,11 @@ void W3DModelDraw::rebuildWeaponRecoilInfo(const ModelConditionInfo* state)
 				m_weaponRecoilInfoVec[wslot].resize(ncount, tmp);
 			}
 
-			for (WeaponRecoilInfoVec::iterator it = m_weaponRecoilInfoVec[wslot].begin(); it != m_weaponRecoilInfoVec[wslot].end(); ++it)
-			{
-				it->clear();
+			if (clear) {
+				for (WeaponRecoilInfoVec::iterator it = m_weaponRecoilInfoVec[wslot].begin(); it != m_weaponRecoilInfoVec[wslot].end(); ++it)
+				{
+					it->clear();
+				}
 			}
 		}
 	}

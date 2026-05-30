@@ -129,6 +129,16 @@ struct ParticleSysBoneInfo
 typedef std::vector<ParticleSysBoneInfo> ParticleSysBoneInfoVector;
 
 //-------------------------------------------------------------------------------------------------
+struct FXEventInfo
+{
+	AsciiString boneName;
+	const FXList* fx;
+	UnsignedInt frame;
+};
+
+typedef std::vector<FXEventInfo> FXEventInfoVector;
+
+//-------------------------------------------------------------------------------------------------
 struct PristineBoneInfo
 {
 	Matrix3D mtx;
@@ -222,11 +232,17 @@ struct ModelConditionInfo
 	Real															m_animMinSpeedFactor; //Min speed factor (randomized each time it's played)
 	Real															m_animMaxSpeedFactor; //Max speed factor (randomized each time it's played)
 
+	FXEventInfoVector									m_fxEvents;			///<frames, Bone names and attached FXLists
+
 	mutable PristineBoneInfoMap				m_pristineBones;
 	mutable TurretInfo								m_turrets[MAX_TURRETS];
 	mutable WeaponBarrelInfoVec				m_weaponBarrelInfoVec[WEAPONSLOT_COUNT];
 	mutable Bool											m_hasRecoilBonesOrMuzzleFlashes[WEAPONSLOT_COUNT];
 	mutable Byte											m_validStuff;
+
+	// Animation Blending (needs WalkerDraw)
+	UnsignedInt m_animBlendTime;
+
 
 	enum
 	{
@@ -315,6 +331,8 @@ public:
 	Bool															m_ignoreRotation;  ///< ignore all rotations for this draw module 
 
 	Bool															m_showForOwnerOnly;  ///< show this model only to the owning player 
+
+	Bool															m_keepRecoilAcrossStates;  ///< Don't reset recoil bones when switching states
 
 	// Bool															m_disableMoveEffectsOverWater;  ///< disable track marks and tread/wheel anims over water
 
@@ -434,6 +452,8 @@ public:
 	RenderObjClass *getRenderObject() { return m_renderObject; }
 	virtual Bool updateBonesForClientParticleSystems( void );///< this will reposition particle systems on the fly ML
 
+	virtual void handleFXEvents();  // Check frame times and trigger FX events at correct positions
+
 	virtual void onDrawableBoundToObject();
 	virtual void setTerrainDecalSize(Real x, Real y);
 	virtual void setTerrainDecalOpacity(Real o);
@@ -492,6 +512,16 @@ private:
 		Int				boneIndex;
 	};
 
+	struct AnimInfoHelper
+	{
+		Int		frameNum;
+		Int		mode;
+		float	numFrames;
+		float	fraction;
+	};
+	AnimInfoHelper m_prevAnimHelper;
+	AnimInfoHelper getCurrentAnimHelper() const;
+
 
 	typedef std::vector<WeaponRecoilInfo>	WeaponRecoilInfoVec;
 	typedef std::vector<ParticleSysTrackerType>	ParticleSystemIDVec;
@@ -522,7 +552,7 @@ private:
 	Real getCurrentAnimFraction() const;
 	void applyCorrectModelStateAnimation();
 	const ModelConditionInfo* findTransitionForSig(TransitionSig sig) const;
-	void rebuildWeaponRecoilInfo(const ModelConditionInfo* state);
+	void rebuildWeaponRecoilInfo(const ModelConditionInfo* state, bool clear = TRUE);
 	void doHideShowProjectileObjects( UnsignedInt showCount, UnsignedInt maxCount, WeaponSlotType slot );///< Means effectively, show m of n.
 	void nukeCurrentRender(Matrix3D* xform);
 	void doStartOrStopParticleSys();

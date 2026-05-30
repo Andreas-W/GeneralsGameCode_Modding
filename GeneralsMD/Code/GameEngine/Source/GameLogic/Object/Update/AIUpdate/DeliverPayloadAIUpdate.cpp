@@ -52,6 +52,20 @@
 
 
 //-------------------------------------------------------------------------------------------------
+// duplicate from TurretAI
+static void parseTWS(INI* ini, void* /*instance*/, void* store, const void* /*userData*/)
+{
+	UnsignedInt* tws = (UnsignedInt*)store;
+	const char* token = ini->getNextToken();
+	while (token != nullptr)
+	{
+		WeaponSlotType wslot = (WeaponSlotType)INI::scanIndexList(token, TheWeaponSlotTypeNames);
+		*tws |= (1 << wslot);
+		token = ini->getNextTokenOrNull();
+	}
+}
+// ---
+
 const FieldParse* DeliverPayloadData::getFieldParse()
 {
 	static const FieldParse dataFieldParse[] =
@@ -80,6 +94,7 @@ const FieldParse* DeliverPayloadData::getFieldParse()
 
 		//Weapon based payload
 		{ "FireWeapon",											INI::parseBool,								nullptr, offsetof( DeliverPayloadData, m_fireWeapon ) },
+		{ "FireWeaponSlots",	parseTWS,															nullptr, offsetof(DeliverPayloadData, m_fireWeaponSlots) },
 
 		//Specify an additional weaponslot to be fired while strafing
 		{ "DiveStartDistance",							INI::parseReal,								nullptr, offsetof( DeliverPayloadData, m_diveStartDistance ) },
@@ -239,7 +254,8 @@ UpdateSleepTime DeliverPayloadAIUpdate::update( void )
 void DeliverPayloadAIUpdate::deliverPayload(
 	const Coord3D *moveToPos,
 	const Coord3D *targetPos,
-	const DeliverPayloadData *data
+	const DeliverPayloadData *data,
+	const Coord3D *decalOffset /* = NULL*/
 )
 {
 
@@ -255,8 +271,18 @@ void DeliverPayloadAIUpdate::deliverPayload(
 	m_data			= *data;
 
 	m_deliveryDecal.clear();
-	m_data.m_deliveryDecalTemplate.createRadiusDecal(*targetPos,
-		m_data.m_deliveryDecalRadius, getObject()->getControllingPlayer(), m_deliveryDecal);
+
+	if (decalOffset != nullptr) {
+		Coord3D decalPos = *targetPos;
+		decalPos.add(decalOffset);
+		m_data.m_deliveryDecalTemplate.createRadiusDecal(decalPos,
+			m_data.m_deliveryDecalRadius, getObject()->getControllingPlayer(), m_deliveryDecal);
+	}
+	else {
+		m_data.m_deliveryDecalTemplate.createRadiusDecal(*targetPos,
+			m_data.m_deliveryDecalRadius, getObject()->getControllingPlayer(), m_deliveryDecal);
+	}
+	
 
 	if( m_data.m_diveStartDistance <= 0.0f )
 	{
@@ -434,6 +460,7 @@ void DeliverPayloadAIUpdate::xfer( Xfer *xfer )
 	xfer->xferCoord3D(&data.m_dropVariance);
 	xfer->xferUnsignedInt(&data.m_dropDelay);
 	xfer->xferBool(&data.m_fireWeapon);
+	xfer->xferUnsignedInt(&data.m_fireWeaponSlots);
 	xfer->xferBool(&data.m_selfDestructObject);
 	xfer->xferInt(&data.m_visibleNumBones);
 	xfer->xferReal(&data.m_diveStartDistance);
@@ -715,7 +742,17 @@ StateReturnType DeliveringState::update() // Kick a dude out every so often
 			pos.x += ai->getDropOffset().x;
 			pos.y += ai->getDropOffset().y;
 			pos.z += ai->getDropOffset().z;
-			owner->fireCurrentWeapon( &pos );
+
+			for (int i = 0; i < WEAPONSLOT_COUNT; i++) {
+				WeaponSlotType wslot = (WeaponSlotType)i;
+				if (ai->shouldFireWeaponSlot(wslot)) {
+					owner->setWeaponLock(wslot, LOCKED_TEMPORARILY);
+					owner->fireCurrentWeapon(&pos);
+				}
+			}
+			//owner->fireCurrentWeapon( &pos );
+
+
 			TheGameLogic->destroyObject( item );
 		}
 		else

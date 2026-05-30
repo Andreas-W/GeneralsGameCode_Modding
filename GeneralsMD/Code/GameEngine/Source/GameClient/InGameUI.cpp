@@ -84,6 +84,7 @@
 #include "GameLogic/Module/ContainModule.h"
 #include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/Module/SpecialPowerModule.h"
+#include "GameLogic/Module/SpecialPowerDesignatorUpdate.h"
 #include "GameLogic/Module/StealthUpdate.h"
 #include "GameLogic/Module/SupplyWarehouseDockUpdate.h"
 #include "GameLogic/Module/MobMemberSlavedUpdate.h"//ML
@@ -1100,6 +1101,9 @@ InGameUI::InGameUI()
 	m_popupMessageColor = GameMakeColor(255,255,255,255);
 
 	m_tooltipsDisabledUntil = 0;
+
+	//m_showDesignatorDecals = FALSE;
+	m_designatorCommand = NULL;
 
 	// init hint lists
 	for( i = 0; i < MAX_MOVE_HINTS; i++ )
@@ -3244,6 +3248,18 @@ void InGameUI::setGUICommand( const CommandButton *command )
 
 	// set the command
 	m_pendingGUICommand = command;
+
+	// Target designator checks
+	if (m_designatorCommand && m_designatorCommand != m_pendingGUICommand) {
+		m_designatorCommand = NULL;
+	}
+
+	if (command && BitIsSet(command->getOptions(), COMMAND_OPTION_NEED_TARGET)) {
+		const SpecialPowerTemplate* sp = command->getSpecialPowerTemplate();
+		if (sp != nullptr && sp->isNeedsTargetDesignator()) {
+			m_designatorCommand = command;
+		}
+	}
 
 	// set the mouse cursor for commands that need a targeting or to normal with no command
 	if( command && BitIsSet( command->getOptions(), COMMAND_OPTION_NEED_TARGET ) && !command->isContextCommand() )
@@ -6429,3 +6445,15 @@ void InGameUI::drawPlayerInfoList()
 		drawY += lineH;
 	}
 }
+
+// -------------
+// -------------
+const SpecialPowerTemplate* InGameUI::getTargetDesignatorPower()
+{
+	if (m_designatorCommand != nullptr)
+		return m_designatorCommand->getSpecialPowerTemplate();
+
+	return nullptr;
+}
+// -------------
+// -------------

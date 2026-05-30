@@ -170,6 +170,8 @@ protected:
 	void resolveSpecialPower( void );
 	void aboutToDoSpecialPower( const Coord3D *location );
 
+	void handleTargetDesignator(const Coord3D* location);
+
 	UnsignedInt m_availableOnFrame;			///< on this frame, this special power is available
 	Int m_pausedCount;									///< Reference count of sources pausing me
 	UnsignedInt m_pausedOnFrame;

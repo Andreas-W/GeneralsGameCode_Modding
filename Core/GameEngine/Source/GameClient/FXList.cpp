@@ -30,6 +30,8 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#define DEFINE_SHADOW_NAMES
+
 #include "GameClient/FXList.h"
 
 #include "Common/DrawModule.h"
@@ -50,6 +52,9 @@
 #include "GameClient/Drawable.h"
 #include "GameClient/ParticleSys.h"
 #include "GameLogic/PartitionManager.h"
+#include "GameClient/Shadow.h"
+#include "../../../GameEngineDevice/Include/W3DDevice/GameClient/Module/W3DModelDraw.h"
+#include "../../../GameEngineDevice/Include/W3DDevice/GameClient/W3DShadow.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // PUBLIC DATA ////////////////////////////////////////////////////////////////////////////////////
@@ -466,6 +471,119 @@ private:
 	Coord3D					m_secondaryOffset;
 };
 EMPTY_DTOR(RayEffectFXNugget)
+
+
+//-------------------------------------------------------------------------------------------------
+class DecalFXNugget : public FXNugget
+{
+	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(DecalFXNugget, "DecalFXNugget")
+public:
+
+	DecalFXNugget()
+	{
+		m_templateName.set("GenericDecal"); // TODO
+		//m_templateName = AsciiString::TheEmptyString;
+		//m_textureName = AsciiString::TheEmptyString;
+		//m_opacity = 1.0;		///< value between 0 and 1
+		//m_color = 0;		///< color in ARGB format. (Alpha is ignored).
+		m_lifetime = 0;
+	/*	m_fadeOutTime = 0;
+		m_fadeInTime = 0;
+		m_type = 0;		/// type of projection
+		m_decalSizeX = 0.0;		/// 1/(world space extent of texture in x direction)
+		m_decalSizeY = 0.0;		/// 1/(world space extent of texture in y direction)*/
+		m_offset.x = m_offset.y = m_offset.z = 0;
+		m_angle = 0.0;
+		m_orientToObject = FALSE;
+		m_randomAngle = FALSE;
+		m_probability = 1.0f;
+	}
+
+	virtual void doFXPos(const Coord3D* primary, const Matrix3D* primaryMtx, const Real primarySpeed, const Coord3D* secondary, const Real /*overrideRadius*/, FXSurfaceInfo* /*surfaceInfo*/) const
+	{
+		if (m_probability <= GameClientRandomValueReal(0, 1))
+			return;
+
+		if (primary)
+		{
+			Coord3D offset = m_offset;
+			if (primaryMtx) {
+				if (m_orientToObject)
+				{
+					adjustVector(&offset, primaryMtx);
+				}
+			}
+
+			Drawable* drawable = TheThingFactory->newDrawable(TheThingFactory->findTemplate(m_templateName));
+			if (!drawable)
+				return;
+
+			// Does it even make sense to set the matrix?
+			if (primaryMtx && m_orientToObject)
+				drawable->setTransformMatrix(primaryMtx);
+
+			Coord3D newPos;
+			newPos.x = primary->x + offset.x;
+			newPos.y = primary->y + offset.y;
+			newPos.z = primary->z + offset.z;
+			drawable->setPosition(&newPos);
+
+			if (m_randomAngle)
+				drawable->setOrientation(GameClientRandomValueReal(0, PI * 2));
+
+			drawable->setExpirationDate(TheGameLogic->getFrame() + m_lifetime);
+		}
+		else
+		{
+			DEBUG_CRASH(("You must have a primary source for this effect"));
+		}
+	}
+
+	virtual void doFXObj(const Object* primary, const Object* secondary, FXSurfaceInfo* surfaceInfo) const
+	{
+		if (primary)
+		{
+			doFXPos(primary->getPosition(), primary->getTransformMatrix(), 0.0f, nullptr, 0.0f, surfaceInfo);
+		}
+		else
+		{
+			DEBUG_CRASH(("You must have a primary source for this effect"));
+		}
+	}
+
+	static void parse(INI* ini, void* instance, void* /*store*/, const void* /*userData*/)
+	{
+		static const FieldParse myFieldParse[] =
+		{
+			{ "DecalName",			INI::parseAsciiString,			nullptr, offsetof(DecalFXNugget, m_templateName) },
+			{ "Lifetime",        INI::parseDurationUnsignedInt, nullptr, offsetof(DecalFXNugget, m_lifetime) },
+			{ "Offset",					INI::parseCoord3D,		nullptr, offsetof(DecalFXNugget, m_offset) },
+			{ "Angle",					INI::parseReal,             nullptr, offsetof(DecalFXNugget, m_angle) },
+			{ "RandomAngle",		INI::parseBool,             nullptr, offsetof(DecalFXNugget, m_randomAngle) },
+			{ "OrientToObject",		INI::parseBool,             nullptr, offsetof(DecalFXNugget, m_orientToObject) },
+			{ "Probability",		INI::parseReal,             nullptr, offsetof(DecalFXNugget, m_probability) },
+			{ nullptr, nullptr, nullptr, 0 }
+		};
+
+		DecalFXNugget* nugget = newInstance(DecalFXNugget);
+		ini->initFromINI(nugget, myFieldParse);
+		((FXList*)instance)->addFXNugget(nugget);
+	}
+
+private:
+	AsciiString	m_templateName;
+	UnsignedInt m_lifetime;
+	Coord3D	m_offset;
+	Real m_angle;
+	Bool m_orientToObject;
+	Bool m_randomAngle;
+
+	// spawn parameters
+	Real m_probability;
+  // TODO: Height/Surface, etc.
+};
+EMPTY_DTOR(DecalFXNugget)
+
 
 //-------------------------------------------------------------------------------------------------
 class LightPulseFXNugget : public FXNugget
@@ -1025,6 +1143,7 @@ static const FieldParse TheFXListFieldParse[] =
 	{ "TerrainScorch",							TerrainScorchFXNugget::parse, nullptr, 0},
 	{ "ParticleSystem",							ParticleSystemFXNugget::parse, nullptr, 0},
 	{ "FXListAtBonePos",						FXListAtBonePosFXNugget::parse, nullptr, 0},
+	{ "Decal",											DecalFXNugget::parse, nullptr, 0},
 	{ nullptr, nullptr, nullptr, 0 }
 };
 

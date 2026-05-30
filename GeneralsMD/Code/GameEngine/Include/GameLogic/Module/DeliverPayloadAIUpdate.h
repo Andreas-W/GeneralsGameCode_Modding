@@ -254,6 +254,9 @@ public:
 	Coord3D								m_dropVariance;
 	UnsignedInt						m_dropDelay;
 	Bool									m_fireWeapon;
+
+	UnsignedInt          m_fireWeaponSlots;
+
 	Bool									m_selfDestructObject;
 	Int										m_visibleNumBones;						///< The number of visible bones to process.
 	Real									m_diveStartDistance;
@@ -278,6 +281,7 @@ public:
 		m_dropVariance.zero();
 		m_dropDelay = 0;
 		m_fireWeapon = false;
+		m_fireWeaponSlots = 1u << PRIMARY_WEAPON;
 		m_visibleNumBones = 0;
 		m_diveStartDistance = 0.0f;
 		m_diveEndDistance = 0.0f;
@@ -326,6 +330,7 @@ public:
 	const Coord3D& getDropOffset() const { return m_data.m_dropOffset; }
 	const Coord3D& getDropVariance() const { return m_data.m_dropVariance; }
 	Bool isFireWeapon() const { return m_data.m_fireWeapon; }
+	Bool shouldFireWeaponSlot(WeaponSlotType wslot) const { return (m_data.m_fireWeaponSlots & (1 << wslot)) != 0; }
 	Int getVisibleItemsDelivered() const { return m_visibleItemsDelivered; }
 	void setVisibleItemsDelivered( Int num ) { m_visibleItemsDelivered = num; }
 
@@ -333,7 +338,7 @@ public:
 	Bool isOffMap() const;
 	Real calcMinTurnRadius(Real* timeToTravelThatDist) const;
 
-	void deliverPayload( const Coord3D *moveToPos, const Coord3D *targetPos, const DeliverPayloadData *data );
+	void deliverPayload( const Coord3D *moveToPos, const Coord3D *targetPos, const DeliverPayloadData *data, const Coord3D *decalOffset = nullptr );
 	void deliverPayloadViaModuleData( const Coord3D *moveToPos );
 
 	const DeliverPayloadData* getData() { return &m_data; }
