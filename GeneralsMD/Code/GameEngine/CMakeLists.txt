@@ -506,6 +506,8 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/DroneCarrierContain.h
     Include/GameLogic/Module/CarrierDroneAIUpdate.h
     Include/GameLogic/Module/BridgeTowerBody.h
+    Include/GameLogic/Module/DrawBridgeTowerUpdate.h
+    Include/GameLogic/Module/DrawBridgeUpdate.h
     Include/GameLogic/Object.h
     Include/GameLogic/ObjectCreationList.h
     Include/GameLogic/BuffSystem.h
@@ -1116,6 +1118,8 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/KodiakDeploymentUpdate.cpp
     Source/GameLogic/Object/Update/KodiakUpdate.cpp
     Source/GameLogic/Object/Update/DroneCarrierSlavedUpdate.cpp
+    Source/GameLogic/Object/Update/DrawBridgeTowerUpdate.cpp
+    Source/GameLogic/Object/Update/DrawBridgeUpdate.cpp
     Source/GameLogic/Object/Upgrade/ActiveShroudUpgrade.cpp
     Source/GameLogic/Object/Upgrade/ArmorUpgrade.cpp
     Source/GameLogic/Object/Upgrade/CommandSetUpgrade.cpp

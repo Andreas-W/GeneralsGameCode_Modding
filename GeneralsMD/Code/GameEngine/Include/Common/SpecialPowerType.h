@@ -220,6 +220,8 @@ enum SpecialPowerType CPP_11(: Int)
 	SUPW_SPECIAL_SPECTRE_GUNSHIP,
 	SUPW_SPECIAL_ORBITAL_STRIKE,
 
+	SPECIAL_TOGGLE_DRAWBRIDGE,
+
 	SPECIALPOWER_COUNT,
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 // NEW CONSTANTS NEED A BEHAVIORTYPE DEFINED IN THE SPECIALPOWER OR return one in getFallbackBehaviorType in ActionManager.cpp
