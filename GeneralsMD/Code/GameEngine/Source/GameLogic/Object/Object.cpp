@@ -6801,7 +6801,15 @@ Coord3D Object::getEnterPosition(ObjectID enteringObject) const {
 
 Short Object::getRequiredBridgeHeight() const {
 	// Return 1-15 depending on geometry height, 0 if no_collide
-	if (isKindOf(KINDOF_NO_COLLIDE)) return 0;
-	Real geometryHeight = getGeometryInfo().getMaxHeightAbovePosition();
-	return std::clamp(static_cast<Short>(geometryHeight / 10.0f), static_cast<Short>(1), static_cast<Short>(15));
+	Byte tmplHeight = getTemplate()->getRequiredBridgeHeight();
+	if (tmplHeight > -1) {
+		return static_cast<Short>(tmplHeight);
+	}
+	else if (isKindOf(KINDOF_NO_COLLIDE)) {
+		return 0;
+	}
+	else {
+		Real geometryHeight = getGeometryInfo().getMaxHeightAbovePosition();
+		return std::clamp(static_cast<Short>(geometryHeight / 10.0f), static_cast<Short>(1), static_cast<Short>(15));
+	}
 }
