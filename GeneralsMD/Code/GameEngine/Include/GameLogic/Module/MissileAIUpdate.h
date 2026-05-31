@@ -118,10 +118,13 @@ public:
 	virtual UpdateSleepTime update();
 	virtual void onDelete( void );
 
+	virtual void switchToState(MissileStateType s);
+
+	virtual MissileStateType getMissileState() { return m_state; }
 
 protected:
 
-	void detonate();
+	virtual void detonate();
 
 private:
 
@@ -157,7 +160,5 @@ private:
 	void airborneTargetGone();											///< My airborne target has died, so I have to do something cool to make up for that
 
 	void tossExhaust();
-	void switchToState(MissileStateType s);
-
 
 };

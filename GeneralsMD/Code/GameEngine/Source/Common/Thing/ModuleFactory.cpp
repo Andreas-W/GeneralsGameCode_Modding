@@ -69,6 +69,7 @@
 #include "GameLogic/Module/RailedTransportContain.h"
 #include "GameLogic/Module/RiderChangeContain.h"
 #include "GameLogic/Module/TransportContain.h"
+#include "GameLogic/Module/JumpjetContain.h"
 #include "GameLogic/Module/MobNexusContain.h"
 #include "GameLogic/Module/TunnelContain.h"
 #include "GameLogic/Module/OverlordContain.h"
@@ -159,6 +160,7 @@
 #include "GameLogic/Module/SpecialPowerDesignatorUpdate.h"
 #include "GameLogic/Module/AutoDepositUpdate.h"
 #include "GameLogic/Module/MissileAIUpdate.h"
+#include "GameLogic/Module/JumpjetMissileAIUpdate.h"
 #include "GameLogic/Module/NeutronMissileUpdate.h"
 #include "GameLogic/Module/OCLUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
@@ -376,6 +378,7 @@ void ModuleFactory::init( void )
 	addModule( GarrisonContain );
 	addModule( InternetHackContain );
 	addModule( TransportContain );
+	addModule( JumpjetContain );
 	addModule( RiderChangeContain );
 	addModule( RailedTransportContain );
 	addModule( MobNexusContain );
@@ -447,6 +450,7 @@ void ModuleFactory::init( void )
 	addModule( BuffUpdate );
 	addModule( ArmorDamageScalarUpdate );
 	addModule( MissileAIUpdate );
+	addModule( JumpjetMissileAIUpdate );
 	addModule( NeutronMissileUpdate );
 	addModule( FireSpreadUpdate );
 	addModule( FireWeaponUpdate );

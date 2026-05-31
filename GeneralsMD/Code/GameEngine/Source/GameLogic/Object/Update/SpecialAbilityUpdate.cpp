@@ -63,6 +63,7 @@
 #include "GameLogic/Module/StickyBombUpdate.h"
 #include "GameLogic/Module/StealthUpdate.h"
 #include "GameLogic/Module/ContainModule.h"
+#include "GameLogic/Module/JumpjetMissileAIUpdate.h"
 
 
 
@@ -404,11 +405,23 @@ UpdateSleepTime SpecialAbilityUpdate::update( void )
   else if( isWithinStartAbilityRange() )
   {
     m_withinStartAbilityRange = true;
-    if( !isFacing() && needToFace() )
+    bool is_facing = isFacing();
+    bool need_to_face = needToFace();
+
+    if (!is_facing && need_to_face)
     {
       startFacing();
       return calcSleepTime();
     }
+
+    // Do we need to wait for facing to complete?
+    switch (data->m_specialPowerTemplate->getSpecialPowerType())
+    {
+      case SPECIAL_JUMPJET:
+        if (need_to_face && is_facing) return calcSleepTime();
+        break;
+    }
+
 
     if( needToUnpack() )
     {
@@ -1605,6 +1618,45 @@ void SpecialAbilityUpdate::triggerAbilityEffect()
 
       break;
     }
+
+    case SPECIAL_JUMPJET:
+    {
+      Object* jumpjet = createSpecialObject();
+      ContainModuleInterface* contain = jumpjet->getContain();
+
+      if (contain != NULL && contain->isValidContainerFor(getObject(), true))
+      {
+        /*ProjectileUpdateInterface* pui = NULL;
+        for (BehaviorModule** u = jumpjet->getBehaviorModules(); *u; ++u)
+        {
+            if ((pui = (*u)->getProjectileUpdateInterface()) != NULL)
+                break;
+        }*/
+
+        static NameKeyType key_JumpjetMissileAIUpdate = NAMEKEY("JumpjetMissileAIUpdate");
+        JumpjetMissileAIUpdate* update = (JumpjetMissileAIUpdate*)jumpjet->findUpdateModule(key_JumpjetMissileAIUpdate);
+
+        if (update) {
+          Coord3D newTargetPos;
+          // DEBUG_LOG((">>> SAU - Try to Launch to pos (%f, %f, %f)\n", m_targetPos.x, m_targetPos.y, m_targetPos.z));
+          Bool ok = update->canLaunchToPosition(&m_targetPos, &newTargetPos);
+          // DEBUG_LOG((">>> SAU - newPos (%f, %f, %f), OK = %d\n", newTargetPos.x, newTargetPos.y, newTargetPos.z, ok));
+
+          if (ok) {
+            contain->addToContain(getObject());
+
+            update->projectileFireAtObjectOrPosition(
+              NULL,
+              &newTargetPos,
+              NULL,
+              NULL
+            );
+          }
+          // else { // We could not find a suitable target; abort the ability activation (not yet implemented)
+          //}
+        }
+      }
+    }
   }
 
   if( data->m_loseStealthOnTrigger && okToLoseStealth)
@@ -1971,6 +2023,7 @@ void SpecialAbilityUpdate::endPreparation()
 		case SPECIAL_REMOTE_CHARGES:
 		case SPECIAL_DISGUISE_AS_VEHICLE:
 		case SPECIAL_HELIX_NAPALM_BOMB:
+    case SPECIAL_JUMPJET:
 			// No, don't delete placed charges.
 			// -OR- Not applicable (doesn't use special objects).
 			break;

@@ -1638,6 +1638,13 @@ Bool ActionManager::canDoSpecialPowerAtLocation( const Object *obj, const Coord3
 				if( TheTerrainLogic->isUnderwater( loc->x, loc->y ) )
 					return FALSE;
 			}
+			case SPECIAL_JUMPJET:
+			{
+				if (TheTerrainLogic->isUnderwater(loc->x, loc->y)
+					|| TheTerrainLogic->isCliffCell(loc->x, loc->y)) {
+					return FALSE;
+				}
+			}
 		}
 
 		// Last check is shroudedness, if it is cared about
@@ -1688,6 +1695,7 @@ Bool ActionManager::canDoSpecialPowerAtLocation( const Object *obj, const Coord3
 			case SPECIAL_CLEANUP_AREA:
 			case SPECIAL_SNEAK_ATTACK:
 			case SPECIAL_BATTLESHIP_BOMBARDMENT:
+			case SPECIAL_JUMPJET:
 				//Don't allow "damaging" special powers in shrouded areas, but Fogged are okay.
 				return ThePartitionManager->getShroudStatusForPlayer( obj->getControllingPlayer()->getPlayerIndex(), loc ) != CELLSHROUD_SHROUDED;
 
@@ -1952,6 +1960,7 @@ Bool ActionManager::canDoSpecialPowerAtObject( const Object *obj, const Object *
 			case SPECIAL_LAUNCH_BAIKONUR_ROCKET:
 			case SPECIAL_SNEAK_ATTACK:
 			case SPECIAL_TOGGLE_DRAWBRIDGE:
+			case SPECIAL_JUMPJET:
 				return false;
 
 			case SPECIAL_REMOTE_CHARGES:
