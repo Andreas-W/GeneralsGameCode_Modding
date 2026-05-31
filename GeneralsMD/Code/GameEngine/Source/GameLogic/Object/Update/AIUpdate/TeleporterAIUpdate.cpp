@@ -263,7 +263,7 @@ Bool TeleporterAIUpdate::isLocationValid(Object* obj, const Coord3D* targetPos, 
 	bool viewBlocked = TheAI->pathfinder()->isAttackViewBlockedByObstacle(obj, *targetPos, victim, *victimPos);
 	bool inRange = weap->isSourceObjectWithGoalPositionWithinAttackRange(obj, targetPos, victim, victimPos);
 	PathfindLayerEnum destinationLayer = TheTerrainLogic->getLayerForDestination(targetPos);
-	bool posValid = TheAI->pathfinder()->validMovementPosition(getObject()->getCrusherLevel() > 0, destinationLayer, getLocomotorSet(), targetPos);
+	bool posValid = TheAI->pathfinder()->validMovementPosition(getObject()->getCrusherLevel() > 0, destinationLayer, getLocomotorSet(), getObject()->getRequiredBridgeHeight(), targetPos);
 
 	return !viewBlocked && inRange && posValid;
 }

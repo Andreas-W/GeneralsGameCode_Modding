@@ -165,7 +165,7 @@ static void doSetRallyPoint( Object *obj, const Coord3D& pos )
 
 	LocomotorSet locomotorSet;
 	locomotorSet.addLocomotor( TheLocomotorStore->findLocomotorTemplate( key ) );
-	if( TheAI->pathfinder()->clientSafeQuickDoesPathExist( locomotorSet, obj->getPosition(), &rallyPointPos) == FALSE )
+	if( TheAI->pathfinder()->clientSafeQuickDoesPathExist( locomotorSet, obj->getRequiredBridgeHeight(), obj->getPosition(), &rallyPointPos) == FALSE )
 	{
 
 		// user feedback

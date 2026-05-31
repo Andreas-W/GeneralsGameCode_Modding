@@ -3944,6 +3944,7 @@ Bool PartitionManager::tryPosition( const Coord3D *center,
 
 		// check for path existence
 		if( ai && TheAI->pathfinder()->clientSafeQuickDoesPathExist( ai->getLocomotorSet(),
+																									options->sourceToPathToDest->getRequiredBridgeHeight(),
 																									options->sourceToPathToDest->getPosition(),
 																									&pos ) == FALSE )
 				return FALSE;
