@@ -1904,12 +1904,12 @@ Bool SpecialAbilityUpdate::isFacing()
 	{
 		if( !m_facingComplete && m_facingInitiated)
 		{
+			const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
 			Locomotor *loco = ai->getCurLocomotor();
-			if( loco && loco->getMinTurnSpeed() > 0.0f )
+			if( data->m_requiresMoveToTurn && loco && loco->getMinTurnSpeed() > 0.0f )
 			{
 				//This locomotor can't turn in place (e.g. wings); we're moving toward the
 				//target to turn. Consider facing complete once our heading is within tolerance.
-				const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
 				Real relAngle = ThePartitionManager->getRelativeAngle2D( getObject(), &m_targetPos );
 				if( fabs( relAngle ) <= data->m_facingAngleTolerance )
 				{
@@ -1987,11 +1987,11 @@ void SpecialAbilityUpdate::startFacing()
 	}
 	else if( m_targetPos.x || m_targetPos.y || m_targetPos.z ) //It's zero if not used...
 	{
+		const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
 		Locomotor *loco = ai->getCurLocomotor();
-		if( loco && loco->getMinTurnSpeed() > 0.0f )
+		if( data->m_requiresMoveToTurn && loco && loco->getMinTurnSpeed() > 0.0f )
 		{
 			//This locomotor can't turn in place (e.g. wings); facing in place does nothing.
-			const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
 			if( fabs( ThePartitionManager->getRelativeAngle2D( getObject(), &m_targetPos ) ) <= data->m_facingAngleTolerance )
 			{
 				//Already pointed at the target -- no need to move.

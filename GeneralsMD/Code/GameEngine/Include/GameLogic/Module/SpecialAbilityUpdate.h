@@ -76,7 +76,8 @@ public:
 	Bool									m_approachRequiresLOS;
   Bool                  m_needToFaceTarget;
   Bool                  m_persistenceRequiresRecharge;
-  Real                  m_facingAngleTolerance;	///< heading delta (radians) considered "facing target" for locomotors that can't turn in place
+  Bool                  m_requiresMoveToTurn;	///< if set, orient by moving toward target (for locomotors that can't turn in place) instead of facing in place
+  Real                  m_facingAngleTolerance;	///< heading delta (radians) considered "facing target" when m_requiresMoveToTurn
 
 	const ParticleSystemTemplate *m_disableFXParticleSystem;
 	AudioEventRTS					m_packSound;
@@ -114,6 +115,7 @@ public:
 		m_preTriggerUnstealthFrames = 0;
     m_needToFaceTarget = TRUE;
     m_persistenceRequiresRecharge = FALSE;
+    m_requiresMoveToTurn = FALSE;
     m_facingAngleTolerance = 0.1f;	// ~5.7 degrees
 	}
 
@@ -161,6 +163,7 @@ public:
 			{ "ApproachRequiresLOS",				INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_approachRequiresLOS ) },
       { "NeedToFaceTarget",           INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_needToFaceTarget ) },
       { "PersistenceRequiresRecharge",INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_persistenceRequiresRecharge ) },
+      { "RequiresMoveToTurn",         INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_requiresMoveToTurn ) },
       { "FacingAngleTolerance",       INI::parseAngleReal,							nullptr, offsetof( SpecialAbilityUpdateModuleData, m_facingAngleTolerance ) },
 			{ 0, 0, 0, 0 }
 		};
