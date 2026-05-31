@@ -2748,6 +2748,12 @@ void AIGroup::groupDoSpecialPowerAtLocation( UnsignedInt specialPowerID, const C
 
 
 	//This one requires a position
+	// Precompute the group center/formation state once so SPECIAL_JUMPJET members can each
+	// launch to their own formation-relative target instead of all piling on the click point.
+	Coord2D fMin, fMax;
+	Coord3D fCenter;
+	Bool isFormation = getMinMaxAndCenter( &fMin, &fMax, &fCenter );
+
 	std::list<Object *>::iterator i;
 	for( i = m_memberList.begin(); i != m_memberList.end(); )
 	{
@@ -2775,9 +2781,20 @@ void AIGroup::groupDoSpecialPowerAtLocation( UnsignedInt specialPowerID, const C
 			SpecialPowerModuleInterface *mod = object->getSpecialPowerModule( spTemplate );
 			if( mod )
 			{
+				// Validity/range is still checked against the shared click point.
 				if( TheActionManager->canDoSpecialPowerAtLocation( object, location, CMD_FROM_PLAYER, spTemplate, objectInWay, commandOptions ) )
 				{
-					mod->doSpecialPowerAtLocation( location, angle, commandOptions );
+					// For jumpjet group launches, give each member its own formation-relative target
+					// so the group keeps its formation at the destination instead of stacking up.
+					Coord3D unitLoc = *location;
+					UnsignedInt opts = commandOptions;
+					if( spTemplate->getSpecialPowerType() == SPECIAL_JUMPJET )
+					{
+						computeIndividualDestination( &unitLoc, location, object, &fCenter, isFormation );
+						opts |= FORMATION_LAUNCH;
+					}
+
+					mod->doSpecialPowerAtLocation( &unitLoc, angle, opts );
 
 					object->friend_setUndetectedDefector( FALSE );// My secret is out
 				}

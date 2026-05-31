@@ -99,6 +99,7 @@ enum CommandOption CPP_11(: Int)
 	USES_MINE_CLEARING_WEAPONSET= 0x00200000,	// uses the special mine-clearing weaponset, even if not current
 	CAN_USE_WAYPOINTS						= 0x00400000, // button has option to use a waypoint path
 	MUST_BE_STOPPED							= 0x00800000, // Unit must be stopped in order to be able to use button.
+	FORMATION_LAUNCH						= 0x01000000, // code-only: jumpjet group launch, keep formation offset instead of random scatter.
 };
 
 #ifdef DEFINE_COMMAND_OPTION_NAMES
@@ -132,6 +133,7 @@ static const char *const TheCommandOptionNames[] =
 	"USES_MINE_CLEARING_WEAPONSET",
 	"CAN_USE_WAYPOINTS",
 	"MUST_BE_STOPPED",
+	"FORMATION_LAUNCH",
 
 	nullptr
 };

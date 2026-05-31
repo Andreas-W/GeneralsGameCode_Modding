@@ -123,16 +123,23 @@ void JumpjetMissileAIUpdate::projectileFireAtObjectOrPosition(const Object* vict
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool JumpjetMissileAIUpdate::canLaunchToPosition(const Coord3D* targetPos, Coord3D* newTargetPos) {
+Bool JumpjetMissileAIUpdate::canLaunchToPosition(const Coord3D* targetPos, Coord3D* newTargetPos, Bool keepFormation) {
 
 	const JumpjetMissileAIUpdateModuleData* d = getJumpjetMissileAIUpdateModuleData();
 	//Coord3D newTargetPos = Coord3D();
 	Bool positionFound = false;
 
-	// Look for suitable position (with scatter radius)
-	// if (d->m_scatterRadius > 0.0f) {
-	positionFound = findOffsetPosition(targetPos, newTargetPos, d->m_scatterRadius * 0.5f, d->m_scatterRadius);
-	//}
+	if (keepFormation) {
+		// Formation group launch: the target is already this unit's formation slot, so don't
+		// random-scatter. Start at the exact position and expand only enough to dodge occupied cells.
+		positionFound = findOffsetPosition(targetPos, newTargetPos, 0.0f, d->m_scatterRadius);
+	}
+	else {
+		// Look for suitable position (with scatter radius)
+		// if (d->m_scatterRadius > 0.0f) {
+		positionFound = findOffsetPosition(targetPos, newTargetPos, d->m_scatterRadius * 0.5f, d->m_scatterRadius);
+		//}
+	}
 
 	// If we found none, increase search radius
 	if (!positionFound) {
@@ -165,6 +172,8 @@ Bool JumpjetMissileAIUpdate::findOffsetPosition(const Coord3D* targetPos, Coord3
 	if (ThePartitionManager->findPositionAround(targetPos, &fpOptions, newPos)) {
 		return TheAI->pathfinder()->adjustToLandingDestination(getObject(), newPos);
 	}
+
+	return false;
 }
 
 //-------------------------------------------------------------------------------------------------

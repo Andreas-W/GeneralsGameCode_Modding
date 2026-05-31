@@ -76,6 +76,7 @@ SpecialAbilityUpdate::SpecialAbilityUpdate( Thing *thing, const ModuleData* modu
   m_animFrames = 0;
   m_targetID = INVALID_ID;
   m_targetPos.zero();
+  m_commandOptions = 0;
   m_locationCount = 0;
   m_specialObjectEntries = 0;
   m_noTargetCommand = false;
@@ -499,6 +500,7 @@ Bool SpecialAbilityUpdate::initiateIntentToDoSpecialPower( const SpecialPowerTem
   //Clear target values
   m_targetID = INVALID_ID;
   m_targetPos.zero();
+  m_commandOptions = commandOptions;
   m_locationCount = 0;
   m_prepFrames = 0;
   m_animFrames = 0;
@@ -1638,8 +1640,10 @@ void SpecialAbilityUpdate::triggerAbilityEffect()
 
         if (update) {
           Coord3D newTargetPos;
+          // When launched as part of a formation group, keep the per-unit target instead of scattering.
+          Bool keepFormation = (m_commandOptions & FORMATION_LAUNCH) != 0;
           // DEBUG_LOG((">>> SAU - Try to Launch to pos (%f, %f, %f)\n", m_targetPos.x, m_targetPos.y, m_targetPos.z));
-          Bool ok = update->canLaunchToPosition(&m_targetPos, &newTargetPos);
+          Bool ok = update->canLaunchToPosition(&m_targetPos, &newTargetPos, keepFormation);
           // DEBUG_LOG((">>> SAU - newPos (%f, %f, %f), OK = %d\n", newTargetPos.x, newTargetPos.y, newTargetPos.z, ok));
 
           if (ok) {
@@ -2056,13 +2060,14 @@ void SpecialAbilityUpdate::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: Added m_commandOptions */
 // ------------------------------------------------------------------------------------------------
 void SpecialAbilityUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -2083,6 +2088,12 @@ void SpecialAbilityUpdate::xfer( Xfer *xfer )
 
 	// target position
 	xfer->xferCoord3D( &m_targetPos );
+
+	// command options (v2+)
+	if( version >= 2 )
+	{
+		xfer->xferUnsignedInt( &m_commandOptions );
+	}
 
 	// location count
 	xfer->xferInt( &m_locationCount );

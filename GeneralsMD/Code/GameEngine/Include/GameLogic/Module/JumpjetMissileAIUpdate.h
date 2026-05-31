@@ -71,7 +71,7 @@ public:
 	virtual Bool projectileHandleCollision(Object* other);
 	// virtual Bool processCollision(PhysicsBehavior *physics, Object *other); ///< Returns true if the physics collide should apply the force.  Normally not.  jba.
 
-	virtual Bool canLaunchToPosition(const Coord3D* targetPos, Coord3D* newPos);
+	virtual Bool canLaunchToPosition(const Coord3D* targetPos, Coord3D* newPos, Bool keepFormation = false);
 
 	// virtual UpdateSleepTime update();
 	virtual void onDelete(void);

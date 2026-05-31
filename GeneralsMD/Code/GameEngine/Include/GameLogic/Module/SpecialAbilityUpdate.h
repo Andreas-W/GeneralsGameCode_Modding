@@ -270,6 +270,7 @@ private:
 	UnsignedInt										m_animFrames;	//Used for packing/unpacking unit before or after using ability.
 	ObjectID											m_targetID;
 	Coord3D												m_targetPos;
+	UnsignedInt										m_commandOptions;	//Command option flags this ability was triggered with (e.g. FORMATION_LAUNCH).
 	Int														m_locationCount;
 	std::list<ObjectID>						m_specialObjectIDList; //The list of special objects
 	UnsignedInt										m_specialObjectEntries;				 //The size of the list of member Objects
