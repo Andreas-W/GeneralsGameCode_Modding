@@ -115,7 +115,8 @@ UpdateSleepTime SpecialPowerDesignatorUpdate::update( void )
 		return RadiusDecalBehavior::update();
 
 	const SpecialPowerTemplate *tmpl = TheInGameUI->getTargetDesignatorPower();
-	if (tmpl != nullptr && tmpl == data->m_specialPowerTemplate) {
+	if (tmpl != nullptr && tmpl == data->m_specialPowerTemplate &&
+		(data->m_worksWhileContained || !getObject()->isDisabledByType(DISABLED_HELD))) {
 		RadiusDecalBehavior::update();
 	}
 	else if (!m_radiusDecal.isEmpty()) {
@@ -129,7 +130,7 @@ UpdateSleepTime SpecialPowerDesignatorUpdate::update( void )
 // ------------------------------------------------------------------------------------------------
 Bool SpecialPowerDesignatorUpdate::isValidDesignatorForSpecialPower(const SpecialPowerTemplate* templ)
 {
-	return isUpgradeActive() && templ == getSpecialPowerDesignatorUpdateModuleData()->m_specialPowerTemplate &&
+	return isUpgradeActive() && templ != nullptr && templ == getSpecialPowerDesignatorUpdateModuleData()->m_specialPowerTemplate &&
 		(getSpecialPowerDesignatorUpdateModuleData()->m_worksWhileContained || !getObject()->isDisabledByType(DISABLED_HELD));
 
 }

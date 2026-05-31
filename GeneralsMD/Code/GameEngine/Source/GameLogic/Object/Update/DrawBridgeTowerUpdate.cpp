@@ -157,7 +157,7 @@ DrawBridgeUpdate* DrawBridgeTowerUpdate::getDrawBridgeUpdate() const
 {
 	Object* bridge = getBridge();
 	if (bridge == nullptr) {
-		DEBUG_CRASH(("%s: DrawBridgeTowerUpdate requires a BridgeTowerInterface with linked bridge!", obj->getTemplate()->getName().str()));
+		DEBUG_CRASH(("%s: DrawBridgeTowerUpdate requires a BridgeTowerInterface with linked bridge!", bridge->getTemplate()->getName().str()));
 		return nullptr;
 	}
 
@@ -179,7 +179,7 @@ Object* DrawBridgeTowerUpdate::getBridge() const
 	}
 
 	if (bridgeTowerInterface == nullptr) {
-		DEBUG_CRASH(("%s: DrawBridgeTowerUpdate requires a BridgeTowerInterface!", obj->getTemplate()->getName().str()));
+		DEBUG_CRASH(("%s: DrawBridgeTowerUpdate requires a BridgeTowerInterface!", getObject()->getTemplate()->getName().str()));
 		return nullptr;
 	}
 

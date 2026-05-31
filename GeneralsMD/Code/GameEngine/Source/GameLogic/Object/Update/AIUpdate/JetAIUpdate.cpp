@@ -1303,6 +1303,7 @@ protected:
 		xfer->xferInt(&m_index);
 		xfer->xferCoord3D(&m_parkingLoc);
 		xfer->xferReal(&m_parkingOrientation);
+		xfer->xferUnsignedByte(&m_stayAtMaxHeightFrames);
 	}
 	virtual void loadPostProcess()
 	{
@@ -1315,11 +1316,14 @@ private:
 	Coord3D		m_parkingLoc;
 	Real			m_parkingOrientation;
 	Bool			m_landing;
+	UnsignedByte m_stayAtMaxHeightFrames;
 public:
 	VtolTakeoffOrLandingState(StateMachine* machine, Bool landing) : m_landing(landing),
 		State(machine, "VtolTakeoffOrLandingState"), m_index(0)
 	{
 		m_parkingLoc.zero();
+		m_parkingOrientation = 0;
+		m_stayAtMaxHeightFrames = 0;
 	}
 
 	virtual StateReturnType onEnter()
@@ -1394,6 +1398,8 @@ public:
 
 			//DEBUG_LOG((">>> HeliTAKEOFFOrLandingState - Enter: m_path[1] = %f, %f, %f\n",
 			//	m_path[1].x, m_path[1].y, m_path[1].z));
+
+			m_stayAtMaxHeightFrames = 10;
 		}
 		m_index = 0;
 
@@ -1412,8 +1418,17 @@ public:
 		if (!jetAI)
 			return STATE_FAILURE;
 
-		// I have disabled this because it is no longer necessary and is a bit funky lookin' (srj)
+		Int targetIndex = 2;
 
+		if (!m_landing && m_index >= targetIndex) {
+			if (m_stayAtMaxHeightFrames-- <= 0)
+				return STATE_SUCCESS;
+			else
+				return STATE_CONTINUE;
+		}
+
+
+		// I have disabled this because it is no longer necessary and is a bit funky lookin' (srj)
 #ifdef NOT_IN_USE
 		// magically position it correctly.
 		jet->getPhysics()->scrubVelocity2D(0);
@@ -1442,7 +1457,6 @@ public:
 #endif
 		jet->setOrientation(m_parkingOrientation);
 #endif
-		Int targetIndex = 2;
 
 		if (!m_landing) {
 			//targetIndex = 3;
@@ -1463,7 +1477,7 @@ public:
 		if (distSqr <= THRESH_SQR)
 			++m_index;
 
-		if (m_index >= targetIndex)
+		if (m_landing && m_index >= targetIndex)
 			return STATE_SUCCESS;
 
 		return STATE_CONTINUE;
@@ -1506,6 +1520,8 @@ public:
 			jetAI->friend_enableTakeOffEffects(false);
 			
 			jetAI->chooseLocomotorSet(LOCOMOTORSET_NORMAL);
+
+			//jetAI->getCurLocomotor()->set
 
 			//TODO: Fix this terrible nose tilt
 
