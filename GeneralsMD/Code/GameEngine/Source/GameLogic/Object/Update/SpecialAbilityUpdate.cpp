@@ -50,6 +50,7 @@
 
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/Locomotor.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/Weapon.h"
@@ -1903,6 +1904,23 @@ Bool SpecialAbilityUpdate::isFacing()
 	{
 		if( !m_facingComplete && m_facingInitiated)
 		{
+			Locomotor *loco = ai->getCurLocomotor();
+			if( loco && loco->getMinTurnSpeed() > 0.0f )
+			{
+				//This locomotor can't turn in place (e.g. wings); we're moving toward the
+				//target to turn. Consider facing complete once our heading is within tolerance.
+				const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
+				Real relAngle = ThePartitionManager->getRelativeAngle2D( getObject(), &m_targetPos );
+				if( fabs( relAngle ) <= data->m_facingAngleTolerance )
+				{
+					m_facingComplete = true;
+					ai->aiIdle( CMD_FROM_AI );	//stop the short move; ready to launch
+					return false;
+				}
+				//Still turning (while moving).
+				return true;
+			}
+
 			if( ai->isIdle() )
 			{
 				//We finished facing the target
@@ -1969,7 +1987,26 @@ void SpecialAbilityUpdate::startFacing()
 	}
 	else if( m_targetPos.x || m_targetPos.y || m_targetPos.z ) //It's zero if not used...
 	{
-		ai->aiFacePosition( &m_targetPos, CMD_FROM_AI );
+		Locomotor *loco = ai->getCurLocomotor();
+		if( loco && loco->getMinTurnSpeed() > 0.0f )
+		{
+			//This locomotor can't turn in place (e.g. wings); facing in place does nothing.
+			const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
+			if( fabs( ThePartitionManager->getRelativeAngle2D( getObject(), &m_targetPos ) ) <= data->m_facingAngleTolerance )
+			{
+				//Already pointed at the target -- no need to move.
+				m_facingComplete = true;
+			}
+			else
+			{
+				//Move toward the target so the locomotor turns us; isFacing() stops us once aligned.
+				ai->aiMoveToPosition( &m_targetPos, CMD_FROM_AI );
+			}
+		}
+		else
+		{
+			ai->aiFacePosition( &m_targetPos, CMD_FROM_AI );
+		}
 	}
 }
 
