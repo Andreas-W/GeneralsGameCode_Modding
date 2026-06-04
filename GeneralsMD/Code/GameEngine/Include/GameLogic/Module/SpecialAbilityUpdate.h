@@ -76,6 +76,8 @@ public:
 	Bool									m_approachRequiresLOS;
   Bool                  m_needToFaceTarget;
   Bool                  m_persistenceRequiresRecharge;
+  Bool                  m_requiresMoveToTurn;	///< if set, orient by moving toward target (for locomotors that can't turn in place) instead of facing in place
+  Real                  m_facingAngleTolerance;	///< heading delta (radians) considered "facing target" when m_requiresMoveToTurn
 
 	const ParticleSystemTemplate *m_disableFXParticleSystem;
 	AudioEventRTS					m_packSound;
@@ -113,6 +115,8 @@ public:
 		m_preTriggerUnstealthFrames = 0;
     m_needToFaceTarget = TRUE;
     m_persistenceRequiresRecharge = FALSE;
+    m_requiresMoveToTurn = FALSE;
+    m_facingAngleTolerance = 0.1f;	// ~5.7 degrees
 	}
 
 	static void buildFieldParse(MultiIniFieldParse& p)
@@ -159,6 +163,8 @@ public:
 			{ "ApproachRequiresLOS",				INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_approachRequiresLOS ) },
       { "NeedToFaceTarget",           INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_needToFaceTarget ) },
       { "PersistenceRequiresRecharge",INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_persistenceRequiresRecharge ) },
+      { "RequiresMoveToTurn",         INI::parseBool,										nullptr, offsetof( SpecialAbilityUpdateModuleData, m_requiresMoveToTurn ) },
+      { "FacingAngleTolerance",       INI::parseAngleReal,							nullptr, offsetof( SpecialAbilityUpdateModuleData, m_facingAngleTolerance ) },
 			{ 0, 0, 0, 0 }
 		};
     p.add(dataFieldParse);
@@ -270,6 +276,7 @@ private:
 	UnsignedInt										m_animFrames;	//Used for packing/unpacking unit before or after using ability.
 	ObjectID											m_targetID;
 	Coord3D												m_targetPos;
+	UnsignedInt										m_commandOptions;	//Command option flags this ability was triggered with (e.g. FORMATION_LAUNCH).
 	Int														m_locationCount;
 	std::list<ObjectID>						m_specialObjectIDList; //The list of special objects
 	UnsignedInt										m_specialObjectEntries;				 //The size of the list of member Objects
