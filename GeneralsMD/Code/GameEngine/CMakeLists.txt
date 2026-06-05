@@ -510,6 +510,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/BridgeTowerBody.h
     Include/GameLogic/Module/DrawBridgeTowerUpdate.h
     Include/GameLogic/Module/DrawBridgeUpdate.h
+    Include/GameLogic/Module/CrateApplyUpgrade.h
     Include/GameLogic/Object.h
     Include/GameLogic/ObjectCreationList.h
     Include/GameLogic/BuffSystem.h
@@ -1147,6 +1148,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Upgrade/UpgradeModule.cpp
     Source/GameLogic/Object/Upgrade/WeaponBonusUpgrade.cpp
     Source/GameLogic/Object/Upgrade/WeaponSetUpgrade.cpp
+    Source/GameLogic/Object/Upgrade/CrateApplyUpgrade.cpp
     Source/GameLogic/Object/Weapon.cpp
     Source/GameLogic/Object/WeaponSet.cpp
     Source/GameLogic/ScriptEngine/ScriptActions.cpp

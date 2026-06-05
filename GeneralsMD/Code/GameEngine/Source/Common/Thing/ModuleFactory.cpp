@@ -240,6 +240,7 @@
 #include "GameLogic/Module/UnitProductionBonusUpgrade.h"
 #include "GameLogic/Module/ExperienceScalarUpgrade.h"
 #include "GameLogic/Module/MaxHealthUpgrade.h"
+#include "GameLogic/Module/CrateApplyUpgrade.h"
 
 // create includes
 #include "GameLogic/Module/LockWeaponCreate.h"
@@ -552,6 +553,7 @@ void ModuleFactory::init( void )
 	addModule( WeaponBonusUpgrade );
 	addModule( ExperienceScalarUpgrade );
 	addModule( MaxHealthUpgrade );
+	addModule( CrateApplyUpgrade );
 
 	// create modules
 	addModule( LockWeaponCreate );

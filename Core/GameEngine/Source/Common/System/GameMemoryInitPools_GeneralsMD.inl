@@ -701,5 +701,6 @@ static PoolSizeRec PoolSizes[] =
 	{ "CarrierDroneAIUpdate", 16, 16 },
 	{ "DrawBridgeTowerUpdate", 8, 8 },
 	{ "DrawBridgeUpdate", 4, 4 },
+	{ "CrateApplyUpgrade", 64, 32 },
 	{ 0, 0, 0 }
 };
