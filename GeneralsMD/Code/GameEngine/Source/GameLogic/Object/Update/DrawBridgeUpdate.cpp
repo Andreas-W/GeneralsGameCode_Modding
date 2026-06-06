@@ -109,7 +109,7 @@ bool DrawBridgeUpdate::setDrawBridgeState(bool opened, const Object* fromTower)
 {
 	UnsignedInt now = TheGameLogic->getFrame();
 
-	if (m_nextReadyFrame <= now) {
+	if (m_nextReadyFrame <= now && getObject()->getBodyModule()->getHealth() > 0.0f) {
 
 		const DrawBridgeUpdateModuleData* data = getDrawBridgeUpdateModuleData();
 
@@ -144,6 +144,26 @@ bool DrawBridgeUpdate::setDrawBridgeState(bool opened, const Object* fromTower)
 		return true;
 	}
 	return false;
+}
+
+void DrawBridgeUpdate::onBridgeDestroyed()
+{
+	m_openingFrame = 0U;
+	m_closingDamageFrame = 0U;
+	Object* obj = getObject();
+	obj->clearModelConditionFlags(MODELCONDITION_DOOR_1_OPENING);
+	obj->clearModelConditionFlags(MODELCONDITION_DOOR_1_CLOSING);
+	m_bridgeOpened = true;
+}
+
+void DrawBridgeUpdate::onBridgeRepaired()
+{
+	m_openingFrame = 0U;
+	m_closingDamageFrame = 0U;
+	Object* obj = getObject();
+	obj->clearModelConditionFlags(MODELCONDITION_DOOR_1_OPENING);
+	obj->clearModelConditionFlags(MODELCONDITION_DOOR_1_CLOSING);
+	m_bridgeOpened = false;
 }
 
 // This method launches units away by applying force in a 45 degree upwards angle to simulate an opening

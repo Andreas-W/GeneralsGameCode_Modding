@@ -53,7 +53,10 @@ public:
 
 	virtual CommandOption getCommandOption() const;
 
-	bool setDrawBridgeState(bool opened, const Object* fromTower);
+	Bool setDrawBridgeState(bool opened, const Object* fromTower);
+
+	void onBridgeDestroyed();
+	void onBridgeRepaired();
 
 protected:
 	void pushObjectsOnOpeningDrawbridge( void );

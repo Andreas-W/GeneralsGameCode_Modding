@@ -245,11 +245,13 @@ Object *CreateCrateDie::createCrate( CrateTemplate const *currentCrateData )
 
 	if( spotFound )
 	{
+		bool swimming = false;
 		//Move up to water surface if unterwater
 		if (currentCrateData->m_allowWater && getObject()->isOverWater()) {
 			Real waterZ{ 0 };
 			if (TheTerrainLogic->isUnderwater(creationPoint.x, creationPoint.y, &waterZ)) {
 				creationPoint.z = std::max(creationPoint.z, waterZ);
+				swimming = true;
 			}
 		}
 
@@ -258,13 +260,19 @@ Object *CreateCrateDie::createCrate( CrateTemplate const *currentCrateData )
 		newCrate->setOrientation( GameLogicRandomValueReal( 0, 2*PI ) );
 		newCrate->setLayer(layer);
 
+		Real decalScale = 2.5f;
+		if (swimming) {
+			newCrate->setModelConditionState(MODELCONDITION_OVER_WATER);
+			decalScale = 3.0f;
+		}
+
 		Drawable *crateDrawable = newCrate->getDrawable();
 
 		if( crateDrawable )
 		{
 			crateDrawable->setTerrainDecal(TERRAIN_DECAL_CRATE);
-			crateDrawable->setTerrainDecalSize(2.5f * newCrate->getGeometryInfo().getMajorRadius(),
-																2.5f * newCrate->getGeometryInfo().getMajorRadius() )	;
+			crateDrawable->setTerrainDecalSize(decalScale * newCrate->getGeometryInfo().getMajorRadius(),
+																				 decalScale * newCrate->getGeometryInfo().getMajorRadius() )	;
 			crateDrawable->setTerrainDecalFadeTarget(1.0f, 0.03f);
 		}
 

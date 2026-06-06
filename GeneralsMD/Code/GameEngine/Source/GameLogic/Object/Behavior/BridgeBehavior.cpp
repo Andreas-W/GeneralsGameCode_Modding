@@ -35,6 +35,7 @@
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h"
 #include "Common/Player.h"
+#include "Common/PlayerList.h"
 #include "GameClient/InGameUI.h"
 #include "GameClient/FXList.h"
 #include "GameClient/Line2D.h"
@@ -47,6 +48,7 @@
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/BridgeBehavior.h"
 #include "GameLogic/Module/BridgeScaffoldBehavior.h"
+#include "GameLogic/Module/DrawBridgeUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/TerrainLogic.h"
@@ -988,8 +990,9 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 		{
 
 			tower = TheGameLogic->findObjectByID(getTowerID((BridgeTowerType)i));
-			if (tower)
+			if (tower) {
 				tower->kill();
+			}
 
 		}
 	}
@@ -1000,10 +1003,31 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 		{
 			bridge->setDrawBridgeStage(true);
 		}
+
+		// Set tower owner back to neutral
+		Object* tower;
+		for (Int i = 0; i < BRIDGE_MAX_TOWERS; ++i)
+		{
+			tower = TheGameLogic->findObjectByID(getTowerID((BridgeTowerType)i));
+			if (tower) {
+				// if the tower was owned by a player, hand it back to the civilian (neutral) player
+				Player* civilian = ThePlayerList->getNeutralPlayer();
+				if (tower->getControllingPlayer() != civilian) {
+					tower->defect(civilian->getDefaultTeam(), 0);
+				}
+			}
+
+		}
 	}
 
 	// we need to handle anything that was on top of us now that we've been destroyed
 	handleObjectsOnBridgeOnDie();
+
+	// if the bridge has a DrawBridgeUpdate, notify it that we've been destroyed
+	static const NameKeyType key_DrawBridgeUpdate = NAMEKEY( "DrawBridgeUpdate" );
+	DrawBridgeUpdate *drawBridgeUpdate = (DrawBridgeUpdate *)getObject()->findUpdateModule( key_DrawBridgeUpdate );
+	if( drawBridgeUpdate )
+		drawBridgeUpdate->onBridgeDestroyed();
 
 	// we have now died, record the death frame
 	m_deathFrame = TheGameLogic->getFrame();
@@ -1513,6 +1537,12 @@ Bool BridgeBehavior::isScaffoldInMotion( void )
 void BridgeBehavior::onRepaired(void)
 {
 	m_repairedFrame = TheGameLogic->getFrame();
+
+	// if the bridge has a DrawBridgeUpdate, notify it that we've been repaired
+	static const NameKeyType key_DrawBridgeUpdate = NAMEKEY("DrawBridgeUpdate");
+	DrawBridgeUpdate* drawBridgeUpdate = (DrawBridgeUpdate*)getObject()->findUpdateModule(key_DrawBridgeUpdate);
+	if (drawBridgeUpdate)
+		drawBridgeUpdate->onBridgeRepaired();
 }
 
 // ------------------------------------------------------------------------------------------------
