@@ -160,6 +160,10 @@ UpdateSleepTime JumpjetContain::update(void)
 	Object* rider = (getContainCount() > 0) ? getContainList().front() : NULL;
 
 
+	// keep contained object oriented (Z rotation) same as the container
+	if (rider)
+		positionContainedObjectsRelativeToContainer();
+
 	// allow us to land on bridges!
 	const Coord3D* paraPos = getObject()->getPosition();
 	PathfindLayerEnum newLayer = TheTerrainLogic->getHighestLayerForDestination(paraPos);
