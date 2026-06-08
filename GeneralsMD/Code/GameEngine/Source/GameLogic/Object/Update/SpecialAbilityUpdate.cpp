@@ -50,6 +50,7 @@
 
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/Locomotor.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/Weapon.h"
@@ -63,6 +64,7 @@
 #include "GameLogic/Module/StickyBombUpdate.h"
 #include "GameLogic/Module/StealthUpdate.h"
 #include "GameLogic/Module/ContainModule.h"
+#include "GameLogic/Module/JumpjetMissileAIUpdate.h"
 
 
 
@@ -75,6 +77,7 @@ SpecialAbilityUpdate::SpecialAbilityUpdate( Thing *thing, const ModuleData* modu
   m_animFrames = 0;
   m_targetID = INVALID_ID;
   m_targetPos.zero();
+  m_commandOptions = 0;
   m_locationCount = 0;
   m_specialObjectEntries = 0;
   m_noTargetCommand = false;
@@ -404,11 +407,23 @@ UpdateSleepTime SpecialAbilityUpdate::update( void )
   else if( isWithinStartAbilityRange() )
   {
     m_withinStartAbilityRange = true;
-    if( !isFacing() && needToFace() )
+    bool is_facing = isFacing();
+    bool need_to_face = needToFace();
+
+    if (!is_facing && need_to_face)
     {
       startFacing();
       return calcSleepTime();
     }
+
+    // Do we need to wait for facing to complete?
+    switch (data->m_specialPowerTemplate->getSpecialPowerType())
+    {
+      case SPECIAL_JUMPJET:
+        if (need_to_face && is_facing) return calcSleepTime();
+        break;
+    }
+
 
     if( needToUnpack() )
     {
@@ -486,6 +501,7 @@ Bool SpecialAbilityUpdate::initiateIntentToDoSpecialPower( const SpecialPowerTem
   //Clear target values
   m_targetID = INVALID_ID;
   m_targetPos.zero();
+  m_commandOptions = commandOptions;
   m_locationCount = 0;
   m_prepFrames = 0;
   m_animFrames = 0;
@@ -1605,6 +1621,47 @@ void SpecialAbilityUpdate::triggerAbilityEffect()
 
       break;
     }
+
+    case SPECIAL_JUMPJET:
+    {
+      Object* jumpjet = createSpecialObject();
+      ContainModuleInterface* contain = jumpjet->getContain();
+
+      if (contain != NULL && contain->isValidContainerFor(getObject(), true))
+      {
+        /*ProjectileUpdateInterface* pui = NULL;
+        for (BehaviorModule** u = jumpjet->getBehaviorModules(); *u; ++u)
+        {
+            if ((pui = (*u)->getProjectileUpdateInterface()) != NULL)
+                break;
+        }*/
+
+        static NameKeyType key_JumpjetMissileAIUpdate = NAMEKEY("JumpjetMissileAIUpdate");
+        JumpjetMissileAIUpdate* update = (JumpjetMissileAIUpdate*)jumpjet->findUpdateModule(key_JumpjetMissileAIUpdate);
+
+        if (update) {
+          Coord3D newTargetPos;
+          // When launched as part of a formation group, keep the per-unit target instead of scattering.
+          Bool keepFormation = (m_commandOptions & FORMATION_LAUNCH) != 0;
+          // DEBUG_LOG((">>> SAU - Try to Launch to pos (%f, %f, %f)\n", m_targetPos.x, m_targetPos.y, m_targetPos.z));
+          Bool ok = update->canLaunchToPosition(&m_targetPos, &newTargetPos, keepFormation);
+          // DEBUG_LOG((">>> SAU - newPos (%f, %f, %f), OK = %d\n", newTargetPos.x, newTargetPos.y, newTargetPos.z, ok));
+
+          if (ok) {
+            contain->addToContain(getObject());
+
+            update->projectileFireAtObjectOrPosition(
+              NULL,
+              &newTargetPos,
+              NULL,
+              NULL
+            );
+          }
+          // else { // We could not find a suitable target; abort the ability activation (not yet implemented)
+          //}
+        }
+      }
+    }
   }
 
   if( data->m_loseStealthOnTrigger && okToLoseStealth)
@@ -1847,6 +1904,23 @@ Bool SpecialAbilityUpdate::isFacing()
 	{
 		if( !m_facingComplete && m_facingInitiated)
 		{
+			const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
+			Locomotor *loco = ai->getCurLocomotor();
+			if( data->m_requiresMoveToTurn && loco && loco->getMinTurnSpeed() > 0.0f )
+			{
+				//This locomotor can't turn in place (e.g. wings); we're moving toward the
+				//target to turn. Consider facing complete once our heading is within tolerance.
+				Real relAngle = ThePartitionManager->getRelativeAngle2D( getObject(), &m_targetPos );
+				if( fabs( relAngle ) <= data->m_facingAngleTolerance )
+				{
+					m_facingComplete = true;
+					ai->aiIdle( CMD_FROM_AI );	//stop the short move; ready to launch
+					return false;
+				}
+				//Still turning (while moving).
+				return true;
+			}
+
 			if( ai->isIdle() )
 			{
 				//We finished facing the target
@@ -1913,7 +1987,26 @@ void SpecialAbilityUpdate::startFacing()
 	}
 	else if( m_targetPos.x || m_targetPos.y || m_targetPos.z ) //It's zero if not used...
 	{
-		ai->aiFacePosition( &m_targetPos, CMD_FROM_AI );
+		const SpecialAbilityUpdateModuleData* data = getSpecialAbilityUpdateModuleData();
+		Locomotor *loco = ai->getCurLocomotor();
+		if( data->m_requiresMoveToTurn && loco && loco->getMinTurnSpeed() > 0.0f )
+		{
+			//This locomotor can't turn in place (e.g. wings); facing in place does nothing.
+			if( fabs( ThePartitionManager->getRelativeAngle2D( getObject(), &m_targetPos ) ) <= data->m_facingAngleTolerance )
+			{
+				//Already pointed at the target -- no need to move.
+				m_facingComplete = true;
+			}
+			else
+			{
+				//Move toward the target so the locomotor turns us; isFacing() stops us once aligned.
+				ai->aiMoveToPosition( &m_targetPos, CMD_FROM_AI );
+			}
+		}
+		else
+		{
+			ai->aiFacePosition( &m_targetPos, CMD_FROM_AI );
+		}
 	}
 }
 
@@ -1971,6 +2064,7 @@ void SpecialAbilityUpdate::endPreparation()
 		case SPECIAL_REMOTE_CHARGES:
 		case SPECIAL_DISGUISE_AS_VEHICLE:
 		case SPECIAL_HELIX_NAPALM_BOMB:
+    case SPECIAL_JUMPJET:
 			// No, don't delete placed charges.
 			// -OR- Not applicable (doesn't use special objects).
 			break;
@@ -2003,13 +2097,14 @@ void SpecialAbilityUpdate::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: Added m_commandOptions */
 // ------------------------------------------------------------------------------------------------
 void SpecialAbilityUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -2030,6 +2125,12 @@ void SpecialAbilityUpdate::xfer( Xfer *xfer )
 
 	// target position
 	xfer->xferCoord3D( &m_targetPos );
+
+	// command options (v2+)
+	if( version >= 2 )
+	{
+		xfer->xferUnsignedInt( &m_commandOptions );
+	}
 
 	// location count
 	xfer->xferInt( &m_locationCount );

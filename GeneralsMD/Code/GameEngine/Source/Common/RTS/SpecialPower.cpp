@@ -219,6 +219,10 @@ const char* const SpecialPowerMaskType::s_bitNameList[] =
 	 "SUPW_SPECIAL_SPECTRE_GUNSHIP",
 	 "SUPW_SPECIAL_ORBITAL_STRIKE",
 
+	 "SPECIAL_TOGGLE_DRAWBRIDGE",
+
+	 "SPECIAL_JUMPJET",
+
 	nullptr
 };
 static_assert(ARRAY_SIZE(SpecialPowerMaskType::s_bitNameList) == SpecialPowerMaskType::NumBits + 1, "Incorrect array size");

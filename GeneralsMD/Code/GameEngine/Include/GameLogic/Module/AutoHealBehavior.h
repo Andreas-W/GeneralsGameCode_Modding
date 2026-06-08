@@ -61,6 +61,8 @@ public:
 	KindOfMaskType				m_forbiddenKindOf;	//Only these types can heal -- defaults to everything.
 	const ParticleSystemTemplate*				m_radiusParticleSystemTmpl;					//Optional particle system meant to apply to entire effect for entire duration.
 	const ParticleSystemTemplate*				m_unitHealPulseParticleSystemTmpl;	//Optional particle system applying to each object getting healed each heal pulse.
+	Bool									m_grantSalvageUpgrade; //Apply a salvage upgrade to unit when healing
+	Bool									m_grantPromotion;      //Give unit a levelup when healing
 
 	AutoHealBehaviorModuleData()
 	{
@@ -76,6 +78,8 @@ public:
 		m_skipSelfForHealing = FALSE;
 		SET_ALL_KINDOFMASK_BITS( m_kindOf );
 		m_forbiddenKindOf.clear();
+		m_grantSalvageUpgrade = false;
+		m_grantPromotion = false;
 	}
 
 	static void buildFieldParse(MultiIniFieldParse& p)
@@ -94,6 +98,8 @@ public:
 			{ "StartHealingDelay",			INI::parseDurationUnsignedInt,				nullptr, offsetof( AutoHealBehaviorModuleData, m_startHealingDelay ) },
 			{ "AffectsWholePlayer",			INI::parseBool,												nullptr, offsetof( AutoHealBehaviorModuleData, m_affectsWholePlayer ) },
 			{ "SkipSelfForHealing",			INI::parseBool,												nullptr, offsetof( AutoHealBehaviorModuleData, m_skipSelfForHealing ) },
+			{ "GrantSalvageUpgrade",		INI::parseBool,												nullptr, offsetof( AutoHealBehaviorModuleData, m_grantSalvageUpgrade ) },
+			{ "GrantPromotion",			    INI::parseBool,												nullptr, offsetof( AutoHealBehaviorModuleData, m_grantPromotion ) },
 			{ 0, 0, 0, 0 }
 		};
 
@@ -173,7 +179,12 @@ protected:
 
 private:
 
-	void pulseHealObject( Object *obj );
+	Bool canApplyWeaponSalvage(const Object* obj) const;
+	Bool canApplyArmorSalvage(const Object* obj) const;
+	Bool canApplyLevelUp(const Object* obj) const;
+
+	// Return if healing occured
+	Bool pulseHealObject( Object *obj );
 
 	ParticleSystemID m_radiusParticleSystemID;
 

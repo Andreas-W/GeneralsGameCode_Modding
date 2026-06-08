@@ -135,6 +135,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "MissileAIUpdate", 512, 32 },
 	{ "DumbProjectileBehavior", 64, 32 },
 	{ "FreeFallProjectileBehavior", 32, 32 },
+	{ "JumpjetMissileAIUpdate", 16, 16 },
 	{ "DestroyDie", 1024, 32 },
 	{ "UpgradeDie", 128, 32 },
 	{ "KeepObjectDie", 128, 32 },
@@ -278,6 +279,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "TransitionDamageFX", 384, 128 },
 	{ "TransportAIUpdate", 64, 32 },
 	{ "TransportContain", 128, 32 },
+	{ "JumpjetContain", 16, 16 },
 	{ "RiderChangeContain", 128, 32 },
 	{ "InternetHackContain", 16, 16 },
 	{ "TunnelContain", 8, 8 },
@@ -697,5 +699,8 @@ static PoolSizeRec PoolSizes[] =
 	{ "DroneCarrierContain", 8, 8 },
 	{ "W3DDependencyCarrierDraw", 16, 16 },
 	{ "CarrierDroneAIUpdate", 16, 16 },
+	{ "DrawBridgeTowerUpdate", 8, 8 },
+	{ "DrawBridgeUpdate", 4, 4 },
+	{ "CrateApplyUpgrade", 64, 32 },
 	{ 0, 0, 0 }
 };

@@ -1860,7 +1860,7 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	}
 
 	PathfindLayerEnum destinationLayer = TheTerrainLogic->getLayerForDestination(destination);
-	if (TheAI->pathfinder()->validMovementPosition( getObject()->getCrusherLevel()>0, destinationLayer, m_locomotorSet, destination ) == FALSE)
+	if (TheAI->pathfinder()->validMovementPosition( getObject()->getCrusherLevel()>0, destinationLayer, m_locomotorSet, getObject()->getRequiredBridgeHeight(), destination ) == FALSE)
 	{
 		theNewPath = nullptr;
 	}
@@ -2233,7 +2233,7 @@ Bool AIUpdateInterface::isPathAvailable( const Coord3D *destination ) const
 
 	const Coord3D *myPos = getObject()->getPosition();
 
-	return TheAI->pathfinder()->clientSafeQuickDoesPathExist( m_locomotorSet, myPos, destination );
+	return TheAI->pathfinder()->clientSafeQuickDoesPathExist(m_locomotorSet, getObject()->getRequiredBridgeHeight(), myPos, destination);
 
 }
 
@@ -2260,7 +2260,7 @@ Bool AIUpdateInterface::isQuickPathAvailable( const Coord3D *destination ) const
 //-------------------------------------------------------------------------------------------------
 Bool AIUpdateInterface::isValidLocomotorPosition(const Coord3D* pos) const
 {
-	return TheAI->pathfinder()->validMovementPosition( getObject()->getCrusherLevel()>0, getObject()->getLayer(), m_locomotorSet, pos );
+	return TheAI->pathfinder()->validMovementPosition( getObject()->getCrusherLevel()>0, getObject()->getLayer(), m_locomotorSet, getObject()->getRequiredBridgeHeight(), pos );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -5593,3 +5593,29 @@ Bool AIUpdateInterface::hasLocomotorForSurface(LocomotorSurfaceType surfaceType)
 }
 
 // ------------------------------------------------------------------------------------------------
+Bool AIUpdateInterface::arePathLayersStillValid() {
+	Path* path = getPath();
+	if (path != nullptr) {
+
+		//Check if going below bridges and if these are still opened/destroyed
+		if (path->needCheckBridges()) {
+			for (UnsignedShort i = PathfindLayerEnum::LAYER_GROUND + 1U; i < PathfindLayerEnum::LAYER_WALL; ++i) {
+				if (path->isPathBelowBridge(i)) {
+					// Path is below bridge -> if Bridge layer is now Passable, no longer valid -> recheck
+					return TheAI->pathfinder()->isPathfindLayerPassable(static_cast<PathfindLayerEnum>(i));
+				}
+			}
+		}
+
+		// Check for going over bridges
+		const PathNode* node = nullptr;
+		for (node = path->getFirstNode(); node != nullptr; node = node->getNextOptimized()) {
+			PathfindLayerEnum layer = node->getLayer();
+			if (layer > LAYER_GROUND && layer < LAYER_LAST) {
+				// check if layer is still valid
+				if (!TheAI->pathfinder()->isPathfindLayerPassable(layer)) return false;
+			}
+		}
+	}
+	return true;
+}

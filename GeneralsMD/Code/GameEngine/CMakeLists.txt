@@ -371,6 +371,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/MaxHealthUpgrade.h
     Include/GameLogic/Module/MinefieldBehavior.h
     Include/GameLogic/Module/MissileAIUpdate.h
+    Include/GameLogic/Module/JumpjetMissileAIUpdate.h
     Include/GameLogic/Module/MissileLauncherBuildingUpdate.h
     Include/GameLogic/Module/MobMemberSlavedUpdate.h
     Include/GameLogic/Module/MobNexusContain.h
@@ -483,6 +484,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/TransportAIUpdate.h
     Include/GameLogic/Module/TransportContain.h
     Include/GameLogic/Module/TunnelContain.h
+    Include/GameLogic/Module/JumpjetContain.h
     Include/GameLogic/Module/UndeadBody.h
     Include/GameLogic/Module/UnitCrateCollide.h
     Include/GameLogic/Module/UnpauseSpecialPowerUpgrade.h
@@ -506,6 +508,9 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/DroneCarrierContain.h
     Include/GameLogic/Module/CarrierDroneAIUpdate.h
     Include/GameLogic/Module/BridgeTowerBody.h
+    Include/GameLogic/Module/DrawBridgeTowerUpdate.h
+    Include/GameLogic/Module/DrawBridgeUpdate.h
+    Include/GameLogic/Module/CrateApplyUpgrade.h
     Include/GameLogic/Object.h
     Include/GameLogic/ObjectCreationList.h
     Include/GameLogic/BuffSystem.h
@@ -958,6 +963,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Contain/RiderChangeContain.cpp
     Source/GameLogic/Object/Contain/TransportContain.cpp
     Source/GameLogic/Object/Contain/TunnelContain.cpp
+    Source/GameLogic/Object/Contain/JumpjetContain.cpp
     Source/GameLogic/Object/Contain/DroneCarrierContain.cpp
     Source/GameLogic/Object/Create/CreateModule.cpp
     Source/GameLogic/Object/Create/GrantUpgradeCreate.cpp
@@ -1024,6 +1030,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/AIUpdate/HackInternetAIUpdate.cpp
     Source/GameLogic/Object/Update/AIUpdate/JetAIUpdate.cpp
     Source/GameLogic/Object/Update/AIUpdate/MissileAIUpdate.cpp
+    Source/GameLogic/Object/Update/AIUpdate/JumpjetMissileAIUpdate.cpp
     Source/GameLogic/Object/Update/AIUpdate/POWTruckAIUpdate.cpp
     Source/GameLogic/Object/Update/AIUpdate/RailedTransportAIUpdate.cpp
     Source/GameLogic/Object/Update/AIUpdate/RailroadGuideAIUpdate.cpp
@@ -1116,6 +1123,8 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/KodiakDeploymentUpdate.cpp
     Source/GameLogic/Object/Update/KodiakUpdate.cpp
     Source/GameLogic/Object/Update/DroneCarrierSlavedUpdate.cpp
+    Source/GameLogic/Object/Update/DrawBridgeTowerUpdate.cpp
+    Source/GameLogic/Object/Update/DrawBridgeUpdate.cpp
     Source/GameLogic/Object/Upgrade/ActiveShroudUpgrade.cpp
     Source/GameLogic/Object/Upgrade/ArmorUpgrade.cpp
     Source/GameLogic/Object/Upgrade/CommandSetUpgrade.cpp
@@ -1139,6 +1148,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Upgrade/UpgradeModule.cpp
     Source/GameLogic/Object/Upgrade/WeaponBonusUpgrade.cpp
     Source/GameLogic/Object/Upgrade/WeaponSetUpgrade.cpp
+    Source/GameLogic/Object/Upgrade/CrateApplyUpgrade.cpp
     Source/GameLogic/Object/Weapon.cpp
     Source/GameLogic/Object/WeaponSet.cpp
     Source/GameLogic/ScriptEngine/ScriptActions.cpp

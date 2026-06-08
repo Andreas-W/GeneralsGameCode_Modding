@@ -51,6 +51,7 @@
 #include "GameLogic/Module/SpecialAbilityUpdate.h"
 #include "GameLogic/Module/VeterancyGainCreate.h"
 #include "GameLogic/Module/HackInternetAIUpdate.h"
+#include "GameLogic/Module/DrawBridgeTowerUpdate.h"
 #include "GameLogic/Weapon.h"
 
 #include "GameClient/InGameUI.h"
@@ -1451,6 +1452,15 @@ CommandAvailability ControlBar::getCommandAvailability( const CommandButton *com
 				static NameKeyType key_BattlePlanUpdate = NAMEKEY( "BattlePlanUpdate" );
 				BattlePlanUpdate *update = (BattlePlanUpdate*)obj->findUpdateModule( key_BattlePlanUpdate );
 				if( update && update->getCommandOption() & command->getOptions() )
+				{
+					return COMMAND_ACTIVE;
+				}
+			}
+			else if (mod->getSpecialPowerTemplate()->getSpecialPowerType() == SPECIAL_TOGGLE_DRAWBRIDGE)
+			{
+				static NameKeyType key_drawBridgeTowerUpdate = NAMEKEY("DrawBridgeTowerUpdate");
+				DrawBridgeTowerUpdate* update = (DrawBridgeTowerUpdate*)obj->findUpdateModule(key_drawBridgeTowerUpdate);
+				if (update && update->getCommandOption() & command->getOptions())
 				{
 					return COMMAND_ACTIVE;
 				}

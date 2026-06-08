@@ -1870,6 +1870,11 @@ StateReturnType AIInternalMoveToState::update()
 		//DEBUG_LOG(("Info - Blocked - recomputing."));
 	}
 
+	// Check if all bridges on the current path are still valid
+	if (!forceRecompute && !ai->arePathLayersStillValid()) {
+		forceRecompute = true;
+	}
+
 	//Determine if we are on a cliff cell... if so, use the climbing model condition
 	//instead of moving.
 	Int cellX = REAL_TO_INT( obj->getPosition()->x / PATHFIND_CELL_SIZE );
@@ -2483,6 +2488,12 @@ Bool AIAttackApproachTargetState::computePath()
 		//CRCDEBUG_LOG(("AIAttackApproachTargetState::computePath - bailing because of min time for object %d", getMachineOwner()->getID()));
 		return true;
 	}
+
+	// Check if all bridges on the current path are still valid
+	if (!forceRepath && !ai->arePathLayersStillValid()) {
+		forceRepath = true;
+	}
+
 
 	m_approachTimestamp = TheGameLogic->getFrame();
 

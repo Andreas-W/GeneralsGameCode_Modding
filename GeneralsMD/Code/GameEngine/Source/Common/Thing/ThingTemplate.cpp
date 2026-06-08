@@ -72,6 +72,8 @@
 #include "GameLogic/Weapon.h"
 
 #include "Common/UnitTimings.h" //Contains the DO_UNIT_TIMINGS define jba.
+#include <Common/LocalFile.h>
+#include <Common/RAMFile.h>
 
 
 //-------------------------------------------------------------------------------------------------
@@ -256,7 +258,8 @@ const FieldParse ThingTemplate::s_objectFieldParseTable[] =
 	{ "CrusherLevel",					INI::parseUnsignedByte,			nullptr, offsetof( ThingTemplate, m_crusherLevel ) },
 	{ "CrushableLevel",				INI::parseUnsignedByte,			nullptr, offsetof( ThingTemplate, m_crushableLevel ) },
 	{ "AmmoPipsStyle",  INI::parseByteSizedIndexList, AmmoPipsStyleNames, offsetof(ThingTemplate, m_ammoPipsStyle) },
-	{ "MaxPathfindingCellRadius", INI::parseUnsignedByte, NULL, offsetof(ThingTemplate, m_maxPathfindingCellRadius) },
+	{ "MaxPathfindingCellRadius", INI::parseUnsignedByte, nullptr, offsetof(ThingTemplate, m_maxPathfindingCellRadius) },
+	{ "RequiredBridgeHeight", ThingTemplate::parseRequiredBridgeHeight, nullptr,  0 },
 	{ nullptr, nullptr, nullptr, 0 }
 
 };
@@ -990,6 +993,22 @@ void ThingTemplate::parseMaxSimultaneous(INI *ini, void *instance, void *store, 
   }
 }
 
+//-------------------------------------------------------------------------------------------------
+// Parse required Bridge height as real, divide by 10 and round to byte -1 to 15
+void ThingTemplate::parseRequiredBridgeHeight(INI* ini, void* instance, void* store, const void* userData)
+{
+	ThingTemplate* self = (ThingTemplate*)instance;
+
+	const char* token = ini->getNextToken();
+	Real value = INI::scanReal(token);
+
+	if (value < 0.0f) {
+		self->m_requiredBridgeHeight = -1;
+	}
+	else {
+		self->m_requiredBridgeHeight = std::clamp(static_cast<byte>(value / 10.0f), static_cast<byte>(0), static_cast<byte>(15));
+	}
+}
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -1057,6 +1076,7 @@ ThingTemplate::ThingTemplate() :
 
 	m_ammoPipsStyle = AMMO_PIPS_DEFAULT;
 	m_maxPathfindingCellRadius = 2U;
+	m_requiredBridgeHeight = -1;
 }
 
 //-------------------------------------------------------------------------------------------------

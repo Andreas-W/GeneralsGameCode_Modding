@@ -97,6 +97,7 @@ public:
 	AsciiString getRepairedToFXString( BodyDamageType state, Int index ) { return m_repairedToFXString[ state ][ index ]; }
 	Real getTransitionEffectsHeight( void ) { return m_transitionEffectsHeight; }
 	Int getNumFXPerType( void ) { return m_numFXPerType; }
+	Real getBridgeHoleAreaPercentage( void ) { return m_bridgeHoleAreaPercentage;	}
 
 	// friend access methods to be used by the road collection only!
 	void friend_setName( AsciiString name ) { m_name = name; }
@@ -188,6 +189,7 @@ protected:
 	Real m_transitionEffectsHeight;
 	Int m_numFXPerType; ///< for *each* fx/ocl we will make this many of them on the bridge area
 
+	Real m_bridgeHoleAreaPercentage; ///< if bridge is openable/destroyable, how much % of length becomes open
 };
 
 //-------------------------------------------------------------------------------------------------
