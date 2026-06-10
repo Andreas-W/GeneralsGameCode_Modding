@@ -35,7 +35,7 @@
 #include "Common/RandomValue.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h" 
-
+#include "Common/PlayerList.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Module/AIUpdate.h"
@@ -44,7 +44,7 @@
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
-
+#include "GameClient/InGameUI.h"
 #include "GameClient/Drawable.h"
 
 
@@ -293,27 +293,21 @@ void JumpjetContain::onRemoving(Object* rider)
 		}
 		else
 		{
-			bool hasRallyPoint = false;
-			// Get the transport of the rider
-			Object* transport = TheGameLogic->findObjectByID(rider->getProducerID());
-			if (transport)
-			{
-				// Get the building that produced the transport
-				Object* transportProducer = TheGameLogic->findObjectByID(transport->getProducerID());
-				if (transportProducer)
-				{
-					// See if we need to set a rally point for the object being parachuted
-					ExitInterface* exitInterface = transportProducer->getObjectExitInterface();
-					if (exitInterface && exitInterface->useSpawnRallyPoint())
-					{
-						exitInterface->exitObjectViaDoor(rider, DOOR_1);
-						hasRallyPoint = true;
-					}
-				}
-			}
+			riderAI->aiIdle(CMD_FROM_AI); // become idle.
+		}
+	}
 
-			if (!hasRallyPoint)
-				riderAI->aiIdle(CMD_FROM_AI); // become idle.
+	if (rider->getControllingPlayer() == ThePlayerList->getLocalPlayer())
+	{
+		Drawable* riderDraw = rider->getDrawable();
+		if (riderDraw && riderDraw->isSelected())
+		{
+			// add to the current selection (don't clobber other units, e.g. group jumpjet launches)
+			GameMessage* teamMsg = TheMessageStream->appendMessage(GameMessage::MSG_CREATE_SELECTED_GROUP);
+			teamMsg->appendBooleanArgument(FALSE);
+			teamMsg->appendObjectIDArgument(rider->getID());
+			TheInGameUI->selectDrawable(riderDraw);
+			TheInGameUI->setDisplayedMaxWarning(FALSE);
 		}
 	}
 
