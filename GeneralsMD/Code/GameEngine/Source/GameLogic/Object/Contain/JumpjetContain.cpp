@@ -297,17 +297,16 @@ void JumpjetContain::onRemoving(Object* rider)
 		}
 	}
 
+	// Reselect to avoid bug where it stays unresponsive
 	if (rider->getControllingPlayer() == ThePlayerList->getLocalPlayer())
 	{
 		Drawable* riderDraw = rider->getDrawable();
 		if (riderDraw && riderDraw->isSelected())
 		{
-			// add to the current selection (don't clobber other units, e.g. group jumpjet launches)
-			GameMessage* teamMsg = TheMessageStream->appendMessage(GameMessage::MSG_CREATE_SELECTED_GROUP);
+			// add to the current selection
+			GameMessage* teamMsg = TheMessageStream->appendMessage(GameMessage::MSG_CREATE_SELECTED_GROUP_NO_SOUND);
 			teamMsg->appendBooleanArgument(FALSE);
 			teamMsg->appendObjectIDArgument(rider->getID());
-			TheInGameUI->selectDrawable(riderDraw);
-			TheInGameUI->setDisplayedMaxWarning(FALSE);
 		}
 	}
 
