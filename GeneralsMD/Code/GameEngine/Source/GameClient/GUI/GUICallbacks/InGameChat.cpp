@@ -199,7 +199,9 @@ void ToggleInGameChat( Bool immediate )
 	if (TheGameLogic->isInReplayGame())
 		return;
 
-	if (!TheGameInfo->isMultiPlayer() && TheGlobalData->m_netMinPlayers)
+	// Block the chat window in singleplayer/skirmish unless EnableSingleplayerChatwindow is set (for chat commands).
+	if (!TheGlobalData->m_enableSingleplayerChatWindow
+		&& (!TheGameInfo || !TheGameInfo->isMultiPlayer()) && TheGlobalData->m_netMinPlayers)
 		return;
 
 	if (chatWindow)
@@ -214,7 +216,9 @@ void ToggleInGameChat( Bool immediate )
 				// Send what is there, clear it out, and hide the window
 				UnicodeString msg = GadgetTextEntryGetText( chatTextEntry );
 				msg.trim();
-				if (!msg.isEmpty() && !handleInGameSlashCommands(msg))
+				// Slash commands are handled above and work in singleplayer.
+				// The network broadcast below only applies to multiplayer; skip it when there is no network.
+				if (!msg.isEmpty() && !handleInGameSlashCommands(msg) && TheNetwork && TheGameInfo)
 				{
 					const Player *localPlayer = ThePlayerList->getLocalPlayer();
 					AsciiString playerName;
