@@ -1056,7 +1056,8 @@ W3DModelDrawModuleData::W3DModelDrawModuleData() :
 	m_attachToDrawableBoneOffsetValid(false),
 #endif
 	m_minLODRequired(STATIC_GAME_LOD_LOW),
-	m_defaultState(-1)
+	m_defaultState(-1),
+	m_lastRealConditionStateIndex(-1)
 {
 	const Real MAX_SHIFT = 3.0f;
 	const Real INITIAL_RECOIL_RATE = 2.0f;
@@ -1216,7 +1217,8 @@ enum ParseCondStateType CPP_11(: Int)
 	PARSE_NORMAL,
 	PARSE_DEFAULT,
 	PARSE_TRANSITION,
-	PARSE_ALIAS
+	PARSE_ALIAS,
+	PARSE_AUTO
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -1246,6 +1248,7 @@ void W3DModelDrawModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "DefaultConditionState", W3DModelDrawModuleData::parseConditionState, (void*)PARSE_DEFAULT, 0 },
 		{ "ConditionState", W3DModelDrawModuleData::parseConditionState, (void*)PARSE_NORMAL, 0 },
 		{ "AliasConditionState", W3DModelDrawModuleData::parseConditionState, (void*)PARSE_ALIAS, 0 },
+		{ "AutoConditionState", W3DModelDrawModuleData::parseConditionState, (void*)PARSE_AUTO, 0 },
 		{ "TransitionState", W3DModelDrawModuleData::parseConditionState, (void*)PARSE_TRANSITION, 0 },
 		{ "TrackMarks", parseAsciiStringLC, nullptr, offsetof(W3DModelDrawModuleData, m_trackFile) },
 		{ "ExtraPublicBone", INI::parseAsciiStringVectorAppend, nullptr, offsetof(W3DModelDrawModuleData, m_extraPublicBones) },
@@ -1476,6 +1479,100 @@ static Bool doesStateExist(const ModelConditionVector& v, const ModelConditionFl
 }
 
 //-------------------------------------------------------------------------------------------------
+// Like doesStateExist, but returns the index of the first state whose condition set matches 'f'
+// exactly (or -1 if none). Used by AutoConditionState to locate its base state.
+static Int findStateIndexMatching(const ModelConditionVector& v, const ModelConditionFlags& f)
+{
+	for (Int idx = 0; idx < (Int)v.size(); ++idx)
+	{
+		const ModelConditionInfo& info = v[idx];
+		for (Int i = info.getConditionsYesCount()-1; i >= 0; --i)
+		{
+			if (f == info.getNthConditionsYes(i))
+				return idx;
+		}
+	}
+	return -1;
+}
+
+//-------------------------------------------------------------------------------------------------
+// Overlay onto 'dst' the authored fields that 'prev' set differently from the default state 'def'.
+// Used by AutoConditionState: 'dst' starts as the matched base state, 'prev' is the previously
+// defined ConditionState whose explicit overrides we want applied on top of the base.
+// Note: a normal ConditionState is built as (default-copy then block-fields), so a scalar field
+// counts as "explicitly set" iff it differs from the default state's value. Animations are
+// clear-on-first-write (signaled by the GOT_*_ANIMS read flags). The hide/show, particle-bone and
+// FX vectors are append-based, so 'prev' = default's entries followed by the block's appended ones.
+static void mergeConditionStateOverrides(ModelConditionInfo& dst, const ModelConditionInfo& prev, const ModelConditionInfo& def)
+{
+	if (prev.m_modelName != def.m_modelName)
+		dst.m_modelName = prev.m_modelName;
+
+	if (prev.m_mode != def.m_mode)
+		dst.m_mode = prev.m_mode;
+	if (prev.m_animMinSpeedFactor != def.m_animMinSpeedFactor)
+		dst.m_animMinSpeedFactor = prev.m_animMinSpeedFactor;
+	if (prev.m_animMaxSpeedFactor != def.m_animMaxSpeedFactor)
+		dst.m_animMaxSpeedFactor = prev.m_animMaxSpeedFactor;
+	if (prev.m_animBlendTime != def.m_animBlendTime)
+		dst.m_animBlendTime = prev.m_animBlendTime;
+	if (prev.m_flags != def.m_flags)
+		dst.m_flags = prev.m_flags;
+	if (prev.m_transitionKey != def.m_transitionKey)
+		dst.m_transitionKey = prev.m_transitionKey;
+	if (prev.m_allowToFinishKey != def.m_allowToFinishKey)
+		dst.m_allowToFinishKey = prev.m_allowToFinishKey;
+
+	// turrets: only the 4 INI-read members; runtime bone members are recomputed in validateStuff
+	for (Int t = 0; t < MAX_TURRETS; ++t)
+	{
+		if (prev.m_turrets[t].m_turretAngleNameKey != def.m_turrets[t].m_turretAngleNameKey)
+			dst.m_turrets[t].m_turretAngleNameKey = prev.m_turrets[t].m_turretAngleNameKey;
+		if (prev.m_turrets[t].m_turretPitchNameKey != def.m_turrets[t].m_turretPitchNameKey)
+			dst.m_turrets[t].m_turretPitchNameKey = prev.m_turrets[t].m_turretPitchNameKey;
+		if (prev.m_turrets[t].m_turretArtAngle != def.m_turrets[t].m_turretArtAngle)
+			dst.m_turrets[t].m_turretArtAngle = prev.m_turrets[t].m_turretArtAngle;
+		if (prev.m_turrets[t].m_turretArtPitch != def.m_turrets[t].m_turretArtPitch)
+			dst.m_turrets[t].m_turretArtPitch = prev.m_turrets[t].m_turretArtPitch;
+	}
+
+	for (Int w = 0; w < WEAPONSLOT_COUNT; ++w)
+	{
+		if (prev.m_weaponFireFXBoneName[w] != def.m_weaponFireFXBoneName[w])
+			dst.m_weaponFireFXBoneName[w] = prev.m_weaponFireFXBoneName[w];
+		if (prev.m_weaponRecoilBoneName[w] != def.m_weaponRecoilBoneName[w])
+			dst.m_weaponRecoilBoneName[w] = prev.m_weaponRecoilBoneName[w];
+		if (prev.m_weaponMuzzleFlashName[w] != def.m_weaponMuzzleFlashName[w])
+			dst.m_weaponMuzzleFlashName[w] = prev.m_weaponMuzzleFlashName[w];
+		if (prev.m_weaponProjectileLaunchBoneName[w] != def.m_weaponProjectileLaunchBoneName[w])
+			dst.m_weaponProjectileLaunchBoneName[w] = prev.m_weaponProjectileLaunchBoneName[w];
+		if (prev.m_weaponProjectileHideShowName[w] != def.m_weaponProjectileHideShowName[w])
+			dst.m_weaponProjectileHideShowName[w] = prev.m_weaponProjectileHideShowName[w];
+	}
+
+	// animations: 'prev' replaced (not appended) its anims iff a GOT_*_ANIMS flag is set
+	const Int animBits = (1<<GOT_NONIDLE_ANIMS) | (1<<GOT_IDLE_ANIMS);
+	if (prev.m_iniReadFlags & animBits)
+	{
+		dst.m_animations = prev.m_animations;
+		dst.m_iniReadFlags &= ~animBits;
+		dst.m_iniReadFlags |= (prev.m_iniReadFlags & animBits);
+	}
+
+	// append-based vectors: take the entries 'prev' appended beyond the default's
+	for (size_t i = def.m_hideShowVec.size(); i < prev.m_hideShowVec.size(); ++i)
+		dst.m_hideShowVec.push_back(prev.m_hideShowVec[i]);
+	for (size_t i = def.m_particleSysBones.size(); i < prev.m_particleSysBones.size(); ++i)
+		dst.m_particleSysBones.push_back(prev.m_particleSysBones[i]);
+	for (size_t i = def.m_fxEvents.size(); i < prev.m_fxEvents.size(); ++i)
+		dst.m_fxEvents.push_back(prev.m_fxEvents[i]);
+
+	// public bones: union (addPublicBone dedups)
+	for (size_t i = 0; i < prev.m_publicBones.size(); ++i)
+		dst.addPublicBone(prev.m_publicBones[i]);
+}
+
+//-------------------------------------------------------------------------------------------------
 void W3DModelDrawModuleData::parseConditionState(INI* ini, void *instance, void * /*store*/, const void* userData)
 {
 	static const FieldParse myFieldParse[] =
@@ -1667,6 +1764,86 @@ void W3DModelDrawModuleData::parseConditionState(INI* ini, void *instance, void 
 			return;
 		}
 
+		case PARSE_AUTO:
+		{
+			if (self->m_lastRealConditionStateIndex < 0)
+			{
+				DEBUG_CRASH(("*** ASSET ERROR: AutoConditionState must refer to a previous ConditionState!"));
+				throw INI_INVALID_DATA;
+			}
+
+			// Take a COPY of the previously defined state; m_conditionStates may reallocate on push_back below.
+			const ModelConditionInfo prevState = self->m_conditionStates.at(self->m_lastRealConditionStateIndex);
+
+			ModelConditionFlags autoFlags;
+	#if defined(RTS_DEBUG)
+			AsciiString description;
+			autoFlags.parse(ini, &description);
+	#else
+			autoFlags.parse(ini, nullptr);
+	#endif
+
+			if (!autoFlags.any())
+			{
+				DEBUG_CRASH(("*** ASSET ERROR: AutoConditionState requires at least one condition flag"));
+				throw INI_INVALID_DATA;
+			}
+
+			if (autoFlags.anyIntersectionWith(self->m_ignoreConditionStates))
+			{
+				DEBUG_CRASH(("You should not specify bits in a state once they are used in IgnoreConditionStates (%s)", TheThingTemplateBeingParsedName.str()));
+				throw INI_INVALID_DATA;
+			}
+
+			// Base values come from the existing state matching the auto flags (e.g. the DAMAGED state).
+			// If none matches, fall back to a full copy of the previous state.
+			Int baseIdx = findStateIndexMatching(self->m_conditionStates, autoFlags);
+			if (baseIdx >= 0)
+			{
+				info = self->m_conditionStates.at(baseIdx);
+
+				// Overlay the fields the previous state set differently from the default state.
+				const ModelConditionInfo defState =
+					(self->m_defaultState >= 0) ? self->m_conditionStates.at(self->m_defaultState) : ModelConditionInfo();
+				mergeConditionStateOverrides(info, prevState, defState);
+			}
+			else
+			{
+				info = prevState;
+			}
+
+			// Combined conditions = each of the previous state's condition sets, OR'd with the auto flags.
+			info.m_conditionsYesVec.clear();
+			for (Int i = 0; i < prevState.getConditionsYesCount(); ++i)
+			{
+				ModelConditionFlags combined = prevState.getNthConditionsYes(i);
+				combined.set(autoFlags);
+
+				if (doesStateExist(self->m_conditionStates, combined))
+				{
+					DEBUG_CRASH(("*** ASSET ERROR: AutoConditionState produced a duplicate condition state (%s)", TheThingTemplateBeingParsedName.str()));
+					throw INI_INVALID_DATA;
+				}
+				info.m_conditionsYesVec.push_back(combined);
+			}
+
+	#if defined(RTS_DEBUG)
+			info.m_description.clear();
+			info.m_description.concat(TheThingTemplateBeingParsedName);
+			info.m_description.concat("\n    AUTO: ");
+			info.m_description.concat(description);
+	#endif
+
+			// Normalize model name (the normal path does this after initFromINI, which we skip).
+			if (info.m_modelName.isNone())
+				info.m_modelName.clear();
+
+			self->m_conditionStates.push_back(info);
+
+			// yes, return, NOT break! (no body to parse for AutoConditionState)
+			return;
+		}
+
 		case PARSE_NORMAL:
 		{
 			if (self->m_defaultState >= 0 && cst != PARSE_ALIAS)
@@ -1786,6 +1963,10 @@ void W3DModelDrawModuleData::parseConditionState(INI* ini, void *instance, void 
 	}
 	else
 	{
+		// Track the last *defined* condition state so AutoConditionState refers to it (and not to an
+		// earlier auto-generated state). size() == index of the element about to be pushed.
+		if (cst == PARSE_NORMAL || cst == PARSE_DEFAULT)
+			self->m_lastRealConditionStateIndex = (Int)self->m_conditionStates.size();
 		self->m_conditionStates.push_back(info);
 	}
 }
