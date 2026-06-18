@@ -30,6 +30,7 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/ChatCommand.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
 #include "GameClient/DisconnectMenu.h"
@@ -180,6 +181,18 @@ Bool handleInGameSlashCommands(UnicodeString uText)
 		s.format(L"Hosting qr2:%d thread:%d", getQR2HostingStatus(), isThreadHosting);
 		TheInGameUI->message(s);
 		return TRUE; // was a slash command
+	}
+
+	// User-defined chat commands from ChatCommands.ini. Singleplayer/skirmish only for now.
+	const Bool isSinglePlayer = (!TheGameInfo || !TheGameInfo->isMultiPlayer());
+	if (isSinglePlayer && TheChatCommandStore)
+	{
+		const ChatCommand *command = TheChatCommandStore->findChatCommand(token);
+		if (command)
+		{
+			command->execute();
+			return TRUE; // was a slash command
+		}
 	}
 
 	return FALSE; // not a slash command

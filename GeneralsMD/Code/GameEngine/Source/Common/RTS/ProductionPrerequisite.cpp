@@ -147,7 +147,7 @@ const ThingTemplate *ProductionPrerequisite::getExistingBuildFacilityTemplate( c
 }
 
 //-----------------------------------------------------------------------------
-Bool ProductionPrerequisite::isSatisfied(const Player *player) const
+Bool ProductionPrerequisite::isSatisfied(const Player *player, Bool ignoreUnitPrereqs) const
 {
 	Int i;
 
@@ -160,6 +160,10 @@ Bool ProductionPrerequisite::isSatisfied(const Player *player) const
 		if (!player->hasScience(m_prereqSciences[i]))
 			return false;
 	}
+
+	// unit/building prerequisites can be bypassed (science prereqs above are always enforced).
+	if (ignoreUnitPrereqs)
+		return true;
 
 	// the player must have at least one instance of each prereq unit.
 	Int ownCount[MAX_PREREQ];

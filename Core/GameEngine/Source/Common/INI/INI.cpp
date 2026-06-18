@@ -91,6 +91,7 @@ static const BlockParse theTypeTable[] =
 	{ "BuffTemplate",					INI::parseBuffTemplateDefinition },
 	{ "Campaign",						INI::parseCampaignDefinition },
  	{ "ChallengeGenerals",				INI::parseChallengeModeDefinition },
+	{ "ChatCommand",				INI::parseChatCommandDefinition },
 	{ "CommandButton",			INI::parseCommandButtonDefinition },
 	{ "CommandMap",					INI::parseMetaMapDefinition },
 	{ "CommandSet",					INI::parseCommandSetDefinition },

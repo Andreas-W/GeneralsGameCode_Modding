@@ -47,6 +47,7 @@
 #include "Common/FileSystem.h"
 #include "Common/ArchiveFileSystem.h"
 #include "Common/LocalFileSystem.h"
+#include "Common/ChatCommand.h"
 #include "Common/GlobalData.h"
 #include "Common/PerfTimer.h"
 #include "Common/RandomValue.h"
@@ -562,6 +563,8 @@ void GameEngine::init()
 		initSubsystem(TheArmorStore,"TheArmorStore", MSGNEW("GameEngineSubsystem") ArmorStore(), &xferCRC, nullptr, "Data\\INI\\Armor");
 		initSubsystem(TheBuildAssistant,"TheBuildAssistant", MSGNEW("GameEngineSubsystem") BuildAssistant, nullptr);
 		initSubsystem(TheBuffTemplateStore, "TheBuffTemplateStore", MSGNEW("GameEngineSubsystem") BuffTemplateStore(), &xferCRC, NULL, "Data\\INI\\BuffTemplate", TRUE);
+		// ChatCommands.ini is optional and client-only; do not feed it into the CRC.
+		initSubsystem(TheChatCommandStore, "TheChatCommandStore", MSGNEW("GameEngineSubsystem") ChatCommandStore(), nullptr, NULL, "Data\\INI\\ChatCommands", TRUE);
 
 	#ifdef DUMP_PERF_STATS///////////////////////////////////////////////////////////////////////////
 	GetPrecisionTimer(&endTime64);//////////////////////////////////////////////////////////////////

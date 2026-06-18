@@ -417,6 +417,8 @@ void Player::init(const PlayerTemplate* pt)
 	m_DEMO_instantBuild = FALSE;
 #endif
 
+	m_ignoreUnitPrereqs = FALSE;
+
 	if (pt)
 	{
 		m_side = pt->getSide();
@@ -3134,7 +3136,8 @@ Bool Player::canBuild(const ThingTemplate *tmplate) const
 		for (Int i = 0; i < tmplate->getPrereqCount(); i++)
 		{
 			const ProductionPrerequisite *pre = tmplate->getNthPrereq(i);
-			if (pre->isSatisfied(this) == false )
+			// when ignoring unit prereqs, only science prereqs are enforced.
+			if (pre->isSatisfied(this, ignoresUnitPrereqs()) == false )
 				prereqsOK = false;
 		}
 
@@ -3470,6 +3473,14 @@ void Player::onPowerBrownOutChange( Bool brownOut )
 		enableRadar(); //This doesn't give radar necessarily, it just removes the restriction
 
 	iterateObjects( doPowerDisable, &brownOut );// This function is so cool.
+}
+
+//-------------------------------------------------------------------------------------------------
+void Player::setInfinitePower( Bool enable )
+{
+	m_energy.setInfinitePower( enable );
+	// refresh power-dependent objects to match the new supply state.
+	onPowerBrownOutChange( !m_energy.hasSufficientPower() );
 }
 
 

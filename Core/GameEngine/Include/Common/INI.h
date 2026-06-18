@@ -222,6 +222,7 @@ public:
 	static void parseMetaMapDefinition( INI *ini );
 	static void parseFXListDefinition( INI *ini );
 	static void parseBuffTemplateDefinition( INI* ini );
+	static void parseChatCommandDefinition( INI* ini );
 	static void parseObjectCreationListDefinition( INI* ini );
 	static void parseMultiplayerSettingsDefinition( INI* ini );
 	static void parseMultiplayerColorDefinition( INI* ini );

@@ -247,6 +247,10 @@ public:
 	void addPowerBonus(Object *obj) { m_energy.addPowerBonus(obj); }
 	void removePowerBonus(Object *obj) { m_energy.removePowerBonus(obj); }
 
+	/// cheat: set/toggle infinite power, refreshing power-dependent objects to match.
+	void setInfinitePower(Bool enable);
+	void toggleInfinitePower() { setInfinitePower( !m_energy.hasInfinitePower() ); }
+
 	ResourceGatheringManager *getResourceGatheringManager(){ return m_resourceGatheringManager; }
 	TunnelTracker* getTunnelSystem(){ return m_tunnelSystem; }
 
@@ -347,6 +351,11 @@ public:
 	void enableInstantBuild(Bool enable) { m_DEMO_instantBuild = enable; }
 	Bool buildsInstantly() const { return m_DEMO_instantBuild; }
 #endif
+
+	/// When set, unit/building build prerequisites are ignored for this player (science prereqs still apply).
+	void toggleIgnoreUnitPrereqs() { m_ignoreUnitPrereqs = !m_ignoreUnitPrereqs; }
+	void setIgnoreUnitPrereqs(Bool enable) { m_ignoreUnitPrereqs = enable; }
+	Bool ignoresUnitPrereqs() const { return m_ignoreUnitPrereqs; }
 
 	///< Power just changed at all.  Didn't make two functions so you can't forget to undo something you didin one of them.
 	///< @todo Can't do edge trigger until after demo; make things check for power on creation
@@ -841,6 +850,8 @@ private:
 #if defined(RTS_DEBUG) || defined(_ALLOW_DEBUG_CHEATS_IN_RELEASE)
 	Bool									m_DEMO_instantBuild;		///< Can I build anything in one frame?
 #endif
+
+	Bool									m_ignoreUnitPrereqs;		///< ignore unit/building build prereqs (science prereqs still apply)
 
 	ScoreKeeper						m_scoreKeeper;					///< The local scorekeeper for this player
 
