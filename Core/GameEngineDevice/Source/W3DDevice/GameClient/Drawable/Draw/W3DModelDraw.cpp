@@ -35,6 +35,7 @@
 #define NO_DEBUG_CRC
 
 #include <windows.h>
+#include <map>
 
 #include "Common/crc.h"
 #include "Common/CRCDebug.h"
@@ -2909,14 +2910,19 @@ void W3DModelDraw::handleClientRecoil()
 		return;
 	}
 
-	// do recoil, if any
+	// Multiple weapon slots may reference the same recoil / muzzle-flash bone name (hence the
+	// same bone index). Applying per-slot directly to the bone makes the last processed slot
+	// clobber the others, so a shared muzzle flash / recoil only ever shows for the last slot.
+	// Instead, aggregate across all slots that share a bone: the muzzle flash is visible if ANY
+	// sharing slot just fired, and the recoil bone uses the LARGEST shift among sharing slots.
+	std::map<Int, Bool> muzzleFlashVisible;	// muzzle-flash bone -> any sharing slot wants flash shown
+	std::map<Int, Real> recoilShift;		// recoil bone -> max shift among sharing slots
+
+	const Real TINY_RECOIL = 0.01f;
+
+	// Pass 1: advance every recoil state machine and accumulate the per-bone aggregates.
 	for (int wslot = 0; wslot < WEAPONSLOT_COUNT; ++wslot)
 	{
-		if (wslot == 0 && stricmp(m_curState->m_modelName.str(), "avjug_deploy") == 0) {
-			int i = 0;
-			i += 1;
-		}
-
 		if (!m_curState->m_hasRecoilBonesOrMuzzleFlashes[wslot])
 			continue;
 
@@ -2930,12 +2936,12 @@ void W3DModelDraw::handleClientRecoil()
 		{
 			if (barrels[i].m_muzzleFlashBone != 0)
 			{
-				Bool hidden = recoils[i].m_state != WeaponRecoilInfo::RECOIL_START;
-				//DEBUG_LOG(("adjust muzzleflash %08lx for Draw %08lx state %s to %d at frame %d",subObjToHide,this,m_curState->m_description.str(),hidden?1:0,TheGameLogic->getFrame()));
-				barrels[i].setMuzzleFlashHidden(m_renderObject, hidden);
+				// operator[] inserts a default (hidden) entry, so bones whose slots are all idle
+				// still get hidden in pass 2; OR-accumulate so any firing slot shows the flash.
+				Bool& visible = muzzleFlashVisible[barrels[i].m_muzzleFlashBone];
+				visible = visible || (recoils[i].m_state == WeaponRecoilInfo::RECOIL_START);
 			}
 
-			const Real TINY_RECOIL = 0.01f;
 			if (barrels[i].m_recoilBone != 0)
 			{
 				switch (recoils[i].m_state )
@@ -2969,22 +2975,45 @@ void W3DModelDraw::handleClientRecoil()
 						break;
 				}
 
-				Matrix3D gunXfrm;
-				gunXfrm.Make_Identity();
-				gunXfrm.Translate_X( -recoils[i].m_shift );
-				//DEBUG_ASSERTLOG(recoils[i].m_shift==0.0f,("adjust bone %d by %f",recoils[i].m_recoilBone,recoils[i].m_shift));
-
-				if (m_renderObject)
-				{
-					m_renderObject->Capture_Bone( barrels[i].m_recoilBone );
-					m_renderObject->Control_Bone( barrels[i].m_recoilBone, gunXfrm );
-				}
+				// keep the largest shift among slots sharing this bone (operator[] inserts 0.0f).
+				Real& shift = recoilShift[barrels[i].m_recoilBone];
+				if (recoils[i].m_shift > shift)
+					shift = recoils[i].m_shift;
 			}
 			else
 			{
 				recoils[i].m_state = WeaponRecoilInfo::IDLE;
 				//DEBUG_LOG(("reset Draw %08lx state %08lx",this,m_curState));
 			}
+		}
+	}
+
+	// Pass 2: apply the aggregated state. Muzzle flashes go through the barrel helper (keeps the
+	// asset-error diagnostic); recoil bones are driven directly from the per-bone max shift.
+	if (m_renderObject)
+	{
+		for (int wslot = 0; wslot < WEAPONSLOT_COUNT; ++wslot)
+		{
+			if (!m_curState->m_hasRecoilBonesOrMuzzleFlashes[wslot])
+				continue;
+
+			const ModelConditionInfo::WeaponBarrelInfoVec& barrels = m_curState->m_weaponBarrelInfoVec[wslot];
+			for (ModelConditionInfo::WeaponBarrelInfoVec::const_iterator it = barrels.begin(); it != barrels.end(); ++it)
+			{
+				if (it->m_muzzleFlashBone != 0)
+					it->setMuzzleFlashHidden(m_renderObject, !muzzleFlashVisible[it->m_muzzleFlashBone]);
+			}
+		}
+
+		for (std::map<Int, Real>::const_iterator it = recoilShift.begin(); it != recoilShift.end(); ++it)
+		{
+			Matrix3D gunXfrm;
+			gunXfrm.Make_Identity();
+			gunXfrm.Translate_X( -it->second );
+			//DEBUG_ASSERTLOG(it->second==0.0f,("adjust bone %d by %f",it->first,it->second));
+
+			m_renderObject->Capture_Bone( it->first );
+			m_renderObject->Control_Bone( it->first, gunXfrm );
 		}
 	}
 }
