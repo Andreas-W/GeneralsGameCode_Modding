@@ -54,15 +54,16 @@ ChatCommandStore* TheChatCommandStore = nullptr;
 
 const FieldParse ChatCommand::s_fieldParseTable[] =
 {
-	{ "Money",			INI::parseInt,			nullptr,	offsetof( ChatCommand, m_money ) },
-	{ "Rank",			INI::parseUnsignedInt,	nullptr,	offsetof( ChatCommand, m_rank ) },
+	{ "AddMoney",		INI::parseInt,			nullptr,	offsetof( ChatCommand, m_addMoney ) },
+	{ "AddRank",		INI::parseUnsignedInt,	nullptr,	offsetof( ChatCommand, m_addRank ) },
 	{ "ReadyTimers",	INI::parseBool,			nullptr,	offsetof( ChatCommand, m_readyTimers ) },
-	{ "SpawnUnit",				INI::parseAsciiString,	nullptr,	offsetof( ChatCommand, m_spawnUnit ) },
-	{ "ToggleUnitRequirements",	INI::parseBool,			nullptr,	offsetof( ChatCommand, m_toggleUnitRequirements ) },
+	{ "SpawnObjectAtCursor",	INI::parseAsciiString,	nullptr,	offsetof( ChatCommand, m_spawnObjectAtCursor ) },
+	{ "TogglePrerequisites",	INI::parseBool,			nullptr,	offsetof( ChatCommand, m_togglePrerequisites ) },
 	{ "ToggleInfiniteEnergy",	INI::parseBool,			nullptr,	offsetof( ChatCommand, m_toggleInfiniteEnergy ) },
 	{ "GrantAllUpgrades",		INI::parseBool,			nullptr,	offsetof( ChatCommand, m_grantAllUpgrades ) },
-	{ "PromoteUnit",			INI::parseInt,			nullptr,	offsetof( ChatCommand, m_promoteUnit ) },
-	{ "GiveSalvage",			INI::parseInt,			nullptr,	offsetof( ChatCommand, m_giveSalvage ) },
+	{ "AddVeterancyLevel",		INI::parseInt,			nullptr,	offsetof( ChatCommand, m_addVeterancyLevel ) },
+	{ "AddSalvageTier",			INI::parseInt,			nullptr,	offsetof( ChatCommand, m_addSalvageTier ) },
+	{ "ProductionSpeedMultiplier",	INI::parseReal,		nullptr,	offsetof( ChatCommand, m_productionSpeedMultiplier ) },
 	{ NULL, NULL, 0, 0 }  // keep this last
 };
 
@@ -103,17 +104,17 @@ void ChatCommand::execute() const
 {
 	// Money: positive grants cash, negative removes it. The local player's funds can never
 	// go below zero (withdraw caps at the current balance), so a large removal just empties it.
-	if (m_money != 0)
+	if (m_addMoney != 0)
 	{
 		Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
 		Money *money = player ? player->getMoney() : nullptr;
 		if (money)
 		{
 			// Suppress the built-in deposit/withdraw sound; play the cash-hack sound instead (below).
-			if (m_money > 0)
-				money->deposit( (UnsignedInt)m_money, FALSE );
+			if (m_addMoney > 0)
+				money->deposit( (UnsignedInt)m_addMoney, FALSE );
 			else
-				money->withdraw( (UnsignedInt)(-m_money), FALSE );
+				money->withdraw( (UnsignedInt)(-m_addMoney), FALSE );
 
 			// Play the same sound the Cash Hack special power uses, for the local player.
 			if (TheAudio && TheAudio->getMiscAudio())
@@ -127,11 +128,11 @@ void ChatCommand::execute() const
 
 	// Rank: grant additional rank levels. setRankLevel() clamps to the maximum rank,
 	// so over-granting just tops the player out.
-	if (m_rank > 0)
+	if (m_addRank > 0)
 	{
 		Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
 		if (player)
-			player->setRankLevel( player->getRankLevel() + (Int)m_rank );
+			player->setRankLevel( player->getRankLevel() + (Int)m_addRank );
 	}
 
 	// ReadyTimers: set every special power timer the player owns to ready (available now).
@@ -175,11 +176,11 @@ void ChatCommand::execute() const
 		}
 	}
 
-	// SpawnUnit: create one instance of the named ObjectTemplate for the local player,
+	// SpawnObjectAtCursor: create one instance of the named ObjectTemplate for the local player,
 	// placed on the terrain under the mouse cursor.
-	if (!m_spawnUnit.isEmpty())
+	if (!m_spawnObjectAtCursor.isEmpty())
 	{
-		const ThingTemplate *tmpl = TheThingFactory ? TheThingFactory->findTemplate( m_spawnUnit ) : nullptr;
+		const ThingTemplate *tmpl = TheThingFactory ? TheThingFactory->findTemplate( m_spawnObjectAtCursor ) : nullptr;
 		Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
 		Team *team = player ? player->getDefaultTeam() : nullptr;
 		if (tmpl && team && TheMouse && TheTacticalView)
@@ -197,13 +198,13 @@ void ChatCommand::execute() const
 		}
 		else if (!tmpl)
 		{
-			DEBUG_LOG((">>> CHAT COMMAND SpawnUnit: ThingTemplate '%s' not found.", m_spawnUnit.str()));
+			DEBUG_LOG((">>> CHAT COMMAND SpawnObjectAtCursor: ThingTemplate '%s' not found.", m_spawnObjectAtCursor.str()));
 		}
 	}
 
-	// ToggleUnitRequirements: flip ignoring of unit/building build prereqs for the local player
+	// TogglePrerequisites: flip ignoring of unit/building build prereqs for the local player
 	// (science prereqs still apply). Mark the control bar dirty so build buttons re-evaluate.
-	if (m_toggleUnitRequirements)
+	if (m_togglePrerequisites)
 	{
 		Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
 		if (player)
@@ -245,9 +246,9 @@ void ChatCommand::execute() const
 		}
 	}
 
-	// PromoteUnit: change veterancy of the player's currently selected (trainable) units by
-	// m_promoteUnit levels (negative demotes), clamped to the valid range.
-	if (m_promoteUnit != 0 && TheInGameUI)
+	// AddVeterancyLevel: change veterancy of the player's currently selected (trainable) units by
+	// m_addVeterancyLevel levels (negative demotes), clamped to the valid range.
+	if (m_addVeterancyLevel != 0 && TheInGameUI)
 	{
 		const DrawableList *selected = TheInGameUI->getAllSelectedLocalDrawables();
 		if (selected)
@@ -260,7 +261,7 @@ void ChatCommand::execute() const
 				if (!exp || !exp->isTrainable())
 					continue;
 
-				Int newLevel = (Int)exp->getVeterancyLevel() + m_promoteUnit;
+				Int newLevel = (Int)exp->getVeterancyLevel() + m_addVeterancyLevel;
 				if (newLevel < LEVEL_FIRST)
 					newLevel = LEVEL_FIRST;
 				else if (newLevel > LEVEL_LAST)
@@ -271,10 +272,10 @@ void ChatCommand::execute() const
 		}
 	}
 
-	// GiveSalvage: change the crate-upgrade tier of the player's selected salvagers by
-	// m_giveSalvage steps (negative removes), clamped 0..2. Weapon tier only applies to
+	// AddSalvageTier: change the crate-upgrade tier of the player's selected salvagers by
+	// m_addSalvageTier steps (negative removes), clamped 0..2. Weapon tier only applies to
 	// weapon-salvagers, armor tier only to armor-salvagers; other units are unaffected.
-	if (m_giveSalvage != 0 && TheInGameUI)
+	if (m_addSalvageTier != 0 && TheInGameUI)
 	{
 		const DrawableList *selected = TheInGameUI->getAllSelectedLocalDrawables();
 		if (selected)
@@ -292,7 +293,7 @@ void ChatCommand::execute() const
 				{
 					Int cur = obj->testWeaponSetFlag( WEAPONSET_CRATEUPGRADE_TWO ) ? 2
 							: obj->testWeaponSetFlag( WEAPONSET_CRATEUPGRADE_ONE ) ? 1 : 0;
-					Int next = cur + m_giveSalvage;
+					Int next = cur + m_addSalvageTier;
 					next = next < 0 ? 0 : (next > 2 ? 2 : next);
 					if (next != cur)
 					{
@@ -305,7 +306,7 @@ void ChatCommand::execute() const
 				{
 					Int cur = obj->testArmorSetFlag( ARMORSET_CRATE_UPGRADE_TWO ) ? 2
 							: obj->testArmorSetFlag( ARMORSET_CRATE_UPGRADE_ONE ) ? 1 : 0;
-					Int next = cur + m_giveSalvage;
+					Int next = cur + m_addSalvageTier;
 					next = next < 0 ? 0 : (next > 2 ? 2 : next);
 					if (next != cur)
 					{
@@ -322,6 +323,20 @@ void ChatCommand::execute() const
 					TheAudio->addAudioEvent( &sound );
 				}
 			}
+		}
+	}
+
+	// ProductionSpeedMultiplier: set the local player's global build-speed multiplier (>1 builds faster).
+	// A value of 0 means the attribute was not present in the INI, so leave the multiplier untouched.
+	// Mark the control bar dirty so any build-time UI re-evaluates.
+	if (m_productionSpeedMultiplier > 0.0f)
+	{
+		Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
+		if (player)
+		{
+			player->setProductionSpeedMultiplier( m_productionSpeedMultiplier );
+			if (TheControlBar)
+				TheControlBar->markUIDirty();
 		}
 	}
 

@@ -505,6 +505,8 @@ void Player::init(const PlayerTemplate* pt)
 			deleteInstance(tof);
 	}
 
+	m_productionSpeedMultiplier = 1.0f;
+
 	getAcademyStats()->init( this );
 
 	//Always off at the beginning of a game! Only GameLogic::update has
@@ -4358,7 +4360,7 @@ void Player::xfer( Xfer *xfer )
 {
 
 	// version
-	const XferVersion currentVersion = 8;
+	const XferVersion currentVersion = 9;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -5022,6 +5024,12 @@ void Player::xfer( Xfer *xfer )
 		}  // end else, loading
 	}
 	//------------------------
+
+	// production speed multiplier (build-time scale for units/upgrades/buildings)
+	if (version >= 9)
+		xfer->xferReal(&m_productionSpeedMultiplier);
+	else
+		m_productionSpeedMultiplier = 1.0f;
 
 
 }  // end xfer

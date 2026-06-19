@@ -48,30 +48,32 @@ public:
 
 	const FieldParse* getFieldParse() const { return s_fieldParseTable; }
 
-	Int getMoney() const { return m_money; }
-	UnsignedInt getRank() const { return m_rank; }
+	Int getAddMoney() const { return m_addMoney; }
+	UnsignedInt getAddRank() const { return m_addRank; }
 	Bool getReadyTimers() const { return m_readyTimers; }
-	const AsciiString& getSpawnUnit() const { return m_spawnUnit; }
-	Bool getToggleUnitRequirements() const { return m_toggleUnitRequirements; }
+	const AsciiString& getSpawnObjectAtCursor() const { return m_spawnObjectAtCursor; }
+	Bool getTogglePrerequisites() const { return m_togglePrerequisites; }
 	Bool getToggleInfiniteEnergy() const { return m_toggleInfiniteEnergy; }
 	Bool getGrantAllUpgrades() const { return m_grantAllUpgrades; }
-	Int getPromoteUnit() const { return m_promoteUnit; }
-	Int getGiveSalvage() const { return m_giveSalvage; }
+	Int getAddVeterancyLevel() const { return m_addVeterancyLevel; }
+	Int getAddSalvageTier() const { return m_addSalvageTier; }
+	Real getProductionSpeedMultiplier() const { return m_productionSpeedMultiplier; }
 
 	/** Run this command's effects. Inspects the parsed members and acts accordingly. */
 	void execute() const;
 
 private:
 	AsciiString m_name;
-	Int m_money = 0;			///< "Money" attribute; signed amount, defaults to 0.
-	UnsignedInt m_rank = 0;		///< "Rank" attribute; ranks to grant, capped at the max rank. Defaults to 0.
+	Int m_addMoney = 0;			///< "AddMoney" attribute; signed amount, defaults to 0.
+	UnsignedInt m_addRank = 0;	///< "AddRank" attribute; ranks to grant, capped at the max rank. Defaults to 0.
 	Bool m_readyTimers = FALSE;	///< "ReadyTimers" attribute; when TRUE, set all of the player's special power timers to ready.
-	AsciiString m_spawnUnit;	///< "SpawnUnit" attribute; ObjectTemplate name to spawn for the local player at the mouse cursor.
-	Bool m_toggleUnitRequirements = FALSE;	///< "ToggleUnitRequirements" attribute; when TRUE, toggles ignoring unit/building build prereqs (science still applies).
+	AsciiString m_spawnObjectAtCursor;	///< "SpawnObjectAtCursor" attribute; ObjectTemplate name to spawn for the local player at the mouse cursor.
+	Bool m_togglePrerequisites = FALSE;	///< "TogglePrerequisites" attribute; when TRUE, toggles ignoring unit/building build prereqs (science still applies).
 	Bool m_toggleInfiniteEnergy = FALSE;	///< "ToggleInfiniteEnergy" attribute; when TRUE, toggles infinite power for the local player.
 	Bool m_grantAllUpgrades = FALSE;		///< "GrantAllUpgrades" attribute; when TRUE, grants the local player all player-type upgrades.
-	Int m_promoteUnit = 0;					///< "PromoteUnit" attribute; promote selected units by this many veterancy levels (negative demotes), capped to the valid range.
-	Int m_giveSalvage = 0;					///< "GiveSalvage" attribute; change selected salvagers' crate-upgrade tier by this much (negative removes), capped 0..2.
+	Int m_addVeterancyLevel = 0;			///< "AddVeterancyLevel" attribute; promote selected units by this many veterancy levels (negative demotes), capped to the valid range.
+	Int m_addSalvageTier = 0;				///< "AddSalvageTier" attribute; change selected salvagers' crate-upgrade tier by this much (negative removes), capped 0..2.
+	Real m_productionSpeedMultiplier = 0.0f;	///< "ProductionSpeedMultiplier" attribute; build-speed multiplier for the local player (>1 builds faster). 0 means the field was absent (no change).
 
 	static const FieldParse s_fieldParseTable[];
 };

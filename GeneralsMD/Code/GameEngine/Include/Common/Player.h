@@ -414,6 +414,10 @@ public:
 	/// Returns production cost change based on typeof (Used for upgrades)
 	Real getProductionTimeChangeBasedOnKindOf(KindOfMaskType kindOf) const;
 
+	/// Build-speed multiplier applied to units, upgrades and buildings. >1 builds faster. Set via the ProductionSpeedMultiplier chat command.
+	Real getProductionSpeedMultiplier() const { return m_productionSpeedMultiplier; }
+	void setProductionSpeedMultiplier( Real m ) { m_productionSpeedMultiplier = m; }
+
 
 	/** Return bonus or penalty for construction of this thing.
 	*/
@@ -861,6 +865,9 @@ private:
 	mutable KindOfPercentProductionChangeList m_kindOfPercentProductionChangeList;
 	// Production Time modifier (we can re-use the same types)
 	mutable KindOfPercentProductionChangeList m_kindOfPercentProductionTimeChangeList;
+
+	// Global build-speed multiplier for this player (>1 = faster). Defaults to 1.0 (no change).
+	Real m_productionSpeedMultiplier;
 
 
 	typedef std::list<SpecialPowerReadyTimerType> SpecialPowerReadyTimerList;
