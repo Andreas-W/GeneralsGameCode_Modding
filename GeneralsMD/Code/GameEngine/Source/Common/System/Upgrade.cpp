@@ -163,7 +163,14 @@ Int UpgradeTemplate::calcTimeToBuild( Player *player ) const
 #endif
 
 	///@todo modify this by power state of player
-	return m_buildTime * LOGICFRAMES_PER_SECOND;
+	Int buildTime = m_buildTime * LOGICFRAMES_PER_SECOND;
+
+	// global per-player build-speed multiplier (ProductionSpeedMultiplier chat command); >1 researches faster
+	Real speedMultiplier = player->getProductionSpeedMultiplier();
+	if (speedMultiplier > 0.0f)
+		buildTime = REAL_TO_INT_CEIL( buildTime / speedMultiplier );
+
+	return buildTime;
 
 }
 

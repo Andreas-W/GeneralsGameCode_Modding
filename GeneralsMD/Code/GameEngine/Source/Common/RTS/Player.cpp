@@ -417,6 +417,8 @@ void Player::init(const PlayerTemplate* pt)
 	m_DEMO_instantBuild = FALSE;
 #endif
 
+	m_ignoreUnitPrereqs = FALSE;
+
 	if (pt)
 	{
 		m_side = pt->getSide();
@@ -502,6 +504,8 @@ void Player::init(const PlayerTemplate* pt)
 		if (tof)
 			deleteInstance(tof);
 	}
+
+	m_productionSpeedMultiplier = 1.0f;
 
 	getAcademyStats()->init( this );
 
@@ -3134,7 +3138,8 @@ Bool Player::canBuild(const ThingTemplate *tmplate) const
 		for (Int i = 0; i < tmplate->getPrereqCount(); i++)
 		{
 			const ProductionPrerequisite *pre = tmplate->getNthPrereq(i);
-			if (pre->isSatisfied(this) == false )
+			// when ignoring unit prereqs, only science prereqs are enforced.
+			if (pre->isSatisfied(this, ignoresUnitPrereqs()) == false )
 				prereqsOK = false;
 		}
 
@@ -3470,6 +3475,14 @@ void Player::onPowerBrownOutChange( Bool brownOut )
 		enableRadar(); //This doesn't give radar necessarily, it just removes the restriction
 
 	iterateObjects( doPowerDisable, &brownOut );// This function is so cool.
+}
+
+//-------------------------------------------------------------------------------------------------
+void Player::setInfinitePower( Bool enable )
+{
+	m_energy.setInfinitePower( enable );
+	// refresh power-dependent objects to match the new supply state.
+	onPowerBrownOutChange( !m_energy.hasSufficientPower() );
 }
 
 
@@ -4347,7 +4360,7 @@ void Player::xfer( Xfer *xfer )
 {
 
 	// version
-	const XferVersion currentVersion = 8;
+	const XferVersion currentVersion = 9;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -5011,6 +5024,12 @@ void Player::xfer( Xfer *xfer )
 		}  // end else, loading
 	}
 	//------------------------
+
+	// production speed multiplier (build-time scale for units/upgrades/buildings)
+	if (version >= 9)
+		xfer->xferReal(&m_productionSpeedMultiplier);
+	else
+		m_productionSpeedMultiplier = 1.0f;
 
 
 }  // end xfer

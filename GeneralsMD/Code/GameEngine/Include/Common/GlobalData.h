@@ -324,6 +324,8 @@ public:
 	// Latency insertion, packet loss for network debugging
 	Int m_netMinPlayers;					///< Min players needed to start a net game
 
+	Bool m_enableSingleplayerChatWindow;	///< Allow the in-game chat window in singleplayer/skirmish (for chat commands)
+
 	UnsignedInt m_defaultIP;			///< preferred IP address for LAN
 	UnsignedInt m_firewallBehavior;	///< Last detected firewall behavior
 	Bool m_firewallSendDelay;			///< Use send delay for firewall connection negotiations

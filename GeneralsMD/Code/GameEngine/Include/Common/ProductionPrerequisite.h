@@ -79,8 +79,9 @@ public:
 	/// not satisfied yet
 	UnicodeString getRequiresList(const Player *player) const;
 
-	/// return true iff the player satisfies our set of prerequisites
-	Bool isSatisfied(const Player *player) const;
+	/// return true iff the player satisfies our set of prerequisites.
+	/// if ignoreUnitPrereqs is set, only science prerequisites are enforced.
+	Bool isSatisfied(const Player *player, Bool ignoreUnitPrereqs = FALSE) const;
 
 	/**
 		return the BuildFacilityTemplate, if any.

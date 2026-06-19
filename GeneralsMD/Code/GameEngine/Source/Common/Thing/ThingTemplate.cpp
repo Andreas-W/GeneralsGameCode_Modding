@@ -1597,6 +1597,11 @@ Int ThingTemplate::calcTimeToBuild( const Player* player) const
 	factionModifier *= player->getProductionTimeChangeBasedOnKindOf(m_kindof);
 	buildTime *= factionModifier;
 
+	// global per-player build-speed multiplier (ProductionSpeedMultiplier chat command); >1 builds faster
+	Real speedMultiplier = player->getProductionSpeedMultiplier();
+	if (speedMultiplier > 0.0f)
+		buildTime /= speedMultiplier;
+
 #if defined(RTS_DEBUG) || defined(_ALLOW_DEBUG_CHEATS_IN_RELEASE)
 	if( player->buildsInstantly() )
 	{

@@ -42,6 +42,7 @@ set(GAMEENGINE_SRC
 #    Include/Common/GameAudio.h
 #    Include/Common/GameCommon.h
 #    Include/Common/GameDefines.h
+    Include/Common/ChatCommand.h
     Include/Common/GameEngine.h
     Include/Common/GameLOD.h
 #    Include/Common/GameMemory.h
@@ -601,6 +602,7 @@ set(GAMEENGINE_SRC
     Source/Common/Bezier/BezFwdIterator.cpp
     Source/Common/Bezier/BezierSegment.cpp
     Source/Common/BitFlags.cpp
+    Source/Common/ChatCommand.cpp
     Source/Common/CommandLine.cpp
 #    Source/Common/crc.cpp
 #    Source/Common/CRCDebug.cpp

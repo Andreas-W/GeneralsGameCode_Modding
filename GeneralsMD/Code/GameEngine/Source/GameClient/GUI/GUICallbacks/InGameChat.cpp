@@ -30,6 +30,7 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/ChatCommand.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
 #include "GameClient/DisconnectMenu.h"
@@ -182,6 +183,18 @@ Bool handleInGameSlashCommands(UnicodeString uText)
 		return TRUE; // was a slash command
 	}
 
+	// User-defined chat commands from ChatCommands.ini. Singleplayer/skirmish only for now.
+	const Bool isSinglePlayer = (!TheGameInfo || !TheGameInfo->isMultiPlayer());
+	if (isSinglePlayer && TheChatCommandStore)
+	{
+		const ChatCommand *command = TheChatCommandStore->findChatCommand(token);
+		if (command)
+		{
+			command->execute();
+			return TRUE; // was a slash command
+		}
+	}
+
 	return FALSE; // not a slash command
 }
 
@@ -199,7 +212,9 @@ void ToggleInGameChat( Bool immediate )
 	if (TheGameLogic->isInReplayGame())
 		return;
 
-	if (!TheGameInfo->isMultiPlayer() && TheGlobalData->m_netMinPlayers)
+	// Block the chat window in singleplayer/skirmish unless EnableSingleplayerChatwindow is set (for chat commands).
+	if (!TheGlobalData->m_enableSingleplayerChatWindow
+		&& (!TheGameInfo || !TheGameInfo->isMultiPlayer()) && TheGlobalData->m_netMinPlayers)
 		return;
 
 	if (chatWindow)
@@ -214,7 +229,9 @@ void ToggleInGameChat( Bool immediate )
 				// Send what is there, clear it out, and hide the window
 				UnicodeString msg = GadgetTextEntryGetText( chatTextEntry );
 				msg.trim();
-				if (!msg.isEmpty() && !handleInGameSlashCommands(msg))
+				// Slash commands are handled above and work in singleplayer.
+				// The network broadcast below only applies to multiplayer; skip it when there is no network.
+				if (!msg.isEmpty() && !handleInGameSlashCommands(msg) && TheNetwork && TheGameInfo)
 				{
 					const Player *localPlayer = ThePlayerList->getLocalPlayer();
 					AsciiString playerName;
