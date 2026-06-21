@@ -62,7 +62,7 @@ public:
   WeaponTemplate *m_shockwaveWeaponTemplate; ///< a weapon that gets fired when the buster gets busted, intended to generate a shockwave effect only
   WeaponTemplate *m_occupantDamageWeaponTemplate; ///< a weapon to provide a damegeInfo that gets applied to each occupant of container struck as they are getting kicked out
 
-
+	Bool m_worksOverWater; ///< Bunker buster behavior triggered when hitting water?
 };
 
 // ------------------------------------------------------------------------------------------------

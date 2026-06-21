@@ -42,6 +42,7 @@
 #include "Common/CRCDebug.h"
 #include "Common/GameAudio.h"
 #include "Common/GameState.h"
+#include "Common/GlobalData.h"
 #include "Common/INI.h"
 #include "Common/PerfTimer.h"
 #include "Common/Player.h"
@@ -347,7 +348,7 @@ WeaponTemplate::WeaponTemplate() : m_nextTemplate(nullptr)
 	m_scatterTargetResetTime = 0;
 	m_preAttackFXDelay = 6; // Non-Zero default! 6 frames = 200ms. This should be a good base value to avoid spamming
 	m_laserGroundUnitTargetHeight = 10; // Default Height offset
-	m_scatterOnWaterSurface = false;
+	m_scatterOnWaterSurface = TheGlobalData ? TheGlobalData->m_weaponScatterOnWaterSurfaceDefault : false;
 	m_historicDamageTriggerId = 0;
 	m_resetFireBonesOnReload = false;
 }

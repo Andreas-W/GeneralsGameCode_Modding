@@ -593,6 +593,7 @@ public:
 	DeathTypeFlags m_defaultExcludedDeathTypes;
 	Bool m_heightAboveTerrainIncludesWater;
 	Bool m_hideScorchmarksAboveGround;
+	Bool m_weaponScatterOnWaterSurfaceDefault;	///< default for WeaponTemplate ScatterOnWaterSurface when not set per-weapon
 
 	// Water depth lighting
 	RGBColor m_terrainHeightAmbientLightColor1;
