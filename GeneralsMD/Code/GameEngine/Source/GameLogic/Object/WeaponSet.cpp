@@ -348,7 +348,6 @@ void WeaponSet::updateWeaponSet(const Object* obj)
 
 		for (Int i = WEAPONSLOT_COUNT - 1; i >= PRIMARY_WEAPON; --i)
 		{
-			m_weapons[i] = nullptr;
 			if (set->isWeaponReloadSharedAcrossSets() && (m_weapons[i] != nullptr)) {  //This is a bit of redundant code, but it keeps it cleaner overall.
 
 				// if shareReloadTime, use first prevWeapon for all slots
@@ -436,18 +435,18 @@ void WeaponSet::updateWeaponSet(const Object* obj)
 						m_hasDamageWeapon = true;
 				}
 				else {
-					m_weapons[i] = NULL;
+					m_weapons[i] = nullptr;
 				}
 
-				if (prevWeapon != NULL)
+				if (prevWeapon != nullptr)
 				{
 					deleteInstance(prevWeapon);
-					prevWeapon = NULL;
+					prevWeapon = nullptr;
 				}
 			}
 			else { // Regular old behaviour
 				deleteInstance(m_weapons[i]);
-				m_weapons[i] = NULL;
+				m_weapons[i] = nullptr;
 
 
 				if (set->getNth((WeaponSlotType)i))
