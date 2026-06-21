@@ -63,6 +63,7 @@ BunkerBusterBehaviorModuleData::BunkerBusterBehaviorModuleData( void )
   m_shockwaveWeaponTemplate = nullptr;
   m_occupantDamageWeaponTemplate = nullptr;
 
+  m_worksOverWater = true;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -81,6 +82,7 @@ BunkerBusterBehaviorModuleData::BunkerBusterBehaviorModuleData( void )
 		{ "SeismicEffectMagnitude",	        INI::parseReal,	                nullptr, offsetof( BunkerBusterBehaviorModuleData, m_seismicEffectMagnitude ) },
     { "ShockwaveWeaponTemplate",        INI::parseWeaponTemplate,       nullptr, offsetof( BunkerBusterBehaviorModuleData, m_shockwaveWeaponTemplate ) },
     { "OccupantDamageWeaponTemplate",   INI::parseWeaponTemplate,       nullptr, offsetof( BunkerBusterBehaviorModuleData, m_occupantDamageWeaponTemplate ) },
+    { "WorksOverWater",                 INI::parseBool,                 nullptr, offsetof( BunkerBusterBehaviorModuleData, m_worksOverWater ) },
 
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -146,15 +148,15 @@ UpdateSleepTime BunkerBusterBehavior::update( void )
     if ( TheGameLogic->getFrame()%modData->m_crashThroughBunkerFXFrequency == 1 )// not too much
     {
       const FXList *crashFX = modData->m_crashThroughBunkerFX;
-      if ( getObject()->testStatus( OBJECT_STATUS_MISSILE_KILLING_SELF ) && crashFX )
-        FXList::doFXObj( crashFX, getObject() );// CrashFX done on the missile/bomb
+      if (getObject()->testStatus(OBJECT_STATUS_MISSILE_KILLING_SELF) && crashFX) {
+        // check water for crash through fx
+        if (modData->m_worksOverWater || !getObject()->isOverWater()) {
+          FXList::doFXObj(crashFX, getObject());// CrashFX done on the missile/bomb
+        }
+      }
     }
 
   }
-
-
-
-
 
 	return UPDATE_SLEEP_NONE;
 
@@ -194,6 +196,9 @@ void BunkerBusterBehavior::bustTheBunker( void )
       return;
   }
 
+  if (!modData->m_worksOverWater && getObject()->isOverWater()) {
+    return;
+  }
 
 //  here is where we kill everyone inside any targeted garrisoned buildings
 //  AIUpdateInterface *ai = getObject()->getAI();
