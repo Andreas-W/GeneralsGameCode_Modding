@@ -88,6 +88,7 @@ private:
 
 	UnsignedInt			m_frameToStopLoopingSound;	///< if sound is looping, frame to stop looping it (or zero if not looping)
 	AudioHandle			m_audioHandle;
+	AsciiString			m_currentFireSoundName;			///< event name of the currently looping fire sound, so we can detect a weapon (sound) switch
 
 	WeaponBonusConditionFlags m_prevTargetWeaponBonus;  ///< weaponBonus against previous target
 };

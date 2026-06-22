@@ -178,12 +178,20 @@ void FiringTracker::shotFired(const Weapon* weaponFired, ObjectID victimID)
 	UnsignedInt fireSoundLoopTime = weaponFired->getFireSoundLoopTime();
 	if (fireSoundLoopTime != 0)
 	{
-		// If the sound has stopped playing, then we need to re-add it.
-		if (m_frameToStopLoopingSound == 0 || !TheAudio->isCurrentlyPlaying(m_audioHandle))
+		AudioEventRTS audio = weaponFired->getFireSound();
+
+		// Re-add the looping sound if it has stopped playing, or if the weapon (and thus
+		// the fire sound) has switched to a different sound while we keep firing.
+		Bool fireSoundChanged = (audio.getEventName() != m_currentFireSoundName);
+		if (m_frameToStopLoopingSound == 0 || !TheAudio->isCurrentlyPlaying(m_audioHandle) || fireSoundChanged)
 		{
-			AudioEventRTS audio = weaponFired->getFireSound();
+			// Stop the previous looping sound (e.g. weapon switched to one with a different fire sound).
+			TheAudio->removeAudioEvent( m_audioHandle );
+			m_audioHandle = AHSV_NoSound;
+
 			audio.setObjectID(getObject()->getID());
 			m_audioHandle = TheAudio->addAudioEvent( &audio );
+			m_currentFireSoundName = audio.getEventName();
 		}
 		m_frameToStopLoopingSound = now + fireSoundLoopTime;
 	}
@@ -222,6 +230,7 @@ UpdateSleepTime FiringTracker::update()
 		{
 			TheAudio->removeAudioEvent( m_audioHandle );
 			m_audioHandle = AHSV_NoSound;
+			m_currentFireSoundName.clear();
 			m_frameToStopLoopingSound = 0;
 		}
 	}
