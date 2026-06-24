@@ -93,6 +93,10 @@ CarrierDroneAIUpdate::~CarrierDroneAIUpdate(void)
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime CarrierDroneAIUpdate::update()
 {
+	// Suspend carrier-drone AI while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	Object* obj = getObject();
 	const CarrierDroneAIUpdateModuleData* data = getCarrierDroneAIUpdateModuleData();
 

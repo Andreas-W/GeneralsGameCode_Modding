@@ -100,6 +100,10 @@ Bool HackInternetAIUpdate::isHackingPackingOrUnpacking() const
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime HackInternetAIUpdate::update( void )
 {
+	// Suspend hacking (and pending-command handling) while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	// have to call our parent's isIdle, because we override it to never return true
 	// when we have a pending command...
 	if( AIUpdateInterface::isIdle() )

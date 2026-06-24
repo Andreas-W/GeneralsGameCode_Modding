@@ -96,6 +96,9 @@ SupplyTruckAIUpdate::~SupplyTruckAIUpdate( void )
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime SupplyTruckAIUpdate::update( void )
 {
+	// Suspend supply ferrying while disabled (e.g. EMP/hacked); only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
 
 	StateReturnType stRet = m_supplyTruckStateMachine->updateStateMachine();
 

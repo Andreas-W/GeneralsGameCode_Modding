@@ -655,6 +655,10 @@ void DroneCarrierAIUpdate::aiDoCommand(const AICommandParms* parms)
 
 UpdateSleepTime DroneCarrierAIUpdate::update()
 {
+	// Suspend drone-carrier management while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	if (!getObject()->isEffectivelyDead()) {
 		const DroneCarrierAIUpdateModuleData* data = getDroneCarrierAIUpdateModuleData();
 

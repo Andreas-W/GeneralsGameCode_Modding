@@ -94,6 +94,10 @@ void DeployStyleAIUpdate::aiDoCommand( const AICommandParms* parms )
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime DeployStyleAIUpdate::update( void )
 {
+	// Suspend deploy/undeploy timers while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	// have to call our parent's isIdle, because we override it to never return true
 	// when we have a pending command...
 	Object *self = getObject();

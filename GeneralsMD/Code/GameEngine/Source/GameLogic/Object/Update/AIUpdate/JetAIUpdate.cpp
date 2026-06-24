@@ -2433,6 +2433,10 @@ void JetAIUpdate::getProducerLocation()
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime JetAIUpdate::update()
 {
+	// Suspend jet AI (taxi/takeoff/landing/ammo logic) while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	const JetAIUpdateModuleData* d = getJetAIUpdateModuleData();
 
 	getProducerLocation();

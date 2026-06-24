@@ -191,6 +191,10 @@ UpdateSleepTime RailedTransportAIUpdate::update( void )
 {
 	Object *us = getObject();
 
+	// Suspend railed-transport pathing while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	// load the waypoint data if not loaded
 	if( m_waypointDataLoaded == FALSE )
 		loadWaypointData();

@@ -1154,6 +1154,16 @@ UpdateSleepTime AIUpdateInterface::update( void )
 
 	m_isInUpdate = TRUE;
 
+	// While disabled (other than HELD/dead), suspend all AI logic and only let the locomotor
+	// run, so locos flagged LocomotorWorksWhenDisabled can maintain position. This restores the
+	// pre-DISABLEDMASK_ALL behavior where a disabled AI module's update() was not called at all.
+	if (isAiSuspendedByDisable())
+	{
+		doLocomotor();	// self-gates: does nothing unless the loco works while disabled / maintains position
+		m_isInUpdate = FALSE;
+		return UPDATE_SLEEP_NONE;	// poll each frame so we resume full AI when the disable clears
+	}
+
 	m_completedWaypoint = nullptr; // Reset so state machine update can set it if we just completed the path.
 
 	// assume we can sleep forever, unless the state machine (or turret, etc) demand otherwise
@@ -2261,6 +2271,30 @@ Bool AIUpdateInterface::isQuickPathAvailable( const Coord3D *destination ) const
 Bool AIUpdateInterface::isValidLocomotorPosition(const Coord3D* pos) const
 {
 	return TheAI->pathfinder()->validMovementPosition( getObject()->getCrusherLevel()>0, getObject()->getLayer(), m_locomotorSet, getObject()->getRequiredBridgeHeight(), pos );
+}
+
+//-------------------------------------------------------------------------------------------------
+DisabledMaskType AIUpdateInterface::getDisabledTypesToProcess() const
+{
+	// Only keep ticking while disabled if the current locomotor must keep working while
+	// disabled (e.g. to maintain position). Otherwise process HELD only, so the AI fully
+	// freezes when disabled - matching the original behavior. Note that when no locomotor is
+	// chosen (buildings and other units that never move) we also freeze; the rare mobile unit
+	// flagged LocomotorWorksWhenDisabled will have already selected a locomotor before it can
+	// be disabled in flight.
+	if (m_curLocomotor != NULL && m_curLocomotor->getLocomotorWorksWhenDisabled())
+		return DISABLEDMASK_ALL;
+
+	return MAKE_DISABLED_MASK( DISABLED_HELD );
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool AIUpdateInterface::isAiSuspendedByDisable() const
+{
+	const Object* obj = getObject();
+	return obj->isDisabled()
+			&& !obj->isDisabledByType(DISABLED_HELD)
+			&& !obj->isEffectivelyDead();
 }
 
 //-------------------------------------------------------------------------------------------------
