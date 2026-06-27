@@ -171,6 +171,7 @@ const FieldParse WeaponTemplate::TheWeaponTemplateFieldParseTable[] =
 	{ "PrimaryDamageTaperOff",		INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_primaryDamageTaperOff) },
 	{ "SecondaryDamageTaperOff",	INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_secondaryDamageTaperOff) },
 	{ "DamageFactorAtMaxRange",		INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_damageFactorAtMaxRange) },
+	{ "RadiusFactorAtMaxRange",		INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_radiusFactorAtMaxRange) },
 	{ "ScatterRadiusFactorAtMaxRange",	INI::parseReal,											nullptr,							offsetof(WeaponTemplate, m_scatterRadiusFactorAtMaxRange) },
 	{ "ShockWaveAmount",					INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_shockWaveAmount) },
 	{ "ShockWaveRadius",					INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_shockWaveRadius) },
@@ -282,6 +283,7 @@ WeaponTemplate::WeaponTemplate() : m_nextTemplate(nullptr)
 	m_primaryDamageTaperOff					= 1.0f;	// no taper
 	m_secondaryDamageTaperOff				= 1.0f;	// no taper
 	m_damageFactorAtMaxRange				= 1.0f;	// no range scaling
+	m_radiusFactorAtMaxRange				= 1.0f;	// no range scaling
 	m_scatterRadiusFactorAtMaxRange	= 1.0f;	// no range scaling
 	m_attackRange										= 0.0f;
 	m_minimumAttackRange						= 0.0f;
@@ -1605,13 +1607,13 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 		if (m_secondaryDamageVariance > 0.0f)
 			secondaryDamage -= GameLogicRandomValueReal(0.0f, m_secondaryDamageVariance * damageBonusScalar);
 
-		// Apply range-based damage scaling. Damage is scaled from 1.0 at point-blank to
-		// m_damageFactorAtMaxRange at (or beyond) the weapon's attack range. The engagement distance is
-		// measured from where the shot originated to the impact point. For direct/laser weapons that is
-		// the firing source's position. For projectile detonations the firing source here is the
-		// projectile, so we instead use the launcher's position captured at launch time
-		// (projectileGetLaunchPos); if that is unavailable we skip the scaling (factor stays 1.0).
-		if (m_damageFactorAtMaxRange != 1.0f && pos != nullptr)
+		// Apply range-based scaling of damage and/or damage radii. Each is scaled from 1.0 at point-blank
+		// to its factor at (or beyond) the weapon's attack range. The engagement distance is measured
+		// from where the shot originated to the impact point. For direct/laser weapons that is the firing
+		// source's position. For projectile detonations the firing source here is the projectile, so we
+		// instead use the launcher's position captured at launch time (projectileGetLaunchPos); if that is
+		// unavailable we skip the scaling (factors stay 1.0).
+		if ((m_damageFactorAtMaxRange != 1.0f || m_radiusFactorAtMaxRange != 1.0f) && pos != nullptr)
 		{
 			Coord3D fromPos;
 			Bool haveFromPos = false;
@@ -1643,9 +1645,18 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 				Real t = delta.length() / range;
 				if (t < 0.0f) t = 0.0f;
 				if (t > 1.0f) t = 1.0f;
-				Real rangeDamageFactor = 1.0f + (m_damageFactorAtMaxRange - 1.0f) * t;
-				primaryDamage *= rangeDamageFactor;
-				secondaryDamage *= rangeDamageFactor;
+				if (m_damageFactorAtMaxRange != 1.0f)
+				{
+					Real rangeDamageFactor = 1.0f + (m_damageFactorAtMaxRange - 1.0f) * t;
+					primaryDamage *= rangeDamageFactor;
+					secondaryDamage *= rangeDamageFactor;
+				}
+				if (m_radiusFactorAtMaxRange != 1.0f)
+				{
+					Real rangeRadiusFactor = 1.0f + (m_radiusFactorAtMaxRange - 1.0f) * t;
+					primaryRadius *= rangeRadiusFactor;
+					secondaryRadius *= rangeRadiusFactor;
+				}
 			}
 		}
 

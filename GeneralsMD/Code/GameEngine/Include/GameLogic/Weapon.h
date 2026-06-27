@@ -527,6 +527,7 @@ private:
 	Real m_primaryDamageTaperOff;						///< factor of primary damage applied at the edge of the primary radius (1.0 = no taper)
 	Real m_secondaryDamageTaperOff;					///< factor of secondary damage applied at the edge of the secondary radius (1.0 = no taper)
 	Real m_damageFactorAtMaxRange;					///< scales damage based on engagement distance / attack range (1.0 = no scaling)
+	Real m_radiusFactorAtMaxRange;					///< scales damage radii based on engagement distance / attack range (1.0 = no scaling)
 	Real m_scatterRadiusFactorAtMaxRange;		///< scales ScatterRadius based on engagement distance / attack range (1.0 = no scaling)
 	Real m_shockWaveAmount;									///( How much shockwave generated
 	Real m_shockWaveRadius;									///( How far shockwave effect affects objects
