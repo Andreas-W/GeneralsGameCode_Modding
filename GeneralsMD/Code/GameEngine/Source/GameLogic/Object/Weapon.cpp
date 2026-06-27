@@ -1037,6 +1037,10 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 
 		Bool handled;
 
+		// The radius handed to UseCallersRadius FX must match the actual damage radius, so apply the same
+		// range-based scaling (RadiusFactorAtMaxRange) that dealDamageInternal uses.
+		Real fxRadius = getPrimaryDamageRadius(bonus) * computeRangeScaleFactor(sourceObj, &targetPos, bonus, m_radiusFactorAtMaxRange, isProjectileDetonation);
+
 		// TheSuperHackers @todo: Remove hardcoded KINDOF_MINE check and apply PlayFXWhenStealthed = Yes to the mine weapons instead.
 
 		if (!sourceObj->isLogicallyVisible()									// if user watching cannot see us
@@ -1055,7 +1059,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 																															reAngle,
 																															reDir,
 																															&targetPos,
-																															getPrimaryDamageRadius(bonus)
+																															fxRadius
 																															);
 		}
 
@@ -1064,7 +1068,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 			// bah. just play it at the drawable's pos.
 			//DEBUG_LOG(("*** WeaponFireFX not fully handled by the client"));
 			const Coord3D* where = isContactWeapon() ? &targetPos : sourceObj->getDrawable()->getPosition();
-			FXList::doFXPos(fx, where, sourceObj->getDrawable()->getTransformMatrix(), getWeaponSpeed(), &targetPos, getPrimaryDamageRadius(bonus));
+			FXList::doFXPos(fx, where, sourceObj->getDrawable()->getTransformMatrix(), getWeaponSpeed(), &targetPos, fxRadius);
 		}
 	}
 
@@ -1218,7 +1222,8 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 				Vector3 dir(v.x, v.y, v.z);
 				dir.Normalize(); //This is fantastically crucial for calling buildTransformMatrix!!!!!
 				laserMtx.buildTransformMatrix(pos, dir);
-				FXList::doFXPos(fx, &targetPos, &laserMtx, 0.0f, NULL, getPrimaryDamageRadius(bonus));
+				Real fxRadius = getPrimaryDamageRadius(bonus) * computeRangeScaleFactor(sourceObj, &targetPos, bonus, m_radiusFactorAtMaxRange, isProjectileDetonation);
+				FXList::doFXPos(fx, &targetPos, &laserMtx, 0.0f, NULL, fxRadius);
 			}
 
 			if( inflictDamage )
@@ -1562,6 +1567,52 @@ void WeaponTemplate::processHistoricDamage(const Object* source, const Coord3D* 
 #endif
 
 //-------------------------------------------------------------------------------------------------
+// Compute the range-based scaling factor (1.0 at point-blank, factorAtMaxRange at/beyond attack range)
+// for the engagement from 'source' to 'pos'. The origin is the firing source's position for direct and
+// laser weapons; for projectile detonations the firing source is the projectile, so the launcher's
+// position captured at launch time (projectileGetLaunchPos) is used instead. Returns 1.0 if the factor
+// is unused, the origin is unknown, or the weapon has no attack range.
+//-------------------------------------------------------------------------------------------------
+Real WeaponTemplate::computeRangeScaleFactor(const Object* source, const Coord3D* pos, const WeaponBonus& bonus, Real factorAtMaxRange, Bool isProjectileDetonation) const
+{
+	if (factorAtMaxRange == 1.0f || pos == nullptr)
+		return 1.0f;
+
+	Coord3D fromPos;
+	Bool haveFromPos = false;
+	if (isProjectileDetonation && source != nullptr && source->isKindOf(KINDOF_PROJECTILE))
+	{
+		for (BehaviorModule** u = source->getBehaviorModules(); *u; ++u)
+		{
+			ProjectileUpdateInterface* pui = (*u)->getProjectileUpdateInterface();
+			if (pui != nullptr)
+			{
+				haveFromPos = pui->projectileGetLaunchPos(fromPos);
+				break;
+			}
+		}
+	}
+	else if (source != nullptr)
+	{
+		fromPos = *source->getPosition();
+		haveFromPos = true;
+	}
+
+	Real range = getAttackRange(bonus);
+	if (!haveFromPos || range <= 0.0f)
+		return 1.0f;
+
+	Coord3D delta;
+	delta.x = pos->x - fromPos.x;
+	delta.y = pos->y - fromPos.y;
+	delta.z = pos->z - fromPos.z;
+	Real t = delta.length() / range;
+	if (t < 0.0f) t = 0.0f;
+	if (t > 1.0f) t = 1.0f;
+	return 1.0f + (factorAtMaxRange - 1.0f) * t;
+}
+
+//-------------------------------------------------------------------------------------------------
 void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, const Coord3D *pos, const WeaponBonus& bonus, Bool isProjectileDetonation) const
 {
 	if (sourceID == 0)	// must have a source
@@ -1608,56 +1659,18 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 			secondaryDamage -= GameLogicRandomValueReal(0.0f, m_secondaryDamageVariance * damageBonusScalar);
 
 		// Apply range-based scaling of damage and/or damage radii. Each is scaled from 1.0 at point-blank
-		// to its factor at (or beyond) the weapon's attack range. The engagement distance is measured
-		// from where the shot originated to the impact point. For direct/laser weapons that is the firing
-		// source's position. For projectile detonations the firing source here is the projectile, so we
-		// instead use the launcher's position captured at launch time (projectileGetLaunchPos); if that is
-		// unavailable we skip the scaling (factors stay 1.0).
-		if ((m_damageFactorAtMaxRange != 1.0f || m_radiusFactorAtMaxRange != 1.0f) && pos != nullptr)
+		// to its factor at (or beyond) the weapon's attack range, based on the engagement distance.
+		if (m_damageFactorAtMaxRange != 1.0f)
 		{
-			Coord3D fromPos;
-			Bool haveFromPos = false;
-			if (isProjectileDetonation && source != nullptr && source->isKindOf(KINDOF_PROJECTILE))
-			{
-				for (BehaviorModule** u = source->getBehaviorModules(); *u; ++u)
-				{
-					ProjectileUpdateInterface* pui = (*u)->getProjectileUpdateInterface();
-					if (pui != nullptr)
-					{
-						haveFromPos = pui->projectileGetLaunchPos(fromPos);
-						break;
-					}
-				}
-			}
-			else if (source != nullptr)
-			{
-				fromPos = *source->getPosition();
-				haveFromPos = true;
-			}
-
-			Real range = getAttackRange(bonus);
-			if (haveFromPos && range > 0.0f)
-			{
-				Coord3D delta;
-				delta.x = pos->x - fromPos.x;
-				delta.y = pos->y - fromPos.y;
-				delta.z = pos->z - fromPos.z;
-				Real t = delta.length() / range;
-				if (t < 0.0f) t = 0.0f;
-				if (t > 1.0f) t = 1.0f;
-				if (m_damageFactorAtMaxRange != 1.0f)
-				{
-					Real rangeDamageFactor = 1.0f + (m_damageFactorAtMaxRange - 1.0f) * t;
-					primaryDamage *= rangeDamageFactor;
-					secondaryDamage *= rangeDamageFactor;
-				}
-				if (m_radiusFactorAtMaxRange != 1.0f)
-				{
-					Real rangeRadiusFactor = 1.0f + (m_radiusFactorAtMaxRange - 1.0f) * t;
-					primaryRadius *= rangeRadiusFactor;
-					secondaryRadius *= rangeRadiusFactor;
-				}
-			}
+			Real rangeDamageFactor = computeRangeScaleFactor(source, pos, bonus, m_damageFactorAtMaxRange, isProjectileDetonation);
+			primaryDamage *= rangeDamageFactor;
+			secondaryDamage *= rangeDamageFactor;
+		}
+		if (m_radiusFactorAtMaxRange != 1.0f)
+		{
+			Real rangeRadiusFactor = computeRangeScaleFactor(source, pos, bonus, m_radiusFactorAtMaxRange, isProjectileDetonation);
+			primaryRadius *= rangeRadiusFactor;
+			secondaryRadius *= rangeRadiusFactor;
 		}
 
 		DEBUG_ASSERTCRASH(secondaryRadius >= primaryRadius || secondaryRadius == 0.0f, ("secondary radius should be >= primary radius (or zero)"));

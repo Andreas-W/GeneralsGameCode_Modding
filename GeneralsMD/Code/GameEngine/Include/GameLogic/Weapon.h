@@ -494,6 +494,10 @@ public:
 
 protected:
 
+	// compute the range-based scaling factor (1.0 at point-blank to factorAtMaxRange at attack range)
+	// for the engagement from 'source' to 'pos'. Uses launch-time position for projectile detonations.
+	Real computeRangeScaleFactor(const Object* source, const Coord3D* pos, const WeaponBonus& bonus, Real factorAtMaxRange, Bool isProjectileDetonation) const;
+
 	// actually deal out the damage.
 	void dealDamageInternal(ObjectID sourceID, ObjectID victimID, const Coord3D *pos, const WeaponBonus& bonus, Bool isProjectileDetonation) const;
 	void trimOldHistoricDamage() const;
