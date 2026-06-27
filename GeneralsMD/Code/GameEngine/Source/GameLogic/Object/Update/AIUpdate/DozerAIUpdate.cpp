@@ -1561,6 +1561,9 @@ void DozerAIUpdate::removeBridgeScaffolding( Object *bridgeTower )
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime DozerAIUpdate::update( void )
 {
+	// Suspend dozer tasks (build/repair) while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
 
 	//
 	// NOTE: Any changes to DozerAIUpdate::* you probably want to reflect and copy into

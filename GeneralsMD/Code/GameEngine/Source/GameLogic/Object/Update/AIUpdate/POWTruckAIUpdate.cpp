@@ -168,6 +168,9 @@ void POWTruckAIUpdate::aiDoCommand( const AICommandParms *parms )
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime POWTruckAIUpdate::update( void )
 {
+	// Suspend POW collection tasks while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
 
 	// we are ultra accurate
 	if( getCurLocomotor() )

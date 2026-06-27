@@ -235,6 +235,9 @@ Real WorkerAIUpdate::getWarehouseScanDistance() const
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime WorkerAIUpdate::update( void )
 {
+	// Suspend worker tasks (build/repair/supply) while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
 
 	//
 	// NOTE: Any changes to DozerAIUpdate::* you probably want to reflect and copy into

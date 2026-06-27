@@ -172,6 +172,11 @@ Bool DeliverPayloadAIUpdate::isAllowedToRespondToAiCommands(const AICommandParms
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime DeliverPayloadAIUpdate::update( void )
 {
+	// While disabled (e.g. DelayDeliveryFrames hold), suspend delivery logic so the
+	// approach/deliver state machine does not advance while we are frozen in place.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	m_deliveryDecal.update();
 
 	if(!(isAiInDeadState()) && m_deliverPayloadStateMachine)

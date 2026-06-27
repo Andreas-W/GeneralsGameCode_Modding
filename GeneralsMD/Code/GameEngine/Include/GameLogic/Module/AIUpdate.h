@@ -314,11 +314,11 @@ public:
 
 	virtual AIUpdateInterface* getAIUpdateInterface() { return this; }
 
-	// Disabled conditions to process (AI will still process held status)
-	//virtual DisabledMaskType getDisabledTypesToProcess() const { return MAKE_DISABLED_MASK( DISABLED_HELD ); }
-
-	// We need to process all disabled types to allow Locomotor working while disabled
-	virtual DisabledMaskType getDisabledTypesToProcess() const { return DISABLEDMASK_ALL; }
+	// Disabled conditions to process. By default the AI only processes HELD (so a disabled
+	// unit's AI fully freezes, as it always did). We additionally process all disabled types
+	// only when the current locomotor must keep working while disabled, so it can maintain
+	// position. (Implemented in the .cpp because it needs the full Locomotor definition.)
+	virtual DisabledMaskType getDisabledTypesToProcess() const;
 
 	// Some very specific, complex behaviors are used by more than one AIUpdate.  Here are their interfaces.
 	virtual DozerAIInterface* getDozerAIInterface() {return nullptr;}
@@ -648,6 +648,12 @@ protected:
 
 	virtual UpdateSleepTime doLocomotor();	// virtual so subclasses can override
 	virtual void chooseGoodLocomotorFromCurrentSet();
+
+	// True when a disable type should suspend AI logic. We still run while disabled
+	// (DISABLEDMASK_ALL) so the locomotor can maintain position, but all other AI logic
+	// (state machine, attacking, pathfinding, economy) must be frozen. HELD never suspends,
+	// and death is handled separately by the normal update path.
+	Bool isAiSuspendedByDisable() const;
 
 	void setLastCommandSource(CommandSourceType source);
 

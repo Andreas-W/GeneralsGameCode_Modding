@@ -52,6 +52,10 @@ WanderAIUpdate::~WanderAIUpdate( void )
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime WanderAIUpdate::update( void )
 {
+	// Suspend wandering while disabled; only the locomotor runs.
+	if (isAiSuspendedByDisable())
+		return AIUpdateInterface::update();
+
 	// If I'm standing still, move somewhere
 	if (isIdle())
 	{
