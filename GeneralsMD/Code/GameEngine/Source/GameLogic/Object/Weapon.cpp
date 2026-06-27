@@ -164,10 +164,14 @@ WeaponStore *TheWeaponStore = nullptr;					///< the weapon store definition
 const FieldParse WeaponTemplate::TheWeaponTemplateFieldParseTable[] =
 {
 
-	{ "PrimaryDamage",						INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_primaryDamage) },
+	{ "PrimaryDamage",						WeaponTemplate::parsePrimaryDamage,			nullptr,							0 },
 	{ "PrimaryDamageRadius",			INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_primaryDamageRadius) },
-	{ "SecondaryDamage",					INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_secondaryDamage) },
+	{ "SecondaryDamage",					WeaponTemplate::parseSecondaryDamage,		nullptr,							0 },
 	{ "SecondaryDamageRadius",		INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_secondaryDamageRadius) },
+	{ "PrimaryDamageTaperOff",		INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_primaryDamageTaperOff) },
+	{ "SecondaryDamageTaperOff",	INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_secondaryDamageTaperOff) },
+	{ "DamageFactorAtMaxRange",		INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_damageFactorAtMaxRange) },
+	{ "ScatterRadiusFactorAtMaxRange",	INI::parseReal,											nullptr,							offsetof(WeaponTemplate, m_scatterRadiusFactorAtMaxRange) },
 	{ "ShockWaveAmount",					INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_shockWaveAmount) },
 	{ "ShockWaveRadius",					INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_shockWaveRadius) },
 	{ "ShockWaveTaperOff",				INI::parseReal,													nullptr,							offsetof(WeaponTemplate, m_shockWaveTaperOff) },
@@ -270,9 +274,15 @@ WeaponTemplate::WeaponTemplate() : m_nextTemplate(nullptr)
 	m_name													= "NoNameWeapon";
 	m_nameKey												= NAMEKEY_INVALID;
 	m_primaryDamage									= 0.0f;
+	m_primaryDamageVariance					= 0.0f;
 	m_primaryDamageRadius						= 0.0f;
 	m_secondaryDamage								= 0.0f;
+	m_secondaryDamageVariance				= 0.0f;
 	m_secondaryDamageRadius					= 0.0f;
+	m_primaryDamageTaperOff					= 1.0f;	// no taper
+	m_secondaryDamageTaperOff				= 1.0f;	// no taper
+	m_damageFactorAtMaxRange				= 1.0f;	// no range scaling
+	m_scatterRadiusFactorAtMaxRange	= 1.0f;	// no range scaling
 	m_attackRange										= 0.0f;
 	m_minimumAttackRange						= 0.0f;
 	m_requestAssistRange						= 0.0f;
@@ -453,6 +463,60 @@ void WeaponTemplate::copy_from(const WeaponTemplate& other) {
 	self->m_minDelayBetweenShots = ceilf(ConvertDurationFromMsecsToFrames((Real)self->m_minDelayBetweenShots));
 	self->m_maxDelayBetweenShots = ceilf(ConvertDurationFromMsecsToFrames((Real)self->m_maxDelayBetweenShots));
 
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Shared smart parser for PrimaryDamage/SecondaryDamage. Accepts a single number for traditional
+		fixed damage, or a labeled "Min:x Max:y" pair for a random damage range. The nominal damage is
+		stored as the max, and the spread (max-min) is stored as the variance, so that the actual damage
+		dealt is rolled as (max - random[0,variance]) == random[min,max]. Storing the max as nominal
+		keeps AI damage estimation and UI unchanged (optimistic). */
+//-------------------------------------------------------------------------------------------------
+static void parseDamageMinMax( INI* ini, Real* nominal, Real* variance )
+{
+	static const char *MIN_LABEL = "Min";
+	static const char *MAX_LABEL = "Max";
+
+	const char* token = ini->getNextTokenOrNull(ini->getSepsColon());
+
+	if( token != nullptr && stricmp(token, MIN_LABEL) == 0 )
+	{
+		// Two entry min/max
+		Real minVal = INI::scanReal(ini->getNextToken(ini->getSepsColon()));
+		Real maxVal = minVal;
+		token = ini->getNextTokenOrNull(ini->getSepsColon());
+		if( token != nullptr && stricmp(token, MAX_LABEL) == 0 )
+			maxVal = INI::scanReal(ini->getNextToken(ini->getSepsColon()));
+
+		// guard against reversed Min/Max
+		if( maxVal < minVal )
+		{
+			Real tmp = maxVal; maxVal = minVal; minVal = tmp;
+		}
+
+		*nominal = maxVal;
+		*variance = maxVal - minVal;
+	}
+	else
+	{
+		// single entry, no label, so the first token is just a number
+		*nominal = INI::scanReal(token);
+		*variance = 0.0f;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/*static*/ void WeaponTemplate::parsePrimaryDamage( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ )
+{
+	WeaponTemplate* self = (WeaponTemplate*)instance;
+	parseDamageMinMax( ini, &self->m_primaryDamage, &self->m_primaryDamageVariance );
+}
+
+//-------------------------------------------------------------------------------------------------
+/*static*/ void WeaponTemplate::parseSecondaryDamage( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ )
+{
+	WeaponTemplate* self = (WeaponTemplate*)instance;
+	parseDamageMinMax( ini, &self->m_secondaryDamage, &self->m_secondaryDamageVariance );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1019,6 +1083,25 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 		// and find a random point within the radius to shoot at as victimPos
 		scatterRadius = m_scatterRadius;
 
+		// Scale the scatter radius based on engagement distance / attack range. Scaled from 1.0 at
+		// point-blank to m_scatterRadiusFactorAtMaxRange at (or beyond) the weapon's attack range.
+		// Note: this scales ScatterRadius only, not the infantry-inaccuracy bonus added below.
+		if (m_scatterRadiusFactorAtMaxRange != 1.0f)
+		{
+			Real range = getAttackRange(bonus);
+			if (range > 0.0f)
+			{
+				Coord3D delta;
+				delta.x = victimPos->x - sourcePos->x;
+				delta.y = victimPos->y - sourcePos->y;
+				delta.z = victimPos->z - sourcePos->z;
+				Real t = delta.length() / range;
+				if (t < 0.0f) t = 0.0f;
+				if (t > 1.0f) t = 1.0f;
+				scatterRadius *= 1.0f + (m_scatterRadiusFactorAtMaxRange - 1.0f) * t;
+			}
+		}
+
 		// if it's an object, aim at the center, not the ground part (srj)
 		PathfindLayerEnum targetLayer = LAYER_GROUND;
 		if( victimObj )
@@ -1513,6 +1596,59 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 		Real secondaryDamage = getSecondaryDamage(bonus);
 		Int affects = getAffectsMask();
 
+		// Apply random damage variance (from Min:/Max: definition). Roll once per shot so that every
+		// victim caught in the blast takes the same rolled damage. Must use the synchronized game-logic
+		// RNG so multiplayer clients stay in sync.
+		const Real damageBonusScalar = bonus.getField(WeaponBonus::DAMAGE);
+		if (m_primaryDamageVariance > 0.0f)
+			primaryDamage -= GameLogicRandomValueReal(0.0f, m_primaryDamageVariance * damageBonusScalar);
+		if (m_secondaryDamageVariance > 0.0f)
+			secondaryDamage -= GameLogicRandomValueReal(0.0f, m_secondaryDamageVariance * damageBonusScalar);
+
+		// Apply range-based damage scaling. Damage is scaled from 1.0 at point-blank to
+		// m_damageFactorAtMaxRange at (or beyond) the weapon's attack range. The engagement distance is
+		// measured from where the shot originated to the impact point. For direct/laser weapons that is
+		// the firing source's position. For projectile detonations the firing source here is the
+		// projectile, so we instead use the launcher's position captured at launch time
+		// (projectileGetLaunchPos); if that is unavailable we skip the scaling (factor stays 1.0).
+		if (m_damageFactorAtMaxRange != 1.0f && pos != nullptr)
+		{
+			Coord3D fromPos;
+			Bool haveFromPos = false;
+			if (isProjectileDetonation && source != nullptr && source->isKindOf(KINDOF_PROJECTILE))
+			{
+				for (BehaviorModule** u = source->getBehaviorModules(); *u; ++u)
+				{
+					ProjectileUpdateInterface* pui = (*u)->getProjectileUpdateInterface();
+					if (pui != nullptr)
+					{
+						haveFromPos = pui->projectileGetLaunchPos(fromPos);
+						break;
+					}
+				}
+			}
+			else if (source != nullptr)
+			{
+				fromPos = *source->getPosition();
+				haveFromPos = true;
+			}
+
+			Real range = getAttackRange(bonus);
+			if (haveFromPos && range > 0.0f)
+			{
+				Coord3D delta;
+				delta.x = pos->x - fromPos.x;
+				delta.y = pos->y - fromPos.y;
+				delta.z = pos->z - fromPos.z;
+				Real t = delta.length() / range;
+				if (t < 0.0f) t = 0.0f;
+				if (t > 1.0f) t = 1.0f;
+				Real rangeDamageFactor = 1.0f + (m_damageFactorAtMaxRange - 1.0f) * t;
+				primaryDamage *= rangeDamageFactor;
+				secondaryDamage *= rangeDamageFactor;
+			}
+		}
+
 		DEBUG_ASSERTCRASH(secondaryRadius >= primaryRadius || secondaryRadius == 0.0f, ("secondary radius should be >= primary radius (or zero)"));
 
 		Real primaryRadiusSqr = sqr(primaryRadius);
@@ -1674,7 +1810,33 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 			}
 			// note, don't bother with damage multipliers here...
 			// that's handled internally by the attemptDamage() method.
-			damageInfo.in.m_amount = (curVictimDistSqr <= primaryRadiusSqr) ? primaryDamage : secondaryDamage;
+			Real damageAmount;
+			if (curVictimDistSqr <= primaryRadiusSqr)
+			{
+				// inside the primary blast: taper from full damage at the center to
+				// m_primaryDamageTaperOff at the edge of the primary radius.
+				damageAmount = primaryDamage;
+				if (m_primaryDamageTaperOff != 1.0f && primaryRadius > 0.0f)
+				{
+					Real t = sqrtf(curVictimDistSqr) / primaryRadius;
+					if (t > 1.0f) t = 1.0f;
+					damageAmount *= 1.0f + (m_primaryDamageTaperOff - 1.0f) * t;
+				}
+			}
+			else
+			{
+				// in the secondary ring: taper from full secondary damage at the inner edge
+				// (primary radius) to m_secondaryDamageTaperOff at the outer edge (secondary radius).
+				damageAmount = secondaryDamage;
+				if (m_secondaryDamageTaperOff != 1.0f && secondaryRadius > primaryRadius)
+				{
+					Real t = (sqrtf(curVictimDistSqr) - primaryRadius) / (secondaryRadius - primaryRadius);
+					if (t < 0.0f) t = 0.0f;
+					if (t > 1.0f) t = 1.0f;
+					damageAmount *= 1.0f + (m_secondaryDamageTaperOff - 1.0f) * t;
+				}
+			}
+			damageInfo.in.m_amount = damageAmount;
 
 			if( killSelf )
 			{

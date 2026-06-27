@@ -111,6 +111,7 @@ FreeFallProjectileBehavior::FreeFallProjectileBehavior(Thing* thing, const Modul
 	m_launcherID = INVALID_ID;
 	m_victimID = INVALID_ID;
 	m_targetPos.zero();
+	m_launchPos.zero();
 	m_detonationWeaponTmpl = NULL;
 	m_lifespanFrame = 0;
 	m_extraBonusFlags = 0;
@@ -142,6 +143,8 @@ void FreeFallProjectileBehavior::projectileLaunchAtObjectOrPosition(
 	DEBUG_ASSERTCRASH(specificBarrelToUse >= 0, ("specificBarrelToUse must now be explicit"));
 
 	m_launcherID = launcher ? launcher->getID() : INVALID_ID;
+	if (launcher)
+		m_launchPos = *launcher->getPosition();
 	m_extraBonusFlags = launcher ? launcher->getWeaponBonusCondition() : 0;
 
 	if (d->m_applyLauncherBonus && m_extraBonusFlags != 0) {
@@ -428,7 +431,8 @@ void FreeFallProjectileBehavior::xfer(Xfer* xfer)
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	// 2: Added m_launchPos (for DamageFactorAtMaxRange)
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion(&version, currentVersion);
 
@@ -443,6 +447,10 @@ void FreeFallProjectileBehavior::xfer(Xfer* xfer)
 
 	// target pos
 	xfer->xferCoord3D(&m_targetPos);
+
+	// launch pos
+	if (version >= 2)
+		xfer->xferCoord3D(&m_launchPos);
 
 	// weapon template
 	AsciiString weaponTemplateName = AsciiString::TheEmptyString;

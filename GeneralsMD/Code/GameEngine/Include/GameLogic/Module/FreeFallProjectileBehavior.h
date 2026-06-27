@@ -98,6 +98,7 @@ public:
 	virtual Bool projectileHandleCollision( Object *other );
 	virtual Bool projectileIsArmed() const { return true; }
 	virtual ObjectID projectileGetLauncherID() const { return m_launcherID; }
+	virtual Bool projectileGetLaunchPos(Coord3D& pos) const { if (m_launcherID == INVALID_ID) return false; pos = m_launchPos; return true; }
 	virtual void setFramesTillCountermeasureDiversionOccurs( UnsignedInt frames ) {}
 	virtual void projectileNowJammed() {}
 	virtual Object* getTargetObject();
@@ -114,6 +115,7 @@ private:
 	ObjectID							m_launcherID;							///< ID of object that launched us (zero if not yet launched)
 	ObjectID							m_victimID;								///< ID of object we are targeting (zero if not yet launched)
 	Coord3D								m_targetPos;
+	Coord3D								m_launchPos;							///< launcher's position at launch time (for DamageFactorAtMaxRange)
 	const WeaponTemplate*	m_detonationWeaponTmpl;		///< weapon to fire at end (or null)
 	UnsignedInt						m_lifespanFrame;					///< if we haven't collided by this frame, blow up anyway
 	WeaponBonusConditionFlags		m_extraBonusFlags;
