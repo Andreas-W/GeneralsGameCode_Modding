@@ -164,6 +164,7 @@ MissileAIUpdate::MissileAIUpdate( Thing *thing, const ModuleData* moduleData ) :
 	m_exhaustID = INVALID_PARTICLE_SYSTEM_ID;
 	m_extraBonusFlags = 0;
 	m_originalTargetPos.zero();
+	m_launchPos.zero();
 	m_framesTillDecoyed = 0;
 	m_noDamage = FALSE;
 	m_isJammed = FALSE;
@@ -225,6 +226,8 @@ void MissileAIUpdate::projectileLaunchAtObjectOrPosition(
 	DEBUG_ASSERTCRASH(specificBarrelToUse>=0, ("specificBarrelToUse must now be explicit"));
 
 	m_launcherID = launcher ? launcher->getID() : INVALID_ID;
+	if (launcher)
+		m_launchPos = *launcher->getPosition();
 	m_detonationWeaponTmpl = detWeap;
 	m_extraBonusFlags = launcher ? launcher->getWeaponBonusCondition() : 0;
 
@@ -1137,7 +1140,7 @@ void MissileAIUpdate::crc( Xfer *xfer )
 void MissileAIUpdate::xfer( Xfer *xfer )
 {
   // version
-  const XferVersion currentVersion = 7;
+  const XferVersion currentVersion = 8;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
 
@@ -1206,6 +1209,11 @@ void MissileAIUpdate::xfer( Xfer *xfer )
 	if( version >= 7 )
 	{
 		xfer->xferReal( &m_randomPathDistLeft);
+	}
+
+	if( version >= 8 )
+	{
+		xfer->xferCoord3D( &m_launchPos );
 	}
 }  // end xfer
 

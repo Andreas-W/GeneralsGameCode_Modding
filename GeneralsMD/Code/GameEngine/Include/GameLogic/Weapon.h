@@ -494,6 +494,10 @@ public:
 
 protected:
 
+	// compute the range-based scaling factor (1.0 at point-blank to factorAtMaxRange at attack range)
+	// for the engagement from 'source' to 'pos'. Uses launch-time position for projectile detonations.
+	Real computeRangeScaleFactor(const Object* source, const Coord3D* pos, const WeaponBonus& bonus, Real factorAtMaxRange, Bool isProjectileDetonation) const;
+
 	// actually deal out the damage.
 	void dealDamageInternal(ObjectID sourceID, ObjectID victimID, const Coord3D *pos, const WeaponBonus& bonus, Bool isProjectileDetonation) const;
 	void trimOldHistoricDamage() const;
@@ -508,6 +512,8 @@ private:
 	static void parseWeaponBonusSet( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ );
 	static void parseScatterTarget( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ );
 	static void parseShotDelay( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ );
+	static void parsePrimaryDamage( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ );
+	static void parseSecondaryDamage( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ );
 
 	static const FieldParse TheWeaponTemplateFieldParseTable[];		///< the parse table for INI definition
 
@@ -516,10 +522,17 @@ private:
 	AsciiString m_projectileStreamName;			///< Name of object that tracks are stream, if we have one
 	AsciiString m_laserName;								///< Name of the laser object that persists.
 	AsciiString m_laserBoneName;						///< Where to put the laser object
-	Real m_primaryDamage;										///< primary damage amount
+	Real m_primaryDamage;										///< primary damage amount (nominal/max when variance is used)
+	Real m_primaryDamageVariance;						///< if nonzero, actual primary damage is randomly reduced by up to this much (from Min:/Max: definition)
 	Real m_primaryDamageRadius;							///< primary damage radius range
-	Real m_secondaryDamage;									///< secondary damage amount
+	Real m_secondaryDamage;									///< secondary damage amount (nominal/max when variance is used)
+	Real m_secondaryDamageVariance;					///< if nonzero, actual secondary damage is randomly reduced by up to this much (from Min:/Max: definition)
 	Real m_secondaryDamageRadius;						///< secondary damage radius range
+	Real m_primaryDamageTaperOff;						///< factor of primary damage applied at the edge of the primary radius (1.0 = no taper)
+	Real m_secondaryDamageTaperOff;					///< factor of secondary damage applied at the edge of the secondary radius (1.0 = no taper)
+	Real m_damageFactorAtMaxRange;					///< scales damage based on engagement distance / attack range (1.0 = no scaling)
+	Real m_radiusFactorAtMaxRange;					///< scales damage radii based on engagement distance / attack range (1.0 = no scaling)
+	Real m_scatterRadiusFactorAtMaxRange;		///< scales ScatterRadius based on engagement distance / attack range (1.0 = no scaling)
 	Real m_shockWaveAmount;									///( How much shockwave generated
 	Real m_shockWaveRadius;									///( How far shockwave effect affects objects
 	Real m_shockWaveTaperOff;								///( How much shockwave is left at the tip of the shockwave radius

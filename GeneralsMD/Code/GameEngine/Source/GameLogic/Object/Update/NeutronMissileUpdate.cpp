@@ -111,6 +111,7 @@ NeutronMissileUpdate::NeutronMissileUpdate( Thing *thing, const ModuleData* modu
 
 	m_targetPos.zero();
 	m_intermedPos.zero();
+	m_launchPos.zero();
 	m_accel.zero();
 	m_vel.zero();
 
@@ -147,6 +148,8 @@ void NeutronMissileUpdate::projectileLaunchAtObjectOrPosition(const Object *vict
 	DEBUG_ASSERTCRASH(specificBarrelToUse>=0, ("specificBarrelToUse must now be explicit"));
 
 	m_launcherID = launcher ? launcher->getID() : INVALID_ID;
+	if (launcher)
+		m_launchPos = *launcher->getPosition();
 	m_attach_wslot = wslot;
 	m_attach_specificBarrelToUse = specificBarrelToUse;
 
@@ -554,7 +557,8 @@ void NeutronMissileUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	// 2: Added m_launchPos (for DamageFactorAtMaxRange)
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -605,6 +609,10 @@ void NeutronMissileUpdate::xfer( Xfer *xfer )
 
 	// height at launch
 	xfer->xferReal( &m_heightAtLaunch );
+
+	// launch pos
+	if( version >= 2 )
+		xfer->xferCoord3D( &m_launchPos );
 
 	// decal, if any
 	m_deliveryDecal.xferRadiusDecal(xfer);
