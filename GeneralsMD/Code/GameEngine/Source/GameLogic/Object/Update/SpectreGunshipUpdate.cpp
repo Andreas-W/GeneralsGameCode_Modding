@@ -585,8 +585,8 @@ UpdateSleepTime SpectreGunshipUpdate::update()
             Coord3D gattlingAimPos = m_gattlingTargetPosition;
             if( data->m_hitWaterSurface )
             {
-              Real waterZ, terrainZ;
-              if( TheTerrainLogic->isUnderwater( gattlingAimPos.x, gattlingAimPos.y, &waterZ, &terrainZ ) )
+              Real waterZ;
+              if( TheTerrainLogic->isUnderwater( gattlingAimPos.x, gattlingAimPos.y, &waterZ ) )
                 gattlingAimPos.z = waterZ;
             }
 
