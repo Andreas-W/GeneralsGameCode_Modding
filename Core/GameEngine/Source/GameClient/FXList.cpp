@@ -945,7 +945,7 @@ protected:
 						if (!isValidSurface(primary, &info))
 							continue;
 
-						refHeight = surfaceInfo->m_isWater ? info.m_waterHeight : info.m_groundHeight;
+						refHeight = info.m_isWater ? info.m_waterHeight : info.m_groundHeight;
 					}
 
 					if (m_createAtGroundHeight) {

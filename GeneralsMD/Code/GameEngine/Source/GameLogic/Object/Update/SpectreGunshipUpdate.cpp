@@ -83,6 +83,7 @@ SpectreGunshipUpdateModuleData::SpectreGunshipUpdateModuleData()
 	m_specialPowerTemplate			   = nullptr;
 /******BOTH*******//*BOTH*//******BOTH*******//******BOTH*******/  m_attackAreaRadius             = 200.0f;
 /*************/  m_gattlingStrafeFXParticleSystem = nullptr;
+/*************/  m_gattlingStrafeFXParticleSystemWater = nullptr;
 /*************/  m_howitzerWeaponTemplate = nullptr;
 /*************/  m_orbitFrames                  = 0;
 /*************/  m_targetingReticleRadius       = 25.0f;
@@ -92,6 +93,7 @@ SpectreGunshipUpdateModuleData::SpectreGunshipUpdateModuleData()
   m_howitzerFiringRate = 10;
   m_howitzerFollowLag = 0;
   m_randomOffsetForHowitzer = 20.0f;
+  m_hitWaterSurface = false;
 }
 
 static Real zero = 0.0f;
@@ -115,8 +117,10 @@ static Real zero = 0.0f;
 		{ "GunshipOrbitRadius",	            INI::parseReal,				            nullptr, offsetof( SpectreGunshipUpdateModuleData, m_gunshipOrbitRadius ) },
 		{ "HowitzerWeaponTemplate",				  INI::parseWeaponTemplate,				  nullptr, offsetof( SpectreGunshipUpdateModuleData, m_howitzerWeaponTemplate ) },
 		{ "GattlingStrafeFXParticleSystem",	INI::parseParticleSystemTemplate, nullptr, offsetof( SpectreGunshipUpdateModuleData, m_gattlingStrafeFXParticleSystem ) },
+		{ "GattlingStrafeFXParticleSystemWater", INI::parseParticleSystemTemplate, nullptr, offsetof( SpectreGunshipUpdateModuleData, m_gattlingStrafeFXParticleSystemWater ) },
 		{ "AttackAreaDecal",		            RadiusDecalTemplate::parseRadiusDecalTemplate,	nullptr, offsetof( SpectreGunshipUpdateModuleData, m_attackAreaDecalTemplate ) },
 		{ "TargetingReticleDecal",		      RadiusDecalTemplate::parseRadiusDecalTemplate,	nullptr, offsetof( SpectreGunshipUpdateModuleData, m_targetingReticleDecalTemplate ) },
+		{ "HitWaterSurface",	              INI::parseBool,	                  nullptr, offsetof( SpectreGunshipUpdateModuleData, m_hitWaterSurface ) },
 
 
 
@@ -576,13 +580,23 @@ UpdateSleepTime SpectreGunshipUpdate::update()
 
 
 
+            //Aim at the water surface over water when configured. Use a copy so the strafing/winding
+            //math on m_gattlingTargetPosition (below) keeps its original 3D behavior.
+            Coord3D gattlingAimPos = m_gattlingTargetPosition;
+            if( data->m_hitWaterSurface )
+            {
+              Real waterZ, terrainZ;
+              if( TheTerrainLogic->isUnderwater( gattlingAimPos.x, gattlingAimPos.y, &waterZ, &terrainZ ) )
+                gattlingAimPos.z = waterZ;
+            }
+
             //lets keep a constant barrage of gattling bullets on the current aim location
 				    if( gattlingAI )
 				    {
               if ( validTargetObject )// either in the reticle or the targeting area
                 gattlingAI->aiAttackObject( validTargetObject, LOTS_OF_SHOTS, CMD_FROM_AI );
               else
-  					    gattlingAI->aiAttackPosition( &m_gattlingTargetPosition, LOTS_OF_SHOTS, CMD_FROM_AI );
+  					    gattlingAI->aiAttackPosition( &gattlingAimPos, LOTS_OF_SHOTS, CMD_FROM_AI );
 				    }
 
 
@@ -596,9 +610,9 @@ UpdateSleepTime SpectreGunshipUpdate::update()
               {
                 Coord3D attackPositionWithRandomOffset;
                 Real offs = data->m_randomOffsetForHowitzer;
-                attackPositionWithRandomOffset.x = m_gattlingTargetPosition.x + GameLogicRandomValue( -offs, offs );
-                attackPositionWithRandomOffset.y = m_gattlingTargetPosition.y + GameLogicRandomValue( -offs, offs );
-                attackPositionWithRandomOffset.z = m_gattlingTargetPosition.z;
+                attackPositionWithRandomOffset.x = gattlingAimPos.x + GameLogicRandomValue( -offs, offs );
+                attackPositionWithRandomOffset.y = gattlingAimPos.y + GameLogicRandomValue( -offs, offs );
+                attackPositionWithRandomOffset.z = gattlingAimPos.z;
 	              TheWeaponStore->createAndFireTempWeapon( wt, gunship, &attackPositionWithRandomOffset );
 
                 m_howitzerFireSound.setObjectID(gunship->getID());
@@ -649,13 +663,23 @@ UpdateSleepTime SpectreGunshipUpdate::update()
 			{
 
 				// This makes the client smoke effects of the gattling cannon strafing the ground toward the attack position
-						  ParticleSystem *sys = TheParticleSystemManager->createParticleSystem(tmp);
-						  if (sys)
-				{
 				  Coord3D impactPosition;
 				  impactPosition.x = m_gattlingTargetPosition.x + GameClientRandomValueReal( -5.0f, 5.0f );
 				  impactPosition.y = m_gattlingTargetPosition.y + GameClientRandomValueReal( -5.0f, 5.0f );
-				  impactPosition.z = TheTerrainLogic->getGroundHeight( impactPosition.x, impactPosition.y );
+
+				  Real waterZ, terrainZ;
+				  const Bool overWater = data->m_hitWaterSurface &&
+				      TheTerrainLogic->isUnderwater( impactPosition.x, impactPosition.y, &waterZ, &terrainZ );
+
+				  // Over water, prefer the water-specific FX when one is configured.
+				  const ParticleSystemTemplate *useTmp = tmp;
+				  if( overWater && data->m_gattlingStrafeFXParticleSystemWater )
+				    useTmp = data->m_gattlingStrafeFXParticleSystemWater;
+
+						  ParticleSystem *sys = TheParticleSystemManager->createParticleSystem(useTmp);
+						  if (sys)
+				{
+				  impactPosition.z = overWater ? waterZ : TheTerrainLogic->getGroundHeight( impactPosition.x, impactPosition.y );
 							  sys->setPosition( &impactPosition );
 
 				}
