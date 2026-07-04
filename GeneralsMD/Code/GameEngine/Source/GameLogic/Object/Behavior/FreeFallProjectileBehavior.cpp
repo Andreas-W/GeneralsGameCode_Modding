@@ -112,6 +112,7 @@ FreeFallProjectileBehavior::FreeFallProjectileBehavior(Thing* thing, const Modul
 	m_victimID = INVALID_ID;
 	m_targetPos.zero();
 	m_launchPos.zero();
+	m_launchVeterancy = LEVEL_REGULAR;
 	m_detonationWeaponTmpl = NULL;
 	m_lifespanFrame = 0;
 	m_extraBonusFlags = 0;
@@ -432,7 +433,8 @@ void FreeFallProjectileBehavior::xfer(Xfer* xfer)
 
 	// version
 	// 2: Added m_launchPos (for DamageFactorAtMaxRange)
-	XferVersion currentVersion = 2;
+	// 3: Added m_launchVeterancy (for veterancy FX/OCL selection)
+	XferVersion currentVersion = 3;
 	XferVersion version = currentVersion;
 	xfer->xferVersion(&version, currentVersion);
 
@@ -451,6 +453,10 @@ void FreeFallProjectileBehavior::xfer(Xfer* xfer)
 	// launch pos
 	if (version >= 2)
 		xfer->xferCoord3D(&m_launchPos);
+
+	// launch veterancy
+	if (version >= 3)
+		xfer->xferUser(&m_launchVeterancy, sizeof(m_launchVeterancy));
 
 	// weapon template
 	AsciiString weaponTemplateName = AsciiString::TheEmptyString;

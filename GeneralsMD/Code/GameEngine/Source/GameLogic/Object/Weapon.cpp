@@ -1029,7 +1029,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 		}
 		Real reAngle = getWeaponRecoilAmount();
 		Real reDir = reAngle != 0.0f ? (atan2(victimPos->y - sourcePos->y, victimPos->x - sourcePos->x)) : 0.0f;
-		VeterancyLevel v = sourceObj->getVeterancyLevel();
+		VeterancyLevel v = getEffectiveFXVeterancy(sourceObj);
 		const FXList* fx = isProjectileDetonation ? getProjectileDetonateFX(v) : getFireFX(v);
 
 		if ( TheGameLogic->getFrame() < firingWeapon->getSuspendFXFrame() )
@@ -1075,7 +1075,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 	// Now do the FireOCL if there is one
 	if( sourceObj )
 	{
-		VeterancyLevel v = sourceObj->getVeterancyLevel();
+		VeterancyLevel v = getEffectiveFXVeterancy(sourceObj);
 		const ObjectCreationList *oclToUse = isProjectileDetonation ? getProjectileDetonationOCL(v) : getFireOCL(v);
 		if( oclToUse )
 			ObjectCreationList::create( oclToUse, sourceObj, nullptr );
@@ -1207,7 +1207,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 				targetPos.z += m_laserGroundTargetHeight;
 			}
 
-			VeterancyLevel vet = sourceObj->getVeterancyLevel();
+			VeterancyLevel vet = getEffectiveFXVeterancy(sourceObj);
 			const ObjectCreationList* detOCL = getProjectileDetonationOCL(vet);
 			Real laserAngle = atan2(v.y, v.x);  //TODO: check if this should be inverted
 			if (detOCL) {
@@ -1324,7 +1324,10 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 		}
 		if (pui)
 		{
-			VeterancyLevel v = sourceObj->getVeterancyLevel();
+			// Use the launcher's veterancy (chain-aware, so a scatter projectile launching further
+			// projectiles keeps the original launcher's level) to pick the exhaust, then snapshot it onto
+			// the new projectile so its own detonation/re-fire FX reference the same launcher veterancy.
+			VeterancyLevel v = getEffectiveFXVeterancy(sourceObj);
 			if( scatterRadius > 0.0f )
 			{
 				//With a scatter radius, don't follow the victim (overriding the intent).
@@ -1334,6 +1337,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 			{
 				pui->projectileLaunchAtObjectOrPosition(victimObj, &projectileDestination, sourceObj, wslot, specificBarrelToUse, this, m_projectileExhausts[v]);
 			}
+			pui->projectileSetLaunchVeterancy(v);
 		}
 		else
 		{
@@ -1610,6 +1614,33 @@ Real WeaponTemplate::computeRangeScaleFactor(const Object* source, const Coord3D
 	if (t < 0.0f) t = 0.0f;
 	if (t > 1.0f) t = 1.0f;
 	return 1.0f + (factorAtMaxRange - 1.0f) * t;
+}
+
+//-------------------------------------------------------------------------------------------------
+// Veterancy level to use for veterancy FX/OCL selection. When the firing source is itself a projectile
+// carrying a launcher-veterancy snapshot (taken at the original launch), that value is used; this keeps
+// VeterancyProjectileExhaust / VeterancyFireFX / VeterancyProjectileDetonationFX / VeterancyFireOCL /
+// VeterancyProjectileDetonationOCL referencing the launcher across projectile detonation and ScatterShot
+// re-fire (including chained scattershots). Otherwise the object's own veterancy is used.
+//-------------------------------------------------------------------------------------------------
+VeterancyLevel WeaponTemplate::getEffectiveFXVeterancy(const Object* sourceObj) const
+{
+	if (sourceObj != nullptr)
+	{
+		for (BehaviorModule** u = sourceObj->getBehaviorModules(); *u; ++u)
+		{
+			ProjectileUpdateInterface* pui = (*u)->getProjectileUpdateInterface();
+			if (pui != nullptr)
+			{
+				VeterancyLevel v;
+				if (pui->projectileGetLaunchVeterancy(v))
+					return v;
+				break;
+			}
+		}
+		return sourceObj->getVeterancyLevel();
+	}
+	return LEVEL_REGULAR;
 }
 
 //-------------------------------------------------------------------------------------------------

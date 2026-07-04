@@ -264,6 +264,8 @@ public:
 	virtual Bool projectileIsArmed() const = 0;													///< return true if the projectile is armed and ready to explode
 	virtual ObjectID projectileGetLauncherID() const = 0;								///< All projectiles need to keep track of their firer
 	virtual Bool projectileGetLaunchPos(Coord3D& pos) const { return false; }	///< launcher's position at launch time (for DamageFactorAtMaxRange); returns false if unknown
+	virtual void projectileSetLaunchVeterancy(VeterancyLevel v) {}			///< snapshot the launcher's veterancy at launch (for veterancy FX/OCL selection)
+	virtual Bool projectileGetLaunchVeterancy(VeterancyLevel& v) const { return false; }	///< launcher's veterancy at launch time; returns false if unknown
 	virtual Bool projectileHandleCollision(Object *other) = 0;
 	virtual void setFramesTillCountermeasureDiversionOccurs( UnsignedInt frames ) = 0; ///< Number of frames till missile diverts to countermeasures.
 	virtual void projectileNowJammed() = 0;

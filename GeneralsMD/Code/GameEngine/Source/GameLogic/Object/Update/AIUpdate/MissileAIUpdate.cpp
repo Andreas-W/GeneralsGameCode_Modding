@@ -165,6 +165,7 @@ MissileAIUpdate::MissileAIUpdate( Thing *thing, const ModuleData* moduleData ) :
 	m_extraBonusFlags = 0;
 	m_originalTargetPos.zero();
 	m_launchPos.zero();
+	m_launchVeterancy = LEVEL_REGULAR;
 	m_framesTillDecoyed = 0;
 	m_noDamage = FALSE;
 	m_isJammed = FALSE;
@@ -1140,7 +1141,7 @@ void MissileAIUpdate::crc( Xfer *xfer )
 void MissileAIUpdate::xfer( Xfer *xfer )
 {
   // version
-  const XferVersion currentVersion = 8;
+  const XferVersion currentVersion = 9;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
 
@@ -1214,6 +1215,11 @@ void MissileAIUpdate::xfer( Xfer *xfer )
 	if( version >= 8 )
 	{
 		xfer->xferCoord3D( &m_launchPos );
+	}
+
+	if( version >= 9 )
+	{
+		xfer->xferUser( &m_launchVeterancy, sizeof( m_launchVeterancy ) );
 	}
 }  // end xfer
 

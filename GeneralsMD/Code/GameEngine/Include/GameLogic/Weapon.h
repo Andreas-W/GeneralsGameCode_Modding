@@ -498,6 +498,11 @@ protected:
 	// for the engagement from 'source' to 'pos'. Uses launch-time position for projectile detonations.
 	Real computeRangeScaleFactor(const Object* source, const Coord3D* pos, const WeaponBonus& bonus, Real factorAtMaxRange, Bool isProjectileDetonation) const;
 
+	// veterancy level to use for FX/OCL selection: the launcher's veterancy snapshotted at launch when
+	// 'sourceObj' is a projectile (covers detonation and ScatterShot re-fire, incl. chains), else the
+	// object's own veterancy.
+	VeterancyLevel getEffectiveFXVeterancy(const Object* sourceObj) const;
+
 	// actually deal out the damage.
 	void dealDamageInternal(ObjectID sourceID, ObjectID victimID, const Coord3D *pos, const WeaponBonus& bonus, Bool isProjectileDetonation) const;
 	void trimOldHistoricDamage() const;

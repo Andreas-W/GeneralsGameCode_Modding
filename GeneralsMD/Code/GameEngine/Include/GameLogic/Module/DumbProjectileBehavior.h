@@ -97,6 +97,8 @@ public:
 	virtual Bool projectileIsArmed() const { return true; }
 	virtual ObjectID projectileGetLauncherID() const { return m_launcherID; }
 	virtual Bool projectileGetLaunchPos(Coord3D& pos) const { if (m_launcherID == INVALID_ID) return false; pos = m_flightPathStart; return true; }
+	virtual void projectileSetLaunchVeterancy(VeterancyLevel v) { m_launchVeterancy = v; }
+	virtual Bool projectileGetLaunchVeterancy(VeterancyLevel& v) const { if (m_launcherID == INVALID_ID) return false; v = m_launchVeterancy; return true; }
 	virtual void setFramesTillCountermeasureDiversionOccurs( UnsignedInt frames ) {}
 	virtual void projectileNowJammed() {}
 	virtual Object* getTargetObject();
@@ -112,6 +114,7 @@ private:
 
 	ObjectID							m_launcherID;							///< ID of object that launched us (zero if not yet launched)
 	ObjectID							m_victimID;								///< ID of object we are targeting (zero if not yet launched)
+	VeterancyLevel				m_launchVeterancy;				///< launcher's veterancy at launch time (for veterancy FX/OCL selection)
 	const WeaponTemplate*	m_detonationWeaponTmpl;		///< weapon to fire at end (or null)
 	UnsignedInt						m_lifespanFrame;					///< if we haven't collided by this frame, blow up anyway
 	VecCoord3D						m_flightPath;							///< The frame by frame flight path in a Bezier curve
