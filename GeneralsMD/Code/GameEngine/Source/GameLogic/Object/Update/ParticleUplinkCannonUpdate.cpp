@@ -90,6 +90,7 @@ ParticleUplinkCannonUpdateModuleData::ParticleUplinkCannonUpdateModuleData()
   m_doubleClickToFastDriveDelay		= 500;
 	m_swathOfDeathAmplitude					= 0.0f;
 	m_swathOfDeathDistance					=	0.0f;
+	m_hitWaterSurface								= false;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -150,6 +151,7 @@ ParticleUplinkCannonUpdateModuleData::ParticleUplinkCannonUpdateModuleData()
     { "ManualDrivingSpeed",										INI::parseReal,									nullptr, offsetof( ParticleUplinkCannonUpdateModuleData, m_manualDrivingSpeed ) },
     { "ManualFastDrivingSpeed",								INI::parseReal,									nullptr, offsetof( ParticleUplinkCannonUpdateModuleData, m_manualFastDrivingSpeed ) },
     { "DoubleClickToFastDriveDelay",					INI::parseDurationUnsignedInt,	nullptr, offsetof( ParticleUplinkCannonUpdateModuleData, m_doubleClickToFastDriveDelay ) },
+    { "HitWaterSurface",											INI::parseBool,									nullptr, offsetof( ParticleUplinkCannonUpdateModuleData, m_hitWaterSurface ) },
 
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -622,8 +624,18 @@ UpdateSleepTime ParticleUplinkCannonUpdate::update()
 				m_currentTargetPosition.y += vector.y;
 			}
 
-			//Regardless of which method we used to set the target position, make sure the z position is at the terrain.
-			m_currentTargetPosition.z = TheTerrainLogic->getGroundHeight( m_currentTargetPosition.x, m_currentTargetPosition.y );
+			//Regardless of which method we used to set the target position, make sure the z position is at the terrain
+			//(or, when configured, at the water surface over water).
+			Real waterZ;
+			if( data->m_hitWaterSurface &&
+					TheTerrainLogic->isUnderwater( m_currentTargetPosition.x, m_currentTargetPosition.y, &waterZ ) )
+			{
+				m_currentTargetPosition.z = waterZ;
+			}
+			else
+			{
+				m_currentTargetPosition.z = TheTerrainLogic->getGroundHeight( m_currentTargetPosition.x, m_currentTargetPosition.y );
+			}
 
 			Coord3D orbitPosition;
 			orbitPosition.set( &m_currentTargetPosition );

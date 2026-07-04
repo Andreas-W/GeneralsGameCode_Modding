@@ -106,6 +106,8 @@ const FieldParse* DeliverPayloadData::getFieldParse()
 		{ "DeliveryDecal",									RadiusDecalTemplate::parseRadiusDecalTemplate,	nullptr, offsetof( DeliverPayloadData, m_deliveryDecalTemplate ) },
 		{ "DeliveryDecalRadius",						INI::parseReal, nullptr, offsetof(DeliverPayloadData, m_deliveryDecalRadius) },
 
+		{ "StrafingWeaponTargetsWater",	    INI::parseBool,								nullptr, offsetof(DeliverPayloadData, m_strafingWeaponTargetsWater) },
+
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 	return dataFieldParse;
@@ -240,6 +242,12 @@ UpdateSleepTime DeliverPayloadAIUpdate::update( void )
 
 					strafePoint.add( &velocity );
 					strafePoint.z = TheTerrainLogic->getGroundHeight( strafePoint.x, strafePoint.y );
+					if (getData()->m_strafingWeaponTargetsWater) {
+						Real waterz{ 0 };
+						if (TheTerrainLogic->isUnderwater(strafePoint.x, strafePoint.y, &waterz)) {
+							strafePoint.z = waterz;
+						}
+					}
 
 					// lock it just till the weapon is empty or the attack is "done"
 					getObject()->setWeaponLock( m_data.m_strafingWeaponSlot, LOCKED_TEMPORARILY );

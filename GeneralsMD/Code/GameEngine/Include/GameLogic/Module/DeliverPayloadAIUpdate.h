@@ -271,6 +271,7 @@ public:
 	const WeaponTemplate	*m_visiblePayloadWeaponTemplate;
 	RadiusDecalTemplate		m_deliveryDecalTemplate;
 	Real									m_deliveryDecalRadius;
+	Bool									m_strafingWeaponTargetsWater;
 
 	DeliverPayloadData()
 	{
@@ -298,6 +299,7 @@ public:
 		m_visibleDropBoneName.clear();
 		m_visiblePayloadTemplateName.clear();
 		m_visibleSubObjectName.clear();
+		m_strafingWeaponTargetsWater = false;
 	}
 
 	static const FieldParse* getFieldParse();

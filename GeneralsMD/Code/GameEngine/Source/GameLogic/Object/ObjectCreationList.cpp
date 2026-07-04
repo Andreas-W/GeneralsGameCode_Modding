@@ -1146,6 +1146,13 @@ protected:
 			chunkPos.z = getGroundHeight(pos, layer);
 			obj->setLayer(layer);
 			obj->setPosition(&chunkPos);
+
+			//Set water model condition if demotrap on water
+			if (obj->isKindOf(KINDOF_DEMOTRAP)) {
+				if (TheTerrainLogic->isUnderwater(chunkPos.x, chunkPos.y)) {
+					obj->setModelConditionState(MODELCONDITION_OVER_WATER);
+				}
+			}
 		}
 
 		if( BitIsSet( m_disposition, SEND_IT_OUT ) )

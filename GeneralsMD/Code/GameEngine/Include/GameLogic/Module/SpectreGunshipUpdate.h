@@ -66,8 +66,10 @@ public:
   Real                  m_strafingIncrement;
   Real                  m_orbitInsertionSlope;
   Real                  m_randomOffsetForHowitzer;
+  Bool                  m_hitWaterSurface;
 
 	const ParticleSystemTemplate * m_gattlingStrafeFXParticleSystem;
+	const ParticleSystemTemplate * m_gattlingStrafeFXParticleSystemWater;
 
 	SpectreGunshipUpdateModuleData();
 	static void buildFieldParse(MultiIniFieldParse& p);
