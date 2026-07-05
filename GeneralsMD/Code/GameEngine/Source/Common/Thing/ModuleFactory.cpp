@@ -163,6 +163,7 @@
 #include "GameLogic/Module/JumpjetMissileAIUpdate.h"
 #include "GameLogic/Module/NeutronMissileUpdate.h"
 #include "GameLogic/Module/OCLUpdate.h"
+#include "GameLogic/Module/OrbitalBeamUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #ifdef ALLOW_SURRENDER
 #include "GameLogic/Module/POWTruckAIUpdate.h"
@@ -495,6 +496,7 @@ void ModuleFactory::init( void )
 	addModule( SlavedUpdate );
 	addModule( MobMemberSlavedUpdate );
 	addModule( OCLUpdate );
+	addModule( OrbitalBeamUpdate );
 	addModule( SpecialAbilityUpdate );
 	addModule( MissileLauncherBuildingUpdate );
 	addModule( SupplyCenterProductionExitUpdate );

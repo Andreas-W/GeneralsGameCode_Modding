@@ -390,6 +390,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/OCLSpecialPower.h
     Include/GameLogic/Module/OCLUpdate.h
     Include/GameLogic/Module/OpenContain.h
+    Include/GameLogic/Module/OrbitalBeamUpdate.h
     Include/GameLogic/Module/OverchargeBehavior.h
     Include/GameLogic/Module/OverlordContain.h
     Include/GameLogic/Module/ParachuteContain.h
@@ -1085,6 +1086,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/NeutronMissileSlowDeathUpdate.cpp
     Source/GameLogic/Object/Update/NeutronMissileUpdate.cpp
     Source/GameLogic/Object/Update/OCLUpdate.cpp
+    Source/GameLogic/Object/Update/OrbitalBeamUpdate.cpp
     Source/GameLogic/Object/Update/ParticleUplinkCannonUpdate.cpp
     Source/GameLogic/Object/Update/PhysicsUpdate.cpp
     Source/GameLogic/Object/Update/PilotFindVehicleUpdate.cpp
