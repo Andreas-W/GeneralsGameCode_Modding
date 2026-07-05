@@ -408,7 +408,7 @@ void ActiveBody::attemptDamage( DamageInfo *damageInfo )
 					{
 						//Bike is moving, so just blow it up instead.
 						if (damager)
-							damager->scoreTheKill( obj );
+							damager->scoreTheKill( obj, damageInfo );
 						obj->kill();
 					}
 					else
@@ -423,7 +423,7 @@ void ActiveBody::attemptDamage( DamageInfo *damageInfo )
 
 							//Kill the rider.
 							if (damager)
-								damager->scoreTheKill(rider);
+								damager->scoreTheKill(rider, damageInfo);
 							rider->kill();
 						}
 					}
@@ -475,7 +475,7 @@ void ActiveBody::attemptDamage( DamageInfo *damageInfo )
 						if (!thingToKill->isEffectivelyDead() )
 						{
 							if (damager)
-								damager->scoreTheKill( thingToKill );
+								damager->scoreTheKill( thingToKill, damageInfo );
 							thingToKill->kill();
 							++numKilled;
 							thingToKill->getControllingPlayer()->getAcademyStats()->recordClearedGarrisonedBuilding();
@@ -717,7 +717,7 @@ void ActiveBody::attemptDamage( DamageInfo *damageInfo )
 			// Give our killer credit for killing us, if there is one.
 			if( damager )
 			{
-				damager->scoreTheKill( obj );
+				damager->scoreTheKill( obj, damageInfo );
 			}
 
 			obj->onDie( damageInfo );

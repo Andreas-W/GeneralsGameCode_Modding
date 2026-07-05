@@ -333,6 +333,9 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/FireWeaponAdvancedUpdate.h
     Include/GameLogic/Module/FireWeaponWhenDamagedBehavior.h
     Include/GameLogic/Module/FireWeaponWhenDeadBehavior.h
+    Include/GameLogic/Module/FireWeaponOnKillBehavior.h
+    Include/GameLogic/Module/CreateObjectOnKillBehavior.h
+    Include/GameLogic/Module/OnKillModule.h
     Include/GameLogic/Module/DelayedUpgradeBehavior.h
     Include/GameLogic/Module/FlammableUpdate.h
     Include/GameLogic/Module/FlightDeckBehavior.h
@@ -898,6 +901,9 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Behavior/FreeFallProjectileBehavior.cpp
     Source/GameLogic/Object/Behavior/FireWeaponWhenDamagedBehavior.cpp
     Source/GameLogic/Object/Behavior/FireWeaponWhenDeadBehavior.cpp
+    Source/GameLogic/Object/Behavior/FireWeaponOnKillBehavior.cpp
+    Source/GameLogic/Object/Behavior/CreateObjectOnKillBehavior.cpp
+    Source/GameLogic/Object/Behavior/OnKillModule.cpp
     Source/GameLogic/Object/Behavior/DelayedUpgradeBehavior.cpp
     Source/GameLogic/Object/Behavior/FlightDeckBehavior.cpp
     Source/GameLogic/Object/Behavior/GenerateMinefieldBehavior.cpp
