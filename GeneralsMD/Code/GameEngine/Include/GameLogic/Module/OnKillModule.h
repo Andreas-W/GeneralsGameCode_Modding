@@ -56,6 +56,7 @@ public:
 	ObjectStatusMaskType	m_victimForbiddenStatus;	///< victim must have none of these status bits
 	Int										m_victimRelationship;			///< bitmask (WEAPON_AFFECTS_ALLIES/ENEMIES/NEUTRALS) of allowed killer->victim relationships
 	DeathTypeFlags				m_deathTypes;							///< only these death types trigger (checked only when a DamageInfo is present)
+	DamageTypeFlags				m_damageTypes;						///< only these damage types trigger (checked only when a DamageInfo is present)
 
 	KillMuxData();
 	static const FieldParse* getFieldParse();

@@ -36,11 +36,15 @@ public:
 	Bool											m_initiallyActive;
 	KillMuxData								m_killMuxData;
 	const ObjectCreationList* m_ocl;						///< spawn this OCL at the victim when we kill something
+	Bool											m_createAtKillerLocation;	///< spawn at the killer's position instead of the victim's
+	Bool											m_createObjectForVictim;	///< created object is owned by the victim instead of the killer
 
 	CreateObjectOnKillBehaviorModuleData()
 	{
 		m_initiallyActive = false;
 		m_ocl = nullptr;
+		m_createAtKillerLocation = false;
+		m_createObjectForVictim = false;
 	}
 
 	static void buildFieldParse(MultiIniFieldParse& p)
@@ -48,7 +52,9 @@ public:
 		static const FieldParse dataFieldParse[] =
 		{
 			{ "StartsActive",	INI::parseBool,									nullptr, offsetof( CreateObjectOnKillBehaviorModuleData, m_initiallyActive ) },
-			{ "CreateList",		INI::parseObjectCreationList,		nullptr, offsetof( CreateObjectOnKillBehaviorModuleData, m_ocl ) },
+			{ "CreationList",		INI::parseObjectCreationList,		nullptr, offsetof( CreateObjectOnKillBehaviorModuleData, m_ocl ) },
+			{ "CreateAtKillerLocation",	INI::parseBool,				nullptr, offsetof( CreateObjectOnKillBehaviorModuleData, m_createAtKillerLocation ) },
+			{ "CreateObjectForVictim",	INI::parseBool,				nullptr, offsetof( CreateObjectOnKillBehaviorModuleData, m_createObjectForVictim ) },
 			{ 0, 0, 0, 0 }
 		};
 

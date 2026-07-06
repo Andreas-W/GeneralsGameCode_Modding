@@ -34,6 +34,7 @@ KillMuxData::KillMuxData()
 	m_requiresAllKindOfs = true;										// default: victim must match ALL required KindOfs
 	m_victimRelationship = WEAPON_AFFECTS_ENEMIES;	// by default, only react to killing enemies
 	m_deathTypes = DEATH_TYPE_FLAGS_ALL;
+	m_damageTypes = DAMAGE_TYPE_FLAGS_ALL;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -48,6 +49,7 @@ const FieldParse* KillMuxData::getFieldParse()
 		{ "ForbiddenKilledStatus",	ObjectStatusMaskType::parseFromINI,	nullptr, offsetof( KillMuxData, m_victimForbiddenStatus ) },
 		{ "KilledRelationship",			INI::parseBitString32,							TheWeaponAffectsMaskNames, offsetof( KillMuxData, m_victimRelationship ) },
 		{ "DeathTypes",						INI::parseDeathTypeFlags,						nullptr, offsetof( KillMuxData, m_deathTypes ) },
+		{ "DamageTypes",					INI::parseDamageTypeFlags,					nullptr, offsetof( KillMuxData, m_damageTypes ) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 	return dataFieldParse;
@@ -61,6 +63,10 @@ Bool KillMuxData::isKillApplicable( const Object *killer, const Object *victim, 
 
 	// wrong death type? punt (only when we actually have damage context)
 	if (damageInfo != nullptr && !getDeathTypeFlag(m_deathTypes, damageInfo->in.m_deathType))
+		return false;
+
+	// wrong damage type? punt (only when we actually have damage context)
+	if (damageInfo != nullptr && !getDamageTypeFlag(m_damageTypes, damageInfo->in.m_damageType))
 		return false;
 
 	// victim KindOf: must never have a forbidden bit, and must match the required bits either fully

@@ -60,7 +60,9 @@ void CreateObjectOnKillBehavior::onKilledObject( Object *victim, const DamageInf
 
 	if (d->m_ocl && victim)
 	{
-		ObjectCreationList::create(d->m_ocl, getObject(), victim->getPosition(), nullptr, false);
+		const Coord3D* createPos = d->m_createAtKillerLocation ? getObject()->getPosition() : victim->getPosition();
+		const Object* createOwner = d->m_createObjectForVictim ? victim : getObject();
+		ObjectCreationList::create(d->m_ocl, createOwner, createPos, nullptr, false);
 	}
 }
 
