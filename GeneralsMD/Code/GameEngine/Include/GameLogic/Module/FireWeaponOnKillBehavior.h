@@ -115,4 +115,8 @@ protected:
 
 	virtual Bool isSubObjectsUpgrade() { return false; }
 
+private:
+
+	UnsignedInt m_lastTriggerFrame;		///< frame of the last trigger, for TriggerChance/CooldownTime
+
 };

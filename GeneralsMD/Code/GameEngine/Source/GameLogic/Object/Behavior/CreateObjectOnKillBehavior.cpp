@@ -33,6 +33,8 @@
 CreateObjectOnKillBehavior::CreateObjectOnKillBehavior( Thing *thing, const ModuleData* moduleData ) :
 	BehaviorModule( thing, moduleData )
 {
+	m_lastTriggerFrame = 0;
+
 	if (getCreateObjectOnKillBehaviorModuleData()->m_initiallyActive)
 	{
 		giveSelfUpgrade();
@@ -58,6 +60,9 @@ void CreateObjectOnKillBehavior::onKilledObject( Object *victim, const DamageInf
 	if (!d->m_killMuxData.isKillApplicable(getObject(), victim, damageInfo))
 		return;
 
+	if (!d->m_killMuxData.passesChanceAndCooldown(m_lastTriggerFrame))
+		return;
+
 	if (d->m_ocl && victim)
 	{
 		const Coord3D* createPos = d->m_createAtKillerLocation ? getObject()->getPosition() : victim->getPosition();
@@ -81,12 +86,13 @@ void CreateObjectOnKillBehavior::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: Added m_lastTriggerFrame (TriggerChance/CooldownTime) */
 // ------------------------------------------------------------------------------------------------
 void CreateObjectOnKillBehavior::xfer( Xfer *xfer )
 {
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -95,6 +101,10 @@ void CreateObjectOnKillBehavior::xfer( Xfer *xfer )
 
 	// extend upgrade mux
 	UpgradeMux::upgradeMuxXfer( xfer );
+
+	// last trigger frame (v2+)
+	if (version >= 2)
+		xfer->xferUnsignedInt( &m_lastTriggerFrame );
 }
 
 // ------------------------------------------------------------------------------------------------

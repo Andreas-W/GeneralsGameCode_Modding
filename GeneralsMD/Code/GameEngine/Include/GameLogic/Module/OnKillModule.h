@@ -57,9 +57,16 @@ public:
 	Int										m_victimRelationship;			///< bitmask (WEAPON_AFFECTS_ALLIES/ENEMIES/NEUTRALS) of allowed killer->victim relationships
 	DeathTypeFlags				m_deathTypes;							///< only these death types trigger (checked only when a DamageInfo is present)
 	DamageTypeFlags				m_damageTypes;						///< only these damage types trigger (checked only when a DamageInfo is present)
+	Real									m_triggerChance;					///< chance (0..1) that an applicable kill actually triggers the effect
+	UnsignedInt						m_cooldownFrames;					///< min frames between triggers (0 = no cooldown)
 
 	KillMuxData();
 	static const FieldParse* getFieldParse();
 
 	Bool isKillApplicable( const Object *killer, const Object *victim, const DamageInfo *damageInfo ) const;
+
+	// Rolls TriggerChance and enforces CooldownTime. lastTriggerFrame is per-module-instance
+	// state (module data is shared per-template, so it cannot live here). On a successful trigger
+	// lastTriggerFrame is updated to the current frame; a failed chance roll does not start the cooldown.
+	Bool passesChanceAndCooldown( UnsignedInt& lastTriggerFrame ) const;
 };

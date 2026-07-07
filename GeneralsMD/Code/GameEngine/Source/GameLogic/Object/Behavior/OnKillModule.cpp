@@ -23,6 +23,8 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "Common/INI.h"
+#include "Common/RandomValue.h"
+#include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/OnKillModule.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Weapon.h"		// for TheWeaponAffectsMaskNames and WEAPON_AFFECTS_* bits
@@ -35,6 +37,8 @@ KillMuxData::KillMuxData()
 	m_victimRelationship = WEAPON_AFFECTS_ENEMIES;	// by default, only react to killing enemies
 	m_deathTypes = DEATH_TYPE_FLAGS_ALL;
 	m_damageTypes = DAMAGE_TYPE_FLAGS_ALL;
+	m_triggerChance = 1.0f;					// always trigger
+	m_cooldownFrames = 0;						// no cooldown
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -50,6 +54,8 @@ const FieldParse* KillMuxData::getFieldParse()
 		{ "KilledRelationship",			INI::parseBitString32,							TheWeaponAffectsMaskNames, offsetof( KillMuxData, m_victimRelationship ) },
 		{ "DeathTypes",						INI::parseDeathTypeFlags,						nullptr, offsetof( KillMuxData, m_deathTypes ) },
 		{ "DamageTypes",					INI::parseDamageTypeFlags,					nullptr, offsetof( KillMuxData, m_damageTypes ) },
+		{ "TriggerChance",				INI::parsePercentToReal,						nullptr, offsetof( KillMuxData, m_triggerChance ) },
+		{ "CooldownTime",					INI::parseDurationUnsignedInt,			nullptr, offsetof( KillMuxData, m_cooldownFrames ) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 	return dataFieldParse;
@@ -104,5 +110,23 @@ Bool KillMuxData::isKillApplicable( const Object *killer, const Object *victim, 
 	if (!(m_victimRelationship & need))
 		return false;
 
+	return true;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool KillMuxData::passesChanceAndCooldown( UnsignedInt& lastTriggerFrame ) const
+{
+	UnsignedInt now = TheGameLogic->getFrame();
+
+	// still cooling down? punt (don't roll, don't reset the cooldown)
+	if (m_cooldownFrames > 0 && lastTriggerFrame != 0 && now < lastTriggerFrame + m_cooldownFrames)
+		return false;
+
+	// roll the trigger chance. a failed roll does NOT start the cooldown.
+	if (m_triggerChance < 1.0f && GameLogicRandomValueReal(0.0f, 1.0f) > m_triggerChance)
+		return false;
+
+	// triggered: remember when, to enforce the cooldown next time.
+	lastTriggerFrame = now;
 	return true;
 }
