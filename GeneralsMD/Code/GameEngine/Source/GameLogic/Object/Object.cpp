@@ -77,6 +77,7 @@
 #include "GameLogic/Module/DeletionUpdate.h"
 #include "GameLogic/Module/DestroyModule.h"
 #include "GameLogic/Module/DieModule.h"
+#include "GameLogic/Module/OnKillModule.h"
 #include "GameLogic/Module/DozerAIUpdate.h"
 #include "GameLogic/Module/LifeTimeUpdate.h"
 #include "GameLogic/Module/ObjectDefectionHelper.h"
@@ -3119,8 +3120,18 @@ Bool Object::isMobile() const
 }
 
 //-------------------------------------------------------------------------------------------------
-void Object::scoreTheKill( const Object *victim )
+void Object::scoreTheKill( const Object *victim, const DamageInfo *damageInfo )
 {
+	// Notify any OnKill modules first, before the score/experience early-outs below. These are FX/reaction
+	// modules that do their own relationship/status/kindof filtering, so they must fire even for kills the
+	// scorekeeper ignores (e.g. allies, neutrals, non-playable sides).
+	for (BehaviorModule** b = getBehaviorModules(); *b; ++b)
+	{
+		OnKillModuleInterface* onKill = (*b)->getOnKill();
+		if (onKill != nullptr)
+			onKill->onKilledObject( const_cast<Object*>(victim), damageInfo );
+	}
+
 	// Do stuff that has nothing to do with experience points here, like tell our Player we killed something
 	/// @todo Multiplayer score hook location?
 

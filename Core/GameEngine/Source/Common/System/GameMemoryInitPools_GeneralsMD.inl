@@ -158,6 +158,8 @@ static PoolSizeRec PoolSizes[] =
 	{ "ScatterShotUpdate", 128, 64 },
 	{ "FireWeaponWhenDamagedBehavior", 32, 32 },
 	{ "FireWeaponWhenDeadBehavior", 128, 64 },
+	{ "FireWeaponOnKillBehavior", 128, 64 },
+	{ "CreateObjectOnKillBehavior", 128, 64 },
 	{ "DelayedUpgradeBehavior", 128, 64 },
 	{ "GenerateMinefieldBehavior", 32, 32 },
 	{ "HelicopterSlowDeathBehavior", 64, 32 },

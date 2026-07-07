@@ -44,6 +44,7 @@ class CreateModuleInterface;
 class DamageModuleInterface;
 class DestroyModuleInterface;
 class DieModuleInterface;
+class OnKillModuleInterface;
 class SpecialPowerModuleInterface;
 class UpdateModuleInterface;
 class UpgradeModuleInterface;
@@ -108,6 +109,7 @@ public:
 	virtual DamageModuleInterface* getDamage() = 0;
 	virtual DestroyModuleInterface* getDestroy() = 0;
 	virtual DieModuleInterface* getDie() = 0;
+	virtual OnKillModuleInterface* getOnKill() = 0;
 	virtual SpecialPowerModuleInterface* getSpecialPower() = 0;
 	virtual UpdateModuleInterface* getUpdate() = 0;
 	virtual UpgradeModuleInterface* getUpgrade() = 0;
@@ -165,6 +167,7 @@ public:
 	virtual DamageModuleInterface* getDamage() { return nullptr; }
 	virtual DestroyModuleInterface* getDestroy() { return nullptr; }
 	virtual DieModuleInterface* getDie() { return nullptr; }
+	virtual OnKillModuleInterface* getOnKill() { return nullptr; }
 	virtual SpecialPowerModuleInterface* getSpecialPower() { return nullptr; }
 	virtual UpdateModuleInterface* getUpdate() { return nullptr; }
 	virtual UpgradeModuleInterface* getUpgrade() { return nullptr; }

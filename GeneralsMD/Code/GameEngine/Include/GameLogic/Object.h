@@ -236,7 +236,7 @@ public:
 	void doTempWeaponBonus( WeaponBonusConditionType status, UnsignedInt duration, TintStatus tintStatus = TINT_STATUS_INVALID );///< At this level, we just pass this on to our helper
 	void applyBuff(const BuffTemplate* buffTemp, UnsignedInt duration, Object* sourceObj);
 
-	void scoreTheKill( const Object *victim );						///< I just killed this object.
+	void scoreTheKill( const Object *victim, const DamageInfo *damageInfo = nullptr );						///< I just killed this object.
 	void onVeterancyLevelChanged( VeterancyLevel oldLevel, VeterancyLevel newLevel, Bool provideFeedback = TRUE );	///< I just achieved this level right this moment
 	void createVeterancyLevelFX(VeterancyLevel oldLevel, VeterancyLevel newLevel);
 	ExperienceTracker* getExperienceTracker() {return m_experienceTracker;}
