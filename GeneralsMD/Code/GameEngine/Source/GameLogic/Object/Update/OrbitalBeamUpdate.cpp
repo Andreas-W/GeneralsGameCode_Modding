@@ -675,6 +675,10 @@ UpdateSleepTime OrbitalBeamUpdate::update( void )
 
 				++m_chargeBeamsSpawned;
 				m_nextChargeSpawnFrame += data->m_delayBetweenChargeBeamsFrames;
+
+				// Count the charge->anim hold from when the LAST beam spawned, not from stage entry.
+				if( m_chargeBeamsSpawned >= data->m_numChargeBeams )
+					m_stageStartFrame = now;
 			}
 
 			// Once all are spawned, wait the charge->anim delay before animating.

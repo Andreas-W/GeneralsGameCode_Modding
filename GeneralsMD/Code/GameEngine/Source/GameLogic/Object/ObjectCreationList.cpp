@@ -1072,7 +1072,10 @@ protected:
 		}
 
 		if (m_experienceSink && sourceObj) {
-			obj->getExperienceTracker()->setExperienceSink(sourceObj->getID());
+			// Chain the sink: if the caller is itself a sink for someone else (e.g. a projectile
+			// whose sink is the launcher), pledge to that final owner, not the transient caller.
+			ObjectID sinkID = sourceObj->getExperienceTracker()->getExperienceSink();
+			obj->getExperienceTracker()->setExperienceSink(sinkID != INVALID_ID ? sinkID : sourceObj->getID());
 		}
 
 		if (m_inheritsWeaponBonus && sourceObj) {
