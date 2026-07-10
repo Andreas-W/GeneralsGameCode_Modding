@@ -177,6 +177,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "BunkerBusterBehavior", 16, 16 },
 	{ "ObjectTracker", 128, 32 },
 	{ "OCLUpdate", 16, 16 },
+	{ "OrbitalBeamUpdate", 8, 8 },
 	{ "BodyParticleSystem", 196, 64 },
 	{ "HighlanderBody", 2048, 128 },
 	{ "BridgeTowerBody", 16, 16},

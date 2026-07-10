@@ -316,6 +316,17 @@ void LaserUpdate::setDecayFrames( UnsignedInt decayFrames )
 	}
 }
 
+//-------------------------------------------------------------------------------------------------
+void LaserUpdate::startFadeOut( UnsignedInt fadeFrames )
+{
+	if( fadeFrames == 0 )
+		return;
+
+	m_fadingOut = true;
+	m_fadeOutStartFrame = TheGameLogic->getFrame();
+	m_fadeOutFinishFrame = m_fadeOutStartFrame + fadeFrames;
+}
+
 
 //-------------------------------------------------------------------------------------------------
 void LaserUpdate::initLaser( const Object *parent, const Object *target, const Coord3D *startPos, const Coord3D *endPos, AsciiString parentBoneName, Int sizeDeltaFrames )
@@ -565,6 +576,13 @@ void LaserUpdate::updateContinuousLaser(const Object* parent, const Object* targ
 			m_fadeOutStartFrame = m_fadeOutFinishFrame - data->m_fadeOutDurationFrames;
 		}
 	}
+
+	// Honor an explicit start override only when there is no parent object anchoring the origin.
+	// Parent-anchored lasers (e.g. weapon beams) keep their bone/parent-based start; a parentless
+	// caller that supplies an explicit start (e.g. a vertical orbital beam whose origin tracks the
+	// moving ground point) gets its origin updated, matching initLaser.
+	if (parent == NULL && startPos)
+		m_startPos = *startPos;
 
 	if (target && !endPos)
 	{

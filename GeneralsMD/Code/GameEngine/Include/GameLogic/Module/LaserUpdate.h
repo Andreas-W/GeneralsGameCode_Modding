@@ -111,6 +111,9 @@ public:
 
 	void setDecayFrames( UnsignedInt decayFrames );
 
+	void startFadeOut( UnsignedInt fadeFrames ); ///< begin fading the beam's alpha out now over fadeFrames
+	UnsignedInt getFadeOutFrames() const { return getLaserUpdateModuleData()->m_fadeOutDurationFrames; } ///< the fade-out duration configured on this laser template
+
 	const Coord3D* getStartPos() { return &m_startPos; }
 	const Coord3D* getEndPos() { return &m_endPos; }
 
