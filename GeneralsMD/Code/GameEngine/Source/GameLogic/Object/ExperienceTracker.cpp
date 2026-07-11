@@ -41,6 +41,7 @@
 ExperienceTracker::ExperienceTracker(Object *parent) :
 	m_parent(parent),
 	m_currentLevel(LEVEL_REGULAR),
+	m_maxVeterancyLevel( (parent && parent->getTemplate()) ? parent->getTemplate()->getMaxVeterancyLevel() : LEVEL_LAST ),
 	m_experienceSink(INVALID_ID),
 	m_experienceScalar( 1.0f ),
 	m_experienceValueScalar(1.0f ),
@@ -101,12 +102,29 @@ ObjectID ExperienceTracker::getExperienceSink() const
 }
 
 //-------------------------------------------------------------------------------------------------
+// Clamp a level to the current max cap. No object may exceed m_maxVeterancyLevel by any means.
+static inline VeterancyLevel clampToMax( VeterancyLevel level, VeterancyLevel maxLevel )
+{
+	return (level > maxLevel) ? maxLevel : level;
+}
+
+//-------------------------------------------------------------------------------------------------
+void ExperienceTracker::setMaxVeterancyLevel( VeterancyLevel maxLevel, Bool provideFeedback )
+{
+	m_maxVeterancyLevel = maxLevel;
+	// If we are already above the new cap, demote down to it.
+	if (m_currentLevel > m_maxVeterancyLevel)
+		setVeterancyLevel( m_maxVeterancyLevel, provideFeedback );
+}
+
+//-------------------------------------------------------------------------------------------------
 // Set Level to AT LEAST this... if we are already >= this level, do nothing.
 void ExperienceTracker::setMinVeterancyLevel( VeterancyLevel newLevel, Bool provideFeedback )
 {
 	// This does not check for IsTrainable, because this function is for explicit setting,
 	// so the setter is assumed to know what they are doing.  The game function
 	// of addExperiencePoints cares about Trainability.
+	newLevel = clampToMax( newLevel, m_maxVeterancyLevel );
 	if (m_currentLevel < newLevel)
 	{
 		VeterancyLevel oldLevel = m_currentLevel;
@@ -123,6 +141,7 @@ void ExperienceTracker::setVeterancyLevel( VeterancyLevel newLevel, Bool provide
 	// This does not check for IsTrainable, because this function is for explicit setting,
 	// so the setter is assumed to know what they are doing.  The game function
 	// of addExperiencePoints cares about Trainability, if flagged thus.
+	newLevel = clampToMax( newLevel, m_maxVeterancyLevel );
 	if (m_currentLevel != newLevel)
 	{
 		VeterancyLevel oldLevel = m_currentLevel;
@@ -139,6 +158,7 @@ Bool ExperienceTracker::gainExpForLevel(Int levelsToGain, Bool canScaleForBonus)
 	Int newLevel = (Int)m_currentLevel + levelsToGain;
 	if (newLevel > LEVEL_LAST)
 		newLevel = LEVEL_LAST;
+	newLevel = clampToMax( (VeterancyLevel)newLevel, m_maxVeterancyLevel );
 	// gain what levels we can, even if we can't use 'em all
 	if (newLevel > m_currentLevel)
 	{
@@ -156,6 +176,7 @@ Bool ExperienceTracker::canGainExpForLevel(Int levelsToGain) const
 	// return true if we can gain levels, even if we can't gain ALL the levels requested
 	if (newLevel > LEVEL_LAST)
 		newLevel = LEVEL_LAST;
+	newLevel = clampToMax( (VeterancyLevel)newLevel, m_maxVeterancyLevel );
 	return (newLevel > m_currentLevel);
 }
 
@@ -188,6 +209,7 @@ void ExperienceTracker::addExperiencePoints( Int experienceGain, Bool canScaleFo
 
 	Int levelIndex = 0;
 	while( ( (levelIndex + 1) < LEVEL_COUNT)
+		&&  ( (levelIndex + 1) <= m_maxVeterancyLevel )		// never climb past the max cap, regardless of ExperienceRequired
 		&&  m_currentExperience >= m_parent->getTemplate()->getExperienceRequired(levelIndex + 1)
 		)
 	{
@@ -228,6 +250,7 @@ void ExperienceTracker::setExperienceAndLevel( Int experienceIn, Bool provideFee
 
 	Int levelIndex = 0;
 	while( ( (levelIndex + 1) < LEVEL_COUNT)
+		&&  ( (levelIndex + 1) <= m_maxVeterancyLevel )		// never climb past the max cap, regardless of ExperienceRequired
 		&&  m_currentExperience >= m_parent->getTemplate()->getExperienceRequired(levelIndex + 1)
 		)
 	{
@@ -260,6 +283,7 @@ void ExperienceTracker::crc( Xfer *xfer )
 	* Version Info:
 	* 1: Initial version
 	* 2: TheSuperHackers @tweak Serialize m_isTrainable
+	* 3: Serialize m_maxVeterancyLevel (overridable veterancy cap)
 	*/
 // ----------------------------------------------------------------------------
 void ExperienceTracker::xfer( Xfer *xfer )
@@ -269,7 +293,7 @@ void ExperienceTracker::xfer( Xfer *xfer )
 #if RETAIL_COMPATIBLE_XFER_SAVE
 	XferVersion currentVersion = 1;
 #else
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 #endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
@@ -294,6 +318,9 @@ void ExperienceTracker::xfer( Xfer *xfer )
 
 	if (version >= 2)
 		xfer->xferBool(&m_isTrainable);
+
+	if (version >= 3)
+		xfer->xferUser( &m_maxVeterancyLevel, sizeof( VeterancyLevel ) );
 }
 
 //-----------------------------------------------------------------------------

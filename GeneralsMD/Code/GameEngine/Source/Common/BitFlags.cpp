@@ -280,8 +280,8 @@ const char* const ArmorSetFlags::s_bitNameList[] =
 	"PLAYER_UPGRADE2",
 	"PLAYER_UPGRADE3",
 	"PLAYER_UPGRADE4",
-	"FOUR",
-	"FIVE",
+	"LEVEL_FOUR",
+	"LEVEL_FIVE",
 
 	nullptr
 };
@@ -347,8 +347,8 @@ const char* const WeaponBonusConditionFlags::s_bitNameList[] =
 	"EXTRA6",
 	"EXTRA7",
 	"EXTRA8",
-	"VETERANCY_FOUR",
-	"VETERANCY_FIVE",
+	"LEVEL_FOUR",
+	"LEVEL_FIVE",
 	nullptr
 };
 static_assert(ARRAY_SIZE(WeaponBonusConditionFlags::s_bitNameList) == WEAPONBONUSCONDITION_COUNT + 1, "Incorrect array size");

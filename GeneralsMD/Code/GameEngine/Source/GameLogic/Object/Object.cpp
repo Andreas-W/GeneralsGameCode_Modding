@@ -3191,6 +3191,19 @@ VeterancyLevel Object::getVeterancyLevel() const
 }
 
 //-------------------------------------------------------------------------------------------------
+VeterancyLevel Object::getMaxVeterancyLevel() const
+{
+	return m_experienceTracker ? m_experienceTracker->getMaxVeterancyLevel() : LEVEL_LAST;
+}
+
+//-------------------------------------------------------------------------------------------------
+void Object::setMaxVeterancyLevel( VeterancyLevel maxLevel, Bool provideFeedback )
+{
+	if (m_experienceTracker)
+		m_experienceTracker->setMaxVeterancyLevel( maxLevel, provideFeedback );
+}
+
+//-------------------------------------------------------------------------------------------------
 void Object::friend_bindToDrawable( Drawable *draw )
 {
 	m_drawable = draw;

@@ -131,6 +131,7 @@ const FieldParse ThingTemplate::s_objectFieldParseTable[] =
 	{ "SkillPointValue",			ThingTemplate::parseSkillPointValueList,			nullptr,		offsetof( ThingTemplate, m_skillPointValues ) },
 	{ "ExperienceValue",			ThingTemplate::parseExperienceValueList,			nullptr,		offsetof( ThingTemplate, m_experienceValues ) },
 	{ "ExperienceRequired",		ThingTemplate::parseExperienceRequiredList,		nullptr,		offsetof( ThingTemplate, m_experienceRequired ) },
+	{ "MaxVeterancyLevel",		INI::parseIndexList,				TheVeterancyNames,		offsetof( ThingTemplate, m_maxVeterancyLevel ) },
 	{ "IsTrainable",					INI::parseBool,												nullptr,									offsetof( ThingTemplate, m_isTrainable ) },
 	{ "EnterGuard",						INI::parseBool,												nullptr,									offsetof( ThingTemplate, m_enterGuard ) },
 	{ "HijackGuard",					INI::parseBool,												nullptr,									offsetof( ThingTemplate, m_hijackGuard ) },
@@ -1091,6 +1092,8 @@ ThingTemplate::ThingTemplate() :
 		// -1 means "same value as experienceValues for that level"
 		m_skillPointValues[levelIndex] = USE_EXP_VALUE_FOR_SKILL_VALUE;
 	}
+	// By default an object may reach the highest vanilla rank; MaxVeterancyLevel can cap it lower.
+	m_maxVeterancyLevel = LEVEL_HEROIC;
 	m_isTrainable = FALSE;
 	m_enterGuard = FALSE;
 	m_hijackGuard = FALSE;

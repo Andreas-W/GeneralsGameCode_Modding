@@ -90,8 +90,8 @@ const char* const WeaponSetFlags::s_bitNameList[] =
 	"GARRISONED",
 	"CONTAINED",
 
-	"FOUR",
-	"FIVE",
+	"LEVEL_FOUR",
+	"LEVEL_FIVE",
 
 	nullptr
 };

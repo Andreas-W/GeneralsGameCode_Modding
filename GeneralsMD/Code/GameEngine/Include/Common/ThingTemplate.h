@@ -509,6 +509,7 @@ public:
 
 	Int getExperienceValue(Int level) const { return m_experienceValues[level]; }
 	Int getExperienceRequired(Int level) const {return m_experienceRequired[level]; }
+	VeterancyLevel getMaxVeterancyLevel() const { return m_maxVeterancyLevel; }
 	Bool isTrainable() const{return m_isTrainable; }
 	Bool isEnterGuard() const{return m_enterGuard; }
 	Bool isHijackGuard() const{return m_hijackGuard; }
@@ -752,6 +753,7 @@ private:
 	Int											m_skillPointValues[LEVEL_COUNT];
 	Int											m_experienceValues[LEVEL_COUNT];		///< How much I am worth at each experience level
 	Int											m_experienceRequired[LEVEL_COUNT];	///< How many experience points I need for each level
+	VeterancyLevel					m_maxVeterancyLevel;								///< highest veterancy level this object may ever reach
 
 	//Code renderer handles these states now.
 	//AsciiString							m_inventoryImage[ INV_IMAGE_NUM_IMAGES ];  ///< portrait inventory pictures
