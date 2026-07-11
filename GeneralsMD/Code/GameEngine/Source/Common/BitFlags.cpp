@@ -37,6 +37,43 @@
 #include "Common/ModelState.h"
 #include "GameLogic/ArmorSet.h"
 #include "GameLogic/WeaponBonusConditionFlags.h"
+#include "Common/KindOf.h"
+#include "GameLogic/WeaponSetType.h"
+#include "Common/DisabledTypes.h"
+#include "Common/ObjectStatusTypes.h"
+#include "GameLogic/Damage.h"
+#include "Common/SpecialPowerMaskType.h"
+#include "Common/Upgrade.h"
+#include "GameClient/TintStatus.h"
+
+//-------------------------------------------------------------------------------------------------
+// BitFlags<N> is templated ONLY on its bit count, so two enums with the same *_COUNT collapse to the
+// SAME type and share a single static s_bitNameList. When that happens, INI parsing for one flag type
+// silently looks up names in the other's list (e.g. a KindOf parse reading ModelCondition names). Guard
+// against it: every BitFlags specialization's size must be unique. If this assert fires, nudge one enum's
+// COUNT to a free value (e.g. add a reserved padding entry) -- see the free/used counts in this list.
+//-------------------------------------------------------------------------------------------------
+namespace
+{
+	constexpr int s_bitFlagsSizes[] =
+	{
+		KINDOF_COUNT, MODELCONDITION_COUNT, WEAPONBONUSCONDITION_COUNT, WEAPONSET_COUNT,
+		ARMORSET_COUNT, DISABLED_COUNT, OBJECT_STATUS_COUNT, DAMAGE_NUM_TYPES,
+		SPECIALPOWER_COUNT, UPGRADE_MAX_COUNT, TINT_STATUS_COUNT
+	};
+	constexpr bool areBitFlagsSizesUnique()
+	{
+		for (size_t i = 0; i < ARRAY_SIZE(s_bitFlagsSizes); ++i)
+			for (size_t j = i + 1; j < ARRAY_SIZE(s_bitFlagsSizes); ++j)
+				if (s_bitFlagsSizes[i] == s_bitFlagsSizes[j])
+					return false;
+		return true;
+	}
+	static_assert(areBitFlagsSizesUnique(),
+		"Two BitFlags<> specializations share the same bit count; equal counts collapse to the same type "
+		"and share one s_bitNameList, so INI parsing for one flag type will use another's names. Nudge one "
+		"enum's *_COUNT to a unique value (e.g. add a reserved padding entry).");
+}
 
 template<>
 const char* const ModelConditionFlags::s_bitNameList[] =
@@ -223,6 +260,7 @@ const char* const ModelConditionFlags::s_bitNameList[] =
 
 	"WEAPONSET_FOUR",
 	"WEAPONSET_FIVE",
+	"RESERVED_UNIQUE_SIZE_PAD",
 
 	nullptr
 };

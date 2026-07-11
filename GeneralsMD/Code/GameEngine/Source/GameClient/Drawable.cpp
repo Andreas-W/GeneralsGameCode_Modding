@@ -327,6 +327,8 @@ const Int MAX_ENABLED_MODULES								= 16;
  	s_veterancyImage[1] = TheMappedImageCollection->findImageByName("SCVeter1");
 	s_veterancyImage[2] = TheMappedImageCollection->findImageByName("SCVeter2");
 	s_veterancyImage[3] = TheMappedImageCollection->findImageByName("SCVeter3");
+	s_veterancyImage[4] = TheMappedImageCollection->findImageByName("SCVeter4");
+	s_veterancyImage[5] = TheMappedImageCollection->findImageByName("SCVeter5");
 
 	s_fullAmmo	= TheMappedImageCollection->findImageByName("SCPAmmoFull");
 	s_emptyAmmo	= TheMappedImageCollection->findImageByName("SCPAmmoEmpty");
