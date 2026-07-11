@@ -288,6 +288,10 @@ enum ModelConditionFlagType CPP_11(: Int)
 	// Ship death
 	MODELCONDITION_SHIP_TOPPLING,
 	MODELCONDITION_SHIP_SINKING,
+
+	// Veterancy ranks beyond HEROIC (appended to preserve existing save values).
+	MODELCONDITION_WEAPONSET_FOUR,
+	MODELCONDITION_WEAPONSET_FIVE,
 //
 // Note: these values are saved in save files, so you MUST NOT REMOVE OR CHANGE
 // existing values!

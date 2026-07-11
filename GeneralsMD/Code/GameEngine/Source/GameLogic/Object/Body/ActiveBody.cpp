@@ -1696,27 +1696,31 @@ void ActiveBody::onVeterancyLevelChanged( VeterancyLevel oldLevel, VeterancyLeve
 	// now change the cur (setMaxHealth now handles it)
 	//internalChangeHealth( newHealth - m_currentHealth );
 
+	// Clear every veterancy armor-set flag first, then set the one for the new level, so promotions and
+	// demotions (including into/out of the new FOUR/FIVE ranks) stay clean.
+	clearArmorSetFlag(ARMORSET_VETERAN);
+	clearArmorSetFlag(ARMORSET_ELITE);
+	clearArmorSetFlag(ARMORSET_HERO);
+	clearArmorSetFlag(ARMORSET_FOUR);
+	clearArmorSetFlag(ARMORSET_FIVE);
 	switch (newLevel)
 	{
 		case LEVEL_REGULAR:
-			clearArmorSetFlag(ARMORSET_VETERAN);
-			clearArmorSetFlag(ARMORSET_ELITE);
-			clearArmorSetFlag(ARMORSET_HERO);
 			break;
 		case LEVEL_VETERAN:
 			setArmorSetFlag(ARMORSET_VETERAN);
-			clearArmorSetFlag(ARMORSET_ELITE);
-			clearArmorSetFlag(ARMORSET_HERO);
 			break;
 		case LEVEL_ELITE:
-			clearArmorSetFlag(ARMORSET_VETERAN);
 			setArmorSetFlag(ARMORSET_ELITE);
-			clearArmorSetFlag(ARMORSET_HERO);
 			break;
 		case LEVEL_HEROIC:
-			clearArmorSetFlag(ARMORSET_VETERAN);
-			clearArmorSetFlag(ARMORSET_ELITE);
 			setArmorSetFlag(ARMORSET_HERO);
+			break;
+		case LEVEL_FOUR:
+			setArmorSetFlag(ARMORSET_FOUR);
+			break;
+		case LEVEL_FIVE:
+			setArmorSetFlag(ARMORSET_FIVE);
 			break;
 	}
 }

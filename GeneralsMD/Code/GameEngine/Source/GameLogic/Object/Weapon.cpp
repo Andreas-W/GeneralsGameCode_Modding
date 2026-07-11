@@ -540,6 +540,18 @@ void WeaponTemplate::postProcessLoad()
 		DEBUG_ASSERTCRASH(m_projectileTmpl, ("projectile %s not found!",m_projectileName.str()));
 	}
 
+	// Veterancy ranks beyond HEROIC (FOUR/FIVE) inherit HEROIC's per-level FX/OCL/exhaust entries unless
+	// they were explicitly defined. Do the OCL name copy here, before the name->pointer resolution below.
+	for (Int i = LEVEL_HEROIC + 1; i <= LEVEL_LAST; ++i)
+	{
+		if (m_fireFXs[i] == nullptr)								m_fireFXs[i] = m_fireFXs[LEVEL_HEROIC];
+		if (m_projectileDetonateFXs[i] == nullptr)	m_projectileDetonateFXs[i] = m_projectileDetonateFXs[LEVEL_HEROIC];
+		if (m_projectileExhausts[i] == nullptr)			m_projectileExhausts[i] = m_projectileExhausts[LEVEL_HEROIC];
+		if (m_preAttackFXs[i] == nullptr)						m_preAttackFXs[i] = m_preAttackFXs[LEVEL_HEROIC];
+		if (m_fireOCLNames[i].isEmpty())						m_fireOCLNames[i] = m_fireOCLNames[LEVEL_HEROIC];
+		if (m_projectileDetonationOCLNames[i].isEmpty())	m_projectileDetonationOCLNames[i] = m_projectileDetonationOCLNames[LEVEL_HEROIC];
+	}
+
 	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)
 	{
 		// And the OCL if there is one

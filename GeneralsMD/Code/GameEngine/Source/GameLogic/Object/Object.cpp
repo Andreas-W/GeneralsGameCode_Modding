@@ -3322,39 +3322,42 @@ void Object::onVeterancyLevelChanged( VeterancyLevel oldLevel, VeterancyLevel ne
 	if (body)
 		body->onVeterancyLevelChanged( oldLevel, newLevel, provideFeedback );
 
+	// Clear every veterancy weapon-set flag / bonus condition first, then set the one for the new level.
+	// This keeps promotions and demotions (including into/out of the new FOUR/FIVE ranks) clean.
+	clearWeaponSetFlag(WEAPONSET_VETERAN);
+	clearWeaponSetFlag(WEAPONSET_ELITE);
+	clearWeaponSetFlag(WEAPONSET_HERO);
+	clearWeaponSetFlag(WEAPONSET_FOUR);
+	clearWeaponSetFlag(WEAPONSET_FIVE);
+	clearWeaponBonusCondition(WEAPONBONUSCONDITION_VETERAN);
+	clearWeaponBonusCondition(WEAPONBONUSCONDITION_ELITE);
+	clearWeaponBonusCondition(WEAPONBONUSCONDITION_HERO);
+	clearWeaponBonusCondition(WEAPONBONUSCONDITION_VETERANCY_FOUR);
+	clearWeaponBonusCondition(WEAPONBONUSCONDITION_VETERANCY_FIVE);
+
 	switch (newLevel)
 	{
 		case LEVEL_REGULAR:
-			clearWeaponSetFlag(WEAPONSET_VETERAN);
-			clearWeaponSetFlag(WEAPONSET_ELITE);
-			clearWeaponSetFlag(WEAPONSET_HERO);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_VETERAN);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_ELITE);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_HERO);
 			break;
 		case LEVEL_VETERAN:
 			setWeaponSetFlag(WEAPONSET_VETERAN);
-			clearWeaponSetFlag(WEAPONSET_ELITE);
-			clearWeaponSetFlag(WEAPONSET_HERO);
 			setWeaponBonusCondition(WEAPONBONUSCONDITION_VETERAN);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_ELITE);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_HERO);
 			break;
 		case LEVEL_ELITE:
-			clearWeaponSetFlag(WEAPONSET_VETERAN);
 			setWeaponSetFlag(WEAPONSET_ELITE);
-			clearWeaponSetFlag(WEAPONSET_HERO);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_VETERAN);
 			setWeaponBonusCondition(WEAPONBONUSCONDITION_ELITE);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_HERO);
 			break;
 		case LEVEL_HEROIC:
-			clearWeaponSetFlag(WEAPONSET_VETERAN);
-			clearWeaponSetFlag(WEAPONSET_ELITE);
 			setWeaponSetFlag(WEAPONSET_HERO);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_VETERAN);
-			clearWeaponBonusCondition(WEAPONBONUSCONDITION_ELITE);
 			setWeaponBonusCondition(WEAPONBONUSCONDITION_HERO);
+			break;
+		case LEVEL_FOUR:
+			setWeaponSetFlag(WEAPONSET_FOUR);
+			setWeaponBonusCondition(WEAPONBONUSCONDITION_VETERANCY_FOUR);
+			break;
+		case LEVEL_FIVE:
+			setWeaponSetFlag(WEAPONSET_FIVE);
+			setWeaponBonusCondition(WEAPONBONUSCONDITION_VETERANCY_FIVE);
 			break;
 	}
 

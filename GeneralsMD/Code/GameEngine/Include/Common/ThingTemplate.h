@@ -699,6 +699,9 @@ protected:
 	static void parsePrerequisites( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ );
 	static void parseModuleName(INI* ini, void *instance, void* /*store*/, const void* userData);
 	static void parseIntList(INI* ini, void *instance, void* store, const void* userData);
+	static void parseExperienceValueList(INI* ini, void *instance, void* store, const void* userData);
+	static void parseExperienceRequiredList(INI* ini, void *instance, void* store, const void* userData);
+	static void parseSkillPointValueList(INI* ini, void *instance, void* store, const void* userData);
 
 	static void parsePerUnitSounds(INI* ini, void *instance, void* store, const void* userData);
 	static void parsePerUnitFX(INI* ini, void *instance, void* store, const void* userData);

@@ -220,7 +220,10 @@ const char* const ModelConditionFlags::s_bitNameList[] =
 
 	"SHIP_TOPPLING",
 	"SHIP_SINKING",
-	
+
+	"WEAPONSET_FOUR",
+	"WEAPONSET_FIVE",
+
 	nullptr
 };
 static_assert(ARRAY_SIZE(ModelConditionFlags::s_bitNameList) == ModelConditionFlags::NumBits + 1, "Incorrect array size");
@@ -239,6 +242,8 @@ const char* const ArmorSetFlags::s_bitNameList[] =
 	"PLAYER_UPGRADE2",
 	"PLAYER_UPGRADE3",
 	"PLAYER_UPGRADE4",
+	"FOUR",
+	"FIVE",
 
 	nullptr
 };
@@ -304,6 +309,8 @@ const char* const WeaponBonusConditionFlags::s_bitNameList[] =
 	"EXTRA6",
 	"EXTRA7",
 	"EXTRA8",
+	"VETERANCY_FOUR",
+	"VETERANCY_FIVE",
 	nullptr
 };
 static_assert(ARRAY_SIZE(WeaponBonusConditionFlags::s_bitNameList) == WEAPONBONUSCONDITION_COUNT + 1, "Incorrect array size");
