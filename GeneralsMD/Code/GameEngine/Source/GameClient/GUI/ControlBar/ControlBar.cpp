@@ -65,6 +65,7 @@
 #include "GameClient/ControlBar.h"
 #include "GameClient/ControlBarScheme.h"
 #include "GameClient/Drawable.h"
+#include "GameClient/FXList.h"
 #include "GameClient/Display.h"
 #include "GameClient/DisplayStringManager.h"
 #include "GameClient/GameClient.h"
@@ -114,7 +115,10 @@ const FieldParse CommandButton::s_commandButtonFieldParseTable[] =
 	{ "PurchasedLabel",				INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_purchasedLabel ) },
 	{ "ConflictingLabel",			INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_conflictingLabel ) },
 	{ "ButtonImage",					INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_buttonImageName ) },
+	{ "MarkerObject",					INI::parseThingTemplate,		 nullptr, offsetof( CommandButton, m_markerTemplate ) },
+	{ "MarkerFX",							INI::parseFXList,						 nullptr, offsetof( CommandButton, m_markerFX ) },
 	{ "CursorName",						INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_cursorName ) },
+	{ "SecondCursorName",			INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_secondCursorName ) },
 	{ "InvalidCursorName",		INI::parseAsciiString,       nullptr, offsetof( CommandButton, m_invalidCursorName ) },
 	{ "ButtonBorderType",			INI::parseLookupList,				 CommandButtonMappedBorderTypeNames, offsetof( CommandButton, m_commandButtonBorder ) },
 	{ "RadiusCursorType",			INI::parseIndexList,				 TheRadiusCursorNames, offsetof( CommandButton, m_radiusCursor ) },
@@ -559,6 +563,8 @@ CommandButton::CommandButton( void )
 
 	m_command = GUI_COMMAND_NONE;
 	m_thingTemplate = nullptr;
+	m_markerTemplate = nullptr;
+	m_markerFX = nullptr;
 	m_upgradeTemplate = nullptr;
 	m_weaponSlot = PRIMARY_WEAPON;
 	m_maxShotsToFire = 0x7fffffff;	// huge number
@@ -574,6 +580,7 @@ CommandButton::CommandButton( void )
 	m_flashCount = 0;
 	m_conflictingLabel.clear();
 	m_cursorName.clear();
+	m_secondCursorName.clear();
 	m_descriptionLabel.clear();
 	m_invalidCursorName.clear();
 	m_name.clear();

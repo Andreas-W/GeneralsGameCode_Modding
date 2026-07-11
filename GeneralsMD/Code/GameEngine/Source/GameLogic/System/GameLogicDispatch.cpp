@@ -762,6 +762,48 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 		}
 
 		//---------------------------------------------------------------------------------------------
+		// Chrono-style special power: source + destination committed together in one message.
+		case GameMessage::MSG_DO_SPECIAL_POWER_AT_TWO_LOCATIONS:
+		{
+			// first argument is the special power ID
+			UnsignedInt specialPowerID = msg->getArgument( 0 )->integer;
+
+			// argument 1 is the source location (first click)
+			Coord3D sourceCoord = msg->getArgument(1)->location;
+
+			// argument 2 is the destination location (second click)
+			Coord3D destCoord = msg->getArgument(2)->location;
+
+			// Command button options -- special power may care about variance options
+			UnsignedInt options = msg->getArgument( 3 )->integer;
+
+			// check for possible specific source, ignoring selection.
+			ObjectID sourceID = msg->getArgument(4)->objectID;
+			Object* source = findObjectByID(sourceID);
+			if (source != nullptr)
+			{
+				AIGroupPtr theGroup = TheAI->createGroup();
+				theGroup->add(source);
+				theGroup->groupDoSpecialPowerAtTwoLocations( specialPowerID, &sourceCoord, &destCoord, options );
+#if RETAIL_COMPATIBLE_AIGROUP
+				TheAI->destroyGroup(theGroup);
+#else
+				theGroup->removeAll();
+#endif
+			}
+			else
+			{
+				//Use the selected group!
+				if( currentlySelectedGroup )
+				{
+					currentlySelectedGroup->groupDoSpecialPowerAtTwoLocations( specialPowerID, &sourceCoord, &destCoord, options );
+				}
+			}
+			break;
+
+		}
+
+		//---------------------------------------------------------------------------------------------
 		case GameMessage::MSG_DO_SPECIAL_POWER_AT_OBJECT:
 		{
 			// first argument is the special power ID

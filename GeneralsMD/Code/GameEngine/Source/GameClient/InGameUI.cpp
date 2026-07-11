@@ -57,6 +57,7 @@
 #include "GameClient/GameText.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/Drawable.h"
+#include "GameClient/FXList.h"
 #include "GameClient/GadgetPushButton.h"
 #include "GameClient/GameClient.h"
 #include "GameClient/GameWindowGlobal.h"
@@ -1125,6 +1126,9 @@ InGameUI::InGameUI()
 	}
 
 	m_pendingGUICommand = nullptr;
+	m_pendingSpecialPowerFirstLocation.zero();
+	m_hasPendingSpecialPowerFirstLocation = FALSE;
+	m_specialPowerSourceMarker = nullptr;
 
 	// allocate an array for the placement icons
 	m_placeIcon = NEW Drawable* [ TheGlobalData->m_maxLineBuildObjects ];
@@ -3087,7 +3091,12 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 						switch( t )
 						{
 							case GameMessage::MSG_VALID_GUICOMMAND_HINT:
-								cursorName = m_pendingGUICommand->getCursorName();
+								// For a two-point (chronosphere) power, show a distinct cursor once the first
+								// point is captured so the player knows they are picking the destination.
+								if( m_hasPendingSpecialPowerFirstLocation && !m_pendingGUICommand->getSecondCursorName().isEmpty() )
+									cursorName = m_pendingGUICommand->getSecondCursorName();
+								else
+									cursorName = m_pendingGUICommand->getCursorName();
 								break;
 							case GameMessage::MSG_INVALID_GUICOMMAND_HINT:
 							default:
@@ -3223,6 +3232,11 @@ void InGameUI::setGUICommand( const CommandButton *command )
 	if (TheRecorder->getMode() == RECORDERMODETYPE_PLAYBACK)
 		return;
 
+	// Any change (or cancel) of the pending command drops a half-finished two-point selection.
+	// This is also the right-click cancel path (SelectionXlat calls setGUICommand(nullptr)).
+	m_hasPendingSpecialPowerFirstLocation = FALSE;
+	destroySpecialPowerSourceMarker();
+
 	// sanity
 	if( command )
 	{
@@ -3293,6 +3307,47 @@ const CommandButton *InGameUI::getGUICommand( void ) const
 
 	return m_pendingGUICommand;
 
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Store the first-click source location of a two-point (chronosphere) special power. Nothing is
+	* committed to game logic here - the second click sends the committing message. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::setPendingSpecialPowerFirstLocation( const Coord3D *loc )
+{
+	if( loc == nullptr )
+		return;
+
+	m_pendingSpecialPowerFirstLocation = *loc;
+	m_hasPendingSpecialPowerFirstLocation = TRUE;
+
+	// Optional client-only marker at the source point, configured on the pending command button.
+	// A model persists until the marker is destroyed (2nd click / cancel); an FXList is a one-shot.
+	destroySpecialPowerSourceMarker();
+	if( m_pendingGUICommand )
+	{
+		const ThingTemplate *markerTmpl = m_pendingGUICommand->getMarkerObject();
+		if( markerTmpl )
+		{
+			m_specialPowerSourceMarker = TheThingFactory->newDrawable( markerTmpl, (DrawableStatusBits)DRAWABLE_STATUS_NO_SAVE );
+			if( m_specialPowerSourceMarker )
+				m_specialPowerSourceMarker->setPosition( loc );
+		}
+
+		FXList::doFXPos( m_pendingGUICommand->getMarkerFX(), loc );
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Remove the two-point special power source marker drawable, if any. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::destroySpecialPowerSourceMarker( void )
+{
+	if( m_specialPowerSourceMarker )
+	{
+		TheGameClient->destroyDrawable( m_specialPowerSourceMarker );
+		m_specialPowerSourceMarker = nullptr;
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -4857,7 +4912,8 @@ Bool InGameUI::canSelectedObjectsDoSpecialPower( const CommandButton *command, c
 	//1) NO TARGET OR POS
 	//2) COMMAND_OPTION_NEED_OBJECT_TARGET
 	//3) NEED_TARGET_POS
-	Bool doAtPosition = BitIsSet( command->getOptions(), NEED_TARGET_POS );
+	// A two-point (chronosphere) power validates each click as a location, just like NEED_TARGET_POS.
+	Bool doAtPosition = BitIsSet( command->getOptions(), NEED_TARGET_POS ) || BitIsSet( command->getOptions(), NEED_TWO_TARGET_POS );
 	Bool doAtObject = BitIsSet( command->getOptions(), COMMAND_OPTION_NEED_OBJECT_TARGET );
 
 	//Sanity checks

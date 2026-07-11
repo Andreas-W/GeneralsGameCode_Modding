@@ -195,6 +195,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "PilotFindVehicleUpdate", 256, 32 },
 	{ "DemoTrapUpdate", 32, 32 },
 	{ "ParticleUplinkCannonUpdate", 16, 16 },
+	{ "ChronoSphereUpdateModule", 8, 8 },
 	{ "SpectreGunshipUpdate", 8, 8 },
 	{ "SpectreGunshipDeploymentUpdate", 8, 8 },
 	{ "KodiakUpdate", 8, 8 },

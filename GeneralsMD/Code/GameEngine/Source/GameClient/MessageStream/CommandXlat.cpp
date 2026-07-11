@@ -1232,6 +1232,38 @@ GameMessage::Type CommandTranslator::issueSpecialPowerCommand( const CommandButt
 
 		}
 	}
+	else if( BitIsSet( command->getOptions(), NEED_TWO_TARGET_POS ) )
+	{
+		//TWO LOCATION BASED SPECIAL (chronosphere: source + destination)
+		msgType = GameMessage::MSG_DO_SPECIAL_POWER_AT_TWO_LOCATIONS;
+		if( commandType == DO_COMMAND )
+		{
+			if( !TheInGameUI->hasPendingSpecialPowerFirstLocation() )
+			{
+				//First click: capture the source point client-side. Commit nothing to game logic
+				//and stay pending so the second click (or a right-click cancel) can follow.
+				TheInGameUI->setPendingSpecialPowerFirstLocation( pos );
+				msgType = GameMessage::MSG_INVALID;
+			}
+			else
+			{
+				//Second click: emit ONE deterministic message carrying both points.
+				Coord3D source = *TheInGameUI->getPendingSpecialPowerFirstLocation();
+				GameMessage *msg = TheMessageStream->appendMessage( msgType );
+				msg->appendIntegerArgument( command->getSpecialPowerTemplate()->getID() );
+				msg->appendLocationArgument( source );
+				msg->appendLocationArgument( *pos );
+				msg->appendIntegerArgument( command->getOptions() );
+				msg->appendObjectIDArgument( specificSource );
+				TheInGameUI->clearPendingSpecialPowerFirstLocation();
+
+				PickAndPlayInfo info;
+				info.m_drawTarget = target;
+				info.m_specialPowerType = command->getSpecialPowerTemplate()->getSpecialPowerType();
+				pickAndPlayUnitVoiceResponse( TheInGameUI->getAllSelectedDrawables(), msgType, &info );
+			}
+		}
+	}
 	else if( BitIsSet( command->getOptions(), NEED_TARGET_POS ) )
 	{
 		//LOCATION BASED SPECIAL
@@ -1278,7 +1310,12 @@ GameMessage::Type CommandTranslator::issueSpecialPowerCommand( const CommandButt
 		}
 	}
 
-	if( command->getCommandType() == GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT && commandType == DO_COMMAND )
+	// Two-point (chronosphere) powers commit atomically on the 2nd click and don't use the
+	// fire-then-steer overridable-destination model, so skip the shortcut auto-select/steer block -
+	// it would deselect/select the firing object, which clears the pending first-point state and
+	// makes the 2nd click impossible.
+	if( command->getCommandType() == GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT && commandType == DO_COMMAND
+			&& !BitIsSet( command->getOptions(), NEED_TWO_TARGET_POS ) )
 	{
 		Object *obj = sourceDraw->getObject();
 		SpecialPowerUpdateInterface *spUpdate = obj->findSpecialPowerWithOverridableDestination();
@@ -1793,8 +1830,10 @@ GameMessage::Type CommandTranslator::evaluateContextCommand( Drawable *draw,
 							break;
 					}
 
-					// null out the GUI command if we're actually doing something
-					if( type == DO_COMMAND )
+					// null out the GUI command if we're actually doing something.
+					// Exception: a two-point (chronosphere) power keeps the command pending after the
+					// first click so the second click (or a right-click cancel) can still be handled.
+					if( type == DO_COMMAND && !TheInGameUI->hasPendingSpecialPowerFirstLocation() )
 					{
 						TheInGameUI->setGUICommand( nullptr );
 					}

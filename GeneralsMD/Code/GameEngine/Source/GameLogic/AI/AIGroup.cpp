@@ -2804,6 +2804,42 @@ void AIGroup::groupDoSpecialPowerAtLocation( UnsignedInt specialPowerID, const C
 	}
 }
 
+//-------------------------------------------------------------------------------------------------
+// Chrono-style special power: the player picked a source and a destination. Both points arrive
+// together; validity/range is checked against the source point.
+//-------------------------------------------------------------------------------------------------
+void AIGroup::groupDoSpecialPowerAtTwoLocations( UnsignedInt specialPowerID, const Coord3D *source, const Coord3D *dest, UnsignedInt commandOptions )
+{
+	std::list<Object *>::iterator i;
+	for( i = m_memberList.begin(); i != m_memberList.end(); )
+	{
+		Object *object = (*i);
+
+		++i; // just in case the act of specialpowering changes this list
+
+		const SpecialPowerTemplate *spTemplate = TheSpecialPowerStore->findSpecialPowerTemplateByID( specialPowerID );
+		if( spTemplate )
+		{
+			// Have to justify the execution in case someone changed their button
+			if( spTemplate->getRequiredScience() != SCIENCE_INVALID )
+			{
+				if( !object->getControllingPlayer()->hasScience(spTemplate->getRequiredScience()) )
+					continue;// Nice try, smacktard.
+			}
+
+			SpecialPowerModuleInterface *mod = object->getSpecialPowerModule( spTemplate );
+			if( mod )
+			{
+				if( TheActionManager->canDoSpecialPowerAtLocation( object, source, CMD_FROM_PLAYER, spTemplate, nullptr, commandOptions ) )
+				{
+					object->doSpecialPowerAtTwoLocations( spTemplate, source, dest, commandOptions );
+					object->friend_setUndetectedDefector( FALSE );// My secret is out
+				}
+			}
+		}
+	}
+}
+
 /**
  * The unit(s)/structure will perform it's special power -- special powers triggered by buildings
  * don't use AIUpdateInterfaces!!! No special power uses an AIUpdateInterface immediately, but special

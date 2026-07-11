@@ -5741,6 +5741,36 @@ void Object::doSpecialPowerAtLocation( const SpecialPowerTemplate *specialPowerT
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Execute a chrono-style special power that needs two points. The source is delivered like a
+	* normal location special; the destination is handed to the update module through the existing
+	* overridable-destination channel so we don't need a new interface method. */
+//-------------------------------------------------------------------------------------------------
+void Object::doSpecialPowerAtTwoLocations( const SpecialPowerTemplate *specialPowerTemplate,
+																					 const Coord3D *source, const Coord3D *dest, UnsignedInt commandOptions, Bool forced )
+{
+
+	if (isDisabled())
+		return;
+
+	// sanity
+	if( !forced && TheSpecialPowerStore->canUseSpecialPower( this, specialPowerTemplate ) == FALSE )
+		return;
+
+	// get the module and execute at the source point
+	SpecialPowerModuleInterface *mod = getSpecialPowerModule( specialPowerTemplate );
+	if( mod )
+	{
+		mod->doSpecialPowerAtLocation( source, INVALID_ANGLE, commandOptions );
+
+		// hand the destination (second click) to the update module
+		SpecialPowerUpdateInterface *spu = findSpecialPowerWithOverridableDestination( specialPowerTemplate->getSpecialPowerType() );
+		if( spu )
+			spu->setSpecialPowerOverridableDestination( dest );
+	}
+
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Execute special power */
 //-------------------------------------------------------------------------------------------------
 void Object::doSpecialPowerUsingWaypoints( const SpecialPowerTemplate *specialPowerTemplate, const Waypoint *way, UnsignedInt commandOptions, Bool forced )
