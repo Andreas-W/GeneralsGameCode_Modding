@@ -69,6 +69,7 @@ public:
 	void addEdgeToTrack(Real x, Real y);	///< add a new segment to the track
 	void addCapEdgeToTrack(Real x, Real y);	///< cap the existing segment so we can resume at an unconnected position.
 	void setAirborne(void) {m_airborne = true; }	///< Starts a new section of track, generally after going airborne.
+	void breakTrack(void);	///< end current strip (last edge feathered) so the next edge starts a fresh, unconnected anchor (teleport - keeps existing edges, no bridging quad)
 	void setOwnerDrawable(const Drawable *owner) {m_ownerDrawable = owner;}
 
 protected:

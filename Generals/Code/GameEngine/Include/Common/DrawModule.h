@@ -83,6 +83,8 @@ public:
 	virtual void setTerrainDecalSize(Real x, Real y) {};
 	virtual void setTerrainDecalOpacity(Real o) {};
 
+	virtual void reactToTeleport() {};	///< object was instantly relocated (e.g. chronosphere) - break tread marks etc.
+
 	virtual void setFullyObscuredByShroud(Bool fullyObscured) = 0;
 
 	virtual Bool isVisible() const { return true; }	///< for limiting tree sway, etc to visible objects

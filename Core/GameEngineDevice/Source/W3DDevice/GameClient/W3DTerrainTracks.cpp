@@ -295,6 +295,28 @@ void TerrainTracksRenderObjClass::addCapEdgeToTrack(Real x, Real y)
 }
 
 //=============================================================================
+// TerrainTracksRenderObjClass::breakTrack
+//=============================================================================
+/** End the current strip so the next edge starts a fresh, unconnected anchor (used on teleport).
+* The edge buffer is one continuous ring, so the existing edges are kept but the last one is
+* feathered to transparent - that way the quad joining it to the first edge of the new strip is
+* alpha0->alpha0 (invisible) and no line bridges the teleport distance. */
+//=============================================================================
+void TerrainTracksRenderObjClass::breakTrack(void)
+{
+	if (m_activeEdgeCount > 0)
+	{
+		Int maxEdgeCount = TheTerrainTracksRenderObjClassSystem->m_maxTankTrackEdges;
+		Int lastAddedEdge = m_topIndex - 1;
+		if (lastAddedEdge < 0)
+			lastAddedEdge = maxEdgeCount - 1;
+		m_edges[lastAddedEdge].alpha = 0.0f;	//feather the tip of the old strip
+	}
+	m_haveAnchor = false;	//next edge starts a new anchor
+	m_haveCap = TRUE;
+}
+
+//=============================================================================
 // TerrainTracksRenderObjClass::addEdgeToTrack
 //=============================================================================
 /** Try to add an additional segment to track mark.  Will do nothing if distance

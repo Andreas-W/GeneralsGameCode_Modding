@@ -670,6 +670,17 @@ Bool Drawable::isVisible()
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Notify draw modules that the object was instantly relocated (teleport), so visual effects that
+	* interpolate between frames (e.g. terrain tread marks) don't stretch across the jump. */
+void Drawable::reactToTeleport()
+{
+	for (DrawModule** dm = getDrawModules(); *dm; ++dm)
+	{
+		(*dm)->reactToTeleport();
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 Bool Drawable::getShouldAnimate( Bool considerPower ) const
 {
 	const Object *obj = getObject();

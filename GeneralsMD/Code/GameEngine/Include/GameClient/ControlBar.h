@@ -44,6 +44,7 @@ class Object;
 class ThingTemplate;
 class WeaponTemplate;
 class SpecialPowerTemplate;
+class FXList;
 class WindowVideoManager;
 class WindowVideoManager;
 class AnimateWindowManager;
@@ -100,6 +101,7 @@ enum CommandOption CPP_11(: Int)
 	CAN_USE_WAYPOINTS						= 0x00400000, // button has option to use a waypoint path
 	MUST_BE_STOPPED							= 0x00800000, // Unit must be stopped in order to be able to use button.
 	FORMATION_LAUNCH						= 0x01000000, // code-only: jumpjet group launch, keep formation offset instead of random scatter.
+	NEED_TWO_TARGET_POS					= 0x02000000, // command needs the user to select two target positions; only the 2nd click commits (chronosphere).
 };
 
 #ifdef DEFINE_COMMAND_OPTION_NAMES
@@ -134,6 +136,7 @@ static const char *const TheCommandOptionNames[] =
 	"CAN_USE_WAYPOINTS",
 	"MUST_BE_STOPPED",
 	"FORMATION_LAUNCH",
+	"NEED_TWO_TARGET_POS",
 
 	nullptr
 };
@@ -145,6 +148,7 @@ const UnsignedInt COMMAND_OPTION_NEED_TARGET =
 					NEED_TARGET_NEUTRAL_OBJECT |
 					NEED_TARGET_ALLY_OBJECT |
 					NEED_TARGET_POS |
+					NEED_TWO_TARGET_POS |
 					CONTEXTMODE_COMMAND;
 
 const UnsignedInt COMMAND_OPTION_NEED_OBJECT_TARGET =
@@ -323,6 +327,7 @@ public:
 
 	const AsciiString& getName() const { return m_name; }
 	const AsciiString& getCursorName() const { return m_cursorName; }
+	const AsciiString& getSecondCursorName() const { return m_secondCursorName; }
 	const AsciiString& getInvalidCursorName() const { return m_invalidCursorName; }
 	const AsciiString& getTextLabel() const { return m_textLabel; }
 	const AsciiString& getDescriptionLabel() const { return m_descriptionLabel; }
@@ -333,6 +338,8 @@ public:
 	GUICommandType getCommandType() const { return m_command; }
 	UnsignedInt getOptions() const { return m_options; }
 	OVERRIDE<ThingTemplate> getThingTemplate() const { return m_thingTemplate; }
+	const ThingTemplate* getMarkerObject() const { return m_markerTemplate; }
+	const FXList* getMarkerFX() const { return m_markerFX; }
 	const UpgradeTemplate* getUpgradeTemplate() const { return m_upgradeTemplate; }
 	const SpecialPowerTemplate* getSpecialPowerTemplate() const { return m_specialPower; }
 	RadiusCursorType getRadiusCursorType() const { return m_radiusCursor; }
@@ -371,10 +378,13 @@ private:
 	CommandButton*								m_next;
 	UnsignedInt										m_options;										///< command options (see CommandOption enum)
 	const ThingTemplate*					m_thingTemplate;							///< for commands that use thing templates in command data
+	const ThingTemplate*					m_markerTemplate;							///< client-only marker model shown at the 1st pick of a two-point (chronosphere) power
+	const FXList*									m_markerFX;										///< one-shot client FX played at the 1st pick of a two-point power
 	const UpgradeTemplate*				m_upgradeTemplate;						///< for commands that use upgrade templates in command data
 	const SpecialPowerTemplate*		m_specialPower;								///< actual special power template
 	RadiusCursorType							m_radiusCursor;								///< radius cursor, if any
 	AsciiString										m_cursorName;									///< cursor name for placement (NEED_TARGET_POS) or valid version (CONTEXTMODE_COMMAND)
+	AsciiString										m_secondCursorName;						///< cursor name for the 2nd pick of a two-point (NEED_TWO_TARGET_POS) power; falls back to m_cursorName if empty
 	AsciiString										m_invalidCursorName;					///< cursor name for invalid version
 
 	// bleah. shouldn't be mutable, but is. sue me. (Kris) -snork!

@@ -4169,6 +4169,16 @@ Int W3DModelDraw::getCurrentBonePositions(
 }
 
 //-------------------------------------------------------------------------------------------------
+void W3DModelDraw::reactToTeleport()
+{
+	// The object was instantly relocated. Break the tread-mark strip so the next edge starts a fresh,
+	// unconnected anchor at the destination - no stretched bridging quad. Existing edges (the tracks
+	// laid before the teleport) are kept.
+	if (m_trackRenderObject)
+		m_trackRenderObject->breakTrack();
+}
+
+//-------------------------------------------------------------------------------------------------
 void W3DModelDraw::reactToTransformChange( const Matrix3D* oldMtx,
 																					 const Coord3D* oldPos,
 																					 Real oldAngle )

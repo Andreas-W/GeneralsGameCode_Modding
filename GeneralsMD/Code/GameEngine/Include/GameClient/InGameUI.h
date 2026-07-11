@@ -433,6 +433,13 @@ public:  // ********************************************************************
 	virtual void setGUICommand( const CommandButton *command );				///< the command has been clicked in the UI and needs additional data
 	virtual const CommandButton *getGUICommand( void ) const;								///< get the pending gui command
 
+	// two-point (chronosphere) special power selection: the first click is captured client-side
+	// and committed nothing; only the second click dispatches. Right-click cancels (via setGUICommand).
+	virtual void setPendingSpecialPowerFirstLocation( const Coord3D *loc );					///< store the first-click source location
+	virtual const Coord3D *getPendingSpecialPowerFirstLocation( void ) const { return &m_pendingSpecialPowerFirstLocation; }
+	virtual Bool hasPendingSpecialPowerFirstLocation( void ) const { return m_hasPendingSpecialPowerFirstLocation; }
+	virtual void clearPendingSpecialPowerFirstLocation( void ) { m_hasPendingSpecialPowerFirstLocation = FALSE; destroySpecialPowerSourceMarker(); }
+
 	// build interface
 	virtual void placeBuildAvailable( const ThingTemplate *build, Drawable *buildDrawable );				///< built thing being placed
 	virtual const ThingTemplate *getPendingPlaceType( void );					///< get item we're trying to place
@@ -628,6 +635,8 @@ protected:
 
 protected:
 
+	void destroySpecialPowerSourceMarker( void );	///< remove the two-point special power source marker drawable if present
+
 	// ----------------------------------------------------------------------------------------------
 	// Protected Types ------------------------------------------------------------------------------
 	// ----------------------------------------------------------------------------------------------
@@ -739,6 +748,9 @@ protected:
 	MoveHintStruct							m_moveHint[ MAX_MOVE_HINTS ];
 	Int													m_nextMoveHint;
 	const CommandButton *				m_pendingGUICommand;										///< GUI command that needs additional interaction from the user
+	Coord3D											m_pendingSpecialPowerFirstLocation;			///< first-click source for a two-point special power
+	Bool												m_hasPendingSpecialPowerFirstLocation;	///< TRUE once the first click of a two-point special power is captured
+	Drawable *									m_specialPowerSourceMarker;							///< client-only marker drawable shown at the first-click source (nullptr if none)
 	BuildProgress								m_buildProgress[ MAX_BUILD_PROGRESS ];	///< progress for building units
 	const ThingTemplate *				m_pendingPlaceType;											///< type of built thing we're trying to place
 	ObjectID										m_pendingPlaceSourceObjectID;						///< source object of the thing constructing the item

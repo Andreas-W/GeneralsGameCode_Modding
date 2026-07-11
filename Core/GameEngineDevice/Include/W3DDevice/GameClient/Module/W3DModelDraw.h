@@ -392,6 +392,7 @@ public:
 
 	virtual Bool isVisible() const;
 	virtual void reactToTransformChange(const Matrix3D* oldMtx, const Coord3D* oldPos, Real oldAngle);
+	virtual void reactToTeleport();
 	virtual void reactToGeometryChange() { }
 
 	// this method must ONLY be called from the client, NEVER From the logic, not even indirectly.

@@ -351,6 +351,7 @@ public:
 	// Override.
 	void setPosition( const Coord3D *pos );
 	void reactToGeometryChange();
+	void reactToTeleport();	///< object was instantly relocated - break interpolated visuals (tread marks)
 
 	const GeometryInfo& getDrawableGeometryInfo() const;
 
