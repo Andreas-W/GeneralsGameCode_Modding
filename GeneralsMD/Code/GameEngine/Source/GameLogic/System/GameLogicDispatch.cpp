@@ -762,29 +762,32 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 		}
 
 		//---------------------------------------------------------------------------------------------
-		// Chrono-style special power: source + destination committed together in one message.
-		case GameMessage::MSG_DO_SPECIAL_POWER_AT_TWO_LOCATIONS:
+		// N-point (chronosphere) special power: all target points committed together in one message.
+		case GameMessage::MSG_DO_SPECIAL_POWER_AT_MULTIPLE_LOCATIONS:
 		{
 			// first argument is the special power ID
 			UnsignedInt specialPowerID = msg->getArgument( 0 )->integer;
 
-			// argument 1 is the source location (first click)
-			Coord3D sourceCoord = msg->getArgument(1)->location;
+			// argument 1 is the number of target points that follow
+			Int count = msg->getArgument( 1 )->integer;
 
-			// argument 2 is the destination location (second click)
-			Coord3D destCoord = msg->getArgument(2)->location;
+			// arguments 2 .. 2+count-1 are the target locations (in click order)
+			std::vector<Coord3D> locs;
+			locs.reserve( count );
+			for( Int p = 0; p < count; ++p )
+				locs.push_back( msg->getArgument( 2 + p )->location );
 
 			// Command button options -- special power may care about variance options
-			UnsignedInt options = msg->getArgument( 3 )->integer;
+			UnsignedInt options = msg->getArgument( 2 + count )->integer;
 
 			// check for possible specific source, ignoring selection.
-			ObjectID sourceID = msg->getArgument(4)->objectID;
+			ObjectID sourceID = msg->getArgument( 3 + count )->objectID;
 			Object* source = findObjectByID(sourceID);
 			if (source != nullptr)
 			{
 				AIGroupPtr theGroup = TheAI->createGroup();
 				theGroup->add(source);
-				theGroup->groupDoSpecialPowerAtTwoLocations( specialPowerID, &sourceCoord, &destCoord, options );
+				theGroup->groupDoSpecialPowerAtMultipleLocations( specialPowerID, locs, options );
 #if RETAIL_COMPATIBLE_AIGROUP
 				TheAI->destroyGroup(theGroup);
 #else
@@ -796,7 +799,7 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 				//Use the selected group!
 				if( currentlySelectedGroup )
 				{
-					currentlySelectedGroup->groupDoSpecialPowerAtTwoLocations( specialPowerID, &sourceCoord, &destCoord, options );
+					currentlySelectedGroup->groupDoSpecialPowerAtMultipleLocations( specialPowerID, locs, options );
 				}
 			}
 			break;

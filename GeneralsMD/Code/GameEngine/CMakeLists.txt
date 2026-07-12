@@ -282,6 +282,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/CheckpointUpdate.h
     Include/GameLogic/Module/ChinookAIUpdate.h
     Include/GameLogic/Module/ChronoSphereUpdateModule.h
+    Include/GameLogic/Module/MultiLocationSpecialPowerUpdate.h
     Include/GameLogic/Module/CleanupAreaPower.h
     Include/GameLogic/Module/CleanupHazardUpdate.h
     Include/GameLogic/Module/CollideModule.h
@@ -1060,6 +1061,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/BoneFXUpdate.cpp
     Source/GameLogic/Object/Update/CheckpointUpdate.cpp
     Source/GameLogic/Object/Update/ChronoSphereUpdateModule.cpp
+    Source/GameLogic/Object/Update/MultiLocationSpecialPowerUpdate.cpp
     Source/GameLogic/Object/Update/CleanupHazardUpdate.cpp
     Source/GameLogic/Object/Update/CommandButtonHuntUpdate.cpp
     Source/GameLogic/Object/Update/DeletionUpdate.cpp

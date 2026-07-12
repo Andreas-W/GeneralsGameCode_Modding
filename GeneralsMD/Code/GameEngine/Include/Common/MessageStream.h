@@ -601,7 +601,7 @@ public:
 		MSG_LOGIC_CRC,															///< CRC from the logic passed around in a network game :)
 		MSG_SET_MINE_CLEARING_DETAIL,								///< CRC from the logic passed around in a network game :)
 		MSG_ENABLE_RETALIATION_MODE,								///< Turn retaliation mode on or off for the specified player.
-		MSG_DO_SPECIAL_POWER_AT_TWO_LOCATIONS,			///< chrono-style: (spID, srcLoc, destLoc, options, sourceID) - both points committed in one message
+		MSG_DO_SPECIAL_POWER_AT_MULTIPLE_LOCATIONS,	///< N-point: (spID, count, coord*count, options, sourceID) - all target points committed in one message (chronosphere = 2)
 
 		MSG_BEGIN_DEBUG_NETWORK_MESSAGES = 1900,		///< network messages that exist only in debug/internal builds. all grouped separately.
 

@@ -5741,31 +5741,34 @@ void Object::doSpecialPowerAtLocation( const SpecialPowerTemplate *specialPowerT
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Execute a chrono-style special power that needs two points. The source is delivered like a
-	* normal location special; the destination is handed to the update module through the existing
-	* overridable-destination channel so we don't need a new interface method. */
+/** Execute an N-point special power. The first point is delivered like a normal location special
+	* (it triggers initiateIntentToDoSpecialPower); all captured points are then handed to the update
+	* module at once through setSpecialPowerMultiLocations. The chronosphere is the N=2 case. */
 //-------------------------------------------------------------------------------------------------
-void Object::doSpecialPowerAtTwoLocations( const SpecialPowerTemplate *specialPowerTemplate,
-																					 const Coord3D *source, const Coord3D *dest, UnsignedInt commandOptions, Bool forced )
+void Object::doSpecialPowerAtMultipleLocations( const SpecialPowerTemplate *specialPowerTemplate,
+																								const std::vector<Coord3D>& locs, UnsignedInt commandOptions, Bool forced )
 {
 
 	if (isDisabled())
+		return;
+
+	if( locs.empty() )
 		return;
 
 	// sanity
 	if( !forced && TheSpecialPowerStore->canUseSpecialPower( this, specialPowerTemplate ) == FALSE )
 		return;
 
-	// get the module and execute at the source point
+	// get the module and execute at the first point
 	SpecialPowerModuleInterface *mod = getSpecialPowerModule( specialPowerTemplate );
 	if( mod )
 	{
-		mod->doSpecialPowerAtLocation( source, INVALID_ANGLE, commandOptions );
+		mod->doSpecialPowerAtLocation( &locs.front(), INVALID_ANGLE, commandOptions );
 
-		// hand the destination (second click) to the update module
+		// hand all captured target points to the update module at once
 		SpecialPowerUpdateInterface *spu = findSpecialPowerWithOverridableDestination( specialPowerTemplate->getSpecialPowerType() );
 		if( spu )
-			spu->setSpecialPowerOverridableDestination( dest );
+			spu->setSpecialPowerMultiLocations( locs );
 	}
 
 }

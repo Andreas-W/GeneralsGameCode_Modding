@@ -950,7 +950,7 @@ public:
 	void groupDoSpecialPower( UnsignedInt specialPowerID, UnsignedInt commandOptions );
 	void groupDoSpecialPowerAtObject( UnsignedInt specialPowerID, Object *object, UnsignedInt commandOptions );
 	void groupDoSpecialPowerAtLocation( UnsignedInt specialPowerID, const Coord3D *location, Real angle, const Object *object, UnsignedInt commandOptions );
-	void groupDoSpecialPowerAtTwoLocations( UnsignedInt specialPowerID, const Coord3D *source, const Coord3D *dest, UnsignedInt commandOptions );
+	void groupDoSpecialPowerAtMultipleLocations( UnsignedInt specialPowerID, const std::vector<Coord3D>& locs, UnsignedInt commandOptions );
 #ifdef ALLOW_SURRENDER
 	void groupSurrender( const Object *objWeSurrenderedTo, Bool surrender, CommandSourceType cmdSource );
 #endif

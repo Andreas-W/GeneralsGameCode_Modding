@@ -117,11 +117,18 @@ const FieldParse CommandButton::s_commandButtonFieldParseTable[] =
 	{ "ButtonImage",					INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_buttonImageName ) },
 	{ "MarkerObject",					INI::parseThingTemplate,		 nullptr, offsetof( CommandButton, m_markerTemplate ) },
 	{ "MarkerFX",							INI::parseFXList,						 nullptr, offsetof( CommandButton, m_markerFX ) },
+	{ "NumberOfTargets",			INI::parseInt,							 nullptr, offsetof( CommandButton, m_numberOfTargets ) },
+	{ "TargetRadius",					INI::parseReal,							 nullptr, offsetof( CommandButton, m_targetRadius ) },
+	{ "TargetRadiusMode",			INI::parseIndexList,				 TheSpecialPowerTargetRadiusModeNames, offsetof( CommandButton, m_targetRadiusMode ) },
 	{ "CursorName",						INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_cursorName ) },
 	{ "SecondCursorName",			INI::parseAsciiString,			 nullptr, offsetof( CommandButton, m_secondCursorName ) },
 	{ "InvalidCursorName",		INI::parseAsciiString,       nullptr, offsetof( CommandButton, m_invalidCursorName ) },
 	{ "ButtonBorderType",			INI::parseLookupList,				 CommandButtonMappedBorderTypeNames, offsetof( CommandButton, m_commandButtonBorder ) },
 	{ "RadiusCursorType",			INI::parseIndexList,				 TheRadiusCursorNames, offsetof( CommandButton, m_radiusCursor ) },
+	{ "AnchorRadiusCursorType",	INI::parseIndexList,				 TheRadiusCursorNames, offsetof( CommandButton, m_anchorRadiusCursor ) },
+	{ "AnchorRadius",					INI::parseReal,							 nullptr, offsetof( CommandButton, m_anchorRadius ) },
+	{ "TargetDecalRadius",		INI::parseReal,							 nullptr, offsetof( CommandButton, m_targetDecalRadius ) },
+	{ "AnchorDecalRadius",		INI::parseReal,							 nullptr, offsetof( CommandButton, m_anchorDecalRadius ) },
 	{ "UnitSpecificSound",		INI::parseAudioEventRTS,		 nullptr, offsetof( CommandButton, m_unitSpecificSound ) },
 
 	{ nullptr,						nullptr,												 nullptr, 0 }
@@ -565,6 +572,9 @@ CommandButton::CommandButton( void )
 	m_thingTemplate = nullptr;
 	m_markerTemplate = nullptr;
 	m_markerFX = nullptr;
+	m_numberOfTargets = 2;	// back-compat default: the chronosphere two-point power
+	m_targetRadius = 0.0f;
+	m_targetRadiusMode = SPTRM_NONE;
 	m_upgradeTemplate = nullptr;
 	m_weaponSlot = PRIMARY_WEAPON;
 	m_maxShotsToFire = 0x7fffffff;	// huge number
@@ -592,6 +602,10 @@ CommandButton::CommandButton( void )
 	//m_prev = nullptr;
 	m_next = nullptr;
 	m_radiusCursor = RADIUSCURSOR_NONE;
+	m_anchorRadiusCursor = RADIUSCURSOR_NONE;
+	m_anchorRadius = 0.0f;
+	m_targetDecalRadius = 0.0f;
+	m_anchorDecalRadius = 0.0f;
 
 }
 

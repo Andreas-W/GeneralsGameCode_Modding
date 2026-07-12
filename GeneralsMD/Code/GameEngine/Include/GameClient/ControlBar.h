@@ -101,7 +101,7 @@ enum CommandOption CPP_11(: Int)
 	CAN_USE_WAYPOINTS						= 0x00400000, // button has option to use a waypoint path
 	MUST_BE_STOPPED							= 0x00800000, // Unit must be stopped in order to be able to use button.
 	FORMATION_LAUNCH						= 0x01000000, // code-only: jumpjet group launch, keep formation offset instead of random scatter.
-	NEED_TWO_TARGET_POS					= 0x02000000, // command needs the user to select two target positions; only the 2nd click commits (chronosphere).
+	NEED_N_TARGET_POS						= 0x02000000, // command needs the user to select N target positions (NumberOfTargets); only the final click commits (chronosphere = 2).
 };
 
 #ifdef DEFINE_COMMAND_OPTION_NAMES
@@ -136,7 +136,31 @@ static const char *const TheCommandOptionNames[] =
 	"CAN_USE_WAYPOINTS",
 	"MUST_BE_STOPPED",
 	"FORMATION_LAUNCH",
-	"NEED_TWO_TARGET_POS",
+	"NEED_N_TARGET_POS",
+
+	nullptr
+};
+#endif  // end DEFINE_COMMAND_OPTION_NAMES
+
+//-------------------------------------------------------------------------------------------------
+/** How the successive clicks of a NEED_N_TARGET_POS power are constrained to a radius. Enforced
+	* client-side while capturing the points (an out-of-range click is rejected, not committed). */
+//-------------------------------------------------------------------------------------------------
+enum SpecialPowerTargetRadiusMode CPP_11(: Int)
+{
+	SPTRM_NONE = 0,					///< no distance constraint; every click is a delivered target
+	SPTRM_AREA_FROM_FIRST,	///< first click is a target AND the center; later clicks must be within TargetRadius of it
+	SPTRM_ANCHORED_AREA,		///< first click is an anchor only (NOT delivered); every target click must be within TargetRadius of it
+	SPTRM_CHAIN_PREVIOUS,		///< first click is a target; each later click must be within TargetRadius of the previous click
+};
+
+#ifdef DEFINE_COMMAND_OPTION_NAMES
+static const char *const TheSpecialPowerTargetRadiusModeNames[] =
+{
+	"NONE",
+	"AREA_FROM_FIRST",
+	"ANCHORED_AREA",
+	"CHAIN_PREVIOUS",
 
 	nullptr
 };
@@ -148,7 +172,7 @@ const UnsignedInt COMMAND_OPTION_NEED_TARGET =
 					NEED_TARGET_NEUTRAL_OBJECT |
 					NEED_TARGET_ALLY_OBJECT |
 					NEED_TARGET_POS |
-					NEED_TWO_TARGET_POS |
+					NEED_N_TARGET_POS |
 					CONTEXTMODE_COMMAND;
 
 const UnsignedInt COMMAND_OPTION_NEED_OBJECT_TARGET =
@@ -340,9 +364,20 @@ public:
 	OVERRIDE<ThingTemplate> getThingTemplate() const { return m_thingTemplate; }
 	const ThingTemplate* getMarkerObject() const { return m_markerTemplate; }
 	const FXList* getMarkerFX() const { return m_markerFX; }
+	Int getNumberOfTargets() const { return m_numberOfTargets; }
+	Real getTargetRadius() const { return m_targetRadius; }
+	SpecialPowerTargetRadiusMode getTargetRadiusMode() const { return m_targetRadiusMode; }
 	const UpgradeTemplate* getUpgradeTemplate() const { return m_upgradeTemplate; }
 	const SpecialPowerTemplate* getSpecialPowerTemplate() const { return m_specialPower; }
 	RadiusCursorType getRadiusCursorType() const { return m_radiusCursor; }
+	RadiusCursorType getAnchorRadiusCursorType() const { return m_anchorRadiusCursor; }
+	Real getAnchorRadius() const { return m_anchorRadius; }
+	Real getTargetDecalRadius() const { return m_targetDecalRadius; }
+	Real getAnchorDecalRadius() const { return m_anchorDecalRadius; }
+	// effective radii - centralize the "fall back to the constraint radius when unset" rule
+	Real getEffectiveAnchorConstraintRadius() const { return m_anchorRadius > 0.0f ? m_anchorRadius : m_targetRadius; }	///< ANCHORED_AREA allowed-area (clamp) radius
+	Real getEffectiveTargetDecalRadius() const { return m_targetDecalRadius > 0.0f ? m_targetDecalRadius : m_targetRadius; }	///< drawn per-target decal size
+	Real getEffectiveAnchorDecalRadius() const { return m_anchorDecalRadius > 0.0f ? m_anchorDecalRadius : getEffectiveAnchorConstraintRadius(); }	///< drawn anchor decal size
 	WeaponSlotType getWeaponSlot() const { return m_weaponSlot; }
 	Int getMaxShotsToFire() const { return m_maxShotsToFire; }
 	const ScienceVec& getScienceVec() const { return m_science; }
@@ -378,13 +413,20 @@ private:
 	CommandButton*								m_next;
 	UnsignedInt										m_options;										///< command options (see CommandOption enum)
 	const ThingTemplate*					m_thingTemplate;							///< for commands that use thing templates in command data
-	const ThingTemplate*					m_markerTemplate;							///< client-only marker model shown at the 1st pick of a two-point (chronosphere) power
-	const FXList*									m_markerFX;										///< one-shot client FX played at the 1st pick of a two-point power
+	const ThingTemplate*					m_markerTemplate;							///< client-only marker model shown at each pick of a NEED_N_TARGET_POS power
+	const FXList*									m_markerFX;										///< one-shot client FX played at each pick of a NEED_N_TARGET_POS power
+	Int														m_numberOfTargets;						///< number of delivered target points a NEED_N_TARGET_POS power needs before it commits
+	Real													m_targetRadius;								///< radius (dist) constraint for NEED_N_TARGET_POS clicks; meaning depends on m_targetRadiusMode
+	SpecialPowerTargetRadiusMode	m_targetRadiusMode;						///< how successive NEED_N_TARGET_POS clicks are radius-constrained
 	const UpgradeTemplate*				m_upgradeTemplate;						///< for commands that use upgrade templates in command data
 	const SpecialPowerTemplate*		m_specialPower;								///< actual special power template
 	RadiusCursorType							m_radiusCursor;								///< radius cursor, if any
+	RadiusCursorType							m_anchorRadiusCursor;					///< ANCHORED_AREA anchor decal cursor; falls back to m_radiusCursor if NONE
+	Real													m_anchorRadius;								///< ANCHORED_AREA allowed-area (clamp) radius; falls back to m_targetRadius if 0
+	Real													m_targetDecalRadius;					///< drawn per-target decal size; falls back to m_targetRadius if 0
+	Real													m_anchorDecalRadius;					///< drawn anchor decal size; falls back to the anchor constraint radius if 0
 	AsciiString										m_cursorName;									///< cursor name for placement (NEED_TARGET_POS) or valid version (CONTEXTMODE_COMMAND)
-	AsciiString										m_secondCursorName;						///< cursor name for the 2nd pick of a two-point (NEED_TWO_TARGET_POS) power; falls back to m_cursorName if empty
+	AsciiString										m_secondCursorName;						///< cursor name for picks after the first of a NEED_N_TARGET_POS power; falls back to m_cursorName if empty
 	AsciiString										m_invalidCursorName;					///< cursor name for invalid version
 
 	// bleah. shouldn't be mutable, but is. sue me. (Kris) -snork!

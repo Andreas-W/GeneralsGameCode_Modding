@@ -1232,35 +1232,56 @@ GameMessage::Type CommandTranslator::issueSpecialPowerCommand( const CommandButt
 
 		}
 	}
-	else if( BitIsSet( command->getOptions(), NEED_TWO_TARGET_POS ) )
+	else if( BitIsSet( command->getOptions(), NEED_N_TARGET_POS ) )
 	{
-		//TWO LOCATION BASED SPECIAL (chronosphere: source + destination)
-		msgType = GameMessage::MSG_DO_SPECIAL_POWER_AT_TWO_LOCATIONS;
+		//N LOCATION BASED SPECIAL (chronosphere = 2; count set by NumberOfTargets)
+		msgType = GameMessage::MSG_DO_SPECIAL_POWER_AT_MULTIPLE_LOCATIONS;
 		if( commandType == DO_COMMAND )
 		{
-			if( !TheInGameUI->hasPendingSpecialPowerFirstLocation() )
+			const SpecialPowerTargetRadiusMode radiusMode = command->getTargetRadiusMode();
+
+			// RADIUS_ANCHORED_AREA: the very first click is an anchor that only defines the constraint
+			// area; it is captured but never delivered as a target.
+			if( radiusMode == SPTRM_ANCHORED_AREA && !TheInGameUI->hasSpecialPowerAreaAnchor() )
 			{
-				//First click: capture the source point client-side. Commit nothing to game logic
-				//and stay pending so the second click (or a right-click cancel) can follow.
-				TheInGameUI->setPendingSpecialPowerFirstLocation( pos );
+				TheInGameUI->setSpecialPowerAreaAnchor( pos );
 				msgType = GameMessage::MSG_INVALID;
 			}
 			else
 			{
-				//Second click: emit ONE deterministic message carrying both points.
-				Coord3D source = *TheInGameUI->getPendingSpecialPowerFirstLocation();
-				GameMessage *msg = TheMessageStream->appendMessage( msgType );
-				msg->appendIntegerArgument( command->getSpecialPowerTemplate()->getID() );
-				msg->appendLocationArgument( source );
-				msg->appendLocationArgument( *pos );
-				msg->appendIntegerArgument( command->getOptions() );
-				msg->appendObjectIDArgument( specificSource );
-				TheInGameUI->clearPendingSpecialPowerFirstLocation();
+				// Clamp the pick into the active constraint area (anchor / first / previous target), then
+				// always accept it - out-of-area picks land on the boundary instead of being rejected.
+				Coord3D tpos = *pos;
+				TheInGameUI->clampToSpecialPowerTargetArea( command, tpos );
 
-				PickAndPlayInfo info;
-				info.m_drawTarget = target;
-				info.m_specialPowerType = command->getSpecialPowerTemplate()->getSpecialPowerType();
-				pickAndPlayUnitVoiceResponse( TheInGameUI->getAllSelectedDrawables(), msgType, &info );
+				{
+					TheInGameUI->addPendingSpecialPowerLocation( &tpos );
+
+					if( TheInGameUI->getPendingSpecialPowerLocationCount() < command->getNumberOfTargets() )
+					{
+						// Still collecting points - commit nothing yet, stay pending.
+						msgType = GameMessage::MSG_INVALID;
+					}
+					else
+					{
+						// Final click: emit ONE deterministic message carrying all target points (the
+						// anchor, if any, is not sent).
+						const std::vector<Coord3D>& targets = TheInGameUI->getPendingSpecialPowerLocations();
+						GameMessage *msg = TheMessageStream->appendMessage( msgType );
+						msg->appendIntegerArgument( command->getSpecialPowerTemplate()->getID() );
+						msg->appendIntegerArgument( (Int)targets.size() );
+						for( std::vector<Coord3D>::const_iterator it = targets.begin(); it != targets.end(); ++it )
+							msg->appendLocationArgument( *it );
+						msg->appendIntegerArgument( command->getOptions() );
+						msg->appendObjectIDArgument( specificSource );
+						TheInGameUI->clearPendingSpecialPowerLocations();
+
+						PickAndPlayInfo info;
+						info.m_drawTarget = target;
+						info.m_specialPowerType = command->getSpecialPowerTemplate()->getSpecialPowerType();
+						pickAndPlayUnitVoiceResponse( TheInGameUI->getAllSelectedDrawables(), msgType, &info );
+					}
+				}
 			}
 		}
 	}
@@ -1310,12 +1331,12 @@ GameMessage::Type CommandTranslator::issueSpecialPowerCommand( const CommandButt
 		}
 	}
 
-	// Two-point (chronosphere) powers commit atomically on the 2nd click and don't use the
+	// N-point (chronosphere) powers commit atomically on the final click and don't use the
 	// fire-then-steer overridable-destination model, so skip the shortcut auto-select/steer block -
-	// it would deselect/select the firing object, which clears the pending first-point state and
-	// makes the 2nd click impossible.
+	// it would deselect/select the firing object, which clears the pending point state and
+	// makes the remaining clicks impossible.
 	if( command->getCommandType() == GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT && commandType == DO_COMMAND
-			&& !BitIsSet( command->getOptions(), NEED_TWO_TARGET_POS ) )
+			&& !BitIsSet( command->getOptions(), NEED_N_TARGET_POS ) )
 	{
 		Object *obj = sourceDraw->getObject();
 		SpecialPowerUpdateInterface *spUpdate = obj->findSpecialPowerWithOverridableDestination();
@@ -1831,9 +1852,9 @@ GameMessage::Type CommandTranslator::evaluateContextCommand( Drawable *draw,
 					}
 
 					// null out the GUI command if we're actually doing something.
-					// Exception: a two-point (chronosphere) power keeps the command pending after the
-					// first click so the second click (or a right-click cancel) can still be handled.
-					if( type == DO_COMMAND && !TheInGameUI->hasPendingSpecialPowerFirstLocation() )
+					// Exception: an N-point (chronosphere) power keeps the command pending between
+					// clicks so the remaining clicks (or a right-click cancel) can still be handled.
+					if( type == DO_COMMAND && !TheInGameUI->hasPendingSpecialPowerLocations() )
 					{
 						TheInGameUI->setGUICommand( nullptr );
 					}

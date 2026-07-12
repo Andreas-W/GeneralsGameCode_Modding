@@ -2808,8 +2808,13 @@ void AIGroup::groupDoSpecialPowerAtLocation( UnsignedInt specialPowerID, const C
 // Chrono-style special power: the player picked a source and a destination. Both points arrive
 // together; validity/range is checked against the source point.
 //-------------------------------------------------------------------------------------------------
-void AIGroup::groupDoSpecialPowerAtTwoLocations( UnsignedInt specialPowerID, const Coord3D *source, const Coord3D *dest, UnsignedInt commandOptions )
+void AIGroup::groupDoSpecialPowerAtMultipleLocations( UnsignedInt specialPowerID, const std::vector<Coord3D>& locs, UnsignedInt commandOptions )
 {
+	if( locs.empty() )
+		return;
+
+	const Coord3D *firstLoc = &locs.front();
+
 	std::list<Object *>::iterator i;
 	for( i = m_memberList.begin(); i != m_memberList.end(); )
 	{
@@ -2830,9 +2835,9 @@ void AIGroup::groupDoSpecialPowerAtTwoLocations( UnsignedInt specialPowerID, con
 			SpecialPowerModuleInterface *mod = object->getSpecialPowerModule( spTemplate );
 			if( mod )
 			{
-				if( TheActionManager->canDoSpecialPowerAtLocation( object, source, CMD_FROM_PLAYER, spTemplate, nullptr, commandOptions ) )
+				if( TheActionManager->canDoSpecialPowerAtLocation( object, firstLoc, CMD_FROM_PLAYER, spTemplate, nullptr, commandOptions ) )
 				{
-					object->doSpecialPowerAtTwoLocations( spTemplate, source, dest, commandOptions );
+					object->doSpecialPowerAtMultipleLocations( spTemplate, locs, commandOptions );
 					object->friend_setUndetectedDefector( FALSE );// My secret is out
 				}
 			}

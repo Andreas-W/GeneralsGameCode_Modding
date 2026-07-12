@@ -29,6 +29,7 @@
 #pragma once
 
 #include "Lib/BaseType.h"
+#include "Common/STLTypedefs.h"
 #include "ref_ptr.h"
 
 #include "Common/Geometry.h"
@@ -463,7 +464,7 @@ public:
 	void doSpecialPower( const SpecialPowerTemplate *specialPowerTemplate, UnsignedInt commandOptions, Bool forced = false );	///< execute power
 	void doSpecialPowerAtObject( const SpecialPowerTemplate *specialPowerTemplate, Object *obj, UnsignedInt commandOptions, Bool forced = false );	///< execute power
 	void doSpecialPowerAtLocation( const SpecialPowerTemplate *specialPowerTemplate, const Coord3D *loc, Real angle, UnsignedInt commandOptions, Bool forced = false );	///< execute power
-	void doSpecialPowerAtTwoLocations( const SpecialPowerTemplate *specialPowerTemplate, const Coord3D *source, const Coord3D *dest, UnsignedInt commandOptions, Bool forced = false );	///< execute chrono-style power (source + destination)
+	void doSpecialPowerAtMultipleLocations( const SpecialPowerTemplate *specialPowerTemplate, const std::vector<Coord3D>& locs, UnsignedInt commandOptions, Bool forced = false );	///< execute N-point power (chronosphere = source + destination)
 	void doSpecialPowerUsingWaypoints( const SpecialPowerTemplate *specialPowerTemplate, const Waypoint *way, UnsignedInt commandOptions, Bool forced = false );	///< execute power
 
 	void doCommandButton( const CommandButton *commandButton, CommandSourceType cmdSource );

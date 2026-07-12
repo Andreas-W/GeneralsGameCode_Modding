@@ -31,6 +31,8 @@
 
 #include "Common/Module.h"
 #include "Common/GameType.h"
+#include "Lib/BaseType.h"
+#include <vector>
 
 //-------------------------------------------------------------------------------------------------
 class SpecialPowerUpdateInterface
@@ -47,6 +49,9 @@ public:
 	virtual Bool doesSpecialPowerHaveOverridableDestinationActive() const = 0; //Is it active now?
 	virtual Bool doesSpecialPowerHaveOverridableDestination() const = 0;	//Does it have it, even if it's not active?
 	virtual void setSpecialPowerOverridableDestination( const Coord3D *loc ) = 0;
+	// Deliver all N captured target points of a NEED_N_TARGET_POS power at once. Default no-op so
+	// only modules that care (chronosphere, MultiLocation) override it - no churn to other modules.
+	virtual void setSpecialPowerMultiLocations( const std::vector<Coord3D>& locs ) {}
 	virtual Bool isPowerCurrentlyInUse( const CommandButton *command = nullptr ) const = 0;
 };
 

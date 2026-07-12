@@ -1126,9 +1126,10 @@ InGameUI::InGameUI()
 	}
 
 	m_pendingGUICommand = nullptr;
-	m_pendingSpecialPowerFirstLocation.zero();
-	m_hasPendingSpecialPowerFirstLocation = FALSE;
-	m_specialPowerSourceMarker = nullptr;
+	m_pendingSpecialPowerLocations.clear();
+	m_hasSpecialPowerAreaAnchor = FALSE;
+	m_specialPowerAreaAnchor.zero();
+	m_specialPowerLocationMarkers.clear();
 
 	// allocate an array for the placement icons
 	m_placeIcon = NEW Drawable* [ TheGlobalData->m_maxLineBuildObjects ];
@@ -1271,6 +1272,7 @@ InGameUI::InGameUI()
 	m_preferSelection		= false;
 
 	m_curRcType = RADIUSCURSOR_NONE;
+	m_curRcRadiusOverride = -1.0f;
 
 	m_soloNexusSelectedDrawableID = INVALID_DRAWABLE_ID;
 
@@ -1411,13 +1413,45 @@ void InGameUI::init( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void InGameUI::setRadiusCursor(RadiusCursorType cursorType, const SpecialPowerTemplate* specPowTempl, WeaponSlotType weaponSlot)
+//-------------------------------------------------------------------------------------------------
+/** Phase-aware mouse-follow radius cursor for a NEED_N_TARGET_POS power. Only ANCHORED_AREA differs:
+	* before the anchor is placed the cursor previews the anchor circle, afterwards the target circle.
+	* outType/outRadius default to the button's target cursor + "SpecialPower default size" (-1). */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::resolveSpecialPowerRadiusCursor( const CommandButton *command, RadiusCursorType &outType, Real &outRadius )
 {
-	if (cursorType == m_curRcType)
+	outType = command->getRadiusCursorType();
+	outRadius = -1.0f;	// -1 => use the SpecialPower's RadiusCursorRadius
+
+	// The moving cursor previews the DECAL size (not the constraint), matching the circle dropped at
+	// each pick. ANCHORED_AREA has an anchor phase with its own cursor + decal; everything else is a
+	// plain target pick.
+	Real decalRadius;
+	if( command->getTargetRadiusMode() == SPTRM_ANCHORED_AREA && !hasSpecialPowerAreaAnchor() )
+	{
+		if( command->getAnchorRadiusCursorType() != RADIUSCURSOR_NONE )
+			outType = command->getAnchorRadiusCursorType();
+		decalRadius = command->getEffectiveAnchorDecalRadius();
+	}
+	else
+	{
+		decalRadius = command->getEffectiveTargetDecalRadius();
+	}
+
+	if( decalRadius > 0.0f )
+		outRadius = decalRadius;
+}
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+void InGameUI::setRadiusCursor(RadiusCursorType cursorType, const SpecialPowerTemplate* specPowTempl, WeaponSlotType weaponSlot, Real radiusOverride)
+{
+	if (cursorType == m_curRcType && radiusOverride == m_curRcRadiusOverride)
 		return;
 
 	m_curRadiusCursor.clear();
 	m_curRcType = RADIUSCURSOR_NONE;
+	m_curRcRadiusOverride = -1.0f;
 
 	if (cursorType == RADIUSCURSOR_NONE)
 		return;
@@ -1501,12 +1535,17 @@ void InGameUI::setRadiusCursor(RadiusCursorType cursorType, const SpecialPowerTe
 
 	}
 
+	// caller can override the SpecialPower-derived size (used by phase-aware ANCHORED_AREA cursors)
+	if (radiusOverride >= 0.0f)
+		radius = radiusOverride;
+
 	if (radius <= 0.0f)
 		return;
 
 	Coord3D pos = { 0, 0, 0 };	// will be updated right away
 	m_radiusCursors[cursorType].createRadiusDecal(pos, radius, controller, m_curRadiusCursor);
 	m_curRcType = cursorType;
+	m_curRcRadiusOverride = radiusOverride;
 
 	handleRadiusCursor();
 }
@@ -1539,11 +1578,18 @@ void InGameUI::handleRadiusCursor()
     }
     else
     {
+      // while picking constrained N-point targets, pin the radius cursor to the allowed area
+      if( m_pendingGUICommand )
+        clampToSpecialPowerTargetArea( m_pendingGUICommand, pos );
   		m_curRadiusCursor.setPosition(pos);	//world space position of center of decal
       m_curRadiusCursor.update();
     }
 
   }
+
+	// throb/animate the placed radius decals dropped at each captured N-point pick (static positions)
+	for( std::vector<RadiusDecal*>::iterator it = m_specialPowerLocationDecals.begin(); it != m_specialPowerLocationDecals.end(); ++it )
+		(*it)->update();
 }
 
 
@@ -3091,9 +3137,9 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 						switch( t )
 						{
 							case GameMessage::MSG_VALID_GUICOMMAND_HINT:
-								// For a two-point (chronosphere) power, show a distinct cursor once the first
-								// point is captured so the player knows they are picking the destination.
-								if( m_hasPendingSpecialPowerFirstLocation && !m_pendingGUICommand->getSecondCursorName().isEmpty() )
+								// For an N-point (chronosphere) power, show a distinct cursor once at least one
+								// point (anchor or target) is captured so the player knows they are picking a later point.
+								if( hasPendingSpecialPowerLocations() && !m_pendingGUICommand->getSecondCursorName().isEmpty() )
 									cursorName = m_pendingGUICommand->getSecondCursorName();
 								else
 									cursorName = m_pendingGUICommand->getCursorName();
@@ -3113,9 +3159,15 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 						{
 							setMouseCursor( Mouse::CROSS );
 						}
-						setRadiusCursor(m_pendingGUICommand->getRadiusCursorType(), //*****************************************************************
-														m_pendingGUICommand->getSpecialPowerTemplate(),
-														m_pendingGUICommand->getWeaponSlot());
+						{
+							RadiusCursorType rcType;
+							Real rcRadius;
+							resolveSpecialPowerRadiusCursor( m_pendingGUICommand, rcType, rcRadius );
+							setRadiusCursor(rcType,
+															m_pendingGUICommand->getSpecialPowerTemplate(),
+															m_pendingGUICommand->getWeaponSlot(),
+															rcRadius);
+						}
 					}
 					else if( BitIsSet( m_pendingGUICommand->getOptions(), COMMAND_OPTION_NEED_TARGET ) )
 					{
@@ -3124,9 +3176,15 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 							setMouseCursor( (Mouse::MouseCursor)index );
 						else
 							setMouseCursor( Mouse::CROSS );
-						setRadiusCursor(m_pendingGUICommand->getRadiusCursorType(), //*****************************************************************
-														m_pendingGUICommand->getSpecialPowerTemplate(),
-														m_pendingGUICommand->getWeaponSlot());
+						{
+							RadiusCursorType rcType;
+							Real rcRadius;
+							resolveSpecialPowerRadiusCursor( m_pendingGUICommand, rcType, rcRadius );
+							setRadiusCursor(rcType,
+															m_pendingGUICommand->getSpecialPowerTemplate(),
+															m_pendingGUICommand->getWeaponSlot(),
+															rcRadius);
+						}
 					}
 					else
 					{
@@ -3232,10 +3290,9 @@ void InGameUI::setGUICommand( const CommandButton *command )
 	if (TheRecorder->getMode() == RECORDERMODETYPE_PLAYBACK)
 		return;
 
-	// Any change (or cancel) of the pending command drops a half-finished two-point selection.
+	// Any change (or cancel) of the pending command drops a half-finished N-point selection.
 	// This is also the right-click cancel path (SelectionXlat calls setGUICommand(nullptr)).
-	m_hasPendingSpecialPowerFirstLocation = FALSE;
-	destroySpecialPowerSourceMarker();
+	clearPendingSpecialPowerLocations();
 
 	// sanity
 	if( command )
@@ -3282,9 +3339,13 @@ void InGameUI::setGUICommand( const CommandButton *command )
 		// the mouseoverhint code will take care of the cursor context, once the mouse leaves the panel
 		// but we will set the radius cursor here, so you can see it bleeding out from beneath the panel
 
-		setRadiusCursor(command->getRadiusCursorType(), //*****************************************************************
+		RadiusCursorType rcType;
+		Real rcRadius;
+		resolveSpecialPowerRadiusCursor( command, rcType, rcRadius );
+		setRadiusCursor(rcType,
 										command->getSpecialPowerTemplate(),
-										command->getWeaponSlot());
+										command->getWeaponSlot(),
+										rcRadius);
 	}
 	else
 	{
@@ -3310,44 +3371,193 @@ const CommandButton *InGameUI::getGUICommand( void ) const
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Store the first-click source location of a two-point (chronosphere) special power. Nothing is
-	* committed to game logic here - the second click sends the committing message. */
+/** Spawn the optional client-only marker (model and/or one-shot FX) for a captured N-point pick,
+	* configured on the pending command button. A model persists until the markers are destroyed
+	* (final click / cancel); an FXList is a one-shot. */
 //-------------------------------------------------------------------------------------------------
-void InGameUI::setPendingSpecialPowerFirstLocation( const Coord3D *loc )
+void InGameUI::spawnSpecialPowerLocationMarker( const Coord3D *loc, Bool isAnchor )
 {
-	if( loc == nullptr )
+	if( m_pendingGUICommand == nullptr || loc == nullptr )
 		return;
 
-	m_pendingSpecialPowerFirstLocation = *loc;
-	m_hasPendingSpecialPowerFirstLocation = TRUE;
-
-	// Optional client-only marker at the source point, configured on the pending command button.
-	// A model persists until the marker is destroyed (2nd click / cancel); an FXList is a one-shot.
-	destroySpecialPowerSourceMarker();
-	if( m_pendingGUICommand )
+	// MarkerObject/MarkerFX are for delivered target points only - the ANCHORED_AREA anchor is just an
+	// area definer, so it gets its radius decal (below) but no marker model or FX.
+	if( !isAnchor )
 	{
 		const ThingTemplate *markerTmpl = m_pendingGUICommand->getMarkerObject();
 		if( markerTmpl )
 		{
-			m_specialPowerSourceMarker = TheThingFactory->newDrawable( markerTmpl, (DrawableStatusBits)DRAWABLE_STATUS_NO_SAVE );
-			if( m_specialPowerSourceMarker )
-				m_specialPowerSourceMarker->setPosition( loc );
+			Drawable *marker = TheThingFactory->newDrawable( markerTmpl, (DrawableStatusBits)DRAWABLE_STATUS_NO_SAVE );
+			if( marker )
+			{
+				marker->setPosition( loc );
+				m_specialPowerLocationMarkers.push_back( marker );
+			}
 		}
 
 		FXList::doFXPos( m_pendingGUICommand->getMarkerFX(), loc );
 	}
+
+	// optional client-only radius decal at the pick. Its size is the (decal) radius, independent of the
+	// clamp/constraint radius: targets use RadiusCursorType + TargetDecalRadius, the ANCHORED_AREA anchor
+	// uses AnchorRadiusCursorType + AnchorDecalRadius, each falling back when unset. Owned by the local
+	// player, so it is only ever drawn here.
+	RadiusCursorType rc = m_pendingGUICommand->getRadiusCursorType();
+	Real radius = m_pendingGUICommand->getEffectiveTargetDecalRadius();
+	if( isAnchor )
+	{
+		if( m_pendingGUICommand->getAnchorRadiusCursorType() != RADIUSCURSOR_NONE )
+			rc = m_pendingGUICommand->getAnchorRadiusCursorType();
+		radius = m_pendingGUICommand->getEffectiveAnchorDecalRadius();
+	}
+	if( rc != RADIUSCURSOR_NONE && radius > 0.0f && m_radiusCursors[rc].valid() )
+	{
+		Player *localPlayer = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
+		if( localPlayer )
+		{
+			// heap-owned: RadiusDecal's copy ctor/operator= are unimplemented stubs, so it must never be
+			// copied. Construct in place into *decal and store the pointer.
+			RadiusDecal *decal = new RadiusDecal();
+			m_radiusCursors[rc].createRadiusDecal( *loc, radius, localPlayer, *decal );
+			decal->setPosition( *loc );
+			m_specialPowerLocationDecals.push_back( decal );
+		}
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Remove the two-point special power source marker drawable, if any. */
+/** Append an accepted target point of an N-point (chronosphere) special power. Nothing is committed
+	* to game logic here - the final click sends the committing message. */
 //-------------------------------------------------------------------------------------------------
-void InGameUI::destroySpecialPowerSourceMarker( void )
+void InGameUI::addPendingSpecialPowerLocation( const Coord3D *loc )
 {
-	if( m_specialPowerSourceMarker )
+	if( loc == nullptr )
+		return;
+
+	m_pendingSpecialPowerLocations.push_back( *loc );
+	spawnSpecialPowerLocationMarker( loc );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Store the RADIUS_ANCHORED_AREA anchor (the first click of that mode). It defines the constraint
+	* area but is NOT a delivered target - it is never sent in the committing message. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::setSpecialPowerAreaAnchor( const Coord3D *loc )
+{
+	if( loc == nullptr )
+		return;
+
+	m_specialPowerAreaAnchor = *loc;
+	m_hasSpecialPowerAreaAnchor = TRUE;
+	spawnSpecialPowerLocationMarker( loc, TRUE );
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Clear all captured target points + the area anchor + every marker drawable. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::clearPendingSpecialPowerLocations( void )
+{
+	m_pendingSpecialPowerLocations.clear();
+	m_hasSpecialPowerAreaAnchor = FALSE;
+	destroySpecialPowerLocationMarkers();
+	destroySpecialPowerLocationDecals();
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Clamp p (XY only) to lie within radius of center. Mirrors the squared-distance range test used
+	* by ActionManager::canDoSpecialPowerAtLocation; z is left untouched (terrain height). */
+//-------------------------------------------------------------------------------------------------
+static void clampPointToCircleXY( Coord3D &p, const Coord3D &center, Real radius )
+{
+	Real dx = p.x - center.x;
+	Real dy = p.y - center.y;
+	Real d2 = dx*dx + dy*dy;
+	if( d2 > radius*radius && d2 > 0.0f )
 	{
-		TheGameClient->destroyDrawable( m_specialPowerSourceMarker );
-		m_specialPowerSourceMarker = nullptr;
+		Real s = radius / (Real)sqrt( d2 );
+		p.x = center.x + dx * s;
+		p.y = center.y + dy * s;
 	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Resolve the active target-phase area constraint for an N-point (NEED_N_TARGET_POS) power, per the
+	* button's TargetRadiusMode. Returns FALSE when the current pick is unconstrained (NONE, or the
+	* first free pick of AREA_FROM_FIRST/CHAIN_PREVIOUS, or the anchor pick of ANCHORED_AREA). */
+//-------------------------------------------------------------------------------------------------
+Bool InGameUI::getSpecialPowerTargetAreaConstraint( const CommandButton *cmd, Coord3D &outCenter, Real &outRadius ) const
+{
+	if( cmd == nullptr )
+		return FALSE;
+
+	const Coord3D *center = nullptr;
+	Real radius = cmd->getTargetRadius();
+
+	switch( cmd->getTargetRadiusMode() )
+	{
+		case SPTRM_ANCHORED_AREA:
+			if( !hasSpecialPowerAreaAnchor() )
+				return FALSE;	// anchor phase is free
+			center = getSpecialPowerAreaAnchor();
+			radius = cmd->getEffectiveAnchorConstraintRadius();
+			break;
+		case SPTRM_AREA_FROM_FIRST:
+			if( m_pendingSpecialPowerLocations.empty() )
+				return FALSE;	// first target is free
+			center = &m_pendingSpecialPowerLocations.front();
+			break;
+		case SPTRM_CHAIN_PREVIOUS:
+			if( m_pendingSpecialPowerLocations.empty() )
+				return FALSE;	// first target is free
+			center = &m_pendingSpecialPowerLocations.back();
+			break;
+		default:
+			return FALSE;
+	}
+
+	if( center == nullptr || radius <= 0.0f )
+		return FALSE;
+
+	outCenter = *center;
+	outRadius = radius;
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Clamp pos into the active target-phase constraint area, if any. Returns TRUE if clamped. */
+//-------------------------------------------------------------------------------------------------
+Bool InGameUI::clampToSpecialPowerTargetArea( const CommandButton *cmd, Coord3D &pos ) const
+{
+	Coord3D center;
+	Real radius;
+	if( !getSpecialPowerTargetAreaConstraint( cmd, center, radius ) )
+		return FALSE;
+
+	clampPointToCircleXY( pos, center, radius );
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Remove all N-point special power marker drawables, if any. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::destroySpecialPowerLocationMarkers( void )
+{
+	for( std::vector<Drawable*>::iterator it = m_specialPowerLocationMarkers.begin(); it != m_specialPowerLocationMarkers.end(); ++it )
+	{
+		if( *it )
+			TheGameClient->destroyDrawable( *it );
+	}
+	m_specialPowerLocationMarkers.clear();
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Remove all N-point special power radius decals, if any. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::destroySpecialPowerLocationDecals( void )
+{
+	for( std::vector<RadiusDecal*>::iterator it = m_specialPowerLocationDecals.begin(); it != m_specialPowerLocationDecals.end(); ++it )
+		delete *it;	// ~RadiusDecal calls clear() -> releases the shadow
+	m_specialPowerLocationDecals.clear();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -4912,8 +5122,8 @@ Bool InGameUI::canSelectedObjectsDoSpecialPower( const CommandButton *command, c
 	//1) NO TARGET OR POS
 	//2) COMMAND_OPTION_NEED_OBJECT_TARGET
 	//3) NEED_TARGET_POS
-	// A two-point (chronosphere) power validates each click as a location, just like NEED_TARGET_POS.
-	Bool doAtPosition = BitIsSet( command->getOptions(), NEED_TARGET_POS ) || BitIsSet( command->getOptions(), NEED_TWO_TARGET_POS );
+	// An N-point (chronosphere) power validates each click as a location, just like NEED_TARGET_POS.
+	Bool doAtPosition = BitIsSet( command->getOptions(), NEED_TARGET_POS ) || BitIsSet( command->getOptions(), NEED_N_TARGET_POS );
 	Bool doAtObject = BitIsSet( command->getOptions(), COMMAND_OPTION_NEED_OBJECT_TARGET );
 
 	//Sanity checks

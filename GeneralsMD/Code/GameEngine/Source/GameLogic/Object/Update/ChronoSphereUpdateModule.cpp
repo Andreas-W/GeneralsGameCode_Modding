@@ -149,14 +149,16 @@ Bool ChronoSphereUpdateModule::initiateIntentToDoSpecialPower(const SpecialPower
 }
 
 //-------------------------------------------------------------------------------------------------
-// Second click: the destination point arrives through the overridable-destination channel.
+// Both clicks arrive together: locs[0] = source (already captured by initiateIntentToDoSpecialPower),
+// locs[1] = destination. This is the N=2 case of the generic N-point delivery.
 //-------------------------------------------------------------------------------------------------
-void ChronoSphereUpdateModule::setSpecialPowerOverridableDestination( const Coord3D *loc )
+void ChronoSphereUpdateModule::setSpecialPowerMultiLocations( const std::vector<Coord3D>& locs )
 {
-	if( loc == nullptr )
+	if( locs.size() < 2 )
 		return;
 
-	m_destLocation.set( loc );
+	m_sourceLocation.set( &locs[0] );
+	m_destLocation.set( &locs[1] );
 
 	DEBUG_LOG(( "ChronoSphereUpdateModule: destination selected at (%.1f, %.1f, %.1f)",
 		m_destLocation.x, m_destLocation.y, m_destLocation.z ));
