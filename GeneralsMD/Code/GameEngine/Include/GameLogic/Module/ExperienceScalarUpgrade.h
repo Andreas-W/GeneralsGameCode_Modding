@@ -49,6 +49,7 @@ public:
 	Bool m_initiallyActive;   // Apply upgrade immediately
 	Real m_addXPScalar;   ///< Additive bonus to scalar for XP this unit gains
 	Real m_addXPValueScalar;  ///< Additive bonus to scalar for XP this unit gives when killed
+	VeterancyLevel m_setMaxVeterancyLevel;  ///< if not LEVEL_INVALID, override the object's max veterancy cap
 
 };
 

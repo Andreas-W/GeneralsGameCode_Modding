@@ -128,9 +128,10 @@ const FieldParse ThingTemplate::s_objectFieldParseTable[] =
 	{ "FactoryExitWidth",			INI::parseReal,												nullptr,		offsetof( ThingTemplate, m_factoryExitWidth ) },
 	{ "FactoryExtraBibWidth",	INI::parseReal,												nullptr,		offsetof( ThingTemplate, m_factoryExtraBibWidth ) },
 
-	{ "SkillPointValue",			ThingTemplate::parseIntList,					(void*)LEVEL_COUNT,		offsetof( ThingTemplate, m_skillPointValues ) },
-	{ "ExperienceValue",			ThingTemplate::parseIntList,					(void*)LEVEL_COUNT,		offsetof( ThingTemplate, m_experienceValues ) },
-	{ "ExperienceRequired",		ThingTemplate::parseIntList,					(void*)LEVEL_COUNT,		offsetof( ThingTemplate, m_experienceRequired ) },
+	{ "SkillPointValue",			ThingTemplate::parseSkillPointValueList,			nullptr,		offsetof( ThingTemplate, m_skillPointValues ) },
+	{ "ExperienceValue",			ThingTemplate::parseExperienceValueList,			nullptr,		offsetof( ThingTemplate, m_experienceValues ) },
+	{ "ExperienceRequired",		ThingTemplate::parseExperienceRequiredList,		nullptr,		offsetof( ThingTemplate, m_experienceRequired ) },
+	{ "MaxVeterancyLevel",		INI::parseIndexList,				TheVeterancyNames,		offsetof( ThingTemplate, m_maxVeterancyLevel ) },
 	{ "IsTrainable",					INI::parseBool,												nullptr,									offsetof( ThingTemplate, m_isTrainable ) },
 	{ "EnterGuard",						INI::parseBool,												nullptr,									offsetof( ThingTemplate, m_enterGuard ) },
 	{ "HijackGuard",					INI::parseBool,												nullptr,									offsetof( ThingTemplate, m_hijackGuard ) },
@@ -639,6 +640,54 @@ void ThingTemplate::parseIntList(INI* ini, void *instance, void* store, const vo
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Read a variable-length list of ints (up to LEVEL_COUNT) into a per-veterancy-level array. Returns
+	the number of values actually provided. Used by the veterancy experience parsers so that INI lines
+	which only specify the original four ranks still parse after LEVEL_FOUR/LEVEL_FIVE were added. */
+//-------------------------------------------------------------------------------------------------
+static Int parseVeterancyIntList(INI* ini, Int* intList)
+{
+	Int count = 0;
+	for( const char* token = ini->getNextTokenOrNull(); token != nullptr && count < LEVEL_COUNT; token = ini->getNextTokenOrNull() )
+	{
+		intList[count++] = INI::scanInt(token);
+	}
+	return count;
+}
+
+//-------------------------------------------------------------------------------------------------
+void ThingTemplate::parseExperienceValueList(INI* ini, void *instance, void* store, const void* userData)
+{
+	// Trailing (unspecified) levels inherit the last specified value, so a unit granted FOUR/FIVE is
+	// worth the same as its highest defined rank (normally HEROIC).
+	Int *intList = (Int*)store;
+	Int n = parseVeterancyIntList(ini, intList);
+	Int fill = (n > 0) ? intList[n - 1] : 0;
+	for( Int i = n; i < LEVEL_COUNT; ++i )
+		intList[i] = fill;
+}
+
+//-------------------------------------------------------------------------------------------------
+void ThingTemplate::parseExperienceRequiredList(INI* ini, void *instance, void* store, const void* userData)
+{
+	// Trailing (unspecified) levels are unreachable by default (INT_MAX), so objects cannot climb into
+	// FOUR/FIVE naturally unless the INI explicitly provides a requirement for them.
+	Int *intList = (Int*)store;
+	Int n = parseVeterancyIntList(ini, intList);
+	for( Int i = n; i < LEVEL_COUNT; ++i )
+		intList[i] = INT_MAX;
+}
+
+//-------------------------------------------------------------------------------------------------
+void ThingTemplate::parseSkillPointValueList(INI* ini, void *instance, void* store, const void* userData)
+{
+	// Trailing (unspecified) levels fall back to "use experience value" (which itself inherits HEROIC).
+	Int *intList = (Int*)store;
+	Int n = parseVeterancyIntList(ini, intList);
+	for( Int i = n; i < LEVEL_COUNT; ++i )
+		intList[i] = USE_EXP_VALUE_FOR_SKILL_VALUE;
+}
+
+//-------------------------------------------------------------------------------------------------
 static void parsePrerequisiteUnit( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ )
 {
 	std::vector<ProductionPrerequisite>* v = (std::vector<ProductionPrerequisite>*)instance;
@@ -1037,10 +1086,14 @@ ThingTemplate::ThingTemplate() :
 	for( Int levelIndex = 0; levelIndex < LEVEL_COUNT; levelIndex++ )
 	{
 		m_experienceValues[levelIndex] = 0;
-		m_experienceRequired[levelIndex] = 0;
+		// Levels beyond HEROIC (FOUR/FIVE) default to an unreachable experience requirement, so objects
+		// can never climb into them naturally -- they only apply when granted explicitly.
+		m_experienceRequired[levelIndex] = (levelIndex > LEVEL_HEROIC) ? INT_MAX : 0;
 		// -1 means "same value as experienceValues for that level"
 		m_skillPointValues[levelIndex] = USE_EXP_VALUE_FOR_SKILL_VALUE;
 	}
+	// By default an object may reach the highest vanilla rank; MaxVeterancyLevel can cap it lower.
+	m_maxVeterancyLevel = LEVEL_HEROIC;
 	m_isTrainable = FALSE;
 	m_enterGuard = FALSE;
 	m_hijackGuard = FALSE;

@@ -99,6 +99,10 @@ enum WeaponBonusConditionType CPP_11(: Int)
 	WEAPONBONUSCONDITION_EXTRA7,
 	WEAPONBONUSCONDITION_EXTRA8,
 
+	// Veterancy ranks beyond HEROIC. Appended (not inserted) to preserve existing save values.
+	WEAPONBONUSCONDITION_VETERANCY_FOUR,
+	WEAPONBONUSCONDITION_VETERANCY_FIVE,
+
 
 	WEAPONBONUSCONDITION_COUNT
 };

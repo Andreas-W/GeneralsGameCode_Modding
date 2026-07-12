@@ -55,6 +55,10 @@ enum ArmorSetType CPP_11(: Int)
 	ARMORSET_PLAYER_UPGRADE3,
 	ARMORSET_PLAYER_UPGRADE4,
 
+	// Veterancy ranks beyond HEROIC. Appended (not inserted) to preserve existing save values.
+	ARMORSET_FOUR,
+	ARMORSET_FIVE,
+
 	ARMORSET_COUNT
 };
 

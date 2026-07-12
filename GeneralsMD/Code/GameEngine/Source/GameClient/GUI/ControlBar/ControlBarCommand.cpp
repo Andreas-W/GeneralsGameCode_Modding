@@ -959,6 +959,10 @@ const Image* ControlBar::calculateVeterancyOverlayForThing( const ThingTemplate 
 			return m_rankEliteIcon;
 		case LEVEL_HEROIC:
 			return m_rankHeroicIcon;
+		case LEVEL_FOUR:
+			return m_rankFourIcon;
+		case LEVEL_FIVE:
+			return m_rankFiveIcon;
 	}
 	return nullptr;
 }
@@ -981,6 +985,10 @@ const Image* ControlBar::calculateVeterancyOverlayForObject( const Object *obj )
 			return m_rankEliteIcon;
 		case LEVEL_HEROIC:
 			return m_rankHeroicIcon;
+		case LEVEL_FOUR:
+			return m_rankFourIcon;
+		case LEVEL_FIVE:
+			return m_rankFiveIcon;
 	}
 	return nullptr;
 }
