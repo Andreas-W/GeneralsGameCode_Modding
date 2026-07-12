@@ -104,7 +104,9 @@ static void parseAllVetLevelsAsciiString( INI* ini, void* /*instance*/, void * s
 {
 	AsciiString* s = (AsciiString*)store;
 	AsciiString a = ini->getNextAsciiString();
-	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)
+	// Only fill through HEROIC; the ranks beyond it (FOUR/FIVE) are resolved from HEROIC in
+	// postProcessLoad, so an explicit per-level HEROIC override still propagates to them.
+	for (Int i = LEVEL_FIRST; i <= LEVEL_HEROIC; ++i)
 		s[i] = a;
 }
 
@@ -126,7 +128,8 @@ static void parseAllVetLevelsFXList( INI* ini, void* /*instance*/, void * store,
 	ConstFXListPtr* s = (ConstFXListPtr*)store;
 	const FXList* fx = nullptr;
 	INI::parseFXList(ini, nullptr, &fx, nullptr);
-	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)
+	// Only fill through HEROIC; FOUR/FIVE are resolved from HEROIC in postProcessLoad.
+	for (Int i = LEVEL_FIRST; i <= LEVEL_HEROIC; ++i)
 		s[i] = fx;
 }
 
@@ -148,7 +151,8 @@ static void parseAllVetLevelsPSys( INI* ini, void* /*instance*/, void * store, c
 	ConstParticleSystemTemplatePtr* s = (ConstParticleSystemTemplatePtr*)store;
 	ConstParticleSystemTemplatePtr pst = nullptr;
 	INI::parseParticleSystemTemplate(ini, nullptr, &pst, nullptr);
-	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)
+	// Only fill through HEROIC; FOUR/FIVE are resolved from HEROIC in postProcessLoad.
+	for (Int i = LEVEL_FIRST; i <= LEVEL_HEROIC; ++i)
 		s[i] = pst;
 }
 
