@@ -104,7 +104,9 @@ static void parseAllVetLevelsAsciiString( INI* ini, void* /*instance*/, void * s
 {
 	AsciiString* s = (AsciiString*)store;
 	AsciiString a = ini->getNextAsciiString();
-	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)
+	// Only fill through HEROIC; the ranks beyond it (FOUR/FIVE) are resolved from HEROIC in
+	// postProcessLoad, so an explicit per-level HEROIC override still propagates to them.
+	for (Int i = LEVEL_FIRST; i <= LEVEL_HEROIC; ++i)
 		s[i] = a;
 }
 
@@ -126,7 +128,8 @@ static void parseAllVetLevelsFXList( INI* ini, void* /*instance*/, void * store,
 	ConstFXListPtr* s = (ConstFXListPtr*)store;
 	const FXList* fx = nullptr;
 	INI::parseFXList(ini, nullptr, &fx, nullptr);
-	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)
+	// Only fill through HEROIC; FOUR/FIVE are resolved from HEROIC in postProcessLoad.
+	for (Int i = LEVEL_FIRST; i <= LEVEL_HEROIC; ++i)
 		s[i] = fx;
 }
 
@@ -148,7 +151,8 @@ static void parseAllVetLevelsPSys( INI* ini, void* /*instance*/, void * store, c
 	ConstParticleSystemTemplatePtr* s = (ConstParticleSystemTemplatePtr*)store;
 	ConstParticleSystemTemplatePtr pst = nullptr;
 	INI::parseParticleSystemTemplate(ini, nullptr, &pst, nullptr);
-	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)
+	// Only fill through HEROIC; FOUR/FIVE are resolved from HEROIC in postProcessLoad.
+	for (Int i = LEVEL_FIRST; i <= LEVEL_HEROIC; ++i)
 		s[i] = pst;
 }
 
@@ -538,6 +542,18 @@ void WeaponTemplate::postProcessLoad()
 	{
 		m_projectileTmpl = TheThingFactory->findTemplate(m_projectileName);
 		DEBUG_ASSERTCRASH(m_projectileTmpl, ("projectile %s not found!",m_projectileName.str()));
+	}
+
+	// Veterancy ranks beyond HEROIC (FOUR/FIVE) inherit HEROIC's per-level FX/OCL/exhaust entries unless
+	// they were explicitly defined. Do the OCL name copy here, before the name->pointer resolution below.
+	for (Int i = LEVEL_HEROIC + 1; i <= LEVEL_LAST; ++i)
+	{
+		if (m_fireFXs[i] == nullptr)								m_fireFXs[i] = m_fireFXs[LEVEL_HEROIC];
+		if (m_projectileDetonateFXs[i] == nullptr)	m_projectileDetonateFXs[i] = m_projectileDetonateFXs[LEVEL_HEROIC];
+		if (m_projectileExhausts[i] == nullptr)			m_projectileExhausts[i] = m_projectileExhausts[LEVEL_HEROIC];
+		if (m_preAttackFXs[i] == nullptr)						m_preAttackFXs[i] = m_preAttackFXs[LEVEL_HEROIC];
+		if (m_fireOCLNames[i].isEmpty())						m_fireOCLNames[i] = m_fireOCLNames[LEVEL_HEROIC];
+		if (m_projectileDetonationOCLNames[i].isEmpty())	m_projectileDetonationOCLNames[i] = m_projectileDetonationOCLNames[LEVEL_HEROIC];
 	}
 
 	for (Int i = LEVEL_FIRST; i <= LEVEL_LAST; ++i)

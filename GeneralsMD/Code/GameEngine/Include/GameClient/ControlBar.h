@@ -1070,6 +1070,8 @@ private:
 	static const Image *m_rankVeteranIcon;
 	static const Image *m_rankEliteIcon;
 	static const Image *m_rankHeroicIcon;
+	static const Image *m_rankFourIcon;
+	static const Image *m_rankFiveIcon;
 
 	const Image *m_generalButtonEnable;
 	const Image *m_generalButtonHighlight;

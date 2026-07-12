@@ -92,6 +92,8 @@ ControlBar *TheControlBar = nullptr;
 const Image* ControlBar::m_rankVeteranIcon	= nullptr;
 const Image* ControlBar::m_rankEliteIcon		= nullptr;
 const Image* ControlBar::m_rankHeroicIcon		= nullptr;
+const Image* ControlBar::m_rankFourIcon			= nullptr;
+const Image* ControlBar::m_rankFiveIcon			= nullptr;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // CommandButton //////////////////////////////////////////////////////////////////////////////////
@@ -1328,6 +1330,8 @@ void ControlBar::init( void )
 		m_rankVeteranIcon = TheMappedImageCollection ? TheMappedImageCollection->findImageByName( "SSChevron1L" ) : nullptr;
 		m_rankEliteIcon		= TheMappedImageCollection ? TheMappedImageCollection->findImageByName( "SSChevron2L" ) : nullptr;
 		m_rankHeroicIcon	= TheMappedImageCollection ? TheMappedImageCollection->findImageByName( "SSChevron3L" ) : nullptr;
+		m_rankFourIcon		= TheMappedImageCollection ? TheMappedImageCollection->findImageByName( "SSChevron4L" ) : nullptr;
+		m_rankFiveIcon		= TheMappedImageCollection ? TheMappedImageCollection->findImageByName( "SSChevron5L" ) : nullptr;
 
 
 //		if(!m_controlBarResizer)

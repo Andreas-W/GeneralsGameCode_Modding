@@ -201,12 +201,14 @@ enum VeterancyLevel CPP_11(: Int)
 	LEVEL_VETERAN,
 	LEVEL_ELITE,
 	LEVEL_HEROIC,
+	LEVEL_FOUR,
+	LEVEL_FIVE,
 
 	LEVEL_COUNT,
 	LEVEL_INVALID,
 
 	LEVEL_FIRST = 0,
-	LEVEL_LAST = LEVEL_HEROIC
+	LEVEL_LAST = LEVEL_FIVE
 };
 
 // TheVeterancyNames is defined in GameCommon.cpp

@@ -64,5 +64,10 @@ enum WeaponSetType CPP_11(: Int)
 	WEAPONSET_GARRISONED,
 	WEAPONSET_CONTAINED,
 
+	// Veterancy ranks beyond HEROIC. Appended (not inserted) to preserve existing save values and the
+	// positional TheWeaponSetTypeToModelConditionTypeMap ordering.
+	WEAPONSET_FOUR,
+	WEAPONSET_FIVE,
+
 	WEAPONSET_COUNT
 };

@@ -282,6 +282,12 @@ void UpgradeCenter::init( void )
 	up = newUpgrade("");
 	up->friend_makeVeterancyUpgrade(LEVEL_HEROIC);
 
+	up = newUpgrade("");
+	up->friend_makeVeterancyUpgrade(LEVEL_FOUR);
+
+	up = newUpgrade("");
+	up->friend_makeVeterancyUpgrade(LEVEL_FIVE);
+
 }
 
 //-------------------------------------------------------------------------------------------------

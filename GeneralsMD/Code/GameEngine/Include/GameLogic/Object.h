@@ -243,6 +243,8 @@ public:
 	ExperienceTracker* getExperienceTracker() {return m_experienceTracker;}
 	const ExperienceTracker* getExperienceTracker() const {return m_experienceTracker;}
 	VeterancyLevel getVeterancyLevel() const;
+	VeterancyLevel getMaxVeterancyLevel() const;																			///< highest veterancy level this object may reach (template default, overridable)
+	void setMaxVeterancyLevel( VeterancyLevel maxLevel, Bool provideFeedback = TRUE );	///< override the veterancy cap (e.g. from an upgrade)
 
 	inline const AsciiString& getName() const { return m_name; }
 	inline void setName( const AsciiString& newName ) { m_name = newName; }
