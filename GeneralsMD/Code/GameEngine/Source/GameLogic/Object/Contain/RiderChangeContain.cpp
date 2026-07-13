@@ -44,6 +44,7 @@
 
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
+#include "GameLogic/ArmorSet.h"
 #include "GameLogic/ExperienceTracker.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Locomotor.h"
@@ -89,6 +90,12 @@ void RiderChangeContainModuleData::parseRiderInfo( INI* ini, void *instance, voi
 
 	//Locomotor set type
 	rider->m_locomotorSetType = (LocomotorSetType)INI::scanIndexList( ini->getNextToken(), TheLocomotorSetNames );
+
+	//Armor set (optional, last token; keeps existing rider lines valid)
+	rider->m_armorSetFlag = ARMORSET_NONE;
+	const char* armorToken = ini->getNextTokenOrNull();
+	if( armorToken )
+		rider->m_armorSetFlag = (ArmorSetType)INI::scanIndexList( armorToken, ArmorSetFlags::getBitNames() );
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -228,6 +235,10 @@ void RiderChangeContain::onContaining( Object *rider, Bool wasSelected )
 			//Also set the correct weaponset flag
 			obj->setWeaponSetFlag( data->m_riders[ i ].m_weaponSetFlag );
 
+			//Also set the correct armorset flag (if any)
+			if( data->m_riders[ i ].m_armorSetFlag != ARMORSET_NONE )
+				obj->setArmorSetFlag( data->m_riders[ i ].m_armorSetFlag );
+
 			//Also set the object status
 			obj->setStatus( MAKE_OBJECT_STATUS_MASK( data->m_riders[ i ].m_objectStatusType ) );
 
@@ -302,6 +313,10 @@ void RiderChangeContain::onRemoving( Object *rider )
 
 			//Also clear the current weaponset flag
 			bike->clearWeaponSetFlag( data->m_riders[ i ].m_weaponSetFlag );
+
+			//Also clear the current armorset flag (if any)
+			if( data->m_riders[ i ].m_armorSetFlag != ARMORSET_NONE )
+				bike->clearArmorSetFlag( data->m_riders[ i ].m_armorSetFlag );
 
 			//Also clear the object status
 			bike->clearStatus( MAKE_OBJECT_STATUS_MASK( data->m_riders[ i ].m_objectStatusType ) );

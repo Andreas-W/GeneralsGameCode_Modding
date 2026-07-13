@@ -37,6 +37,7 @@
 enum WeaponSetType CPP_11(: Int);
 enum ObjectStatusType CPP_11(: Int);
 enum LocomotorSetType CPP_11(: Int);
+enum ArmorSetType CPP_11(: Int);
 
 struct RiderInfo
 {
@@ -46,6 +47,7 @@ struct RiderInfo
 	ObjectStatusType m_objectStatusType;
 	AsciiString m_commandSet;
 	LocomotorSetType m_locomotorSetType;
+	ArmorSetType m_armorSetFlag;
 };
 
 //-------------------------------------------------------------------------------------------------

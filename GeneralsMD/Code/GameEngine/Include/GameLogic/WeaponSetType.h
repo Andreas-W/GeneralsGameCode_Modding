@@ -69,5 +69,16 @@ enum WeaponSetType CPP_11(: Int)
 	WEAPONSET_FOUR,
 	WEAPONSET_FIVE,
 
+	// Additional rider slots (appended to preserve existing save values and the positional
+	// TheWeaponSetTypeToModelConditionTypeMap ordering). See RiderChangeContain (MAX_RIDERS).
+	WEAPONSET_RIDER9,
+	WEAPONSET_RIDER10,
+	WEAPONSET_RIDER11,
+	WEAPONSET_RIDER12,
+	WEAPONSET_RIDER13,
+	WEAPONSET_RIDER14,
+	WEAPONSET_RIDER15,
+	WEAPONSET_RIDER16,
+
 	WEAPONSET_COUNT
 };

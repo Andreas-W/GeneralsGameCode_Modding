@@ -91,6 +91,21 @@ enum ObjectStatusTypes CPP_11(: Int)
 	OBJECT_STATUS_DEPLOYED,							///< Object is deployed.
 	// add more status types here and don't forget to add to the string table ObjectStatusMaskType::s_bitNameList[]
 
+	// Additional rider slots (appended to preserve existing save values). See RiderChangeContain (MAX_RIDERS).
+	OBJECT_STATUS_RIDER9,
+	OBJECT_STATUS_RIDER10,
+	OBJECT_STATUS_RIDER11,
+	OBJECT_STATUS_RIDER12,
+	OBJECT_STATUS_RIDER13,
+	OBJECT_STATUS_RIDER14,
+	OBJECT_STATUS_RIDER15,
+	OBJECT_STATUS_RIDER16,
+
+	// Reserved padding: keeps OBJECT_STATUS_COUNT distinct from WEAPONBONUSCONDITION_COUNT. BitFlags<N> is
+	// keyed only on its bit count, so two flag enums with an equal COUNT would share one name list (see the
+	// guard in BitFlags.cpp). Do not reuse this slot for a real status without re-checking the counts.
+	OBJECT_STATUS_RESERVED_UNIQUE_SIZE_PAD,
+
 	OBJECT_STATUS_COUNT
 
 };

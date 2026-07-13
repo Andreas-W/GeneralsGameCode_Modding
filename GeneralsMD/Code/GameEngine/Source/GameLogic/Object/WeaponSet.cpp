@@ -90,8 +90,19 @@ const char* const WeaponSetFlags::s_bitNameList[] =
 	"GARRISONED",
 	"CONTAINED",
 
+	//New Veterancy levels
 	"LEVEL_FOUR",
 	"LEVEL_FIVE",
+
+	//Additional rider slots
+	"WEAPON_RIDER9",
+	"WEAPON_RIDER10",
+	"WEAPON_RIDER11",
+	"WEAPON_RIDER12",
+	"WEAPON_RIDER13",
+	"WEAPON_RIDER14",
+	"WEAPON_RIDER15",
+	"WEAPON_RIDER16",
 
 	nullptr
 };

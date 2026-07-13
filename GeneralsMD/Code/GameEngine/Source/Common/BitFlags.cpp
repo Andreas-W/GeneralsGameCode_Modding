@@ -260,6 +260,16 @@ const char* const ModelConditionFlags::s_bitNameList[] =
 
 	"WEAPONSET_FOUR",
 	"WEAPONSET_FIVE",
+
+	"RIDER9",
+	"RIDER10",
+	"RIDER11",
+	"RIDER12",
+	"RIDER13",
+	"RIDER14",
+	"RIDER15",
+	"RIDER16",
+
 	"RESERVED_UNIQUE_SIZE_PAD",
 
 	nullptr
@@ -282,6 +292,23 @@ const char* const ArmorSetFlags::s_bitNameList[] =
 	"PLAYER_UPGRADE4",
 	"LEVEL_FOUR",
 	"LEVEL_FIVE",
+
+	"RIDER1",
+	"RIDER2",
+	"RIDER3",
+	"RIDER4",
+	"RIDER5",
+	"RIDER6",
+	"RIDER7",
+	"RIDER8",
+	"RIDER9",
+	"RIDER10",
+	"RIDER11",
+	"RIDER12",
+	"RIDER13",
+	"RIDER14",
+	"RIDER15",
+	"RIDER16",
 
 	nullptr
 };
