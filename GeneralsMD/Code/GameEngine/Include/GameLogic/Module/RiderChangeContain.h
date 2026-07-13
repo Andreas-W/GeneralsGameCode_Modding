@@ -32,7 +32,7 @@
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 #include "GameLogic/Module/TransportContain.h"
 
-#define MAX_RIDERS 8 //***NOTE: If you change this, make sure you update the parsing section!
+#define MAX_RIDERS 16 //***NOTE: If you change this, make sure you update the parsing section!
 
 enum WeaponSetType CPP_11(: Int);
 enum ObjectStatusType CPP_11(: Int);
