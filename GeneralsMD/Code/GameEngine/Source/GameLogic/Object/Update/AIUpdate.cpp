@@ -360,6 +360,7 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_isMoving = FALSE;
 	m_isBlocked = FALSE;
 	m_isBlockedAndStuck = FALSE;
+	m_forceMoveBackwards = FALSE;
 	m_upgradedLocomotors = FALSE;
 	m_canPathThroughUnits = FALSE;
 	m_randomlyOffsetMoodCheck = FALSE;
@@ -2843,10 +2844,18 @@ void AIUpdateInterface::aiDoCommand(const AICommandParms* parms)
 #endif
 
 
+	// Any new order cancels a forced-reverse move; the REVERSE_MOVE case below re-sets it.
+	m_forceMoveBackwards = FALSE;
+
 	switch (parms->m_cmd)
 	{
 		case AICMD_MOVE_TO_POSITION:
 		case AICMD_MOVE_TO_POSITION_EVEN_IF_SLEEPING:
+			privateMoveToPosition(&parms->m_pos, parms->m_cmdSource);
+			break;
+		case AICMD_MOVE_TO_POSITION_REVERSE:
+			// same move order, but the locomotor drives the whole path backwards
+			m_forceMoveBackwards = TRUE;
 			privateMoveToPosition(&parms->m_pos, parms->m_cmdSource);
 			break;
 		case AICMD_MOVE_TO_OBJECT:
@@ -5338,12 +5347,13 @@ void AIUpdateInterface::crc( Xfer *x )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 5: Added m_forceMoveBackwards (REVERSE_MOVE order) */
 // ------------------------------------------------------------------------------------------------
 void AIUpdateInterface::xfer( Xfer *xfer )
 {
   // version
-  const XferVersion currentVersion = 4;
+  const XferVersion currentVersion = 5;
   XferVersion version = currentVersion;
   xfer->xferVersion( &version, currentVersion );
 
@@ -5557,6 +5567,9 @@ void AIUpdateInterface::xfer( Xfer *xfer )
 	}
 
 	xfer->xferReal(&m_speedMultiplier);
+
+	if (version >= 5)
+		xfer->xferBool(&m_forceMoveBackwards);
 
 }
 

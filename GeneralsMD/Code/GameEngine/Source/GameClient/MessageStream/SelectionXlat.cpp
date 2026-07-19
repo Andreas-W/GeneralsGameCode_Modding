@@ -562,6 +562,7 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 				if( command )
 				{
 					if( command->getCommandType() == GUI_COMMAND_ATTACK_MOVE ||
+							command->getCommandType() == GUI_COMMAND_REVERSE_MOVE ||
 							command->getCommandType() == GUI_COMMAND_GUARD ||
 							command->getCommandType() == GUI_COMMAND_GUARD_WITHOUT_PURSUIT ||
 							command->getCommandType() == GUI_COMMAND_GUARD_FLYING_UNITS_ONLY )

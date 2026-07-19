@@ -241,6 +241,8 @@ enum GUICommandType CPP_11(: Int)
 
 	GUI_COMMAND_SELECT_ALL_UNITS_OF_TYPE,
 
+	GUI_COMMAND_REVERSE_MOVE,							///< move to the target position driving in reverse
+
 	// add more commands here, don't forget to update the string command list below too ...
 
 	GUI_COMMAND_NUM_COMMANDS
@@ -290,6 +292,7 @@ static const char *const TheGuiCommandNames[] =
 	"SPECIAL_POWER_CONSTRUCT",
 	"SPECIAL_POWER_CONSTRUCT_FROM_SHORTCUT",
 	"SELECT_ALL_UNITS_OF_TYPE",
+	"REVERSE_MOVE",
 
 	nullptr
 };

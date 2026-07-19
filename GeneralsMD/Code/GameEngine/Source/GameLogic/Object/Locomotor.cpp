@@ -1264,6 +1264,14 @@ Bool Locomotor::shouldMoveBackwards(Object* obj, PhysicsBehavior *physics, Real 
 		return false;
 	}
 
+	// A REVERSE_MOVE order forces reversing for the whole path, bypassing the angle/distance heuristic.
+	// (Still gated on CanMoveBackwards by the check above.)
+	if (obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards())
+	{
+		setFlag(MOVING_BACKWARDS, true);
+		return true;
+	}
+
 	const Real angleThreshold = m_template->m_backwardsMoveAngleThreshold;
 	const Real reverseDist = m_template->m_backwardsMoveDistanceFactorThreshold * obj->getGeometryInfo().getMajorRadius();
 
@@ -1463,6 +1471,19 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 #if 1
 	const Real backwardsAngleThreshold = m_template->m_backwardsMoveAngleThreshold;
 	const Real backwardsDist = m_template->m_backwardsMoveDistanceFactorThreshold * obj->getGeometryInfo().getMajorRadius();
+
+	// A REVERSE_MOVE order forces reversing along the whole path (no three-point turn).
+	const Bool forceBackwards = m_template->m_canMoveBackward
+		&& obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards();
+	if (forceBackwards) {
+		setFlag(MOVING_BACKWARDS, true);
+		setFlag(DOING_THREE_POINT_TURN, false);
+		moveBackwards = true;
+		do3pointTurn = false;
+		desiredAngle = stdAngleDiff(desiredAngle, PI);
+		relAngle = stdAngleDiff(desiredAngle, angle);
+	}
+	else
 	if (actualSpeed==0.0f) {
 		setFlag(MOVING_BACKWARDS, false);
 		if (m_template->m_canMoveBackward && fabs(relAngle) > backwardsAngleThreshold) {
@@ -1471,7 +1492,8 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 		}
 
 	}
-	if (getFlag(MOVING_BACKWARDS)) {
+	// (skipped when forced: the reverse heading was already resolved above)
+	if (!forceBackwards && getFlag(MOVING_BACKWARDS)) {
 		if (fabs(relAngle) < backwardsAngleThreshold) {
 			moveBackwards = false;
 			setFlag(MOVING_BACKWARDS, false);

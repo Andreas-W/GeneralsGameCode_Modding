@@ -1609,7 +1609,7 @@ void clampWaypointPosition( Coord3D &position, Int margin )
 /**
  * Move to given position(s)
  */
-void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, CommandSourceType cmdSource )
+void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, CommandSourceType cmdSource, Bool reverse )
 {
 
   Coord3D position = *p_posIn;
@@ -1803,7 +1803,10 @@ void AIGroup::groupMoveToPosition( const Coord3D *p_posIn, Bool addWaypoint, Com
 
 		if( !addWaypoint )
 		{
-			ai->aiMoveToPosition( &dest, cmdSource );
+			if (reverse)
+				ai->aiReverseMoveToPosition( &dest, cmdSource );
+			else
+				ai->aiMoveToPosition( &dest, cmdSource );
 		}
 		else
 		{

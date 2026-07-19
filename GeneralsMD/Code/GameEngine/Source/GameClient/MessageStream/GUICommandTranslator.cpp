@@ -290,6 +290,37 @@ static CommandStatus doAttackMoveCommand( const CommandButton *command, const IC
 
 }
 
+//-------------------------------------------------------------------------------------------------
+/** Do the reverse move command -- move to the target position, driving backwards */
+//-------------------------------------------------------------------------------------------------
+static CommandStatus doReverseMoveCommand( const CommandButton *command, const ICoord2D *mouse )
+{
+
+	// sanity
+	if( command == nullptr || mouse == nullptr )
+		return COMMAND_COMPLETE;
+
+	Drawable *draw = TheInGameUI->getFirstSelectedDrawable();
+	DEBUG_ASSERTCRASH( draw, ("doReverseMoveCommand: No selected object(s)") );
+
+	// sanity
+	if( draw == nullptr || draw->getObject() == nullptr )
+		return COMMAND_COMPLETE;
+
+	// convert mouse point to world coords
+	Coord3D world;
+	TheTacticalView->screenToTerrain( mouse, &world );
+
+	GameMessage *msg = TheMessageStream->appendMessage( GameMessage::MSG_DO_REVERSE_MOVETO );
+	msg->appendLocationArgument( world );
+
+	// Play the unit voice response (same response as a normal move order)
+	pickAndPlayUnitVoiceResponse(TheInGameUI->getAllSelectedDrawables(), GameMessage::MSG_DO_MOVETO);
+
+	return COMMAND_COMPLETE;
+
+}
+
 
 //-------------------------------------------------------------------------------------------------
 /** Do the set rally point command */
@@ -461,6 +492,12 @@ GameMessageDisposition GUICommandTranslator::translateGameMessage(const GameMess
 					case GUI_COMMAND_ATTACK_MOVE:
 					{
 						commandStatus = doAttackMoveCommand( command, &mouse );
+						break;
+					}
+
+					case GUI_COMMAND_REVERSE_MOVE:
+					{
+						commandStatus = doReverseMoveCommand( command, &mouse );
 						break;
 					}
 

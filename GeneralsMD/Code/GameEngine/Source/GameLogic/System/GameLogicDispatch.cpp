@@ -863,6 +863,20 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 		}
 
 		//---------------------------------------------------------------------------------------------
+		case GameMessage::MSG_DO_REVERSE_MOVETO:
+		{
+			Coord3D dest = msg->getArgument( 0 )->location;
+
+			if (currentlySelectedGroup)
+			{
+				currentlySelectedGroup->releaseWeaponLockForGroup(LOCKED_TEMPORARILY);	// release any temporary locks.
+				currentlySelectedGroup->groupMoveToPosition( &dest, false, CMD_FROM_PLAYER, /*reverse=*/true );
+			}
+
+			break;
+		}
+
+		//---------------------------------------------------------------------------------------------
 		case GameMessage::MSG_DO_FORCEMOVETO:
 		{
 			Coord3D dest = msg->getArgument( 0 )->location;

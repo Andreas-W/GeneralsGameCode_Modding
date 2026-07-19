@@ -417,6 +417,7 @@ enum AICommandType CPP_11(: Int)	// Stored in save file, do not reorder/renumber
 	AICMD_EVACUATE_INSTANTLY,
 	AICMD_EXIT_INSTANTLY,
 	AICMD_GUARD_RETALIATE,
+	AICMD_MOVE_TO_POSITION_REVERSE,	// same as AICMD_MOVE_TO_POSITION, but the unit drives there in reverse.
 };
 
 struct AICommandParms
@@ -485,6 +486,14 @@ public:
 	void aiMoveToPositionEvenIfSleeping( const Coord3D *pos, CommandSourceType cmdSource )
 	{
 		AICommandParms parms(AICMD_MOVE_TO_POSITION_EVEN_IF_SLEEPING, cmdSource);
+		parms.m_pos = *pos;
+		aiDoCommand(&parms);
+	}
+
+	/// same as aiMoveToPosition, but the unit drives the whole path in reverse
+	void aiReverseMoveToPosition( const Coord3D *pos, CommandSourceType cmdSource )
+	{
+		AICommandParms parms(AICMD_MOVE_TO_POSITION_REVERSE, cmdSource);
 		parms.m_pos = *pos;
 		aiDoCommand(&parms);
 	}
@@ -908,7 +917,7 @@ public:
 	UnsignedShort Num_Refs() const { return m_refCount.Num_Refs(); }
 #endif
 
-	void groupMoveToPosition( const Coord3D *pos, Bool addWaypoint, CommandSourceType cmdSource );
+	void groupMoveToPosition( const Coord3D *pos, Bool addWaypoint, CommandSourceType cmdSource, Bool reverse = false );
 	void groupMoveToAndEvacuate( const Coord3D *pos, CommandSourceType cmdSource );			///< move to given position(s)
 	void groupMoveToAndEvacuateAndExit( const Coord3D *pos, CommandSourceType cmdSource );			///< move to given position & unload transport.
 	void groupIdle(CommandSourceType cmdSource);						///< Enter idle state.

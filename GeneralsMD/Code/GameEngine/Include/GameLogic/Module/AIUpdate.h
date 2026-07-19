@@ -503,6 +503,7 @@ public:
 	Bool isQuickPathAvailable( const Coord3D *destination ) const;  ///< does a path (using quick pathfind) exist between us and the destination
 	Int getNumFramesBlocked(void) const {return m_blockedFrames;}
 	Bool isBlockedAndStuck(void) const {return m_isBlockedAndStuck;}
+	Bool isForcedMoveBackwards(void) const {return m_forceMoveBackwards;}	///< True while a REVERSE_MOVE order is being executed.
 	Bool canComputeQuickPath(void); ///< Returns true if we can quickly comput a path.  Usually missiles & the like that just move straight to the destination.
 	Bool computeQuickPath(const Coord3D *destination); ///< Computes a quick path to the destination.
 	Bool arePathLayersStillValid(); ///< Check if the current used layers are still passable
@@ -831,6 +832,7 @@ private:
 	Bool				m_isMoving;									///< True if we are in an AIInternalMoveToState.
 	Bool				m_isBlocked;
 	Bool				m_isBlockedAndStuck;				///< True if we are stuck & need to recompute path.
+	Bool				m_forceMoveBackwards;				///< True while executing a REVERSE_MOVE order; forces the locomotor to drive backwards.
 	Bool				m_upgradedLocomotors;
 	Bool				m_canPathThroughUnits;			///< Can path through units.
 	Bool				m_randomlyOffsetMoodCheck;	///< If true, randomly offset the mood check rate next time, to avoid "spiking" of ai checks
