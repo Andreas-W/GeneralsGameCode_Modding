@@ -334,6 +334,10 @@ LocomotorTemplate::LocomotorTemplate()
 	m_airborneTargetingHeight = INT_MAX;
 	m_stickToGround = false;
 	m_canMoveBackward = false;
+	// defaults match the values the backwards-movement logic used before these were configurable
+	m_backwardsMoveAngleThreshold = PI/2;
+	m_backwardsMoveDistanceFactorThreshold = 5.0f;
+	m_backwardsMoveSpeedFactor = 1.0f;
 	m_hasSuspension = false;
 	m_wheelTurnAngle = 0;
 	m_maximumWheelExtension = 0;
@@ -494,6 +498,9 @@ const FieldParse* LocomotorTemplate::getFieldParse() const
 		{ "AirborneTargetingHeight", INI::parseInt, NULL, offsetof( LocomotorTemplate, m_airborneTargetingHeight ) },
 		{ "StickToGround",				INI::parseBool,			NULL,	offsetof(LocomotorTemplate, m_stickToGround) },
 		{ "CanMoveBackwards",				INI::parseBool,			NULL,	offsetof(LocomotorTemplate, m_canMoveBackward) },
+		{ "BackwardsMoveAngleThreshold",				INI::parseAngleReal,	NULL,	offsetof(LocomotorTemplate, m_backwardsMoveAngleThreshold) },
+		{ "BackwardsMoveDistanceFactorThreshold",	INI::parseReal,			NULL,	offsetof(LocomotorTemplate, m_backwardsMoveDistanceFactorThreshold) },
+		{ "BackwardsMoveSpeedFactor",				INI::parseReal,			NULL,	offsetof(LocomotorTemplate, m_backwardsMoveSpeedFactor) },
 		{ "HasSuspension",				INI::parseBool,			NULL,	offsetof(LocomotorTemplate, m_hasSuspension) },
 		{ "FrontWheelTurnAngle", INI::parseAngleReal, NULL, offsetof(LocomotorTemplate, m_wheelTurnAngle) },
 		{ "MaximumWheelExtension", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_maximumWheelExtension) },
@@ -1257,12 +1264,13 @@ Bool Locomotor::shouldMoveBackwards(Object* obj, PhysicsBehavior *physics, Real 
 		return false;
 	}
 
-	const Real reverseDist = 5.0f * obj->getGeometryInfo().getMajorRadius();
+	const Real angleThreshold = m_template->m_backwardsMoveAngleThreshold;
+	const Real reverseDist = m_template->m_backwardsMoveDistanceFactorThreshold * obj->getGeometryInfo().getMajorRadius();
 
 	if (physics->getForwardSpeed2D() == 0.0f)
 	{
 		setFlag(MOVING_BACKWARDS, false);
-		if (fabs(relAngle) > PI/2 && onPathDistToGoal <= reverseDist)
+		if (fabs(relAngle) > angleThreshold && onPathDistToGoal <= reverseDist)
 			setFlag(MOVING_BACKWARDS, true);
 	}
 
@@ -1270,7 +1278,7 @@ Bool Locomotor::shouldMoveBackwards(Object* obj, PhysicsBehavior *physics, Real 
 	{
 		// stop reversing once the goal is in front of us again, or once it has moved beyond the reverse
 		// distance (e.g. the goal was reassigned far away) -- then turn around and drive forward instead.
-		if (fabs(relAngle) < PI/2 || onPathDistToGoal > reverseDist)
+		if (fabs(relAngle) < angleThreshold || onPathDistToGoal > reverseDist)
 			setFlag(MOVING_BACKWARDS, false);
 		else
 			return true;
@@ -1302,6 +1310,8 @@ void Locomotor::moveTowardsPositionTreads(Object* obj, PhysicsBehavior *physics,
 	Real desiredAngle = atan2(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
 	Real relAngle = stdAngleDiff(desiredAngle, obj->getOrientation());
 	Bool moveBackwards = shouldMoveBackwards(obj, physics, relAngle, onPathDistToGoal);
+	if (moveBackwards)
+		desiredSpeed *= m_template->m_backwardsMoveSpeedFactor;
 
 	PhysicsTurningType rotating;
 	if (moveBackwards)
@@ -1451,21 +1461,23 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 	Real actualSpeed = physics->getForwardSpeed2D();
 	Bool do3pointTurn = false;
 #if 1
+	const Real backwardsAngleThreshold = m_template->m_backwardsMoveAngleThreshold;
+	const Real backwardsDist = m_template->m_backwardsMoveDistanceFactorThreshold * obj->getGeometryInfo().getMajorRadius();
 	if (actualSpeed==0.0f) {
 		setFlag(MOVING_BACKWARDS, false);
-		if (m_template->m_canMoveBackward && fabs(relAngle) > PI/2) {
+		if (m_template->m_canMoveBackward && fabs(relAngle) > backwardsAngleThreshold) {
 			setFlag(MOVING_BACKWARDS, true );
-			setFlag(DOING_THREE_POINT_TURN, onPathDistToGoal>5*obj->getGeometryInfo().getMajorRadius());
+			setFlag(DOING_THREE_POINT_TURN, onPathDistToGoal>backwardsDist);
 		}
 
 	}
 	if (getFlag(MOVING_BACKWARDS)) {
-		if (fabs(relAngle) < PI/2) {
+		if (fabs(relAngle) < backwardsAngleThreshold) {
 			moveBackwards = false;
 			setFlag(MOVING_BACKWARDS, false);
 		} else {
 			moveBackwards = true;
-			setFlag(DOING_THREE_POINT_TURN, onPathDistToGoal>5*obj->getGeometryInfo().getMajorRadius());
+			setFlag(DOING_THREE_POINT_TURN, onPathDistToGoal>backwardsDist);
 			do3pointTurn = getFlag(DOING_THREE_POINT_TURN);
 			if (!do3pointTurn) {
 				desiredAngle = stdAngleDiff(desiredAngle, PI);
@@ -1486,6 +1498,7 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 
 	Real goalSpeed = desiredSpeed;
 	if (moveBackwards) {
+		goalSpeed *= m_template->m_backwardsMoveSpeedFactor;
 		actualSpeed = -actualSpeed;
 	}
 
@@ -2571,7 +2584,10 @@ void Locomotor::moveTowardsPositionOther(Object* obj, PhysicsBehavior *physics, 
 	Real relAngle = stdAngleDiff(desiredAngle, obj->getOrientation());
 	Bool moveBackwards = shouldMoveBackwards(obj, physics, relAngle, onPathDistToGoal);
 	if (moveBackwards)
+	{
 		actualSpeed = -actualSpeed;	// treat as speed in our direction of travel (reverse)
+		goalSpeed *= m_template->m_backwardsMoveSpeedFactor;
+	}
 
 //DEBUG_ASSERTLOG(!getFlag(ULTRA_ACCURATE),("thresh %f %f (%f %f)",
 //fabs(goalPos.y - pos->y),fabs(goalPos.x - pos->x),

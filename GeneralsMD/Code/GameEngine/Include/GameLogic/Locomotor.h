@@ -206,6 +206,9 @@ private:
 	Bool											m_downhillOnly;	// pinewood derby, moves only by gravity pulling downhill
 	Bool											m_stickToGround;				// if true, can't leave ground
 	Bool											m_canMoveBackward;				// if true, can move backwards.
+	Real											m_backwardsMoveAngleThreshold;			///< goal must be at least this far off our heading (radians) before we reverse
+	Real											m_backwardsMoveDistanceFactorThreshold;	///< max reverse distance, as a factor of the object's MajorRadius
+	Real											m_backwardsMoveSpeedFactor;					///< multiplier applied to desired speed while moving backwards
 	Bool											m_hasSuspension;				///< If true, calculate 4 wheel independent suspension values.
 	Real											m_maximumWheelExtension; ///< Maximum distance wheels can move down.  (negative value)
 	Real											m_maximumWheelCompression; ///< Maximum distance wheels can move up.  (positive value)
