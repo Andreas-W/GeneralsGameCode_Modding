@@ -57,6 +57,7 @@
 #include "GameLogic/FPUControl.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
+#include "GameLogic/Locomotor.h"
 #include "W3DDevice/GameClient/Module/W3DModelDraw.h"
 #include "W3DDevice/GameClient/W3DAssetManager.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
@@ -2011,6 +2012,7 @@ W3DModelDraw::W3DModelDraw(Thing *thing, const ModuleData* moduleData) : DrawMod
 	m_shadowEnabled = TRUE;
 	m_terrainDecal = nullptr;
 	m_trackRenderObject = nullptr;
+	m_lastTrackWasBackwards = FALSE;
 	m_isFirstDrawModule = FALSE;
 	m_whichAnimInCurState = -1;
 	m_nextState = nullptr;
@@ -3573,6 +3575,7 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 				!getW3DModelDrawModuleData()->m_trackFile.isEmpty())
 		{
 			m_trackRenderObject = TheTerrainTracksRenderObjClassSystem->bindTrack(m_renderObject, 1.0f*MAP_XY_FACTOR, getW3DModelDrawModuleData()->m_trackFile.str());
+			m_lastTrackWasBackwards = FALSE;
 			if (draw && m_trackRenderObject)
 				m_trackRenderObject->setOwnerDrawable(draw);
 		}
@@ -4197,12 +4200,29 @@ void W3DModelDraw::reactToTransformChange( const Matrix3D* oldMtx,
 		Object *obj = getDrawable()->getObject();
 		const Coord3D* pos = getDrawable()->getPosition();
 
+		// Tread edges are oriented from the direction of travel, so a forward<->reverse switch would flip
+		// the handedness of the next edge and twist the quad bridging it to the previous one. Track the
+		// travel direction so we can cut the strip at the transition instead.
+		Bool movingBackwards = FALSE;
+		const AIUpdateInterface* ai = obj->getAIUpdateInterface();
+		if (ai && ai->getCurLocomotor())
+			movingBackwards = ai->getCurLocomotor()->isMovingBackwards();
+
 		if ( m_fullyObscuredByShroud || obj->testStatus( OBJECT_STATUS_STEALTHED ) == TRUE || getDrawable()->isDrawableEffectivelyHidden() )
 		{
 				m_trackRenderObject->addCapEdgeToTrack(pos->x, pos->y);
+				// keep the direction current so reappearing doesn't trigger a redundant break
+				m_lastTrackWasBackwards = movingBackwards;
 		}
 		else
 		{
+			if (movingBackwards != m_lastTrackWasBackwards)
+			{
+				// end the current strip; the next edge starts a fresh, unconnected anchor
+				m_trackRenderObject->breakTrack();
+				m_lastTrackWasBackwards = movingBackwards;
+			}
+
 			if (obj->isSignificantlyAboveTerrain() || (obj->isKindOf(KINDOF_NO_MOVE_EFFECTS_ON_WATER) && obj->isOverWater()))
 			{
 				m_trackRenderObject->setAirborne();
