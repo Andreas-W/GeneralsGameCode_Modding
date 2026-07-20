@@ -1264,9 +1264,13 @@ Bool Locomotor::shouldMoveBackwards(Object* obj, PhysicsBehavior *physics, Real 
 		return false;
 	}
 
-	// A REVERSE_MOVE order forces reversing for the whole path, bypassing the angle/distance heuristic.
-	// (Still gated on CanMoveBackwards by the check above.)
-	if (obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards())
+	// A REVERSE_MOVE order forces reversing for the whole path, bypassing the distance heuristic.
+	// (Still gated on CanMoveBackwards by the check above.) Unless ReverseMoveIgnoreAngleThreshold
+	// is set, we still require the goal to be behind us (same angle gate as automatic reversing),
+	// so a reverse order only engages when the current heading allows it.
+	if (obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards()
+			&& (TheGlobalData->m_reverseMoveIgnoreAngleThreshold
+					|| fabs(relAngle) > m_template->m_backwardsMoveAngleThreshold))
 	{
 		setFlag(MOVING_BACKWARDS, true);
 		return true;
@@ -1472,9 +1476,13 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 	const Real backwardsAngleThreshold = m_template->m_backwardsMoveAngleThreshold;
 	const Real backwardsDist = m_template->m_backwardsMoveDistanceFactorThreshold * obj->getGeometryInfo().getMajorRadius();
 
-	// A REVERSE_MOVE order forces reversing along the whole path (no three-point turn).
+	// A REVERSE_MOVE order forces reversing along the whole path (no three-point turn). Unless
+	// ReverseMoveIgnoreAngleThreshold is set, we still require the goal to be behind us (same angle
+	// gate as automatic reversing), so a reverse order only engages when the heading allows it.
 	const Bool forceBackwards = m_template->m_canMoveBackward
-		&& obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards();
+		&& obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards()
+		&& (TheGlobalData->m_reverseMoveIgnoreAngleThreshold
+				|| fabs(relAngle) > backwardsAngleThreshold);
 	if (forceBackwards) {
 		setFlag(MOVING_BACKWARDS, true);
 		setFlag(DOING_THREE_POINT_TURN, false);
