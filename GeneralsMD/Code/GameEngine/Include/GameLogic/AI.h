@@ -946,6 +946,7 @@ public:
 	void groupGetHealed( Object *healDepot, CommandSourceType cmdSource );		///< go get healed at the heal depot
 	void groupGetRepaired( Object *repairDepot, CommandSourceType cmdSource );///< go get repaired at the repair depot
 	void groupEnter( Object *obj, CommandSourceType cmdSource );							///< enter the given object
+	void groupSmartGarrison( Object *target, CommandSourceType cmdSource );	///< distribute the group across the target and nearby transports (round-robin by priority)
 	void groupDock( Object *obj, CommandSourceType cmdSource );							///< get near given object and wait for enter clearance
 	void groupExit( Object *objectToExit, CommandSourceType cmdSource );			///< get out of this Object
 	void groupEvacuate( CommandSourceType cmdSource );												///< empty its contents

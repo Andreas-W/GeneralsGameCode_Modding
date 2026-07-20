@@ -595,6 +595,7 @@ public:
 	Bool m_hideScorchmarksAboveGround;
 	Bool m_weaponScatterOnWaterSurfaceDefault;	///< default for WeaponTemplate ScatterOnWaterSurface when not set per-weapon
 	Bool m_reverseMoveIgnoreAngleThreshold;	///< if true, a manual REVERSE_MOVE order reverses regardless of heading; if false, only when the goal is behind us
+	Real m_smartGarrisonRange;	///< radius searched for additional transports by the Smart Garrison command
 
 	// Water depth lighting
 	RGBColor m_terrainHeightAmbientLightColor1;

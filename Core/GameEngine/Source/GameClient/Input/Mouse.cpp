@@ -1295,6 +1295,8 @@ Int Mouse::getCursorIndex(const AsciiString& name)
 		"PlaceChargeInvalid",
 		"Hack",
 		"ParticleUplinkCannon",
+		"SmartGarrison",
+		"ReverseMove",
 
 	};
 

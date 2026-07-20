@@ -3054,6 +3054,9 @@ void InGameUI::createCommandHint( const GameMessage *msg )
 					case GameMessage::MSG_ENTER_HINT:
 						setMouseCursor( Mouse::ENTER_FRIENDLY );
 						break;
+					case GameMessage::MSG_SMART_GARRISON_HINT:
+						setMouseCursor( Mouse::SMART_GARRISON );
+						break;
 					case GameMessage::MSG_CONVERT_TO_CARBOMB_HINT:
 					case GameMessage::MSG_HIJACK_HINT:
 					case GameMessage::MSG_SABOTAGE_HINT:

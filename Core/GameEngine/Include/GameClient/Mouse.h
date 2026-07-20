@@ -243,6 +243,9 @@ public:
 		HACK,
 		PARTICLE_UPLINK_CANNON,
 
+		// Appended so existing cursor indices are unchanged.
+		SMART_GARRISON,
+		REVERSE_MOVE,
 
 		// ***** dont forget to update CursorININames[] *****
 		NUM_MOUSE_CURSORS

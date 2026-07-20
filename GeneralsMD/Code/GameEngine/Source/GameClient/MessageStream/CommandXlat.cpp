@@ -56,6 +56,7 @@
 #include "GameClient/CommandXlat.h"
 #include "GameClient/DebugDisplay.h"
 #include "GameClient/Drawable.h"
+#include "GameClient/Keyboard.h"
 #include "GameClient/GameClient.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/GameText.h"
@@ -1529,6 +1530,38 @@ GameMessage::Type CommandTranslator::createEnterMessage( Drawable *enter,
 
 }
 
+//-------------------------------------------------------------------------------------------------
+GameMessage::Type CommandTranslator::createSmartGarrisonMessage( Drawable *target,
+																																 CommandEvaluateType commandType )
+{
+	GameMessage::Type msgType = GameMessage::MSG_DO_SMART_GARRISON;
+
+	// if we're just evaluating then get out of here without actually doing the action
+	if( commandType == EVALUATE_ONLY )
+		return msgType;
+
+	if (!target || !target->getObject())
+		return msgType;
+
+	// sanity
+	DEBUG_ASSERTCRASH( commandType == DO_COMMAND, ("createSmartGarrisonMessage - commandType is not DO_COMMAND") );
+
+	if( m_teamExists )
+	{
+		PickAndPlayInfo info;
+		info.m_drawTarget = target;
+		// reuse the normal "enter" voice response
+		pickAndPlayUnitVoiceResponse(TheInGameUI->getAllSelectedDrawables(), GameMessage::MSG_ENTER, &info );
+
+		GameMessage *msg = TheMessageStream->appendMessage( msgType );
+		msg->appendObjectIDArgument( target->getObject()->getID() );
+	}
+
+	// return the type of the message used
+	return msgType;
+
+}
+
 //====================================================================================
 CommandTranslator::CommandTranslator() :
 	m_objective(0),
@@ -1638,7 +1671,8 @@ GameMessage::Type CommandTranslator::evaluateForceAttack( Drawable *draw, const 
 // ------------------------------------------------------------------------------------------------
 GameMessage::Type CommandTranslator::evaluateContextCommand( Drawable *draw,
 																														 const Coord3D *pos,
-																														 CommandEvaluateType type )
+																														 CommandEvaluateType type,
+																														 Int modifiers )
 {
 	Object *obj = draw ? draw->getObject() : nullptr;
 	Drawable *drawableInWay = draw;
@@ -1698,6 +1732,23 @@ GameMessage::Type CommandTranslator::evaluateContextCommand( Drawable *draw,
 			|| (command && command->getCommandType() == GUI_COMMAND_SPECIAL_POWER_FROM_SHORTCUT))
 	{
 		GameMessage *hintMessage;
+
+		// Smart Garrison: holding ALT while hovering a transport the selection can enter overrides
+		// waypoint mode and distributes the units across the target plus nearby transports.
+		if( draw && obj && BitIsSet( modifiers, KEY_STATE_ALT )
+				&& TheInGameUI->canSelectedObjectsDoAction( InGameUI::ACTIONTYPE_ENTER_OBJECT, obj, InGameUI::SELECTION_ANY, true ) )
+		{
+			if( type == DO_COMMAND || type == EVALUATE_ONLY )
+			{
+				msgType = createSmartGarrisonMessage( draw, type );
+			}
+			else
+			{
+				msgType = GameMessage::MSG_SMART_GARRISON_HINT;
+				TheMessageStream->appendMessage( msgType );
+			}
+			return msgType;
+		}
 
 		if( TheInGameUI->isInWaypointMode() )
 		{
@@ -3937,7 +3988,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 					if (TheInGameUI->isInForceAttackMode()) {
 						evaluateForceAttack(draw, draw->getPosition(), DO_HINT );
 					} else {
-						evaluateContextCommand( draw, draw->getPosition(), DO_HINT );
+						evaluateContextCommand( draw, draw->getPosition(), DO_HINT, TheKeyboard->getModifierFlags() );
 					}
 
 					// Do not eat this message, as it itself has another purpose in HintSpy
@@ -3961,7 +4012,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 			if (TheInGameUI->isInForceAttackMode()) {
 				evaluateForceAttack( nullptr, &position, DO_HINT );
 			} else {
-				evaluateContextCommand( nullptr, &position, DO_HINT );
+				evaluateContextCommand( nullptr, &position, DO_HINT, TheKeyboard->getModifierFlags() );
 			}
 
 			// Do not eat this message, as it will do something itself at HintSpy
@@ -4064,7 +4115,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 					if (TheInGameUI->isInForceAttackMode()) {
 						evaluateForceAttack( draw, &pos, DO_COMMAND );
 					} else {
-						evaluateContextCommand( draw, &pos, DO_COMMAND );
+						evaluateContextCommand( draw, &pos, DO_COMMAND, TheKeyboard->getModifierFlags() );
 					}
 
 					disp = DESTROY_MESSAGE;
@@ -4143,7 +4194,7 @@ GameMessageDisposition CommandTranslator::translateGameMessage(const GameMessage
 				if (TheInGameUI->isInForceAttackMode()) {
 					evaluateForceAttack( draw, &pos, DO_COMMAND );
 				} else {
-					evaluateContextCommand( draw, &pos, DO_COMMAND );
+					evaluateContextCommand( draw, &pos, DO_COMMAND, TheKeyboard->getModifierFlags() );
 				}
 
 				disp = DESTROY_MESSAGE;

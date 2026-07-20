@@ -100,6 +100,7 @@ GlobalData* GlobalData::m_theOriginal = nullptr;
 	{ "EnableSingleplayerChatwindow",	INI::parseBool,				nullptr,			offsetof( GlobalData, m_enableSingleplayerChatWindow ) },
 	{ "WeaponScatterOnWaterSurfaceDefault",	INI::parseBool,			nullptr,			offsetof( GlobalData, m_weaponScatterOnWaterSurfaceDefault ) },
 	{ "ReverseMoveIgnoreAngleThreshold",	INI::parseBool,			nullptr,			offsetof( GlobalData, m_reverseMoveIgnoreAngleThreshold ) },
+	{ "SmartGarrisonRange",				INI::parseReal,				nullptr,			offsetof( GlobalData, m_smartGarrisonRange ) },
 	{ "FramesPerSecondLimit",			INI::parseInt,				nullptr,			offsetof( GlobalData, m_framesPerSecondLimit ) },
 	{ "ChipsetType",							INI::parseInt,				nullptr,			offsetof( GlobalData, m_chipSetType ) },
 	{ "MaxShellScreens",					INI::parseInt,				nullptr,			offsetof( GlobalData, m_maxShellScreens ) },
@@ -692,6 +693,7 @@ GlobalData::GlobalData()
 	m_useFpsLimit = FALSE;
 	m_weaponScatterOnWaterSurfaceDefault = FALSE;
 	m_reverseMoveIgnoreAngleThreshold = FALSE;
+	m_smartGarrisonRange = 100.0f;
 	m_dumpAssetUsage = FALSE;
 	m_framesPerSecondLimit = 0;
 	m_chipSetType = 0;

@@ -455,6 +455,7 @@ public:
 		MSG_DO_REPAIR_HINT,													///< if clicked, dozer will go repair the clicked target
 		MSG_RESUME_CONSTRUCTION_HINT,								///< if clicked, dozer will go construct a partially constructed building
 		MSG_ENTER_HINT,															///< if clicked, selected unit(s) will attempt to enter clicked object
+		MSG_SMART_GARRISON_HINT,										///< if clicked (ALT held), selected unit(s) will smart-garrison the clicked object and nearby transports
 		MSG_DOCK_HINT,															///< If clicked, selected unit(s) will dock
 		MSG_DO_MOVETO_HINT,													///< (location) If clicked, a move would be ordered, "Current Selection" is assumed
 		MSG_DO_ATTACKMOVETO_HINT,										///< (location) If clicked, a move would be ordered, "Current Selection" is assumed
@@ -603,6 +604,7 @@ public:
 		MSG_ENABLE_RETALIATION_MODE,								///< Turn retaliation mode on or off for the specified player.
 		MSG_DO_SPECIAL_POWER_AT_MULTIPLE_LOCATIONS,	///< N-point: (spID, count, coord*count, options, sourceID) - all target points committed in one message (chronosphere = 2)
 		MSG_DO_REVERSE_MOVETO,											///< (location) move to the location driving in reverse
+		MSG_DO_SMART_GARRISON,											///< (target objectID) distribute the selected group across the target and nearby transports
 
 		MSG_BEGIN_DEBUG_NETWORK_MESSAGES = 1900,		///< network messages that exist only in debug/internal builds. all grouped separately.
 

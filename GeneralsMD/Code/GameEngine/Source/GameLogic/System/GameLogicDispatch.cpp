@@ -1091,6 +1091,25 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 		}
 
 		//---------------------------------------------------------------------------------------------
+		case GameMessage::MSG_DO_SMART_GARRISON:
+		{
+			Object *target = findObjectByID( msg->getArgument( 0 )->objectID );
+
+			// sanity
+			if( target == nullptr )
+				break;
+
+			if( currentlySelectedGroup )
+			{
+				currentlySelectedGroup->releaseWeaponLockForGroup(LOCKED_TEMPORARILY);	// release any temporary locks.
+				currentlySelectedGroup->groupSmartGarrison( target, CMD_FROM_PLAYER );
+			}
+
+			break;
+
+		}
+
+		//---------------------------------------------------------------------------------------------
 		case GameMessage::MSG_EXIT:
 		{
 			Object *objectWantingToExit = findObjectByID( msg->getArgument( 0 )->objectID );
