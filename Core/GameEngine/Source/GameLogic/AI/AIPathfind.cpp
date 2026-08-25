@@ -6506,6 +6506,11 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 
 		UnsignedInt newCostSoFar = 0;
 
+		Coord3D fromPos;
+		fromPos.x = parentCell->getXIndex() * PATHFIND_CELL_SIZE_F ;
+		fromPos.y = parentCell->getYIndex() * PATHFIND_CELL_SIZE_F ;
+		fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
+
 		for( int i=0; i<numNeighbors; i++ )
 		{
 			neighborFlags[i] = false;
@@ -6544,11 +6549,6 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 			// do the gravity check here
 			if ( locomotorSet.isDownhillOnly() )
 			{
-				Coord3D fromPos;
-				fromPos.x = parentCell->getXIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.y = parentCell->getYIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
-
 				Coord3D toPos;
 				toPos.x = newCellCoord.x * PATHFIND_CELL_SIZE_F ;
 				toPos.y = newCellCoord.y * PATHFIND_CELL_SIZE_F ;
@@ -6614,11 +6614,6 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 			}
 
 			if (newCell->getType() == PathfindCell::CELL_CLIFF && !newCell->getPinched() ) {
-				Coord3D fromPos;
-				fromPos.x = parentCell->getXIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.y = parentCell->getYIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
-
 				Coord3D toPos;
 				toPos.x = newCellCoord.x * PATHFIND_CELL_SIZE_F ;
 				toPos.y = newCellCoord.y * PATHFIND_CELL_SIZE_F ;
