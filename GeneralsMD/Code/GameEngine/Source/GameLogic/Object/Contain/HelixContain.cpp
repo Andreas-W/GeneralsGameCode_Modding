@@ -247,17 +247,19 @@ void HelixContain::addToContainList( Object *obj )
 {
   if ( obj->isKindOf( KINDOF_PORTABLE_STRUCTURE ) && m_portableStructureID == INVALID_ID)
   {
-    Object *portable = getPortableStructure();
-    if ( portable )
+    if ( Object *portable = getPortableStructure() )
       TheGameLogic->destroyObject( portable );
 
     m_portableStructureID = obj->getID();
     obj->friend_setContainedBy( getObject() );//fool portable into thinking my object is his container
 
-
+    DEBUG_ASSERTCRASH(getObject() == nullptr || !getObject()->isDestroyed(),
+      ("HelixContain::addToContainList - Adding to a destroyed container"));
   }
   else
-		TransportContain::addToContainList( obj );
+  {
+    TransportContain::addToContainList( obj );
+  }
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -265,17 +267,19 @@ void HelixContain::addToContain( Object *obj )
 {
   if ( obj->isKindOf( KINDOF_PORTABLE_STRUCTURE ) && m_portableStructureID == INVALID_ID)
   {
-    Object *portable = getPortableStructure();
-    if ( portable )
+    if ( Object *portable = getPortableStructure() )
       TheGameLogic->destroyObject( portable );
 
     m_portableStructureID = obj->getID();
     obj->friend_setContainedBy( getObject() );//fool portable into thinking my object is his container
 
-
+    DEBUG_ASSERTCRASH(getObject() == nullptr || !getObject()->isDestroyed(),
+      ("HelixContain::addToContain - Adding to a destroyed container"));
   }
   else
-		TransportContain::addToContain( obj );
+  {
+    TransportContain::addToContain( obj );
+  }
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -285,10 +289,14 @@ void HelixContain::removeFromContain( Object *obj, Bool exposeStealthUnits )
 	{
     Object *portable = getPortableStructure();
     if ( portable )
+    {
+#if !RETAIL_COMPATIBLE_CRC
+      portable->friend_setContainedBy(nullptr);
+#endif
 
       m_portableStructureID = INVALID_ID;
       //portable->kill();
-
+    }
   }
   else
   {
