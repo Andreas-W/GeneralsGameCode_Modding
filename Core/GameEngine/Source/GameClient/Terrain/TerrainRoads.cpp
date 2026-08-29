@@ -85,6 +85,8 @@ const FieldParse TerrainRoadType::m_terrainBridgeFieldParseTable[] =
 	{ "TransitionToOCL",							parseTransitionToOCL,					nullptr, 0 },
 	{ "TransitionToFX",								parseTransitionToFX,					nullptr, 0 },
 	{ "BridgeHoleAreaPercentage",     INI::parsePercentToReal,      nullptr, offsetof( TerrainRoadType, m_bridgeHoleAreaPercentage) },
+	{ "Destroyable",									INI::parseBool,								nullptr, offsetof( TerrainRoadType, m_isDestroyable ) },
+	{ "BridgeObjectName",							INI::parseAsciiString,				nullptr, offsetof( TerrainRoadType, m_bridgeObjectName ) },
 
 
 	{ nullptr,									nullptr,													nullptr, 0 },
@@ -219,6 +221,8 @@ TerrainRoadType::TerrainRoadType( void )
 	m_radarColor.blue = 0.0f;
 	m_transitionEffectsHeight = 0.0f;
 	m_numFXPerType = 0;
+	m_bridgeHoleAreaPercentage = 0.0f;
+	m_isDestroyable = FALSE;
 
 }
 
@@ -406,6 +410,9 @@ TerrainRoadType *TerrainRoadCollection::newBridge( AsciiString name )
 
 		bridge->friend_setTransitionEffectsHeight( defaultBridge->getTransitionEffectsHeight() );
 		bridge->friend_setNumFXPerType( defaultBridge->getNumFXPerType() );
+		bridge->friend_setBridgeHoleAreaPercentage( defaultBridge->getBridgeHoleAreaPercentage() );
+		bridge->friend_setDestroyable( defaultBridge->isDestroyable() );
+		bridge->friend_setBridgeObjectName( defaultBridge->getBridgeObjectName() );
 		for( Int state = BODY_PRISTINE; state < BODYDAMAGETYPE_COUNT; state++ )
 		{
 

@@ -98,6 +98,8 @@ public:
 	Real getTransitionEffectsHeight( void ) { return m_transitionEffectsHeight; }
 	Int getNumFXPerType( void ) { return m_numFXPerType; }
 	Real getBridgeHoleAreaPercentage( void ) { return m_bridgeHoleAreaPercentage;	}
+	Bool isDestroyable( void ) { return m_isDestroyable; }
+	AsciiString getBridgeObjectName( void ) { return m_bridgeObjectName; }
 
 	// friend access methods to be used by the road collection only!
 	void friend_setName( AsciiString name ) { m_name = name; }
@@ -127,6 +129,9 @@ public:
 	void friend_setRepairedToFXString( BodyDamageType state, Int index, AsciiString s ) { m_repairedToFXString[ state ][ index ] = s; }
 	void friend_setTransitionEffectsHeight( Real height ) { m_transitionEffectsHeight = height; }
 	void friend_setNumFXPerType( Int num ) { m_numFXPerType = num; }
+	void friend_setBridgeHoleAreaPercentage( Real percentage ) { m_bridgeHoleAreaPercentage = percentage; }
+	void friend_setDestroyable( Bool destroyable ) { m_isDestroyable = destroyable; }
+	void friend_setBridgeObjectName( AsciiString name ) { m_bridgeObjectName = name; }
 
 	/// get the parsing table for INI
 	const FieldParse *getRoadFieldParse( void ) { return m_terrainRoadFieldParseTable; }
@@ -190,6 +195,14 @@ protected:
 	Int m_numFXPerType; ///< for *each* fx/ocl we will make this many of them on the bridge area
 
 	Real m_bridgeHoleAreaPercentage; ///< if bridge is openable/destroyable, how much % of length becomes open
+
+	//
+	// non landmark bridges are drawn procedurally and are represented in the logic by an object
+	// created from m_bridgeObjectName; when destroyable they also get the 4 targetable towers
+	// that landmark bridges have
+	//
+	Bool m_isDestroyable;												///< true if this bridge can be destroyed
+	AsciiString m_bridgeObjectName;							///< object representing the bridge span in the logic
 };
 
 //-------------------------------------------------------------------------------------------------

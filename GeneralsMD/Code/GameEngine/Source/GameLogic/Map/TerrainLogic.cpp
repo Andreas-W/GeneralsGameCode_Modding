@@ -33,6 +33,8 @@
 #include "Common/DataChunk.h"
 #include "Common/GameState.h"
 #include "Common/MapObject.h"
+#include "Common/Player.h"
+#include "Common/PlayerList.h"
 #include "Common/Radar.h"
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
@@ -223,6 +225,9 @@ m_bridgeInfo(theInfo)
 	// save the template name
 	m_templateName = bridgeTemplateName;
 
+	// set up front, several paths below bail out early
+	m_next = nullptr;
+
 	//Coord3D fromLeft, fromRight, toLeft, toRight; /// The 4 corners of the rectangle that the bridge covers.
 	m_bounds.lo.x = m_bridgeInfo.fromLeft.x;
 	m_bounds.lo.y = m_bridgeInfo.fromLeft.y;
@@ -242,13 +247,34 @@ m_bridgeInfo(theInfo)
 
 	m_bridgeInfo.curDamageState = BODY_PRISTINE;
 
-
-	static const ThingTemplate* genericBridgeTemplate = TheThingFactory->findTemplate("GenericBridge");
-	if (!genericBridgeTemplate) {
-		DEBUG_LOG(("*** GenericBridge template not found."));
+	//
+	// the bridge definition decides which object represents us in the logic, and whether we get
+	// the targetable towers, so it has to be resolved before the object is created
+	//
+	TerrainRoadType *bridgeTemplate = TheTerrainRoads->findBridge( bridgeTemplateName );
+	if( bridgeTemplate == nullptr ) {
+		DEBUG_LOG(( "*** Bridge Template Not Found '%s'.", bridgeTemplateName.str() ));
 		return;
 	}
-	Object *bridge = TheThingFactory->newObject(genericBridgeTemplate, nullptr);
+
+	AsciiString bridgeObjectName = bridgeTemplate->getBridgeObjectName();
+	if( bridgeObjectName.isEmpty() )
+		bridgeObjectName = "GenericBridge";
+	const ThingTemplate* bridgeObjectTemplate = TheThingFactory->findTemplate( bridgeObjectName );
+	if (!bridgeObjectTemplate) {
+		DEBUG_LOG(("*** Bridge object template '%s' not found.", bridgeObjectName.str()));
+		return;
+	}
+
+	//
+	// a destroyable bridge takes damage and its towers can be captured, both of which need a real
+	// team; indestructible bridges keep the teamless object they have always had
+	//
+	Team *team = nullptr;
+	if( bridgeTemplate->isDestroyable() )
+		team = ThePlayerList->getNeutralPlayer()->getDefaultTeam();
+
+	Object *bridge = TheThingFactory->newObject(bridgeObjectTemplate, team);
 	Coord3D center;
 	center.x = (m_bridgeInfo.fromLeft.x + m_bridgeInfo.toRight.x)/2.0f;
 	center.y = (m_bridgeInfo.fromLeft.y + m_bridgeInfo.toRight.y)/2.0f;
@@ -270,15 +296,56 @@ m_bridgeInfo(theInfo)
 	v.y = m_bridgeInfo.toLeft.y - m_bridgeInfo.toRight.y;
 	v.normalize();
 
-	// get the template of the bridge
-	TerrainRoadType *bridgeTemplate = TheTerrainRoads->findBridge( bridgeTemplateName );
-	if( bridgeTemplate == nullptr ) {
-		DEBUG_LOG(( "*** Bridge Template Not Found '%s'.", bridgeTemplateName.str() ));
+	// indestructible bridges are never shot at or opened, so there is nothing left to set up
+	if( bridgeTemplate->isDestroyable() == FALSE )
 		return;
+
+	//
+	// the object template geometry is just a placeholder since the span is drawn by the bridge
+	// buffer; size it to the actual span so area weapons aimed at the deck hit us
+	//
+	Coord2D span;
+	span.x = m_bridgeInfo.to.x - m_bridgeInfo.from.x;
+	span.y = m_bridgeInfo.to.y - m_bridgeInfo.from.y;
+	GeometryInfo geom = bridge->getGeometryInfo();
+	geom.setMajorRadius( span.length() / 2.0f );
+	geom.setMinorRadius( m_bridgeInfo.bridgeWidth / 2.0f );
+	bridge->setGeometryInfo( geom );
+
+	// if defined, set hole area for destroyable bridges/drawbridges
+	if (bridgeTemplate->getBridgeHoleAreaPercentage() > 0.0f) {
+		Real factor = std::clamp(bridgeTemplate->getBridgeHoleAreaPercentage(), 0.0f, 1.0f);
+
+		// midpoints of the two long edges of the bridge rectangle
+		Coord3D midLeft, midRight;
+		midLeft.x = (m_bridgeInfo.fromLeft.x + m_bridgeInfo.toLeft.x) / 2.0f;
+		midLeft.y = (m_bridgeInfo.fromLeft.y + m_bridgeInfo.toLeft.y) / 2.0f;
+		midLeft.z = (m_bridgeInfo.fromLeft.z + m_bridgeInfo.toLeft.z) / 2.0f;
+		midRight.x = (m_bridgeInfo.fromRight.x + m_bridgeInfo.toRight.x) / 2.0f;
+		midRight.y = (m_bridgeInfo.fromRight.y + m_bridgeInfo.toRight.y) / 2.0f;
+		midRight.z = (m_bridgeInfo.fromRight.z + m_bridgeInfo.toRight.z) / 2.0f;
+
+		// shrink the rectangle along the span axis about those midpoints, full width preserved
+		m_bridgeInfo.fromLeftHole.set(midLeft.x + (m_bridgeInfo.fromLeft.x - midLeft.x) * factor,
+																	midLeft.y + (m_bridgeInfo.fromLeft.y - midLeft.y) * factor,
+																	midLeft.z + (m_bridgeInfo.fromLeft.z - midLeft.z) * factor);
+		m_bridgeInfo.toLeftHole.set(midLeft.x + (m_bridgeInfo.toLeft.x - midLeft.x) * factor,
+																midLeft.y + (m_bridgeInfo.toLeft.y - midLeft.y) * factor,
+																midLeft.z + (m_bridgeInfo.toLeft.z - midLeft.z) * factor);
+		m_bridgeInfo.fromRightHole.set(midRight.x + (m_bridgeInfo.fromRight.x - midRight.x) * factor,
+																	 midRight.y + (m_bridgeInfo.fromRight.y - midRight.y) * factor,
+																	 midRight.z + (m_bridgeInfo.fromRight.z - midRight.z) * factor);
+		m_bridgeInfo.toRightHole.set(midRight.x + (m_bridgeInfo.toRight.x - midRight.x) * factor,
+																 midRight.y + (m_bridgeInfo.toRight.y - midRight.y) * factor,
+																 midRight.z + (m_bridgeInfo.toRight.z - midRight.z) * factor);
+	}
+	else {
+		m_bridgeInfo.fromLeftHole.zero();
+		m_bridgeInfo.toLeftHole.zero();
+		m_bridgeInfo.fromRightHole.zero();
+		m_bridgeInfo.toRightHole.zero();
 	}
 
-#define no_BRIDGE_TOWERS // since they aren't destructable, don't need towers.
-#if BRIDGE_TOWERS
 	// initialize each of the tower positions to that of the bridge info bounding rect
 	Coord3D towerPos[ BRIDGE_MAX_TOWERS ];
 	towerPos[ BRIDGE_TOWER_FROM_LEFT ] = m_bridgeInfo.fromLeft;
@@ -316,14 +383,14 @@ m_bridgeInfo(theInfo)
 
 		}
 		tower = createTower( &pos, type, towerTemplate, bridge );
-
-		// store the tower object ID
-		m_bridgeInfo.towerObjectID[ i ] = tower->getID();
+		if( tower )
+		{
+			// store the tower object ID
+			m_bridgeInfo.towerObjectID[ i ] = tower->getID();
+		}
 
 	}
-#endif
 
-	m_next = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
