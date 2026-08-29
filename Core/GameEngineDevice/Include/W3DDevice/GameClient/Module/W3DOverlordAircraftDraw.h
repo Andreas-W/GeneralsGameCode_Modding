@@ -47,7 +47,7 @@ public:
 	Bool m_hasMultiAddOns; ///< compatibility for MultiAddOnContain and similar modules;
 
 	W3DOverlordAircraftDrawModuleData();
-	~W3DOverlordAircraftDrawModuleData();
+	virtual ~W3DOverlordAircraftDrawModuleData() override;
 	static void buildFieldParse(MultiIniFieldParse& p);
 };
 
@@ -63,8 +63,8 @@ public:
 	W3DOverlordAircraftDraw( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
- 	virtual void setHidden(Bool h);
-	virtual void doDrawModule(const Matrix3D* transformMtx);
+ 	virtual void setHidden(Bool h) override;
+	virtual void doDrawModule(const Matrix3D* transformMtx) override;
 
 protected:
 

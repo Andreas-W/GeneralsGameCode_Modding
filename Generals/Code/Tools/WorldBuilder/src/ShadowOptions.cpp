@@ -22,7 +22,7 @@
 #include "StdAfx.h"
 #include "WorldBuilder.h"
 #include "Lib/BaseType.h"
-#include "rendobj.h"
+#include "WW3D2/rendobj.h"
 #include "Common/GlobalData.h"
 #include "ShadowOptions.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
@@ -61,7 +61,7 @@ END_MESSAGE_MAP()
 /////////////////////////////////////////////////////////////////////////////
 // ShadowOptions message handlers
 
-void ShadowOptions::setShadowColor(void)
+void ShadowOptions::setShadowColor()
 {
 	Int r, g, b, shift;
 

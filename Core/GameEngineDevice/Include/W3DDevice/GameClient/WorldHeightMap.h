@@ -102,20 +102,28 @@ class WorldHeightMap : public RefCountClass,
 {
 	friend class TerrainTextureClass;
 	friend class AlphaTerrainTextureClass;
-	friend class W3DCustomEdging;
 	friend class AlphaEdgeTextureClass;
 
 #define NO_EVAL_TILING_MODES
 
 public:
+
+	struct DrawArea
+	{
+		Int originX;
+		Int originY;
+		Int sizeX;
+		Int sizeY;
+	};
+
 #ifdef EVAL_TILING_MODES
 	enum {TILE_4x4, TILE_6x6, TILE_8x8} m_tileMode;
 #endif
 	enum {
 		NORMAL_DRAW_WIDTH = 1 + 4*VERTEX_BUFFER_TILE_LENGTH,
 		NORMAL_DRAW_HEIGHT = 1 + 4*VERTEX_BUFFER_TILE_LENGTH,
-		STRETCH_DRAW_WIDTH = 1 + 2*VERTEX_BUFFER_TILE_LENGTH,
-		STRETCH_DRAW_HEIGHT = 1 + 2*VERTEX_BUFFER_TILE_LENGTH,
+		LOW_ANGLE_DRAW_WIDTH = 1 + (NORMAL_DRAW_WIDTH-1) * 2,
+		LOW_ANGLE_DRAW_HEIGHT = 1 + (NORMAL_DRAW_HEIGHT-1) * 2,
 	};
 
 protected:
@@ -200,7 +208,7 @@ protected:
 	Int getTextureClassFromNdx(Int tileNdx);
 	void readTexClass(TXTextureClass *texClass, TileData **tileData);
 	Int updateTileTexturePositions(Int *edgeHeight); ///< Places each tile in the texture.
-	void initCliffFlagsFromHeights(void);
+	void initCliffFlagsFromHeights();
 	void setCellCliffFlagFromHeights(Int xIndex, Int yIndex);
 
 protected:	 // file reader callbacks.
@@ -217,34 +225,36 @@ protected:	 // file reader callbacks.
 	static Bool ParseLightingDataChunk(DataChunkInput &file, DataChunkInfo *info, void *userData);
 
 protected:
-	WorldHeightMap(void);			///< Simple constructor for WorldHeightMapEdit class.
+	WorldHeightMap();			///< Simple constructor for WorldHeightMapEdit class.
 
 public: // constructors/destructors
 	WorldHeightMap(ChunkInputStream *pFile, Bool bHMapOnly=false);	// read from file.
-	~WorldHeightMap(void);			// destroy.
+	virtual ~WorldHeightMap() override;			// destroy.
 
 public:  // Boundary info
-	const VecICoord2D& getAllBoundaries(void) const { return m_boundaries; }
+	const VecICoord2D& getAllBoundaries() const { return m_boundaries; }
 
 public:  // height map info.
-	static Int getMinHeightValue(void) {return K_MIN_HEIGHT;}
-	static Int getMaxHeightValue(void) {return K_MAX_HEIGHT;}
+	static Int getMinHeightValue() {return K_MIN_HEIGHT;}
+	static Int getMaxHeightValue() {return K_MAX_HEIGHT;}
 
-	HeightSampleType *getDataPtr(void) {return m_data;}
+	HeightSampleType *getDataPtr() {return m_data;}
 
 
-	Int getXExtent(void) {return m_width;}	///<number of vertices in x
-	Int getYExtent(void) {return m_height;}	///<number of vertices in y
+	Int getXExtent() const {return m_width;}	///<number of vertices in x
+	Int getYExtent() const {return m_height;}	///<number of vertices in y
 
-	Int getDrawOrgX(void) {return m_drawOriginX;}
-	Int getDrawOrgY(void) {return m_drawOriginY;}
+	Region2D getDrawRegion2D();
 
-	Int getDrawWidth(void) {return m_drawWidthX;}
-	Int getDrawHeight(void) {return m_drawHeightY;}
-	void setDrawWidth(Int width) {m_drawWidthX = width; if (m_drawWidthX>m_width) m_drawWidthX = m_width;}
-	void setDrawHeight(Int height) {m_drawHeightY = height; if (m_drawHeightY>m_height) m_drawHeightY = m_height;}
-	virtual Int getBorderSize(void) {return m_borderSize;}
-  Int getBorderSizeInline(void) const { return m_borderSize; }
+	Int getDrawOrgX() {return m_drawOriginX;}
+	Int getDrawOrgY() {return m_drawOriginY;}
+
+	Int getDrawWidth() {return m_drawWidthX;}
+	Int getDrawHeight() {return m_drawHeightY;}
+	void setDrawWidth(Int width) {DEBUG_ASSERTCRASH(width <= m_width, ("Draw width must not exceed map width")); m_drawWidthX = width;}
+	void setDrawHeight(Int height) {DEBUG_ASSERTCRASH(height <= m_height, ("Draw height must not exceed map height")); m_drawHeightY = height;}
+	virtual Int getBorderSize() override {return m_borderSize;}
+  Int getBorderSizeInline() const { return m_borderSize; }
 	/// Get height with the offset that HeightMapRenderObjClass uses built in.
 	HeightSampleType getDisplayHeight(Int x, Int y) { return m_data[x+m_drawOriginX+m_width*(y+m_drawOriginY)];}
 
@@ -260,9 +270,11 @@ public:  // height map info.
 
 	void getUVForBlend(Int edgeClass, Region2D *range);
 
+	DrawArea createDrawArea(Int xOrg, Int yOrg);
+	Bool setDrawArea(const DrawArea& drawArea);
 	Bool setDrawOrg(Int xOrg, Int yOrg);
 
-	static void freeListOfMapObjects(void);
+	static void freeListOfMapObjects();
 
 	Int getTextureClassNoBlend(Int xIndex, Int yIndex, Bool baseClass=false);
 	Int getTextureClass(Int xIndex, Int yIndex, Bool baseClass=false);
@@ -270,9 +282,9 @@ public:  // height map info.
 
 public:  // tile and texture info.
 	void setTextureLOD(Int lod);	///< set maximum lod level sent to the hardware.
-	TextureClass *getTerrainTexture(void);  //< generates if needed and returns the terrain texture
-	TextureClass *getAlphaTerrainTexture(void); //< generates if needed and returns alpha terrain texture
-	TextureClass *getEdgeTerrainTexture(void); //< generates if needed and returns blend edge texture
+	TextureClass *getTerrainTexture();  //< generates if needed and returns the terrain texture
+	TextureClass *getAlphaTerrainTexture(); //< generates if needed and returns alpha terrain texture
+	TextureClass *getEdgeTerrainTexture(); //< generates if needed and returns blend edge texture
 	/// UV mapping data for a cell to map into the terrain texture.  Returns true if the textures had to be stretched for cliffs.
 	Bool getUVData(Int xIndex, Int yIndex, float U[4], float V[4]);
 	Bool getFlipState(Int xIndex, Int yIndex) const;
@@ -283,7 +295,7 @@ public:  // tile and texture info.
 	}
 
 	void setFlipState(Int xIndex, Int yIndex, Bool value);
-	void clearFlipStates(void);
+	void clearFlipStates();
 	Bool getCliffState(Int xIndex, Int yIndex) const;
 	Bool getExtraAlphaUVData(Int xIndex, Int yIndex, float U[4], float V[4], UnsignedByte alpha[4], Bool *flip, Bool *cliff);
 	/// UV mapping data for a cell to map into the alpha terrain texture.
@@ -295,18 +307,18 @@ public:  // tile and texture info.
 
   Bool getSeismicUpdateFlag(Int xIndex, Int yIndex) const;
   void setSeismicUpdateFlag(Int xIndex, Int yIndex, Bool value);
-  void clearSeismicUpdateFlags(void) ;
-  virtual Real getSeismicZVelocity(Int xIndex, Int yIndex) const;
-  virtual void setSeismicZVelocity(Int xIndex, Int yIndex, Real value);
+  void clearSeismicUpdateFlags() ;
+  virtual Real getSeismicZVelocity(Int xIndex, Int yIndex) const override;
+  virtual void setSeismicZVelocity(Int xIndex, Int yIndex, Real value) override;
   void fillSeismicZVelocities( Real value );
-  virtual Real getBilinearSampleSeismicZVelocity( Int x, Int y);
+  virtual Real getBilinearSampleSeismicZVelocity( Int x, Int y) override;
 
 
 
 public:  // Flat tile texture info.
 	TerrainTextureClass *getFlatTexture(Int xCell, Int yCell, Int cellWidth, Int pixelsPerCell);  //< generates and returns the terrain texture
 
-	static void setupAlphaTiles(void);
+	static void setupAlphaTiles();
 	UnsignedByte *getPointerToTileData(Int xIndex, Int yIndex, Int width);
 	Bool getRawTileData(Short tileNdx, Int width, UnsignedByte *buffer, Int bufLen);
 	UnsignedByte *getRGBAlphaDataForWidth(Int width, TBlendTileInfo *pBlend);

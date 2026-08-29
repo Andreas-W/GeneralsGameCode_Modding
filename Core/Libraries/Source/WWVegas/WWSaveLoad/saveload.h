@@ -36,10 +36,10 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "pointerremap.h"
-#include "bittype.h"
-#include "SLIST.h"
+#include "WWLib/bittype.h"
+#include "WWLib/SLIST.h"
 
 class RefCountClass;
 class SaveLoadSubSystemClass;
@@ -141,7 +141,7 @@ public:
 	*/
 	static bool		Save (ChunkSaveClass &csave, SaveLoadSubSystemClass & subsystem);
 	static bool		Load (ChunkLoadClass &cload,bool auto_post_load = true);
-	static bool		Post_Load_Processing (void(*network_callback)(void));
+	static bool		Post_Load_Processing (void(*network_callback)());
 	/*
 	** Look up the persist factory for a given chunk id
 	*/

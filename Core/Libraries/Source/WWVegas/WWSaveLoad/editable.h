@@ -43,12 +43,12 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "persist.h"
 #include "parameter.h"
 #include "simpleparameter.h"
 #include "parameterlist.h"
-#include "wwdebug.h"
+#include "WWDebug/wwdebug.h"
 
 //////////////////////////////////////////////////////////////////////////////////
 //
@@ -66,7 +66,7 @@ public:
 	// by the DECLARE_EDITABLE macro.
 	//
 	/////////////////////////////////////////////////////////////////////
-	virtual int						Get_Parameter_Count (void) const;
+	virtual int						Get_Parameter_Count () const;
 	virtual ParameterClass *	Lock_Parameter (int i);
 	virtual void					Unlock_Parameter (int i);
 };
@@ -75,7 +75,7 @@ public:
 //	Get_Parameter_Count
 /////////////////////////////////////////////////////////////////////
 inline int
-EditableClass::Get_Parameter_Count (void) const
+EditableClass::Get_Parameter_Count () const
 {
 	return 0;
 }
@@ -96,7 +96,6 @@ EditableClass::Lock_Parameter (int i)
 inline void
 EditableClass::Unlock_Parameter (int i)
 {
-	return ;
 }
 
 //#define	PARAM_EDITING_ON
@@ -109,7 +108,7 @@ EditableClass::Unlock_Parameter (int i)
 	//////////////////////////////////////////////////////////////////////////////////
 	#define DECLARE_EDITABLE(_class, _parent)										\
 	ParameterListClass plist_##_class;												\
-	virtual int _class::Get_Parameter_Count(void) const						\
+	virtual int _class::Get_Parameter_Count() const						\
 	{																							\
 		return plist_##_class.Count () + _parent::Get_Parameter_Count ();	\
 	}																							\

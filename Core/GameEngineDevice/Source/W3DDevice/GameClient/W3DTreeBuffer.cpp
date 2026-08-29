@@ -57,8 +57,8 @@ enum
 
 #include "W3DDevice/GameClient/W3DTreeBuffer.h"
 
-#include <assetmgr.h>
-#include <texture.h>
+#include <WW3D2/assetmgr.h>
+#include <WW3D2/texture.h>
 #include "Common/FramePacer.h"
 #include "Common/GameUtility.h"
 #include "Common/MapReaderWriterInfo.h"
@@ -421,7 +421,7 @@ protected:
 public:
 	GDIFileStream2():m_file(nullptr) {};
 	GDIFileStream2(File* pFile):m_file(pFile) {};
-	virtual Int read(void *pData, Int numBytes) {
+	virtual Int read(void *pData, Int numBytes) override {
 		return(m_file?m_file->read(pData, numBytes):0);
 	};
 };
@@ -431,7 +431,7 @@ public:
 //=============================================================================
 /** Creates a new texture. */
 //=============================================================================
-void W3DTreeBuffer::updateTexture(void)
+void W3DTreeBuffer::updateTexture()
 {
 
 	const Int MAX_TEX_WIDTH = 2048;
@@ -705,6 +705,10 @@ void W3DTreeBuffer::loadTreesInVertexAndIndexBuffers(RefRenderObjListIterator *p
 		m_shadow = TheW3DProjectedShadowManager->createDecalShadow(&shadowInfo);
 	}
 
+	// TheSuperHackers @bugfix Reset bufferNdx so updateVertexBuffer skips trees absent from this rebuild.
+	for (Int t = 0; t < m_numTrees; t++) {
+		m_trees[t].bufferNdx = -1;
+	}
 	m_anythingChanged = false;
 	Int curTree=0;
 	Int bNdx;
@@ -741,17 +745,14 @@ void W3DTreeBuffer::loadTreesInVertexAndIndexBuffers(RefRenderObjListIterator *p
 
 		for ( ;curTree<m_numTrees;curTree++) {
 			Int type = m_trees[curTree].treeType;
-			if (type<0) {
-				continue; // Deleted tree. [6/9/2003]
+			if (type<0 || m_treeTypes[type].m_mesh == nullptr) {
+				continue; // Deleted tree or missing mesh. [6/9/2003]
 			}
 			if (!m_trees[curTree].visible) continue;
 			Real scale = m_trees[curTree].scale;
 			Vector3 loc = m_trees[curTree].location;
 			Real theSin = m_trees[curTree].sin;
 			Real theCos = m_trees[curTree].cos;
-			if (type<0 || m_treeTypes[type].m_mesh == nullptr) {
-				continue;
-			}
 
 			Bool doVertexLighting = true;
 
@@ -809,73 +810,7 @@ void W3DTreeBuffer::loadTreesInVertexAndIndexBuffers(RefRenderObjListIterator *p
 				Vector3 normal(0.0f,0.0f,1.0f);
 				diffuse = doLighting(&normal, objectLighting, &emissive, 0xFFFFFFFF, 1.0f);
 			}
-	/*
-	 *
-			// If we are doing reduced resolution terrain, do reduced
-			// poly trees.
-			Bool doPanel = (TheGlobalData->m_useHalfHeightMap || TheGlobalData->m_stretchTerrain);
 
-			if (doPanel) {
-				if (m_trees[curTree].rotates) {
-					theSin = -lookAtVector.X;
-					theCos = lookAtVector.Y;
-				}
-				// panel start is index offset, there are 3 index per triangle.
-				if (m_trees[curTree].panelStart/3 + 2 > numIndex) {
-					continue; // not enough polygons for the offset.  jba.
-				}
-				for (j=0; j<6; j++) {
-					i = ((Int *)pPoly)[j+m_trees[curTree].panelStart];
-					if (m_curNumTreeVertices >= MAX_TREE_VERTEX)
-						break;
-
-					// Update the uv values.  The W3D models each have their own texture, and
-					// we use one texture with all images in one, so we have to change the uvs to
-					// match.
-					Real U, V;
-					if (type==SHRUB) {
-						// shrub texture is tucked in the corner
-						U = ((512-64)+uvs[i].U*64.0f)/512.0f;
-						V = ((256-64)+uvs[i].V*64.0f)/256.0f;
-					} else if (type==FENCE) {
-						U = uvs[i].U*0.5f;
-						V = 1.0f + uvs[i].V;
-					} else {
-						U = typeOffset+uvs[i].U*0.5f;
-						V = uvs[i].V;
-					}
-
-					curVb->u1 = U;
-					curVb->v1 = V/2.0;
-					Vector3 vLoc;
-					vLoc.X = pVert[i].X*scale*theCos - pVert[i].Y*scale*theSin;
-					vLoc.Y = pVert[i].Y*scale*theCos + pVert[i].X*scale*theSin;
-
-					vLoc.X += loc.X;
-					vLoc.Y += loc.Y;
-					vLoc.Z = loc.Z + pVert[i].Z*scale;
-
-					curVb->x = vLoc.X;
-					curVb->y = vLoc.Y;
-					curVb->z = vLoc.Z;
-					if (doVertexLighting) {
-						curVb->diffuse = doLighting(&vLoc, shadeR, shadeG, shadeB, m_trees[curTree].bounds, pDynamicLightsIterator);
-					} else {
-						curVb->diffuse = diffuse;
-					}
-					curVb++;
-					m_curNumTreeVertices++;
-				}
-
-				for (i=0; i<6; i++) {
-					if (m_curNumTreeIndices+4 > MAX_TREE_INDEX)
-						break;
-					curIb--;
-					*curIb = startVertex + i;
-					m_curNumTreeIndices++;
-				}
-			} else {
-	 */
 			Real Uscale = m_treeTypes[type].m_tileWidth * (Real)TILE_PIXEL_EXTENT / (Real)m_textureWidth;
 			Real Vscale = m_treeTypes[type].m_tileWidth * (Real)TILE_PIXEL_EXTENT / (Real)m_textureHeight;
 			Real UOffset = m_treeTypes[type].m_textureOrigin.x/(Real)m_textureWidth;
@@ -973,7 +908,7 @@ void W3DTreeBuffer::loadTreesInVertexAndIndexBuffers(RefRenderObjListIterator *p
 //=============================================================================
 /** Updates the push aside offset in vertex buffer. */
 //=============================================================================
-void W3DTreeBuffer::updateVertexBuffer(void)
+void W3DTreeBuffer::updateVertexBuffer()
 {
 	if (!m_indexTree[0] || !m_vertexTree[0] || !m_initialized) {
 		return;
@@ -991,6 +926,9 @@ void W3DTreeBuffer::updateVertexBuffer(void)
 		DX8VertexBufferClass::WriteLockClass lockVtxBuffer(m_vertexTree[bNdx], D3DLOCK_DISCARD);
 	#endif
 		vb=(VertexFormatXYZNDUV1*)lockVtxBuffer.Get_Vertex_Array();
+		if (!vb) {
+			continue;
+		}
 
 		VertexFormatXYZNDUV1 *curVb;
 
@@ -1000,9 +938,6 @@ void W3DTreeBuffer::updateVertexBuffer(void)
 				continue;
 			}
 			Int type = m_trees[curTree].treeType;
-			if (type<0) {
-				continue; // Deleted tree. [6/9/2003]
-			}
 			if (m_trees[curTree].pushAsideDelta==0.0f && m_trees[curTree].m_toppleState == TOPPLE_UPRIGHT) {
 				continue; // not toppling or pushed, no need to update. jba [7/11/2003]
 			}
@@ -1012,9 +947,7 @@ void W3DTreeBuffer::updateVertexBuffer(void)
 			Vector3 loc = m_trees[curTree].location;
 			Real theSin = m_trees[curTree].sin;
 			Real theCos = m_trees[curTree].cos;
-			if (type<0 || m_treeTypes[type].m_mesh == nullptr) {
-				type = 0;
-			}
+			DEBUG_ASSERTCRASH(type>=0 && m_treeTypes[type].m_mesh!=nullptr, ("Invalid tree type or mesh."));
 
 			Int startVertex = m_trees[curTree].firstIndex;
 			curVb = vb+startVertex;
@@ -1066,7 +999,7 @@ void W3DTreeBuffer::updateVertexBuffer(void)
 //=============================================================================
 /** Destructor. Releases w3d assets. */
 //=============================================================================
-W3DTreeBuffer::~W3DTreeBuffer(void)
+W3DTreeBuffer::~W3DTreeBuffer()
 {
 	freeTreeBuffers();
 	REF_PTR_RELEASE(m_treeTexture);
@@ -1085,7 +1018,7 @@ W3DTreeBuffer::~W3DTreeBuffer(void)
 /** Constructor. Sets m_initialized to true if it finds the w3d models it needs
 for the trees. */
 //=============================================================================
-W3DTreeBuffer::W3DTreeBuffer(void)
+W3DTreeBuffer::W3DTreeBuffer()
 {
 	m_initialized = false;
 	Int i;
@@ -1113,7 +1046,7 @@ W3DTreeBuffer::W3DTreeBuffer(void)
 //=============================================================================
 /** Frees the index and vertex buffers. */
 //=============================================================================
-void W3DTreeBuffer::freeTreeBuffers(void)
+void W3DTreeBuffer::freeTreeBuffers()
 {
 	Int i;
 	for	(i=0; i<MAX_BUFFERS; i++) {
@@ -1187,7 +1120,7 @@ void W3DTreeBuffer::unitMoved(Object *unit)
 				}
 				Coord3D delta;
 				delta.set(m_trees[treeNdx].location.X, m_trees[treeNdx].location.Y, m_trees[treeNdx].location.Z );
-				delta.sub(&pos);
+				delta.sub(pos);
 				if (radius*radius>delta.lengthSqr()) {
 					bool canTopple = unit->getCrusherLevel() > 1;
 					if (canTopple && m_treeTypes[m_trees[treeNdx].treeType].m_data->m_doTopple) {
@@ -1214,7 +1147,7 @@ void W3DTreeBuffer::unitMoved(Object *unit)
 //=============================================================================
 /** Allocates the index and vertex buffers. */
 //=============================================================================
-void W3DTreeBuffer::allocateTreeBuffers(void)
+void W3DTreeBuffer::allocateTreeBuffers()
 {
 	Int i;
 	for	(i=0; i<MAX_BUFFERS; i++) {
@@ -1256,7 +1189,7 @@ void W3DTreeBuffer::allocateTreeBuffers(void)
 //=============================================================================
 /** Removes all trees. */
 //=============================================================================
-void W3DTreeBuffer::clearAllTrees(void)
+void W3DTreeBuffer::clearAllTrees()
 {
 	m_numTrees=0;
 	m_bounds.lo.x = m_bounds.lo.y = 0;
@@ -1501,7 +1434,7 @@ void W3DTreeBuffer::pushAsideTree(DrawableID id, const Coord3D *pusherPos,
 			m_trees[i].pushAsideSource = pusherID;
 			Coord3D delta;
 			delta.set(m_trees[i].location.X, m_trees[i].location.Y, m_trees[i].location.Z);
-			delta.sub(pusherPos);
+			delta.sub(*pusherPos);
 
 			if (pusherDirection->x*delta.y - pusherDirection->y*delta.x > 0.0f) {
 				m_trees[i].pushAsideCos = -pusherDirection->y;
@@ -2029,7 +1962,7 @@ void W3DTreeBuffer::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void W3DTreeBuffer::loadPostProcess( void )
+void W3DTreeBuffer::loadPostProcess()
 {
 	// empty. jba [8/11/2003]
 }

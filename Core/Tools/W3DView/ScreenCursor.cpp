@@ -34,16 +34,16 @@
 #include "StdAfx.h"
 #include "ScreenCursor.h"
 #include "Utils.h"
-#include "ww3d.h"
-#include "vertmaterial.h"
-#include "shader.h"
-#include "scene.h"
-#include "rinfo.h"
-#include "texture.h"
-#include "dx8wrapper.h"
-#include "dx8vertexbuffer.h"
-#include "dx8indexbuffer.h"
-#include "sortingrenderer.h"
+#include "WW3D2/ww3d.h"
+#include "WW3D2/vertmaterial.h"
+#include "WW3D2/shader.h"
+#include "WW3D2/scene.h"
+#include "WW3D2/rinfo.h"
+#include "WW3D2/texture.h"
+#include "WW3D2/dx8wrapper.h"
+#include "WW3D2/dx8vertexbuffer.h"
+#include "WW3D2/dx8indexbuffer.h"
+#include "WW3D2/sortingrenderer.h"
 
 
 ///////////////////////////////////////////////////////////////////
@@ -51,16 +51,13 @@
 //	ScreenCursorClass
 //
 ///////////////////////////////////////////////////////////////////
-ScreenCursorClass::ScreenCursorClass (void)
+ScreenCursorClass::ScreenCursorClass ()
 	:	m_ScreenPos (0, 0),
-		m_pTexture (nullptr),
-		m_pVertMaterial (nullptr),
 		m_Width (0),
 		m_Height (0),
 		m_hWnd (nullptr)
 {
 	Initialize ();
-	return ;
 }
 
 
@@ -71,15 +68,12 @@ ScreenCursorClass::ScreenCursorClass (void)
 ///////////////////////////////////////////////////////////////////
 ScreenCursorClass::ScreenCursorClass (const ScreenCursorClass &src)
 	:	m_ScreenPos (0, 0),
-		m_pTexture (nullptr),
 		m_hWnd (nullptr),
-		m_pVertMaterial (nullptr),
 		m_Width (0),
 		m_Height (0),
 		RenderObjClass (src)
 {
 	Initialize ();
-	return ;
 }
 
 
@@ -88,11 +82,8 @@ ScreenCursorClass::ScreenCursorClass (const ScreenCursorClass &src)
 //	~ScreenCursorClass
 //
 ///////////////////////////////////////////////////////////////////
-ScreenCursorClass::~ScreenCursorClass (void)
+ScreenCursorClass::~ScreenCursorClass ()
 {
-	REF_PTR_RELEASE (m_pTexture);
-	REF_PTR_RELEASE (m_pVertMaterial);
-	return ;
 }
 
 
@@ -102,12 +93,10 @@ ScreenCursorClass::~ScreenCursorClass (void)
 //
 ///////////////////////////////////////////////////////////////////
 void
-ScreenCursorClass::Initialize (void)
+ScreenCursorClass::Initialize ()
 {
-	REF_PTR_RELEASE(m_pVertMaterial);
-
 	// Create default vertex material
-	m_pVertMaterial = NEW_REF( VertexMaterialClass, ());
+	m_pVertMaterial.Assign_No_Add_Ref (NEW_REF( VertexMaterialClass, ()));
 	m_pVertMaterial->Set_Diffuse (1.0F, 1.0F, 1.0F);
 	m_pVertMaterial->Set_Emissive (0.0F, 0.0F, 0.0F);
 	m_pVertMaterial->Set_Specular (1.0F, 1.0F, 1.0F);
@@ -141,7 +130,6 @@ ScreenCursorClass::Initialize (void)
 	m_UVs[2].Y = 1.0F;
 	m_UVs[3].X = 1.0F;
 	m_UVs[3].Y = 1.0F;
-	return ;
 }
 
 
@@ -153,15 +141,13 @@ ScreenCursorClass::Initialize (void)
 void
 ScreenCursorClass::Set_Texture (TextureClass *texture)
 {
-	REF_PTR_SET (m_pTexture, texture);
+	m_pTexture.Assign_Add_Ref (texture);
 
 	// Find the dimensions of the texture:
 	if (m_pTexture != nullptr) {
 		m_Width	= m_pTexture->Get_Width();
 		m_Height	= m_pTexture->Get_Height();
 	}
-
-	return ;
 }
 
 
@@ -171,7 +157,7 @@ ScreenCursorClass::Set_Texture (TextureClass *texture)
 //
 ///////////////////////////////////////////////////////////////////
 void
-ScreenCursorClass::On_Frame_Update (void)
+ScreenCursorClass::On_Frame_Update ()
 {
 	//
 	//	Get the current cursor position in screen coords
@@ -244,7 +230,6 @@ ScreenCursorClass::On_Frame_Update (void)
 	m_Verticies[3].X = x_max;
 	m_Verticies[3].Y = y_max;
 	m_Verticies[3].Z = z_pos;
-	return ;
 }
 
 
@@ -303,9 +288,9 @@ ScreenCursorClass::Render (RenderInfoClass &rinfo)
 	/*
 	** Apply the shader and material
 	*/
-	DX8Wrapper::Set_Material(m_pVertMaterial);
+	DX8Wrapper::Set_Material(m_pVertMaterial.Peek());
 	DX8Wrapper::Set_Shader(ShaderClass::_PresetATestBlend2DShader);
-	DX8Wrapper::Set_Texture(0,m_pTexture);
+	DX8Wrapper::Set_Texture(0,m_pTexture.Peek());
 
 	DX8Wrapper::Set_Vertex_Buffer(vbaccess);
 	DX8Wrapper::Set_Index_Buffer(ibaccess,0);
@@ -319,8 +304,6 @@ ScreenCursorClass::Render (RenderInfoClass &rinfo)
 		FACE_COUNT*3,
 		0,
 		VERTEX_COUNT*2);
-
-	return ;
 }
 
 
@@ -362,8 +345,6 @@ ScreenCursorClass::Notify_Added (SceneClass * scene)
 	if (scene != nullptr) {
 		scene->Register (this, SceneClass::ON_FRAME_UPDATE);
 	}
-
-	return ;
 }
 
 
@@ -378,6 +359,4 @@ ScreenCursorClass::Notify_Removed (SceneClass * scene)
 	if (scene != nullptr) {
 		scene->Unregister (this, SceneClass::ON_FRAME_UPDATE);
 	}
-
-	return ;
 }

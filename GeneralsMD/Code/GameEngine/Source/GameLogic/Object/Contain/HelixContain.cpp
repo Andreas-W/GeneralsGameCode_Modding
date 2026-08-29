@@ -99,13 +99,13 @@ HelixContain::HelixContain( Thing *thing, const ModuleData *moduleData ) :
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-HelixContain::~HelixContain( void )
+HelixContain::~HelixContain()
 {
 
 }
 
 
-void HelixContain::onObjectCreated( void )
+void HelixContain::onObjectCreated()
 {
   HelixContain::createPayload();
 }
@@ -128,7 +128,7 @@ UpdateSleepTime HelixContain::update()
 }
 
 
-void HelixContain::redeployOccupants( void )
+void HelixContain::redeployOccupants()
 {
 	// Removed by AndiW: This restores proper firebones, if the parent vehicle model has them
 
@@ -206,7 +206,7 @@ void HelixContain::onBodyDamageStateChange( const DamageInfo* damageInfo,
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-Object* HelixContain::getPortableStructure( void )
+Object* HelixContain::getPortableStructure()
 {
   return TheGameLogic->findObjectByID( m_portableStructureID );
 }
@@ -224,13 +224,13 @@ void HelixContain::onDie( const DamageInfo *damageInfo )
 }
 
 //-------------------------------------------------------------------------------------------------
-void HelixContain::onDelete( void )
+void HelixContain::onDelete()
 {
   Object *portable = getPortableStructure();
   if ( portable )
     TheGameLogic->destroyObject( portable );
 
-  TransportContain::onDelete( );
+  TransportContain::onDelete();
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -251,10 +251,28 @@ void HelixContain::addToContainList( Object *obj )
     if ( portable )
       TheGameLogic->destroyObject( portable );
 
-    m_portableStructureID = obj->getID();
-    obj->friend_setContainedBy( getObject() );//fool portable into thinking my object is his container
+    portable = obj;
 
+    m_portableStructureID = portable->getID();
+    portable->friend_setContainedBy( getObject() );//fool portable into thinking my object is his container
 
+#if RETAIL_COMPATIBLE_CRC
+    Object* containedBy = getObject();
+
+    // TheSuperHackers @info Set INVALID_ID if the container object was destroyed
+    // to indicate that the pointer will become a dangling pointer in the next frame.
+    if (containedBy && !containedBy->isDestroyed())
+    {
+      portable->friend_setContainedByID(containedBy->getID());
+    }
+    else
+    {
+      portable->friend_setContainedByID(INVALID_ID);
+    }
+#else
+    DEBUG_ASSERTCRASH(getObject() == nullptr || !getObject()->isDestroyed(),
+      ("HelixContain::addToContainList - Adding to a destroyed container"));
+#endif
   }
   else
 		TransportContain::addToContainList( obj );
@@ -269,10 +287,28 @@ void HelixContain::addToContain( Object *obj )
     if ( portable )
       TheGameLogic->destroyObject( portable );
 
-    m_portableStructureID = obj->getID();
-    obj->friend_setContainedBy( getObject() );//fool portable into thinking my object is his container
+    portable = obj;
 
+    m_portableStructureID = portable->getID();
+    portable->friend_setContainedBy( getObject() );//fool portable into thinking my object is his container
 
+#if RETAIL_COMPATIBLE_CRC
+    Object* containedBy = getObject();
+
+    // TheSuperHackers @info Set INVALID_ID if the container object was destroyed
+    // to indicate that the pointer will become a dangling pointer in the next frame.
+    if (containedBy && !containedBy->isDestroyed())
+    {
+      portable->friend_setContainedByID(containedBy->getID());
+    }
+    else
+    {
+      portable->friend_setContainedByID(INVALID_ID);
+    }
+#else
+    DEBUG_ASSERTCRASH(getObject() == nullptr || !getObject()->isDestroyed(),
+      ("HelixContain::addToContain - Adding to a destroyed container"));
+#endif
   }
   else
 		TransportContain::addToContain( obj );
@@ -285,10 +321,16 @@ void HelixContain::removeFromContain( Object *obj, Bool exposeStealthUnits )
 	{
     Object *portable = getPortableStructure();
     if ( portable )
+    {
+#if RETAIL_COMPATIBLE_CRC
+      portable->friend_setContainedByID(INVALID_ID);
+#else
+      portable->friend_setContainedBy(nullptr);
+#endif
 
       m_portableStructureID = INVALID_ID;
       //portable->kill();
-
+    }
   }
   else
   {
@@ -468,7 +510,7 @@ void HelixContain::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void HelixContain::loadPostProcess( void )
+void HelixContain::loadPostProcess()
 {
 
 	// extend base class

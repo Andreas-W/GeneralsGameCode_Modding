@@ -24,7 +24,7 @@
 #include "SpherePropertySheet.h"
 #include "Utils.h"
 #include "W3DViewDoc.h"
-#include "assetmgr.h"
+#include "WW3D2/assetmgr.h"
 #include "DataTreeView.h"
 
 #ifdef RTS_DEBUG
@@ -48,12 +48,10 @@ SpherePropertySheetClass::SpherePropertySheetClass
 	CWnd *						pParentWnd,
 	UINT							iSelectPage
 )
-	:	m_RenderObj (nullptr),
-		CPropertySheet(nIDCaption, pParentWnd, iSelectPage)
+	:	CPropertySheet(nIDCaption, pParentWnd, iSelectPage),
+		m_RenderObj (Create_Add_Ref (sphere))
 {
-	REF_PTR_SET (m_RenderObj, sphere);
 	Initialize ();
-	return ;
 }
 
 
@@ -69,12 +67,10 @@ SpherePropertySheetClass::SpherePropertySheetClass
 	CWnd *							pParentWnd,
 	UINT								iSelectPage
 )
-	:	m_RenderObj (nullptr),
-		CPropertySheet(pszCaption, pParentWnd, iSelectPage)
+	:	CPropertySheet(pszCaption, pParentWnd, iSelectPage),
+		m_RenderObj (Create_Add_Ref (sphere))
 {
-	REF_PTR_SET (m_RenderObj, sphere);
 	Initialize ();
-	return ;
 }
 
 
@@ -83,10 +79,8 @@ SpherePropertySheetClass::SpherePropertySheetClass
 // ~SpherePropertySheetClass
 //
 /////////////////////////////////////////////////////////////////////////////
-SpherePropertySheetClass::~SpherePropertySheetClass (void)
+SpherePropertySheetClass::~SpherePropertySheetClass ()
 {
-	REF_PTR_RELEASE (m_RenderObj);
-	return ;
 }
 
 
@@ -175,7 +169,7 @@ SpherePropertySheetClass::WindowProc
 //
 /////////////////////////////////////////////////////////////
 void
-SpherePropertySheetClass::Add_Object_To_Viewer (void)
+SpherePropertySheetClass::Add_Object_To_Viewer ()
 {
 	CW3DViewDoc *doc = ::GetCurrentDocument ();
 	if ((doc != nullptr) && (m_RenderObj != nullptr)) {
@@ -183,7 +177,7 @@ SpherePropertySheetClass::Add_Object_To_Viewer (void)
 		//
 		// Create a new prototype for this object
 		//
-		SpherePrototypeClass *prototype	= new SpherePrototypeClass (m_RenderObj);
+		SpherePrototypeClass *prototype	= new SpherePrototypeClass (m_RenderObj.Peek());
 
 		//
 		// Update the asset manager with the new prototype
@@ -204,17 +198,15 @@ SpherePropertySheetClass::Add_Object_To_Viewer (void)
 		//
 		doc->Reload_Displayed_Object ();
 		m_LastSavedName = m_RenderObj->Get_Name ();
-		REF_PTR_SET (m_RenderObj, (SphereRenderObjClass *)doc->GetDisplayedObject ());
+		m_RenderObj.Assign_Add_Ref ((SphereRenderObjClass *)doc->GetDisplayedObject ());
 
 		//
 		// Pass the object along to the pages
 		//
-		m_GeneralPage.Set_Sphere (m_RenderObj);
-		m_ColorPage.Set_Sphere (m_RenderObj);
-		m_ScalePage.Set_Sphere (m_RenderObj);
+		m_GeneralPage.Set_Sphere (m_RenderObj.Peek());
+		m_ColorPage.Set_Sphere (m_RenderObj.Peek());
+		m_ScalePage.Set_Sphere (m_RenderObj.Peek());
 	}
-
-	return ;
 }
 
 
@@ -224,10 +216,9 @@ SpherePropertySheetClass::Add_Object_To_Viewer (void)
 //
 /////////////////////////////////////////////////////////////
 void
-SpherePropertySheetClass::Update_Object (void)
+SpherePropertySheetClass::Update_Object ()
 {
 	Add_Object_To_Viewer ();
-	return ;
 }
 
 
@@ -237,7 +228,7 @@ SpherePropertySheetClass::Update_Object (void)
 //
 /////////////////////////////////////////////////////////////
 void
-SpherePropertySheetClass::Initialize (void)
+SpherePropertySheetClass::Initialize ()
 {
 	if (m_RenderObj == nullptr) {
 		Create_New_Object ();
@@ -248,9 +239,9 @@ SpherePropertySheetClass::Initialize (void)
 	//
 	// Pass the object along to the pages
 	//
-	m_GeneralPage.Set_Sphere (m_RenderObj);
-	m_ColorPage.Set_Sphere (m_RenderObj);
-	m_ScalePage.Set_Sphere (m_RenderObj);
+	m_GeneralPage.Set_Sphere (m_RenderObj.Peek());
+	m_ColorPage.Set_Sphere (m_RenderObj.Peek());
+	m_ScalePage.Set_Sphere (m_RenderObj.Peek());
 
 	//
 	// Add the pages to the sheet
@@ -265,7 +256,6 @@ SpherePropertySheetClass::Initialize (void)
 	m_GeneralPage.m_psp.dwFlags	|= PSP_PREMATURE;
 	m_ColorPage.m_psp.dwFlags		|= PSP_PREMATURE;
 	m_ScalePage.m_psp.dwFlags		|= PSP_PREMATURE;
-	return ;
 }
 
 
@@ -275,15 +265,14 @@ SpherePropertySheetClass::Initialize (void)
 //
 /////////////////////////////////////////////////////////////
 void
-SpherePropertySheetClass::Create_New_Object (void)
+SpherePropertySheetClass::Create_New_Object ()
 {
-	m_RenderObj = new SphereRenderObjClass;
+	m_RenderObj.Assign_No_Add_Ref (new SphereRenderObjClass);
 	m_RenderObj->Set_Name ("Sphere");
 
 	//
 	//	Display the new object
 	//
-	::GetCurrentDocument ()->DisplayObject (m_RenderObj);
-	return ;
+	::GetCurrentDocument ()->DisplayObject (m_RenderObj.Peek());
 }
 

@@ -124,14 +124,14 @@ static Bool isObjectShroudedForAction ( const Object *source, const Object *targ
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-ActionManager::ActionManager( void )
+ActionManager::ActionManager()
 {
 
 }
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-ActionManager::~ActionManager( void )
+ActionManager::~ActionManager()
 {
 
 }
@@ -173,7 +173,7 @@ Bool ActionManager::canGetRepairedAt( const Object *obj, const Object *repairDes
 	{
 		// aircraft require an airfield.
 		if( !obj->isAboveTerrain() ||
-					repairDest->isKindOf( KINDOF_AIRFIELD ) == FALSE )
+					repairDest->isKindOf( KINDOF_FS_AIRFIELD ) == FALSE )
 			return FALSE;
 	}
 	else
@@ -482,7 +482,7 @@ Bool ActionManager::canResumeConstructionOf( const Object *obj,
 	// in the future)
 	//
 	Object *builder = TheGameLogic->findObjectByID( objectBeingConstructed->getBuilderID() );
-#if RETAIL_COMPATIBLE_CRC || PRESERVE_RETAIL_BEHAVIOR
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_BUILDING_RESUMPTION_DELAY
 	if( builder )
 #else
 	// TheSuperHackers @bugfix Stubbjax 18/11/2025 Allow scaffold to be immediately resumed after builder death.
@@ -577,7 +577,7 @@ Bool ActionManager::canEnterObject( const Object *obj, const Object *objectToEnt
 	}
 
 	// Special case for aircraft.
-	if( obj->isKindOf( KINDOF_AIRCRAFT ) && objectToEnter->isKindOf( KINDOF_AIRFIELD ) )
+	if( obj->isKindOf( KINDOF_AIRCRAFT ) && objectToEnter->isKindOf( KINDOF_FS_AIRFIELD ) )
 	{
 		if (!obj->isAboveTerrain())
 			return FALSE;

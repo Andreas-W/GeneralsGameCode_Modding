@@ -34,7 +34,7 @@
 #include "WW3D2/hanim.h"
 #include "WW3D2/camera.h"
 
-#include "assetmgr.h"
+#include "WW3D2/assetmgr.h"
 
 #include "W3DDevice/Common/W3DConvert.h"
 #include "W3DDevice/GameClient/W3DMouse.h"
@@ -44,8 +44,8 @@
 #include "GameClient/Display.h"
 #include "GameClient/Image.h"
 #include "GameClient/InGameUI.h"
-#include "mutex.h"
-#include "thread.h"
+#include "WWLib/mutex.h"
+#include "WWLib/thread.h"
 
 
 //Since there can't be more than 1 mouse, might as well keep these static.
@@ -63,7 +63,7 @@ static class MouseThreadClass : public ThreadClass
 public:
 	MouseThreadClass() : ThreadClass() {}
 
-	void Thread_Function();
+	virtual void Thread_Function() override;
 
 } thread;
 
@@ -82,7 +82,7 @@ void MouseThreadClass::Thread_Function()
 	}
 }
 
-W3DMouse::W3DMouse( void )
+W3DMouse::W3DMouse()
 {
 	// zero our event list
 	for (Int i=0; i<NUM_MOUSE_CURSORS; i++)
@@ -106,7 +106,7 @@ W3DMouse::W3DMouse( void )
 
 }
 
-W3DMouse::~W3DMouse( void )
+W3DMouse::~W3DMouse()
 {
 	LPDIRECT3DDEVICE8 m_pDev=DX8Wrapper::_Get_D3D_Device8();
 
@@ -123,7 +123,7 @@ W3DMouse::~W3DMouse( void )
 
 }
 
-void W3DMouse::initPolygonAssets(void)
+void W3DMouse::initPolygonAssets()
 {
 	CriticalSectionClass::LockClass m(mutex);
 
@@ -144,7 +144,7 @@ void W3DMouse::initPolygonAssets(void)
 	}
 }
 
-void W3DMouse::freePolygonAssets(void)
+void W3DMouse::freePolygonAssets()
 {
 
 	for (Int i=0; i<NUM_MOUSE_CURSORS; i++)
@@ -208,7 +208,7 @@ Bool W3DMouse::loadD3DCursorTextures(MouseCursor cursor)
 	return TRUE;
 }
 
-void W3DMouse::initD3DAssets(void)
+void W3DMouse::initD3DAssets()
 {
 	//Nothing to do here unless we want to preload all possible cursors which would
 	//probably not be practical for memory reasons.
@@ -238,7 +238,7 @@ void W3DMouse::initD3DAssets(void)
 	}
 }
 
-void W3DMouse::freeD3DAssets(void)
+void W3DMouse::freeD3DAssets()
 {
 	//free pointers to texture surfaces.
 	Int i=0;
@@ -254,7 +254,7 @@ void W3DMouse::freeD3DAssets(void)
 
 }
 
-void W3DMouse::initW3DAssets(void)
+void W3DMouse::initW3DAssets()
 {
 	CriticalSectionClass::LockClass m(mutex);
 
@@ -309,7 +309,7 @@ void W3DMouse::initW3DAssets(void)
 		m_camera->Set_Projection_Type( CameraClass::ORTHO );
 }
 
-void W3DMouse::freeW3DAssets(void)
+void W3DMouse::freeW3DAssets()
 {
 
 	for (Int i=0; i<NUM_MOUSE_CURSORS; i++)
@@ -328,7 +328,7 @@ void W3DMouse::freeW3DAssets(void)
 //-------------------------------------------------------------------------------------------------
 /** Initialize our device */
 //-------------------------------------------------------------------------------------------------
-void W3DMouse::init( void )
+void W3DMouse::init()
 {
 
 	//check if system already initialized and texture assets loaded.
@@ -348,7 +348,7 @@ void W3DMouse::init( void )
 //-------------------------------------------------------------------------------------------------
 /** Reset */
 //-------------------------------------------------------------------------------------------------
-void W3DMouse::reset( void )
+void W3DMouse::reset()
 {
 
 	// extend
@@ -472,7 +472,7 @@ void W3DMouse::setCursor( MouseCursor cursor )
 
 extern HWND ApplicationHWnd;
 
-void W3DMouse::draw(void)
+void W3DMouse::draw()
 {
 	CriticalSectionClass::LockClass m(mutex);
 

@@ -49,7 +49,7 @@ public:
 	Real m_treadDriveSpeedFraction;	///<fraction of locomotor speed below which treads stop animating.
 
 	W3DTankDrawModuleData();
-	~W3DTankDrawModuleData();
+	virtual ~W3DTankDrawModuleData() override;
 	static void buildFieldParse(MultiIniFieldParse& p);
 };
 
@@ -65,12 +65,12 @@ public:
 	W3DTankDraw( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
-	virtual void setHidden(Bool h);
-	virtual void doDrawModule(const Matrix3D* transformMtx);
-	virtual void setFullyObscuredByShroud(Bool fullyObscured);
+	virtual void setHidden(Bool h) override;
+	virtual void doDrawModule(const Matrix3D* transformMtx) override;
+	virtual void setFullyObscuredByShroud(Bool fullyObscured) override;
 
 protected:
-	virtual void onRenderObjRecreated(void);
+	virtual void onRenderObjRecreated() override;
 
 protected:
 
@@ -93,10 +93,10 @@ protected:
 	Int m_treadCount;
 	Coord3D m_lastDirection;		///< orientation of tank last time it was drawn.
 
-	void createTreadEmitters( void ); ///< Create particle effects for treads.
-	void tossTreadEmitters( void ); ///< Destroy particle effects for treads.
+	void createTreadEmitters(); ///< Create particle effects for treads.
+	void tossTreadEmitters(); ///< Destroy particle effects for treads.
 
-	void stopMoveDebris( void ); ///< Stop creating debris from the tank treads.
-	void updateTreadObjects(void); ///< Update pointers to sub-objects like treads.
+	void stopMoveDebris(); ///< Stop creating debris from the tank treads.
+	void updateTreadObjects(); ///< Update pointers to sub-objects like treads.
 	void updateTreadPositions(Real uvDelta); ///< Update uv coordinates on each tread.
 };

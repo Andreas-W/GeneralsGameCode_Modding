@@ -72,7 +72,7 @@ WeaponSetUpgrade::WeaponSetUpgrade( Thing *thing, const ModuleData* moduleData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-WeaponSetUpgrade::~WeaponSetUpgrade( void )
+WeaponSetUpgrade::~WeaponSetUpgrade()
 {
 }
 
@@ -163,7 +163,7 @@ void WeaponSetUpgrade::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void WeaponSetUpgrade::loadPostProcess( void )
+void WeaponSetUpgrade::loadPostProcess()
 {
 
 	// extend base class

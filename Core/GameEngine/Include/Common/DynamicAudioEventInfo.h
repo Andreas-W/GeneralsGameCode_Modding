@@ -51,9 +51,9 @@ class DynamicAudioEventInfo : public AudioEventInfo
     explicit DynamicAudioEventInfo( const AudioEventInfo & baseInfo );
 
     // DynamicAudioEventInfo interfacing function overrides
-    virtual Bool isLevelSpecific() const;
-    virtual DynamicAudioEventInfo * getDynamicAudioEventInfo();
-    virtual const DynamicAudioEventInfo * getDynamicAudioEventInfo() const;
+    virtual Bool isLevelSpecific() const override;
+    virtual DynamicAudioEventInfo * getDynamicAudioEventInfo() override;
+    virtual const DynamicAudioEventInfo * getDynamicAudioEventInfo() const override;
 
     // Change various fields from their default (INI) values
     void overrideAudioName( const AsciiString & newName );
@@ -98,7 +98,7 @@ class DynamicAudioEventInfo : public AudioEventInfo
     };
     // Warning: update xferNoName if you modify the enum list!
 
-    BitFlags< OVERRIDE_COUNT > m_overriddenFields;
+    BitFlags< OVERRIDE_COUNT, struct OverriddenTag > m_overriddenFields;
 
     // Retain the original name so we can look it up later
     AsciiString m_originalName;

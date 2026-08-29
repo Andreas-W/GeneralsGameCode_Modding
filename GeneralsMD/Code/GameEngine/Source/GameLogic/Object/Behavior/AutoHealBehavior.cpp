@@ -96,21 +96,6 @@ AutoHealBehavior::AutoHealBehavior( Thing *thing, const ModuleData* moduleData )
 	m_radiusParticleSystemID = INVALID_PARTICLE_SYSTEM_ID;
 	m_soonestHealFrame = 0;
 	m_stopped = false;
-	Object *obj = getObject();
-
-	{
-		if( d->m_radiusParticleSystemTmpl )
-		{
-			ParticleSystem *particleSystem;
-
-			particleSystem = TheParticleSystemManager->createParticleSystem( d->m_radiusParticleSystemTmpl );
-			if( particleSystem )
-			{
-				particleSystem->setPosition( obj->getPosition() );
-				m_radiusParticleSystemID = particleSystem->getSystemID();
-			}
-		}
-	}
 
 	if (d->m_initiallyActive)
 	{
@@ -128,7 +113,7 @@ AutoHealBehavior::AutoHealBehavior( Thing *thing, const ModuleData* moduleData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-AutoHealBehavior::~AutoHealBehavior( void )
+AutoHealBehavior::~AutoHealBehavior()
 {
 
 	if( m_radiusParticleSystemID != INVALID_PARTICLE_SYSTEM_ID )
@@ -180,7 +165,7 @@ void AutoHealBehavior::onDamage( DamageInfo *damageInfo )
 //-------------------------------------------------------------------------------------------------
 /** The update callback. */
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime AutoHealBehavior::update( void )
+UpdateSleepTime AutoHealBehavior::update()
 {
 	if (m_stopped)
 		return UPDATE_SLEEP_FOREVER;
@@ -195,6 +180,10 @@ UpdateSleepTime AutoHealBehavior::update( void )
 		DEBUG_ASSERTCRASH(isUpgradeActive(), ("hmm, this should not be possible"));
 		return UPDATE_SLEEP_FOREVER;
 	}
+
+	// TheSuperHackers @bugfix stephanmeesters 18/04/2026 Delay emitter creation until update, to ensure that the particle
+	// systems are not created before ParticleManager has xfer-loaded.
+	createEmitters();
 
 //DEBUG_LOG(("doing auto heal %d",TheGameLogic->getFrame()));
 
@@ -450,7 +439,7 @@ void AutoHealBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AutoHealBehavior::loadPostProcess( void )
+void AutoHealBehavior::loadPostProcess()
 {
 
 	// extend base class
@@ -459,4 +448,20 @@ void AutoHealBehavior::loadPostProcess( void )
 	// extend base class
 	UpgradeMux::upgradeMuxLoadPostProcess();
 
+}
+
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+void AutoHealBehavior::createEmitters()
+{
+	if( m_radiusParticleSystemID == INVALID_PARTICLE_SYSTEM_ID )
+	{
+		const AutoHealBehaviorModuleData *d = getAutoHealBehaviorModuleData();
+		ParticleSystem *particleSystem = TheParticleSystemManager->createParticleSystem(d->m_radiusParticleSystemTmpl);
+		if( particleSystem )
+		{
+			particleSystem->setPosition( getObject()->getPosition() );
+			m_radiusParticleSystemID = particleSystem->getSystemID();
+		}
+	}
 }

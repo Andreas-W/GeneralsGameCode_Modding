@@ -48,12 +48,12 @@
 #include "Common/PerfTimer.h"
 #include "Common/GlobalData.h"
 #include "Common/Debug.h"
-#include "texture.h"
-#include "colmath.h"
-#include "coltest.h"
-#include "rinfo.h"
-#include "camera.h"
-#include "assetmgr.h"
+#include "WW3D2/texture.h"
+#include "WWMath/colmath.h"
+#include "WW3D2/coltest.h"
+#include "WW3D2/rinfo.h"
+#include "WW3D2/camera.h"
+#include "WW3D2/assetmgr.h"
 #include "WW3D2/dx8wrapper.h"
 #include "WW3D2/scene.h"
 #include "GameLogic/TerrainLogic.h"
@@ -67,7 +67,7 @@
 //=============================================================================
 /** Destructor. Releases w3d assets. */
 //=============================================================================
-TerrainTracksRenderObjClass::~TerrainTracksRenderObjClass(void)
+TerrainTracksRenderObjClass::~TerrainTracksRenderObjClass()
 {
 	freeTerrainTracksResources();
 }
@@ -77,7 +77,7 @@ TerrainTracksRenderObjClass::~TerrainTracksRenderObjClass(void)
 //=============================================================================
 /** Constructor. Just nulls out some variables. */
 //=============================================================================
-TerrainTracksRenderObjClass::TerrainTracksRenderObjClass(void)
+TerrainTracksRenderObjClass::TerrainTracksRenderObjClass()
 {
 	m_stageZeroTexture=nullptr;
 	m_lastAnchor=Vector3(0,1,2.25);
@@ -116,7 +116,7 @@ void TerrainTracksRenderObjClass::Get_Obj_Space_Bounding_Box(AABoxClass & box) c
 //=============================================================================
 /** returns the class id, so the scene can tell what kind of render object it has. */
 //=============================================================================
-Int TerrainTracksRenderObjClass::Class_ID(void) const
+Int TerrainTracksRenderObjClass::Class_ID() const
 {
 	return RenderObjClass::CLASSID_IMAGE3D;
 }
@@ -126,7 +126,7 @@ Int TerrainTracksRenderObjClass::Class_ID(void) const
 //=============================================================================
 /** Not used, but required virtual method. */
 //=============================================================================
-RenderObjClass *	 TerrainTracksRenderObjClass::Clone(void) const
+RenderObjClass *	 TerrainTracksRenderObjClass::Clone() const
 {
 	assert(false);
 	return nullptr;
@@ -137,7 +137,7 @@ RenderObjClass *	 TerrainTracksRenderObjClass::Clone(void) const
 //=============================================================================
 /** Free any W3D resources associated with this object */
 //=============================================================================
-Int TerrainTracksRenderObjClass::freeTerrainTracksResources(void)
+Int TerrainTracksRenderObjClass::freeTerrainTracksResources()
 {
 	REF_PTR_RELEASE(m_stageZeroTexture);
 	m_haveAnchor=false;
@@ -590,7 +590,7 @@ TerrainTracksRenderObjClassSystem::TerrainTracksRenderObjClassSystem()
 //=============================================================================
 /** Destructor.  Free all pre-allocated track laying render objects*/
 //=============================================================================
-TerrainTracksRenderObjClassSystem::~TerrainTracksRenderObjClassSystem( void )
+TerrainTracksRenderObjClassSystem::~TerrainTracksRenderObjClassSystem()
 {
 
 	// free all data
@@ -606,7 +606,7 @@ TerrainTracksRenderObjClassSystem::~TerrainTracksRenderObjClassSystem( void )
 //=============================================================================
 /** (Re)allocates all W3D assets after a reset.. */
 //=============================================================================
-void TerrainTracksRenderObjClassSystem::ReAcquireResources(void)
+void TerrainTracksRenderObjClassSystem::ReAcquireResources()
 {
 	Int i;
 	const Int numModules=TheGlobalData->m_maxTerrainTracks;
@@ -643,7 +643,7 @@ void TerrainTracksRenderObjClassSystem::ReAcquireResources(void)
 //=============================================================================
 /** (Re)allocates all W3D assets after a reset.. */
 //=============================================================================
-void TerrainTracksRenderObjClassSystem::ReleaseResources(void)
+void TerrainTracksRenderObjClassSystem::ReleaseResources()
 {
 	REF_PTR_RELEASE(m_indexBuffer);
 	REF_PTR_RELEASE(m_vertexBuffer);
@@ -712,7 +712,7 @@ void TerrainTracksRenderObjClassSystem::init( SceneClass *TerrainTracksScene )
 //=============================================================================
 /** Shutdown and free all memory for this system */
 //=============================================================================
-void TerrainTracksRenderObjClassSystem::shutdown( void )
+void TerrainTracksRenderObjClassSystem::shutdown()
 {
 	TerrainTracksRenderObjClass *nextMod,*mod;
 
@@ -936,7 +936,7 @@ Try improving the fit to vertical surfaces like cliffs.
 }
 
 /**Removes all remaining tracks from the rendering system*/
-void TerrainTracksRenderObjClassSystem::Reset(void)
+void TerrainTracksRenderObjClassSystem::Reset()
 {
 	TerrainTracksRenderObjClass *nextMod,*mod=m_usedModules;
 
@@ -957,7 +957,7 @@ void TerrainTracksRenderObjClassSystem::Reset(void)
 
 /**Clear the treads from each track laying object without freeing the objects.
 Mostly used when user changed LOD level*/
-void TerrainTracksRenderObjClassSystem::clearTracks(void)
+void TerrainTracksRenderObjClassSystem::clearTracks()
 {
 	TerrainTracksRenderObjClass *mod=m_usedModules;
 
@@ -978,7 +978,7 @@ void TerrainTracksRenderObjClassSystem::clearTracks(void)
 
 /**Adjust various paremeters which affect the cost of rendering tracks on the map.
 Parameters are passed via GlobalData*/
-void TerrainTracksRenderObjClassSystem::setDetail(void)
+void TerrainTracksRenderObjClassSystem::setDetail()
 {
 	//Remove all existing track segments from screen.
 	clearTracks();

@@ -204,10 +204,10 @@ target_compile_definitions(g_worldbuilder PRIVATE _AFXDLL)
 
 target_precompile_headers(g_worldbuilder PRIVATE
     [["Utility/CppMacros.h"]] # Must be first, to be removed when abandoning VC6
-    [["always.h"]]
+    [["WWLib/always.h"]]
     [["Common/STLTypedefs.h"]]
     [["StdAfx.h"]]
-    [["WWCommon.h"]]
+    [["WWLib/WWCommon.h"]]
 )
 
 target_link_libraries(g_worldbuilder PRIVATE
@@ -225,9 +225,9 @@ if(WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows")
     target_link_options(g_worldbuilder PRIVATE /NODEFAULTLIB:libci.lib /NODEFAULTLIB:libc.lib)
 
     target_sources(g_worldbuilder PRIVATE res/WorldBuilder.rc)
-    set_target_properties(g_worldbuilder PROPERTIES OUTPUT_NAME WorldBuilderV)
+    set_target_properties(g_worldbuilder PROPERTIES OUTPUT_NAME "WorldBuilderV${RTS_BUILD_OUTPUT_SUFFIX}")
 else()
-    set_target_properties(g_worldbuilder PROPERTIES OUTPUT_NAME worldbuilderv)
+    set_target_properties(g_worldbuilder PROPERTIES OUTPUT_NAME "worldbuilderv${RTS_BUILD_OUTPUT_SUFFIX}")
 endif()
 
 target_sources(g_worldbuilder PRIVATE ${WORLDBUILDER_SRC})

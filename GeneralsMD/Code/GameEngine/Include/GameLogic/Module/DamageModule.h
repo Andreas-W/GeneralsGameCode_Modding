@@ -95,14 +95,7 @@ public:
 	static Int getInterfaceMask() { return MODULEINTERFACE_DAMAGE; }
 
 	// BehaviorModule
-	virtual DamageModuleInterface* getDamage() { return this; }
-
-	// damage module callbacks
-	virtual void onDamage( DamageInfo *damageInfo ) = 0;	///< damage callback
-	virtual void onHealing( DamageInfo *damageInfo ) = 0;	///< healing callback
-	virtual void onBodyDamageStateChange( const DamageInfo* damageInfo,
-																				BodyDamageType oldState,
-																				BodyDamageType newState) = 0;  ///< state change callback
+	virtual DamageModuleInterface* getDamage() override { return this; }
 
 protected:
 

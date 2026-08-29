@@ -58,6 +58,7 @@
 #include "Common/GameMemory.h"
 #include "Common/StackDump.h"
 #include "Common/MessageStream.h"
+#include "Common/PlayerList.h"
 #include "Common/Registry.h"
 #include "Common/Team.h"
 #include "GameClient/ClientInstance.h"
@@ -73,7 +74,6 @@
 #include "GeneratedVersion.h"
 #include "resource.h"
 
-#include <rts/profile.h>
 #ifdef RTS_ENABLE_CRASHDUMP
 #include "Common/MiniDumper.h"
 #endif
@@ -359,7 +359,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message,
 			//-------------------------------------------------------------------------
 			case WM_SYSCOMMAND:
 				// Prevent moving/sizing and power loss in fullscreen mode
-				switch( wParam )
+				switch( wParam & 0xFFF0 )
 				{
 					case SC_KEYMENU:
 						// TheSuperHackers @bugfix Mauller 10/05/2025 Always handle this command to prevent halting the game when left Alt is pressed.
@@ -376,28 +376,35 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message,
 
 			case WM_QUERYENDSESSION:
 			{
-				TheMessageStream->appendMessage(GameMessage::MSG_META_DEMO_INSTANT_QUIT);
+				if (TheGameEngine && !TheGameEngine->getQuitting())
+				{
+					if (TheMessageStream && TheMessageStream->isReadyForMessages())
+					{
+						TheMessageStream->appendMessage(GameMessage::MSG_META_DEMO_INSTANT_QUIT);
+					}
+					else
+					{
+						TheGameEngine->setQuitting(TRUE);
+					}
+				}
 				return 0;	//don't allow Windows to shutdown while game is running.
 			}
 
 			// ------------------------------------------------------------------------
 			case WM_CLOSE:
-				if (!TheGameEngine->getQuitting())
+				// TheSuperHackers @feature Intercept Alt+F4/Close to show the quit menu in-game. 
+				// Repeating the command when the menu is visible triggers a Self-Destruct followed by a sequenced quit.
+				// If not in a match (e.g. main menu), the command instantly closes the application.
+				if (TheGameEngine && !TheGameEngine->getQuitting())
 				{
-					//user is exiting without using the menus
-
-					//This method didn't work in cinematics because we don't process messages.
-					//But it's the cleanest way to exit that's similar to using menus.
-					TheMessageStream->appendMessage(GameMessage::MSG_META_DEMO_INSTANT_QUIT);
-
-					//This method used to disable quitting.  We just put up the options screen instead.
-					//TheMessageStream->appendMessage(GameMessage::MSG_META_OPTIONS);
-
-					//This method works everywhere but isn't as clean at shutting down.
-					//TheGameEngine->checkAbnormalQuitting();	//old way to log disconnections for ALT-F4
-					//TheGameEngine->reset();
-					//TheGameEngine->setQuitting(TRUE);
-					//_exit(EXIT_SUCCESS);
+					if (TheMessageStream && TheMessageStream->isReadyForMessages())
+					{
+						TheMessageStream->appendMessage(GameMessage::MSG_META_DEMO_INSTANT_QUIT);
+					}
+					else
+					{
+						TheGameEngine->setQuitting(TRUE);
+					}
 				}
 				return 0;
 
@@ -711,7 +718,7 @@ static Bool initializeAppWindows( HINSTANCE hInstance, Int nCmdShow, Bool runWin
    // Create our main window
 	windowStyle =  WS_POPUP|WS_VISIBLE;
 	if (runWindowed)
-		windowStyle |= WS_DLGFRAME | WS_CAPTION | WS_SYSMENU;
+		windowStyle |= WS_MINIMIZEBOX | WS_SYSMENU | WS_DLGFRAME | WS_CAPTION;
 	else
 		windowStyle |= WS_EX_TOPMOST | WS_SYSMENU;
 
@@ -823,7 +830,7 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 //	WaitForDebugger(); //in debug build, wait for debugger attachment
 //#endif
 
-#ifdef RTS_PROFILE
+#ifdef RTS_PROFILE_LEGACY
   Profile::StartRange("init");
 #endif
 
@@ -873,7 +880,7 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 
 // Force "splash image" to be loaded from a file, not a resource so same exe can be used in different localizations.
-#if defined(RTS_DEBUG) || defined RTS_PROFILE
+#if defined(RTS_DEBUG) || defined RTS_PROFILE_LEGACY
 
 			// check both localized directory and root dir
 		char filePath[_MAX_PATH];
@@ -903,7 +910,9 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 		// register windows class and create application window
 		if(!TheGlobalData->m_headless && initializeAppWindows(hInstance, nCmdShow, TheGlobalData->m_windowed) == false)
+		{
 			return exitcode;
+		}
 
 		// save our application instance for future use
 		ApplicationHInstance = hInstance;
@@ -983,7 +992,7 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 // CreateGameEngine ===========================================================
 /** Create the Win32 game engine we're going to use */
 //=============================================================================
-GameEngine *CreateGameEngine( void )
+GameEngine *CreateGameEngine()
 {
 	Win32GameEngine *engine;
 

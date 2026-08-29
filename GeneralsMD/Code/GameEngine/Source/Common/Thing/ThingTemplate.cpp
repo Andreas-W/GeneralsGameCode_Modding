@@ -87,6 +87,27 @@ const Int USE_EXP_VALUE_FOR_SKILL_VALUE = -999;
 
 AudioEventRTS ThingTemplate::s_audioEventNoSound;
 
+static void parseKindOfFromINI(INI* ini, void* instance, void *store, const void* userData)
+{
+	KindOfMaskType::parseFromINI(ini, instance, store, userData);
+
+#if RTS_GENERALS
+	KindOfMaskType* kindOf = reinterpret_cast<KindOfMaskType*>(store);
+
+	if (kindOf->test(KINDOF_AIRFIELD))
+	{
+		// KINDOF_AIRFIELD became KINDOF_FS_AIRFIELD in Zero Hour.
+		kindOf->set(KINDOF_FS_AIRFIELD);
+	}
+
+	if (kindOf->test(KINDOF_DRONE))
+	{
+		// KINDOF_DRONE was implicitly KINDOF_NO_SELECT in Generals.
+		kindOf->set(KINDOF_NO_SELECT);
+	}
+#endif
+}
+
 /*
 	NOTE NOTE NOTE -- s_objectFieldParseTable and s_objectReskinFieldParseTable must be updated in tandem!
 
@@ -151,7 +172,7 @@ const FieldParse ThingTemplate::s_objectFieldParseTable[] =
 	{ "IsPrerequisite",				INI::parseBool,											nullptr,		offsetof( ThingTemplate, m_isPrerequisite ) },
 	{ "DisplayColor",					INI::parseColorInt,									nullptr,		offsetof( ThingTemplate, m_displayColor ) },
 	{ "EditorSorting",				INI::parseByteSizedIndexList,				EditorSortingNames, offsetof( ThingTemplate, m_editorSorting ) },
-	{ "KindOf",								KindOfMaskType::parseFromINI,				nullptr,		offsetof( ThingTemplate, m_kindof ) },
+	{ "KindOf",								parseKindOfFromINI,									nullptr,		offsetof( ThingTemplate, m_kindof ) },
 	{ "CommandSet",						INI::parseAsciiString,							nullptr,		offsetof( ThingTemplate, m_commandSetString ) },
 	{ "BuildVariations",			INI::parseAsciiStringVector,				nullptr,		offsetof( ThingTemplate, m_buildVariations ) },
 
@@ -694,7 +715,7 @@ static void parsePrerequisiteUnit( INI* ini, void *instance, void * /*store*/, c
 
 	ProductionPrerequisite prereq;
 	Bool orUnitWithPrevious = FALSE;
-	for (const char *token = ini->getNextToken(); token != nullptr; token = ini->getNextTokenOrNull())
+	for (const char *token = ini->getNextToken(); token; token = ini->getNextTokenOrNull())
 	{
 		prereq.addUnitPrereq( AsciiString( token ), orUnitWithPrevious );
 		orUnitWithPrevious = TRUE;
@@ -1133,7 +1154,7 @@ ThingTemplate::ThingTemplate() :
 }
 
 //-------------------------------------------------------------------------------------------------
-AIUpdateModuleData *ThingTemplate::friend_getAIModuleInfo(void)
+AIUpdateModuleData *ThingTemplate::friend_getAIModuleInfo()
 {
 	Int numModInfos = m_behaviorModuleInfo.getCount();
 	for (int j = 0; j < numModInfos; ++j)
@@ -1615,7 +1636,7 @@ Bool ThingTemplate::isEquivalentTo(const ThingTemplate* tt) const
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool ThingTemplate::isBuildableItem(void) const
+Bool ThingTemplate::isBuildableItem() const
 {
 	return (getBuildCost() != 0);
 }

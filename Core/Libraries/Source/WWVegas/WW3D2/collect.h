@@ -38,10 +38,10 @@
 
 #include "rendobj.h"
 #include "composite.h"
-#include "Vector.h"
+#include "WWLib/Vector.h"
 #include "proto.h"
-#include "w3d_file.h"
-#include "wwstring.h"
+#include "WW3D2/w3d_file.h"
+#include "WWLib/wwstring.h"
 #include "proxy.h"
 
 class CollectionDefClass;
@@ -56,67 +56,67 @@ class CollectionClass : public CompositeRenderObjClass
 {
 public:
 
-	CollectionClass(void);
+	CollectionClass();
 	CollectionClass(const CollectionDefClass & def);
 	CollectionClass(const CollectionClass & src);
 	CollectionClass & operator = (const CollectionClass &);
-	virtual ~CollectionClass(void);
-	virtual RenderObjClass *	Clone(void) const;
+	virtual ~CollectionClass() override;
+	virtual RenderObjClass *	Clone() const override;
 
-	virtual int						Class_ID(void)	const;
-	virtual int						Get_Num_Polys(void) const;
+	virtual int						Class_ID()	const override;
+	virtual int						Get_Num_Polys() const override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Proxy interface
 	/////////////////////////////////////////////////////////////////////////////
-	virtual int						Get_Proxy_Count (void) const;
+	virtual int						Get_Proxy_Count () const;
 	virtual bool					Get_Proxy (int index, ProxyClass &proxy) const;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Rendering
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void					Render(RenderInfoClass & rinfo);
-	virtual void					Special_Render(SpecialRenderInfoClass & rinfo);
+	virtual void					Render(RenderInfoClass & rinfo) override;
+	virtual void					Special_Render(SpecialRenderInfoClass & rinfo) override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - "Scene Graph"
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void 					Set_Transform(const Matrix3D &m);
-	virtual void 					Set_Position(const Vector3 &v);
-	virtual int						Get_Num_Sub_Objects(void) const;
-	virtual RenderObjClass *	Get_Sub_Object(int index) const;
-	virtual int						Add_Sub_Object(RenderObjClass * subobj);
-	virtual int						Remove_Sub_Object(RenderObjClass * robj);
+	virtual void 					Set_Transform(const Matrix3D &m) override;
+	virtual void 					Set_Position(const Vector3 &v) override;
+	virtual int						Get_Num_Sub_Objects() const override;
+	virtual RenderObjClass *	Get_Sub_Object(int index) const override;
+	virtual int						Add_Sub_Object(RenderObjClass * subobj) override;
+	virtual int						Remove_Sub_Object(RenderObjClass * robj) override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Collision Detection, Ray Tracing
 	/////////////////////////////////////////////////////////////////////////////
-	virtual bool					Cast_Ray(RayCollisionTestClass & raytest);
-	virtual bool					Cast_AABox(AABoxCollisionTestClass & boxtest);
-	virtual bool					Cast_OBBox(OBBoxCollisionTestClass & boxtest);
-	virtual bool					Intersect_AABox(AABoxIntersectionTestClass & boxtest);
-	virtual bool					Intersect_OBBox(OBBoxIntersectionTestClass & boxtest);
+	virtual bool					Cast_Ray(RayCollisionTestClass & raytest) override;
+	virtual bool					Cast_AABox(AABoxCollisionTestClass & boxtest) override;
+	virtual bool					Cast_OBBox(OBBoxCollisionTestClass & boxtest) override;
+	virtual bool					Intersect_AABox(AABoxIntersectionTestClass & boxtest) override;
+	virtual bool					Intersect_OBBox(OBBoxIntersectionTestClass & boxtest) override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Bounding Volumes
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void		 			Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const;
-	virtual void					Get_Obj_Space_Bounding_Box(AABoxClass & box) const;
+	virtual void		 			Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const override;
+	virtual void					Get_Obj_Space_Bounding_Box(AABoxClass & box) const override;
 
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Attributes, Options, Properties, etc
 	/////////////////////////////////////////////////////////////////////////////
-	virtual int						Snap_Point_Count(void);
-	virtual void					Get_Snap_Point(int index,Vector3 * set);
-	virtual void					Scale(float scale);
-	virtual void					Scale(float scalex, float scaley, float scalez);
-   virtual void               Update_Obj_Space_Bounding_Volumes(void);
+	virtual int						Snap_Point_Count();
+	virtual void					Get_Snap_Point(int index,Vector3 * set) override;
+	virtual void					Scale(float scale) override;
+	virtual void					Scale(float scalex, float scaley, float scalez) override;
+   virtual void               Update_Obj_Space_Bounding_Volumes() override;
 
 protected:
 
-	void								Free(void);
-	void								Update_Sub_Object_Transforms(void);
+	void								Free();
+	virtual void								Update_Sub_Object_Transforms() override;
 
 	DynamicVectorClass <ProxyClass>			ProxyList;
 	DynamicVectorClass <RenderObjClass *>	SubObjects;
@@ -135,8 +135,8 @@ class CollectionLoaderClass : public PrototypeLoaderClass
 {
 public:
 
-	virtual int						Chunk_Type(void) { return W3D_CHUNK_COLLECTION; }
-	virtual PrototypeClass *	Load_W3D(ChunkLoadClass & cload);
+	virtual int						Chunk_Type() override { return W3D_CHUNK_COLLECTION; }
+	virtual PrototypeClass *	Load_W3D(ChunkLoadClass & cload) override;
 };
 
 extern CollectionLoaderClass _CollectionLoader;

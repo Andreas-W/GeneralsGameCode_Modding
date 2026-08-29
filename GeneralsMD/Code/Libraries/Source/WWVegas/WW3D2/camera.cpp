@@ -73,7 +73,7 @@
 
 #include "camera.h"
 #include "ww3d.h"
-#include "matrix4.h"
+#include "WWMath/matrix4.h"
 #include "dx8wrapper.h"
 
 
@@ -89,7 +89,7 @@
  * HISTORY:                                                                                    *
  *   3/21/98    GTH : Created.                                                                 *
  *=============================================================================================*/
-CameraClass::CameraClass(void) :
+CameraClass::CameraClass() :
 	Projection(PERSPECTIVE),
 	Viewport(Vector2(0,0),Vector2(1,1)),		// pixel viewport to render into
 	AspectRatio(4.0f/3.0f),
@@ -186,7 +186,7 @@ CameraClass & CameraClass::operator = (const CameraClass & that)
  * HISTORY:                                                                                    *
  *   3/21/98    GTH : Created.                                                                 *
  *=============================================================================================*/
-CameraClass::~CameraClass(void)
+CameraClass::~CameraClass()
 {
 }
 
@@ -203,7 +203,7 @@ CameraClass::~CameraClass(void)
  * HISTORY:                                                                                    *
  *   3/21/98    GTH : Created.                                                                 *
  *=============================================================================================*/
-RenderObjClass * CameraClass::Clone(void) const
+RenderObjClass * CameraClass::Clone() const
 {
 	return NEW_REF( CameraClass, (*this) );
 }
@@ -288,6 +288,21 @@ void CameraClass::Set_Position(const Vector3 &v)
 	FrustumValid = false;
 }
 
+
+Vector3 CameraClass::Get_Right_Dir() const
+{
+	return Get_Transform().Get_X_Vector();
+}
+
+Vector3 CameraClass::Get_Forward_Dir() const
+{
+	return -Get_Transform().Get_Z_Vector();
+}
+
+Vector3 CameraClass::Get_Up_Dir() const
+{
+	return Get_Transform().Get_Y_Vector();
+}
 
 /***********************************************************************************************
  * CameraClass::Set_View_Plane -- control over the view plane                                  *
@@ -557,7 +572,7 @@ void CameraClass::Rotate_To_View_Space(Vector3 & dest,const Vector3 & ws_vector)
  * HISTORY:                                                                                    *
  *   8/25/99    GTH : Created.                                                                 *
  *=============================================================================================*/
-const OBBoxClass & CameraClass::Get_Near_Clip_Bounding_Box(void) const
+const OBBoxClass & CameraClass::Get_Near_Clip_Bounding_Box() const
 {
 	Update_Frustum();
 	return NearClipBBox;
@@ -595,7 +610,7 @@ bool CameraClass::Cull_Box(const AABoxClass & box) const
  * HISTORY:                                                                                    *
  *   5/29/98    GTH : Created.                                                                 *
  *=============================================================================================*/
-void CameraClass::Update_Frustum(void) const
+void CameraClass::Update_Frustum() const
 {
 	if (FrustumValid) return;
 
@@ -715,7 +730,7 @@ void CameraClass::Device_To_World_Space(const Vector2 & device_coord,Vector3 * w
  * HISTORY:                                                                                    *
  *   1/29/2001  gth : Created.                                                                 *
  *=============================================================================================*/
-void CameraClass::Apply(void)
+void CameraClass::Apply()
 {
 	Update_Frustum();
 
@@ -751,19 +766,19 @@ void CameraClass::Get_Clip_Planes(float & znear,float & zfar) const
 	zfar = ZFar;
 }
 
-float CameraClass::Get_Horizontal_FOV(void) const
+float CameraClass::Get_Horizontal_FOV() const
 {
 	float width = ViewPlane.Max.X - ViewPlane.Min.X;
 	return 2*WWMath::Atan2(width,2.0);
 }
 
-float CameraClass::Get_Vertical_FOV(void) const
+float CameraClass::Get_Vertical_FOV() const
 {
 	float height = ViewPlane.Max.Y - ViewPlane.Min.Y;
 	return 2*WWMath::Atan2(height,2.0);
 }
 
-float CameraClass::Get_Aspect_Ratio(void) const
+float CameraClass::Get_Aspect_Ratio() const
 {
 	return AspectRatio;
 }
@@ -804,13 +819,13 @@ void CameraClass::Get_View_Matrix(Matrix3D * set_tm)
 	*set_tm = CameraInvTransform;
 }
 
-const Matrix4x4 & CameraClass::Get_Projection_Matrix(void)
+const Matrix4x4 & CameraClass::Get_Projection_Matrix()
 {
 	Update_Frustum();
 	return ProjectionTransform;
 }
 
-const Matrix3D & CameraClass::Get_View_Matrix(void)
+const Matrix3D & CameraClass::Get_View_Matrix()
 {
 	Update_Frustum();
 	return CameraInvTransform;

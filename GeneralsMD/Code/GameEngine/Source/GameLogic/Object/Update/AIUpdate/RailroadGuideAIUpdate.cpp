@@ -78,7 +78,7 @@ Bool TrainTrack::releaseReference()
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-RailroadBehaviorModuleData::RailroadBehaviorModuleData( void )
+RailroadBehaviorModuleData::RailroadBehaviorModuleData()
 {
 	m_carriageTemplateNameData.clear();
 	m_pathPrefixName.clear();
@@ -166,7 +166,7 @@ RailroadBehavior::RailroadBehavior( Thing *thing, const ModuleData *moduleData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-RailroadBehavior::~RailroadBehavior( void )
+RailroadBehavior::~RailroadBehavior()
 {
 
 	TheAudio->removeAudioEvent( m_runningSound.getPlayingHandle() );// no more chugchug when I'm dead
@@ -352,7 +352,7 @@ void RailroadBehavior::onCollide( Object *other, const Coord3D *loc, const Coord
 
 	//figure out the relative slope between them and me
 	Coord3D delta = *theirLoc;
-	delta.sub( myLoc );
+	delta.sub( *myLoc );
 	delta.normalize();
 	Real dot = delta.x * myDir->x + delta.y * myDir->y + delta.z * myDir->z;
 
@@ -405,7 +405,7 @@ void RailroadBehavior::onCollide( Object *other, const Coord3D *loc, const Coord
 
 	const Coord3D up = {0,0,1};
 	Coord3D cross;
-	myDir->crossProduct( myDir, &up, &cross );
+	myDir->crossProduct( *myDir, up, cross );
 
 	delta.normalize();
 	Real deviationCOG = cross.x * delta.x + cross.y * delta.y + cross.z * delta.z;
@@ -494,7 +494,7 @@ void RailroadBehavior::playImpactSound(Object *victim, const Coord3D *impactPosi
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void RailroadBehavior::loadTrackData( void )
+void RailroadBehavior::loadTrackData()
 {
 
 	if ( m_track != nullptr )
@@ -576,7 +576,7 @@ void RailroadBehavior::loadTrackData( void )
 		trackPoint.m_isStation = scanner->getName().endsWith("Station");
 		trackPoint.m_isDisembark = scanner->getName().endsWith("Disembark");
 		trackPoint.m_isPingPong = FALSE;
-		trackPoint.m_position.set( scanner->getLocation() );
+		trackPoint.m_position.set( *scanner->getLocation() );
 		trackPoint.m_handle = scanner->getID();
 		track->push_back( trackPoint );
 	}
@@ -610,7 +610,7 @@ void RailroadBehavior::loadTrackData( void )
 				trackPoint.m_isStation = anotherWaypoint->getName().endsWith("Station");
 				trackPoint.m_isPingPong = scanner->getName().endsWith("PingPong");
 				trackPoint.m_isDisembark = scanner->getName().endsWith("Disembark");
-				trackPoint.m_position.set( anotherWaypoint->getLocation() );
+				trackPoint.m_position.set( *anotherWaypoint->getLocation() );
 				trackPoint.m_handle = scanner->getID();
 				track->push_back( trackPoint );
 
@@ -666,7 +666,7 @@ void RailroadBehavior::makeAWallOutOfThisTrain( Bool on )
 
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-UpdateSleepTime RailroadBehavior::update( void )
+UpdateSleepTime RailroadBehavior::update()
 {
 
 
@@ -854,7 +854,7 @@ UpdateSleepTime RailroadBehavior::update( void )
 
 
 
-void RailroadBehavior::disembark(void)
+void RailroadBehavior::disembark()
 {
 	ContainModuleInterface *contain = getObject()->getContain();
 	if (contain)
@@ -903,10 +903,10 @@ public:
 	PartitionFilterIsValidCarriage(Object* obj, const RailroadBehaviorModuleData* data) : m_obj(obj), m_data(data) { }
 
 #if defined(RTS_DEBUG)
-	virtual const char* debugGetName() { return "PartitionFilterIsValidCarriage"; }
+	virtual const char* debugGetName() override { return "PartitionFilterIsValidCarriage"; }
 #endif
 
-	virtual Bool allow(Object *objOther)
+	virtual Bool allow(Object *objOther) override
 	{
 
 		// must exist!
@@ -935,7 +935,7 @@ public:
 };
 
 
-void RailroadBehavior::createCarriages( void )
+void RailroadBehavior::createCarriages()
 {
 
 
@@ -955,7 +955,7 @@ void RailroadBehavior::createCarriages( void )
 	Coord3D myHitchLoc  = *self->getPosition();
 	Coord3D hitchOffset = *self->getUnitDirectionVector2D();//copy that
 	hitchOffset.scale ( - maxRadius );// negative, since I want the back, not the front
-	myHitchLoc.add( & hitchOffset );
+	myHitchLoc.add( hitchOffset );
 
 
 	PartitionFilterIsValidCarriage pfivc(self, md);
@@ -1116,7 +1116,7 @@ void RailroadBehavior::hitchNewCarriagebyProximity( ObjectID locoID, TrainTrack 
 	Coord3D myHitchLoc  = *self->getPosition();
 	Coord3D hitchOffset = *self->getUnitDirectionVector2D();//copy that
 	hitchOffset.scale ( - maxRadius );// negative, since I want the back, not the front
-	myHitchLoc.add( & hitchOffset );
+	myHitchLoc.add( hitchOffset );
 
 	PartitionFilterIsValidCarriage pfivc(self, md);
 	PartitionFilter *filters[] = { &pfivc, nullptr };
@@ -1236,7 +1236,7 @@ void alignToTerrain( Real angle, const Coord3D& pos, const Coord3D& normal, Matr
 	DEBUG_ASSERTCRASH(fabs(x.x*z.x + x.y*z.y + x.z*z.z)<0.0001,("dot is not zero"));
 
 	// now computing the y vector is trivial.
-	y.crossProduct( &z, &x, &y );
+	y.crossProduct( z, x, y );
 	y.normalize();
 
 	mtx.Set(  x.x, y.x, z.x, pos.x,
@@ -1338,7 +1338,7 @@ void RailroadBehavior::updatePositionTrackDistance( PullInfo *pullerInfo, PullIn
 
 //---------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------
-void RailroadBehavior::destroyTheWholeTrainNow( void )
+void RailroadBehavior::destroyTheWholeTrainNow()
 {
 	TheGameLogic->destroyObject( getObject());
 
@@ -1484,10 +1484,10 @@ void RailroadBehavior::FindPosByPathDistance( Coord3D *pos, const Real dist, con
 
 				Coord3D delta        = nextPoint->m_position;
 
-				delta.sub( &thisPointPos );
+				delta.sub( thisPointPos );
 				delta.normalize();
 				delta.scale( difference );
-				thisPointPos.add( &delta );
+				thisPointPos.add( delta );
 
 				*pos = thisPointPos;//copy out
 				return;
@@ -1620,7 +1620,7 @@ void RailroadBehavior::PullInfo::xferPullInfo( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void RailroadBehavior::loadPostProcess( void )
+void RailroadBehavior::loadPostProcess()
 {
 	// extend base class
 	PhysicsBehavior::loadPostProcess();

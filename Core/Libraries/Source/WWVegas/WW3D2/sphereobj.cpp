@@ -70,19 +70,19 @@
 
 #include "sphereobj.h"
 #include "w3d_util.h"
-#include "wwdebug.h"
+#include "WWDebug/wwdebug.h"
 #include "vertmaterial.h"
 #include "ww3d.h"
-#include "chunkio.h"
+#include "WWLib/chunkio.h"
 #include "rinfo.h"
 #include "coltest.h"
-#include "bound.h"
+#include "WWLib/bound.h"
 #include "inttest.h"
 #include "predlod.h"
-#include "matrix3.h"
-#include "wwmath.h"
+#include "WWMath/matrix3.h"
+#include "WWMath/wwmath.h"
 #include "assetmgr.h"
-#include "wwstring.h"
+#include "WWLib/wwstring.h"
 #include "camera.h"
 #include "statistics.h"
 #include "dx8wrapper.h"
@@ -113,7 +113,7 @@ float SphereLODCosts[SPHERE_NUM_LOD + 1];	// SPHERE_NUM_LOD doesn't include the 
  * HISTORY:                                                                                    *
  *   1/19/00    gth : Created.                                                                 *
  *=============================================================================================*/
-SphereRenderObjClass::SphereRenderObjClass(void)
+SphereRenderObjClass::SphereRenderObjClass()
 	:	anim_time (0.0F),
 		IsAnimating (true),
 		LODBias(1.0f),
@@ -315,8 +315,6 @@ void SphereRenderObjClass::Generate_Shared_Mesh_Arrays (const AlphaVectorStruct 
 
 		Sphere_Array_Valid = true;
 	}
-
-	return ;
 }
 
 
@@ -345,7 +343,7 @@ void SphereRenderObjClass::calculate_value_array(float screen_area, float *value
  * HISTORY:                                                                                    *
  *   03/08/00    pds : Created.                                                                *
  *=============================================================================================*/
-void SphereRenderObjClass::Init_Material (void)
+void SphereRenderObjClass::Init_Material ()
 {
 	REF_PTR_RELEASE (SphereMaterial);
 
@@ -380,7 +378,7 @@ void SphereRenderObjClass::Init_Material (void)
  * HISTORY:                                                                                    *
  *   1/19/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int SphereRenderObjClass::Get_Num_Polys(void) const
+int SphereRenderObjClass::Get_Num_Polys() const
 {
 	return SphereLODCosts[CurrentLOD];
 }
@@ -416,7 +414,7 @@ void SphereRenderObjClass::Set_Texture(TextureClass *tf)
  * HISTORY:                                                                                    *
  *   1/19/00    gth : Created.                                                                 *
  *=============================================================================================*/
-const char * SphereRenderObjClass::Get_Name(void) const
+const char * SphereRenderObjClass::Get_Name() const
 {
 	return Name;
 }
@@ -562,7 +560,7 @@ void SphereRenderObjClass::vis_render_sphere(SpecialRenderInfoClass & rinfo,cons
  * HISTORY:                                                                                    *
  *   1/19/00    gth : Created.                                                                 *
  *=============================================================================================*/
-RenderObjClass * SphereRenderObjClass::Clone(void) const
+RenderObjClass * SphereRenderObjClass::Clone() const
 {
 	return W3DNEW SphereRenderObjClass(*this);
 }
@@ -580,7 +578,7 @@ RenderObjClass * SphereRenderObjClass::Clone(void) const
  * HISTORY:                                                                                    *
  *   1/19/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int SphereRenderObjClass::Class_ID(void) const
+int SphereRenderObjClass::Class_ID() const
 {
 	return RenderObjClass::CLASSID_SPHERE;
 }
@@ -759,7 +757,7 @@ void SphereRenderObjClass::Set_Position(const Vector3 &v)
  * HISTORY:                                                                                    *
  *   1/19/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void SphereRenderObjClass::update_cached_box(void)
+void SphereRenderObjClass::update_cached_box()
 {
 	CachedBox.Center = Transform.Get_Translation() + ObjSpaceCenter;
 	CachedBox.Extent = ObjSpaceExtent;
@@ -813,27 +811,27 @@ void SphereRenderObjClass::Prepare_LOD(CameraClass &camera)
 	PredictiveLODOptimizerClass::Add_Object(this);
 }
 
-void SphereRenderObjClass::Increment_LOD(void)
+void SphereRenderObjClass::Increment_LOD()
 {
 	if (CurrentLOD < SPHERE_NUM_LOD) CurrentLOD++;
 }
 
-void SphereRenderObjClass::Decrement_LOD(void)
+void SphereRenderObjClass::Decrement_LOD()
 {
 	if (CurrentLOD > 0) CurrentLOD--;
 }
 
-float SphereRenderObjClass::Get_Cost(void) const
+float SphereRenderObjClass::Get_Cost() const
 {
 	return Get_Num_Polys();	// Currently cost == polys
 }
 
-float SphereRenderObjClass::Get_Value(void) const
+float SphereRenderObjClass::Get_Value() const
 {
 	return Value[CurrentLOD];
 }
 
-float SphereRenderObjClass::Get_Post_Increment_Value(void) const
+float SphereRenderObjClass::Get_Post_Increment_Value() const
 {
 	return Value[CurrentLOD + 1];
 }
@@ -843,12 +841,12 @@ void SphereRenderObjClass::Set_LOD_Level(int lod)
 	CurrentLOD = Bound(lod, 0, SPHERE_NUM_LOD);	// SPHERE_NUM_LOD doesn't include the null LOD
 }
 
-int SphereRenderObjClass::Get_LOD_Level(void) const
+int SphereRenderObjClass::Get_LOD_Level() const
 {
 	return CurrentLOD;
 }
 
-int SphereRenderObjClass::Get_LOD_Count(void) const
+int SphereRenderObjClass::Get_LOD_Count() const
 {
 	return SPHERE_NUM_LOD + 1;	// SPHERE_NUM_LOD doesn't include the null LOD
 }
@@ -940,7 +938,7 @@ void SphereRenderObjClass::Scale(float scalex, float scaley, float scalez)
  * HISTORY:                                                                                    *
  *   1/19/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void SphereRenderObjClass::Update_Cached_Bounding_Volumes(void) const
+void SphereRenderObjClass::Update_Cached_Bounding_Volumes() const
 {
 	CachedBoundingBox.Extent.X = ObjSpaceExtent.X * CurrentScale.X;
 	CachedBoundingBox.Extent.Y = ObjSpaceExtent.Y * CurrentScale.Y;
@@ -965,7 +963,7 @@ void SphereRenderObjClass::Update_Cached_Bounding_Volumes(void) const
  * HISTORY:                                                                                    *
  *   3/13/2000    pds : Created.                                                               *
  *=============================================================================================*/
-Vector3 SphereRenderObjClass::Get_Default_Color(void) const
+Vector3 SphereRenderObjClass::Get_Default_Color() const
 {
 	Vector3 value;
 
@@ -991,7 +989,7 @@ Vector3 SphereRenderObjClass::Get_Default_Color(void) const
  * HISTORY:                                                                                    *
  *   3/13/2000    pds : Created.                                                               *
  *=============================================================================================*/
-float SphereRenderObjClass::Get_Default_Alpha(void) const
+float SphereRenderObjClass::Get_Default_Alpha() const
 {
 	float  value;
 
@@ -1017,7 +1015,7 @@ float SphereRenderObjClass::Get_Default_Alpha(void) const
  * HISTORY:                                                                                    *
  *   3/13/2000    pds : Created.                                                               *
  *=============================================================================================*/
-Vector3 SphereRenderObjClass::Get_Default_Scale(void) const
+Vector3 SphereRenderObjClass::Get_Default_Scale() const
 {
 	Vector3 value;
 
@@ -1043,7 +1041,7 @@ Vector3 SphereRenderObjClass::Get_Default_Scale(void) const
  * HISTORY:                                                                                    *
  *   3/13/2000    pds : Created.                                                               *
  *=============================================================================================*/
-AlphaVectorStruct SphereRenderObjClass::Get_Default_Vector(void) const
+AlphaVectorStruct SphereRenderObjClass::Get_Default_Vector() const
 {
 	AlphaVectorStruct value;
 
@@ -1069,7 +1067,7 @@ AlphaVectorStruct SphereRenderObjClass::Get_Default_Vector(void) const
  * HISTORY:                                                                                    *
  *   4/04/00    pds : Created.                                                                 *
  *=============================================================================================*/
-void SphereRenderObjClass::Update_On_Visibility(void)
+void SphereRenderObjClass::Update_On_Visibility()
 {
 	// Simply start or stop the animation based on
 	// the visibility state of the primitive.
@@ -1078,8 +1076,6 @@ void SphereRenderObjClass::Update_On_Visibility(void)
 	} else if ((Is_Not_Hidden_At_All () == false) && Is_Animating ()) {
 		Stop_Animating ();
 	}
-
-	return ;
 }
 
 
@@ -1095,7 +1091,7 @@ void SphereRenderObjClass::Update_On_Visibility(void)
  * HISTORY:                                                                                    *
  *   3/07/00    jga : Created.                                                                 *
  *=============================================================================================*/
-void SphereRenderObjClass::animate (void)
+void SphereRenderObjClass::animate ()
 {
 	if (Is_Animating ()) {
 
@@ -1135,8 +1131,6 @@ void SphereRenderObjClass::animate (void)
 		}
 	}
 
-	return ;
-
 }
 
 
@@ -1153,10 +1147,9 @@ PrototypeClass * SphereLoaderClass::Load_W3D(ChunkLoadClass & cload)
 /*
 ** SpherePrototypeClass Implementation
 */
-SpherePrototypeClass::SpherePrototypeClass (void)
+SpherePrototypeClass::SpherePrototypeClass ()
 {
 	::memset (&Definition, 0, sizeof (Definition));
-	return ;
 }
 
 SpherePrototypeClass::SpherePrototypeClass(SphereRenderObjClass *sphere)
@@ -1201,12 +1194,10 @@ SpherePrototypeClass::SpherePrototypeClass(SphereRenderObjClass *sphere)
 	AlphaChannel	= sphere->Peek_Alpha_Channel ();
 	ScaleChannel	= sphere->Peek_Scale_Channel ();
 	VectorChannel	= sphere->Peek_Vector_Channel ();
-	return ;
 }
 
-SpherePrototypeClass::~SpherePrototypeClass (void)
+SpherePrototypeClass::~SpherePrototypeClass ()
 {
-	return ;
 }
 
 enum
@@ -1292,17 +1283,17 @@ bool SpherePrototypeClass::Save (ChunkSaveClass &csave)
 	return true;
 }
 
-const char * SpherePrototypeClass::Get_Name(void) const
+const char * SpherePrototypeClass::Get_Name() const
 {
 	return Definition.Name;
 }
 
-int SpherePrototypeClass::Get_Class_ID(void) const
+int SpherePrototypeClass::Get_Class_ID() const
 {
 	return RenderObjClass::CLASSID_SPHERE;
 }
 
-RenderObjClass * SpherePrototypeClass::Create(void)
+RenderObjClass * SpherePrototypeClass::Create()
 {
 	//
 	//	Create the new render object
@@ -1392,7 +1383,7 @@ inverse_alpha(false)
  * HISTORY:                                                                                    *
  *   3/07/00    jga : Created.                                                                 *
  *=============================================================================================*/
-SphereMeshClass::SphereMeshClass(void):
+SphereMeshClass::SphereMeshClass():
 Radius(0.0f),
 Slices(0),
 Stacks(0),
@@ -1478,8 +1469,6 @@ void	SphereMeshClass::Set_Alpha_Vector (const AlphaVectorStruct &v, bool inverse
 			Set_DCG (is_additive, idx, 1.0F - temp);
 		}
 	}
-
-	return ;
 }
 
 
@@ -1692,7 +1681,6 @@ void SphereMeshClass::Generate(float radius, int slices, int stacks)
 	//	Fill in the DCG array
 	//
 	Set_Alpha_Vector (alpha_vector, inverse_alpha, IsAdditive, true);
-	return ;
 
 }
 
@@ -1706,7 +1694,7 @@ void SphereMeshClass::Generate(float radius, int slices, int stacks)
  * HISTORY:                                                                                    *
  *   3/07/00    jga : Created.                                                                 *
  *=============================================================================================*/
-SphereMeshClass::~SphereMeshClass(void)
+SphereMeshClass::~SphereMeshClass()
 {
 
 	Free();
@@ -1726,7 +1714,7 @@ SphereMeshClass::~SphereMeshClass(void)
  * HISTORY:                                                                                    *
  *   3/07/00    jga : Created.                                                                 *
  *=============================================================================================*/
-void SphereMeshClass::Free(void)
+void SphereMeshClass::Free()
 {
 	delete [] vtx;
 	delete [] vtx_normal;

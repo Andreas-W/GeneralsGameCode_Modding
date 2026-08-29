@@ -214,11 +214,11 @@ class FXListStore : public SubsystemInterface
 public:
 
 	FXListStore();
-	~FXListStore();
+	virtual ~FXListStore() override;
 
-	void init() { }
-	void reset() { }
-	void update() { }
+	virtual void init() override { }
+	virtual void reset() override { }
+	virtual void update() override { }
 
 	/**
 		return the FXList with the given namekey.
@@ -231,7 +231,7 @@ public:
 private:
 
 	// use the hashing function for Ints.
-	typedef std::hash_map< NameKeyType, FXList, rts::hash<NameKeyType>, rts::equal_to<NameKeyType> > FXListMap;
+	typedef std::hash_map< NameKeyType, FXList, rts::hash<NameKeyType>, rts::equal_to<NameKeyType>/**/> FXListMap;
 
 	FXListMap m_fxmap;
 

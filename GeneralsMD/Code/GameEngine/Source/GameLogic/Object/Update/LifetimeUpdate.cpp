@@ -60,7 +60,7 @@ LifetimeUpdate::LifetimeUpdate( Thing *thing, const ModuleData* moduleData ) : U
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-LifetimeUpdate::~LifetimeUpdate( void )
+LifetimeUpdate::~LifetimeUpdate()
 {
 }
 
@@ -147,7 +147,7 @@ void LifetimeUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void LifetimeUpdate::loadPostProcess( void )
+void LifetimeUpdate::loadPostProcess()
 {
 
 	// extend base class

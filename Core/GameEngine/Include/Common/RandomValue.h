@@ -30,10 +30,29 @@
 
 #include "Lib/BaseType.h"
 
-extern void InitRandom( void );
+extern void InitRandom();
 extern void InitRandom( UnsignedInt seed );
-extern void InitGameLogicRandom( UnsignedInt seed ); ///< Set the GameLogic seed to a known value at game start
-extern UnsignedInt GetGameLogicRandomSeed( void );   ///< Get the seed (used for replays)
-extern UnsignedInt GetGameLogicRandomSeedCRC( void );///< Get the seed (used for CRCs)
+extern UnsignedInt GetGameLogicRandomSeed();   ///< Get the seed (used for replays)
+extern UnsignedInt GetGameLogicRandomSeedCRC();///< Get the seed (used for CRCs)
+
+struct RandomValueClass
+{
+	virtual Int GetRandomValueInt( Int lo, Int hi, const char *file, Int line ) const = 0;
+	virtual Real GetRandomValueReal( Real lo, Real hi, const char *file, Int line ) const = 0;
+};
+struct LogicRandomValueClass final : RandomValueClass
+{
+	virtual Int GetRandomValueInt( Int lo, Int hi, const char *file, Int line ) const override;
+	virtual Real GetRandomValueReal( Real lo, Real hi, const char *file, Int line ) const override;
+};
+struct ClientRandomValueClass final : RandomValueClass
+{
+	virtual Int GetRandomValueInt( Int lo, Int hi, const char *file, Int line ) const override;
+	virtual Real GetRandomValueReal( Real lo, Real hi, const char *file, Int line ) const override;
+};
+
+// use these macros to access the random value functions
+#define RandomValueInt(randomValueClass, lo, hi) randomValueClass.GetRandomValueInt( lo, hi, __FILE__, __LINE__ )
+#define RandomValueReal(randomValueClass, lo, hi) randomValueClass.GetRandomValueReal( lo, hi, __FILE__, __LINE__ )
 
 //--------------------------------------------------------------------------------------------------------------

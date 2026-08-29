@@ -231,6 +231,9 @@ void WeaponSet::xfer( Xfer *xfer )
 			if (tt == nullptr)
 				throw INI_INVALID_DATA;
 
+			// TheSuperHackers @fix bobtista 27/01/2026 Use the same final override as Object.
+			tt = static_cast<const ThingTemplate*>(tt->getFinalOverride());
+
 			m_curWeaponTemplateSet = tt->findWeaponTemplateSet(wsFlags);
 			if (m_curWeaponTemplateSet == nullptr)
 				throw INI_INVALID_DATA;
@@ -299,7 +302,7 @@ void WeaponSet::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void WeaponSet::loadPostProcess( void )
+void WeaponSet::loadPostProcess()
 {
 
 }
@@ -1000,6 +1003,28 @@ Weapon* WeaponSet::findWaypointFollowingCapableWeapon()
 		}
 	}
 	return nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+UnsignedInt WeaponSet::getMostPercentReadyToFireAnyWeapon() const
+{
+	UnsignedInt mostReady = 0;
+	for( Int i = 0; i < WEAPONSLOT_COUNT;	i++ )
+	{
+		if( m_weapons[ i ] )
+		{
+			UnsignedInt percentage = (UnsignedInt)(m_weapons[ i ]->getPercentReadyToFire() * 100.0f);
+			if( percentage > mostReady )
+			{
+				mostReady = percentage;
+			}
+			if( mostReady >= 100 )
+			{
+				return mostReady;
+			}
+		}
+	}
+	return mostReady;
 }
 
 //-------------------------------------------------------------------------------------------------

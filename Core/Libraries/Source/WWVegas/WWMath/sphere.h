@@ -50,7 +50,7 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "vector3.h"
 #include "matrix3d.h"
 
@@ -65,7 +65,7 @@
 class SphereClass
 {
 public:
-	SphereClass(void) { };
+	SphereClass() : Center(Vector3(0.0f, 0.0f, 0.0f)), Radius(0.0f) { }
 	SphereClass(const Vector3 & center,float radius) { Init(center,radius); }
 	SphereClass(const Matrix3D& mtx,const Vector3 & center,float radius) { Init(mtx,center,radius); }
 	inline SphereClass(const Vector3 & center,const SphereClass & s0);
@@ -76,7 +76,8 @@ public:
 	inline void Re_Center(const Vector3 & center);
 	inline void Add_Sphere(const SphereClass & s);
 	inline void Transform(const Matrix3D & tm);
-	inline float Volume(void) const;
+	inline float Volume() const;
+	inline bool Is_Valid() const;
 
 	inline SphereClass & operator += (const SphereClass & s);
 	inline SphereClass & operator *= (const Matrix3D & m);
@@ -302,7 +303,7 @@ inline void SphereClass::Re_Center(const Vector3 & center)
  *=============================================================================================*/
 inline void SphereClass::Add_Sphere(const SphereClass & s)
 {
-	if (s.Radius == 0.0f) return;
+	if (!s.Is_Valid()) return;
 
 	float dist = (s.Center - Center).Length();
 	if (dist == 0.0f) {
@@ -368,7 +369,7 @@ inline void SphereClass::Transform(const Matrix3D & tm)
  * HISTORY:                                                                                    *
  *   3/22/99    GTH : Created.                                                                 *
  *=============================================================================================*/
-inline float SphereClass::Volume(void) const
+inline float SphereClass::Volume() const
 {
 	return (4.0 / 3.0) * WWMATH_PI * (Radius * Radius * Radius);
 }
@@ -452,12 +453,12 @@ inline bool Spheres_Intersect(const SphereClass & s0,const SphereClass & s1)
  *=============================================================================================*/
 inline SphereClass Add_Spheres(const SphereClass & s0, const SphereClass & s1)
 {
-	if (s0.Radius == 0.0f) {
-		return s1;
-	} else {
+	if (s0.Is_Valid()) {
 		SphereClass result(s0);
 		result.Add_Sphere(s1);
 		return result;
+	} else {
+		return s1;
 	}
 }
 
@@ -538,4 +539,9 @@ inline void Transform_Sphere(const Matrix3D & m, const SphereClass & s,SphereCla
 inline SphereClass operator * (const Matrix3D & m, const SphereClass & s)
 {
 	return Transform_Sphere(m,s);
+}
+
+inline bool SphereClass::Is_Valid() const
+{
+	return Radius > 0.0f;
 }

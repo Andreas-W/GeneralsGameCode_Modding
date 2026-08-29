@@ -30,7 +30,6 @@
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
-#define DEFINE_UPGRADE_TYPE_NAMES
 #define DEFINE_VETERANCY_NAMES
 #include "Common/Upgrade.h"
 #include "Common/Player.h"
@@ -68,7 +67,7 @@ Upgrade::Upgrade( const UpgradeTemplate *upgradeTemplate )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-Upgrade::~Upgrade( void )
+Upgrade::~Upgrade()
 {
 
 }
@@ -102,7 +101,7 @@ void Upgrade::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void Upgrade::loadPostProcess( void )
+void Upgrade::loadPostProcess()
 {
 
 }
@@ -123,13 +122,14 @@ const FieldParse UpgradeTemplate::m_upgradeFieldParseTable[] =
 	{ "ButtonImage",				INI::parseAsciiString,		nullptr, offsetof( UpgradeTemplate, m_buttonImageName ) },
 	{ "ResearchSound",			INI::parseAudioEventRTS,	nullptr, offsetof( UpgradeTemplate, m_researchSound ) },
 	{ "UnitSpecificSound",	INI::parseAudioEventRTS,	nullptr, offsetof( UpgradeTemplate, m_unitSpecificSound ) },
+	{ "AcademyClassify",		INI::parseIndexList,			TheAcademyClassificationTypeNames, offsetof( UpgradeTemplate, m_academyClassificationType ) },
 	{ nullptr,						nullptr,												 nullptr, 0 }
 
 };
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpgradeTemplate::UpgradeTemplate( void )
+UpgradeTemplate::UpgradeTemplate()
 {
 	m_cost = 0;
 	m_type = UPGRADE_TYPE_PLAYER;
@@ -138,12 +138,13 @@ UpgradeTemplate::UpgradeTemplate( void )
 	m_next = nullptr;
 	m_prev = nullptr;
 	m_buttonImage = nullptr;
+	m_academyClassificationType = ACT_NONE;
 
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpgradeTemplate::~UpgradeTemplate( void )
+UpgradeTemplate::~UpgradeTemplate()
 {
 
 }
@@ -153,7 +154,7 @@ UpgradeTemplate::~UpgradeTemplate( void )
 //-------------------------------------------------------------------------------------------------
 Int UpgradeTemplate::calcTimeToBuild( Player *player ) const
 {
-#if defined(RTS_DEBUG)
+#if defined(RTS_DEBUG) || defined(_ALLOW_DEBUG_CHEATS_IN_RELEASE)
 	if( player->buildsInstantly() )
 	{
 		return 1;
@@ -219,7 +220,7 @@ void UpgradeTemplate::cacheButtonImage()
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpgradeCenter::UpgradeCenter( void )
+UpgradeCenter::UpgradeCenter()
 {
 
 	m_upgradeList = nullptr;
@@ -230,7 +231,7 @@ UpgradeCenter::UpgradeCenter( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpgradeCenter::~UpgradeCenter( void )
+UpgradeCenter::~UpgradeCenter()
 {
 
 	// delete all the upgrades loaded from the INI database
@@ -254,7 +255,7 @@ UpgradeCenter::~UpgradeCenter( void )
 //-------------------------------------------------------------------------------------------------
 /** Upgrade center initialization */
 //-------------------------------------------------------------------------------------------------
-void UpgradeCenter::init( void )
+void UpgradeCenter::init()
 {
 	UpgradeTemplate* up;
 
@@ -278,7 +279,7 @@ void UpgradeCenter::init( void )
 //-------------------------------------------------------------------------------------------------
 /** Upgrade center system reset */
 //-------------------------------------------------------------------------------------------------
-void UpgradeCenter::reset( void )
+void UpgradeCenter::reset()
 {
 	if( TheMappedImageCollection && !buttonImagesCached )
 	{
@@ -320,7 +321,7 @@ UpgradeTemplate *UpgradeCenter::findNonConstUpgradeByKey( NameKeyType key )
 // ------------------------------------------------------------------------------------------------
 /** Return the first upgrade template */
 // ------------------------------------------------------------------------------------------------
-UpgradeTemplate *UpgradeCenter::firstUpgradeTemplate( void )
+UpgradeTemplate *UpgradeCenter::firstUpgradeTemplate()
 {
 
 	return m_upgradeList;
@@ -461,7 +462,7 @@ Bool UpgradeCenter::canAffordUpgrade( Player *player, const UpgradeTemplate *upg
 //-------------------------------------------------------------------------------------------------
 /** generate a list of upgrade names for WorldBuilder */
 //-------------------------------------------------------------------------------------------------
-std::vector<AsciiString> UpgradeCenter::getUpgradeNames( void ) const
+std::vector<AsciiString> UpgradeCenter::getUpgradeNames() const
 {
 	std::vector<AsciiString> upgradeNames;
 

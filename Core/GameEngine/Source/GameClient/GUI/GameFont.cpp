@@ -105,7 +105,7 @@ void FontLibrary::unlinkFont( GameFont *font )
 //-------------------------------------------------------------------------------------------------
 /** Delete all font data, DO NOT throw an exception ... the destructor uses this */
 //-------------------------------------------------------------------------------------------------
-void FontLibrary::deleteAllFonts( void )
+void FontLibrary::deleteAllFonts()
 {
 	GameFont *font;
 
@@ -135,7 +135,7 @@ void FontLibrary::deleteAllFonts( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-FontLibrary::FontLibrary( void )
+FontLibrary::FontLibrary()
 {
 
 	m_fontList = nullptr;
@@ -145,7 +145,7 @@ FontLibrary::FontLibrary( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-FontLibrary::~FontLibrary( void )
+FontLibrary::~FontLibrary()
 {
 
 	// delete all font data
@@ -156,7 +156,7 @@ FontLibrary::~FontLibrary( void )
 //-------------------------------------------------------------------------------------------------
 /** Initialize what we need to in the font library */
 //-------------------------------------------------------------------------------------------------
-void FontLibrary::init( void )
+void FontLibrary::init()
 {
 
 }
@@ -164,7 +164,7 @@ void FontLibrary::init( void )
 //-------------------------------------------------------------------------------------------------
 /** Reset the fonts for this font library */
 //-------------------------------------------------------------------------------------------------
-void FontLibrary::reset( void )
+void FontLibrary::reset()
 {
 
 	// delete all font data
@@ -178,9 +178,8 @@ void FontLibrary::reset( void )
 //-------------------------------------------------------------------------------------------------
 GameFont *FontLibrary::getFont( AsciiString name, Int pointSize, Bool bold )
 {
-	// sanity check the size - anything over 100 is probably wrong. -MW
-	// TheSuperHackers @fix Now also no longer creates fonts with zero size.
-	if (pointSize < 1 || pointSize > 100)
+	// TheSuperHackers @fix No longer creates fonts with zero size. And allows fonts with size larger than 100.
+	if (pointSize < 1)
 	{
 		return nullptr;
 	}

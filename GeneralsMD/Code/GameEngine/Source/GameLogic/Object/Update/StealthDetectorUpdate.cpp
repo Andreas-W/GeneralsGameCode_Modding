@@ -92,7 +92,7 @@ StealthDetectorUpdate::StealthDetectorUpdate( Thing *thing, const ModuleData* mo
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-StealthDetectorUpdate::~StealthDetectorUpdate( void )
+StealthDetectorUpdate::~StealthDetectorUpdate()
 {
 }
 
@@ -115,10 +115,10 @@ class PartitionFilterStealthedOrStealthGarrisoned : public PartitionFilter
 public:
 	PartitionFilterStealthedOrStealthGarrisoned() { }
 
-	virtual Bool allow(Object *objOther);
+	virtual Bool allow(Object *objOther) override;
 
 #if defined(RTS_DEBUG)
-	virtual const char* debugGetName() { return "PartitionFilterStealthedOrStealthGarrisoned"; }
+	virtual const char* debugGetName() override { return "PartitionFilterStealthedOrStealthGarrisoned"; }
 #endif
 };
 
@@ -140,7 +140,7 @@ Bool PartitionFilterStealthedOrStealthGarrisoned::allow( Object *objOther)
 //-------------------------------------------------------------------------------------------------
 /** The update callback. */
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime StealthDetectorUpdate::update( void )
+UpdateSleepTime StealthDetectorUpdate::update()
 {
 	const StealthDetectorUpdateModuleData *data = getStealthDetectorUpdateModuleData();
 	Object* self = getObject();
@@ -312,18 +312,15 @@ UpdateSleepTime StealthDetectorUpdate::update( void )
 			if (data->m_IRGridParticleSysTmpl)
 			{
 				const ParticleSystemTemplate *gridTemplate = data->m_IRGridParticleSysTmpl;
-				if (gridTemplate)
+				ParticleSystem *sys = TheParticleSystemManager->createParticleSystem( gridTemplate );//GRID
+				if (sys)
 				{
-					ParticleSystem *sys = TheParticleSystemManager->createParticleSystem( gridTemplate );//GRID
-					if (sys)
-					{
-						Coord3D gridPosition = *them->getPosition();
-						gridPosition.z = self->getPosition()->z + 17;
-						gridPosition.x -= ((Int)gridPosition.x)%12;
-						gridPosition.y -= ((Int)gridPosition.y)%12;
+					Coord3D gridPosition = *them->getPosition();
+					gridPosition.z = self->getPosition()->z + 17;
+					gridPosition.x -= ((Int)gridPosition.x)%12;
+					gridPosition.y -= ((Int)gridPosition.y)%12;
 
-						sys->setPosition( &gridPosition );
-					}
+					sys->setPosition( &gridPosition );
 				}
 			}
 
@@ -373,34 +370,28 @@ UpdateSleepTime StealthDetectorUpdate::update( void )
 		  else
 			  pingTemplate = data->m_IRParticleSysTmpl;
 
-		  if (pingTemplate)
+		  ParticleSystem *sys = TheParticleSystemManager->createParticleSystem( pingTemplate );
+		  if (sys)
 		  {
-			  ParticleSystem *sys = TheParticleSystemManager->createParticleSystem( pingTemplate );
-			  if (sys)
-			  {
-				  if (myDraw)
-					  sys->attachToDrawable( myDraw );
-				  else
-					  sys->attachToObject( self );
+			  if (myDraw)
+				  sys->attachToDrawable( myDraw );
+			  else
+				  sys->attachToObject( self );
 
-				  sys->setPosition( &bonePosition );
-			  }
+			  sys->setPosition( &bonePosition );
 		  }
 
 		  const ParticleSystemTemplate *beaconTemplate = data->m_IRBeaconParticleSysTmpl;
-		  if (beaconTemplate)
+		  sys = TheParticleSystemManager->createParticleSystem( beaconTemplate );//BEACON
+		  if (sys)
 		  {
-			  ParticleSystem *sys = TheParticleSystemManager->createParticleSystem( beaconTemplate );//BEACON
-			  if (sys)
-			  {
-				  if (myDraw)
-					  sys->attachToDrawable( myDraw );
-				  else
-					  sys->attachToObject( self );
+			  if (myDraw)
+				  sys->attachToDrawable( myDraw );
+			  else
+				  sys->attachToObject( self );
 
-				  sys->setPosition( &bonePosition );
+			  sys->setPosition( &bonePosition );
 
-			  }
 		  }
 
 		  AudioEventRTS IRPingSound;
@@ -456,7 +447,7 @@ void StealthDetectorUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void StealthDetectorUpdate::loadPostProcess( void )
+void StealthDetectorUpdate::loadPostProcess()
 {
 
 	// extend base class

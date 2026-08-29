@@ -54,6 +54,8 @@
 #include "Common/LocalFileSystem.h"
 #include "Common/PerfTimer.h"
 
+#include "Lib/PathUtil.h"
+
 
 DECLARE_PERF_TIMER(FileSystem)
 
@@ -138,7 +140,7 @@ FileSystem::~FileSystem()
 // FileSystem::init
 //============================================================================
 
-void		FileSystem::init( void )
+void		FileSystem::init()
 {
 	TheLocalFileSystem->init();
 	TheArchiveFileSystem->init();
@@ -148,7 +150,7 @@ void		FileSystem::init( void )
 // FileSystem::update
 //============================================================================
 
-void		FileSystem::update( void )
+void		FileSystem::update()
 {
 	USE_PERF_TIMER(FileSystem)
 	TheLocalFileSystem->update();
@@ -159,7 +161,7 @@ void		FileSystem::update( void )
 // FileSystem::reset
 //============================================================================
 
-void		FileSystem::reset( void )
+void		FileSystem::reset()
 {
 	USE_PERF_TIMER(FileSystem)
 	TheLocalFileSystem->reset();
@@ -377,4 +379,32 @@ Bool FileSystem::isPathInDirectory(const AsciiString& testPath, const AsciiStrin
 	}
 
 	return true;
+}
+
+//============================================================================
+// FileSystem::removeExtension - Ascii handling variant
+//============================================================================
+bool FileSystem::removeExtension(AsciiString& path)
+{
+	if (const Char* ext = getExtension(path.str()))
+	{
+		path.truncateTo(ext - path.str());
+		return true;
+	}
+
+	return false;
+}
+
+//============================================================================
+// FileSystem::removeExtension - Unicode handling variant
+//============================================================================
+bool FileSystem::removeExtension(UnicodeString& path)
+{
+	if (const WideChar* ext = getExtension(path.str()))
+	{
+		path.truncateTo(ext - path.str());
+		return true;
+	}
+
+	return false;
 }

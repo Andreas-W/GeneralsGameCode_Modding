@@ -134,7 +134,7 @@ void TunnelTracker::updateNemesis(const Object *target)
 }
 
 // ------------------------------------------------------------------------
-Object *TunnelTracker::getCurNemesis(void)
+Object *TunnelTracker::getCurNemesis()
 {
 	if (m_curNemesisID == INVALID_ID) {
 		return nullptr;
@@ -278,7 +278,7 @@ void TunnelTracker::destroyObject( Object *obj, void * )
 
 // ------------------------------------------------------------------------
 	// heal all the objects within the tunnel system using the iterateContained function
-#if PRESERVE_RETAIL_BEHAVIOR || RETAIL_COMPATIBLE_CRC
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_TUNNEL_HEAL_STACKING
 void TunnelTracker::healObjects(Real frames)
 {
 	iterateContained(healObject, &frames, FALSE);
@@ -302,7 +302,7 @@ void TunnelTracker::healObject( Object *obj, void *frames)
 {
 
 	//get the number of frames to heal
-#if PRESERVE_RETAIL_BEHAVIOR || RETAIL_COMPATIBLE_CRC
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_TUNNEL_HEAL_STACKING
 	Real *framesForFullHeal = (Real*)frames;
 #else
 	UnsignedInt* framesForFullHeal = (UnsignedInt*)frames;
@@ -432,7 +432,7 @@ void TunnelTracker::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TunnelTracker::loadPostProcess( void )
+void TunnelTracker::loadPostProcess()
 {
 
 	// sanity, the contain list should be empty until we post process the id list

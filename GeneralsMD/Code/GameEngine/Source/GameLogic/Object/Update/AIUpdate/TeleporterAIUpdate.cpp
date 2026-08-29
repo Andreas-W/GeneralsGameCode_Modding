@@ -555,7 +555,7 @@ UpdateSleepTime TeleporterAIUpdate::doLocomotor(void)
 		//Adjust target to required distance
 		if (requiredRange > 0) {
 			dir.scale(min(dist, requiredRange - TELEPORT_DIST_MARGIN));
-			targetPos.sub(&dir);
+			targetPos.sub(dir);
 			targetPos.z = TheTerrainLogic->getGroundHeight(targetPos.x, targetPos.y);
 		}
 
@@ -588,7 +588,7 @@ UpdateSleepTime TeleporterAIUpdate::doLocomotor(void)
 		requiredRange = goalObj->getGeometryInfo().getBoundingCircleRadius();
 		if (requiredRange > 0) {
 			dir.scale(min(dist, requiredRange));
-			targetPos.sub(&dir);
+			targetPos.sub(dir);
 			targetPos.z = TheTerrainLogic->getGroundHeight(targetPos.x, targetPos.y);
 		}
 		TheAI->pathfinder()->adjustDestination(obj, getLocomotorSet(), &targetPos);

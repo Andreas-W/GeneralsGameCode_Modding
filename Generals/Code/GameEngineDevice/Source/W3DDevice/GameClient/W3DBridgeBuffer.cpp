@@ -49,7 +49,7 @@
 #include "W3DDevice/GameClient/W3DBridgeBuffer.h"
 
 #include "W3DDevice/GameClient/W3DAssetManager.h"
-#include <texture.h>
+#include <WW3D2/texture.h>
 #include "Common/GlobalData.h"
 #include "Common/RandomValue.h"
 #include "Common/ThingFactory.h"
@@ -117,7 +117,7 @@ m_scale(1.0)
 //=============================================================================
 /** Frees objects.  */
 //=============================================================================
-W3DBridge::~W3DBridge(void)
+W3DBridge::~W3DBridge()
 {
 	clearBridge();
 }
@@ -142,7 +142,7 @@ void W3DBridge::renderBridge(Bool wireframe)
 //=============================================================================
 /** Frees all bridge objects (meshes & texture).  */
 //=============================================================================
-void W3DBridge::clearBridge(void)
+void W3DBridge::clearBridge()
 {
 	m_visible = false;
 	REF_PTR_RELEASE(m_bridgeTexture);
@@ -623,7 +623,6 @@ void W3DBridge::getIndicesNVertices(UnsignedShort *destination_ib, VertexFormatX
 	*curVertexP += numV;
 	m_numVertex += numV;
 	m_numPolygons += numI/3;
-	return;
 }
 
 //=============================================================================
@@ -717,7 +716,7 @@ void W3DBridgeBuffer::loadBridgesInVertexAndIndexBuffers(RefRenderObjListIterato
 //=============================================================================
 /** Destructor. Releases w3d assets. */
 //=============================================================================
-W3DBridgeBuffer::~W3DBridgeBuffer(void)
+W3DBridgeBuffer::~W3DBridgeBuffer()
 {
 	freeBridgeBuffers();
 }
@@ -728,7 +727,7 @@ W3DBridgeBuffer::~W3DBridgeBuffer(void)
 /** Constructor. Sets m_initialized to true if it finds the w3d models it needs
 for the bridges. */
 //=============================================================================
-W3DBridgeBuffer::W3DBridgeBuffer(void)
+W3DBridgeBuffer::W3DBridgeBuffer()
 {
 	m_initialized = false;
 	m_vertexMaterial = nullptr;
@@ -748,7 +747,7 @@ W3DBridgeBuffer::W3DBridgeBuffer(void)
 //=============================================================================
 /** Frees the index and vertex buffers. */
 //=============================================================================
-void W3DBridgeBuffer::freeBridgeBuffers(void)
+void W3DBridgeBuffer::freeBridgeBuffers()
 {
 	REF_PTR_RELEASE(m_vertexBridge);
 	REF_PTR_RELEASE(m_indexBridge);
@@ -760,7 +759,7 @@ void W3DBridgeBuffer::freeBridgeBuffers(void)
 //=============================================================================
 /** Allocates the index and vertex buffers. */
 //=============================================================================
-void W3DBridgeBuffer::allocateBridgeBuffers(void)
+void W3DBridgeBuffer::allocateBridgeBuffers()
 {
 	if (TheGlobalData->m_headless)
 		return;
@@ -787,7 +786,7 @@ void W3DBridgeBuffer::allocateBridgeBuffers(void)
 //=============================================================================
 /** Removes all bridges. */
 //=============================================================================
-void W3DBridgeBuffer::clearAllBridges(void)
+void W3DBridgeBuffer::clearAllBridges()
 {
 	Int curBridge;
 	for (curBridge=0; curBridge<m_numBridges; curBridge++) {
@@ -879,7 +878,7 @@ static RenderObjClass* createTower( SimpleSceneClass *scene,
 		return nullptr;
 
 	// find the name of the render object to show
-	const ModuleInfo& mi = towerTemplate->getDrawModuleInfo( );
+	const ModuleInfo& mi = towerTemplate->getDrawModuleInfo();
 	if( mi.getCount() <= 0 )
 		return nullptr;
 	const ModuleData* mdd = mi.getNthData(0);

@@ -22,11 +22,11 @@
 #include "StdAfx.h"
 #include "W3DView.h"
 #include "MeshPropPage.h"
-#include "rendobj.h"
-#include "assetmgr.h"
-#include "mesh.h"
-#include "meshmdl.h"
-#include "w3d_file.h"
+#include "WW3D2/rendobj.h"
+#include "WW3D2/assetmgr.h"
+#include "WW3D2/mesh.h"
+#include "WW3D2/meshmdl.h"
+#include "WW3D2/w3d_file.h"
 
 #ifdef RTS_DEBUG
 #define new DEBUG_NEW
@@ -52,16 +52,14 @@ CMeshPropPage::CMeshPropPage (const CString &stringMeshName)
 	//}}AFX_DATA_INIT
 
     m_stringMeshName = stringMeshName;
-    return ;
 }
 
 ////////////////////////////////////////////////////////////////
 //
 //  ~CMeshPropPage
 //
-CMeshPropPage::~CMeshPropPage (void)
+CMeshPropPage::~CMeshPropPage ()
 {
-    return ;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -75,7 +73,6 @@ CMeshPropPage::DoDataExchange (CDataExchange* pDX)
 	//{{AFX_DATA_MAP(CMeshPropPage)
 		// NOTE: the ClassWizard will add DDX and DDV calls here
 	//}}AFX_DATA_MAP
-    return ;
 }
 
 
@@ -93,7 +90,7 @@ END_MESSAGE_MAP()
 //  OnInitDialog
 //
 BOOL
-CMeshPropPage::OnInitDialog (void)
+CMeshPropPage::OnInitDialog ()
 {
 	// Allow the base class to process this message
     CPropertyPage::OnInitDialog();
@@ -184,5 +181,4 @@ void CMeshPropPage::OnClose()
 	// TODO: Add your message handler code here and/or call default
 
 	CPropertyPage::OnClose();
-    return ;
 }

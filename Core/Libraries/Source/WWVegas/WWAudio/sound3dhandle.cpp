@@ -43,10 +43,9 @@
 //	Sound3DHandleClass
 //
 //////////////////////////////////////////////////////////////////////
-Sound3DHandleClass::Sound3DHandleClass (void)	:
+Sound3DHandleClass::Sound3DHandleClass ()	:
 	SampleHandle ((H3DSAMPLE)INVALID_MILES_HANDLE)
 {
-	return ;
 }
 
 
@@ -55,9 +54,8 @@ Sound3DHandleClass::Sound3DHandleClass (void)	:
 //	~Sound3DHandleClass
 //
 //////////////////////////////////////////////////////////////////////
-Sound3DHandleClass::~Sound3DHandleClass (void)
+Sound3DHandleClass::~Sound3DHandleClass ()
 {
-	return ;
 }
 
 
@@ -91,8 +89,6 @@ Sound3DHandleClass::Initialize (SoundBufferClass *buffer)
 		}
 
 	}
-
-	return ;
 }
 
 
@@ -102,12 +98,11 @@ Sound3DHandleClass::Initialize (SoundBufferClass *buffer)
 //
 //////////////////////////////////////////////////////////////////////
 void
-Sound3DHandleClass::Start_Sample (void)
+Sound3DHandleClass::Start_Sample ()
 {
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_start_3D_sample (SampleHandle);
 	}
-	return ;
 }
 
 
@@ -117,13 +112,11 @@ Sound3DHandleClass::Start_Sample (void)
 //
 //////////////////////////////////////////////////////////////////////
 void
-Sound3DHandleClass::Stop_Sample (void)
+Sound3DHandleClass::Stop_Sample ()
 {
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_stop_3D_sample (SampleHandle);
 	}
-
-	return ;
 }
 
 
@@ -133,12 +126,11 @@ Sound3DHandleClass::Stop_Sample (void)
 //
 //////////////////////////////////////////////////////////////////////
 void
-Sound3DHandleClass::Resume_Sample (void)
+Sound3DHandleClass::Resume_Sample ()
 {
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_resume_3D_sample (SampleHandle);
 	}
-	return ;
 }
 
 
@@ -148,13 +140,11 @@ Sound3DHandleClass::Resume_Sample (void)
 //
 //////////////////////////////////////////////////////////////////////
 void
-Sound3DHandleClass::End_Sample (void)
+Sound3DHandleClass::End_Sample ()
 {
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_end_3D_sample (SampleHandle);
 	}
-
-	return ;
 }
 
 
@@ -166,7 +156,6 @@ Sound3DHandleClass::End_Sample (void)
 void
 Sound3DHandleClass::Set_Sample_Pan (S32 /*pan*/)
 {
-	return ;
 }
 
 
@@ -176,7 +165,7 @@ Sound3DHandleClass::Set_Sample_Pan (S32 /*pan*/)
 //
 //////////////////////////////////////////////////////////////////////
 S32
-Sound3DHandleClass::Get_Sample_Pan (void)
+Sound3DHandleClass::Get_Sample_Pan ()
 {
 	return 64;
 }
@@ -193,8 +182,6 @@ Sound3DHandleClass::Set_Sample_Volume (S32 volume)
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_set_3D_sample_volume (SampleHandle, volume);
 	}
-
-	return ;
 }
 
 
@@ -204,7 +191,7 @@ Sound3DHandleClass::Set_Sample_Volume (S32 volume)
 //
 //////////////////////////////////////////////////////////////////////
 S32
-Sound3DHandleClass::Get_Sample_Volume (void)
+Sound3DHandleClass::Get_Sample_Volume ()
 {
 	S32 retval = 0;
 
@@ -227,8 +214,6 @@ Sound3DHandleClass::Set_Sample_Loop_Count (U32 count)
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_set_3D_sample_loop_count (SampleHandle, count);
 	}
-
-	return ;
 }
 
 
@@ -238,7 +223,7 @@ Sound3DHandleClass::Set_Sample_Loop_Count (U32 count)
 //
 //////////////////////////////////////////////////////////////////////
 U32
-Sound3DHandleClass::Get_Sample_Loop_Count (void)
+Sound3DHandleClass::Get_Sample_Loop_Count ()
 {
 	U32 retval = 0;
 
@@ -266,8 +251,6 @@ Sound3DHandleClass::Set_Sample_MS_Position (U32 ms)
 		bytes += (bytes & 1);
 		::AIL_set_3D_sample_offset (SampleHandle, bytes);
 	}
-
-	return ;
 }
 
 
@@ -296,8 +279,6 @@ Sound3DHandleClass::Get_Sample_MS_Position (S32 *len, S32 *pos)
 			(*len) = ms;
 		}
 	}
-
-	return ;
 }
 
 
@@ -312,7 +293,6 @@ Sound3DHandleClass::Set_Sample_User_Data (S32 i, void *val)
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_set_3D_object_user_data (SampleHandle, i, val);
 	}
-	return ;
 }
 
 
@@ -340,7 +320,7 @@ Sound3DHandleClass::Get_Sample_User_Data (S32 i)
 //
 //////////////////////////////////////////////////////////////////////
 S32
-Sound3DHandleClass::Get_Sample_Playback_Rate (void)
+Sound3DHandleClass::Get_Sample_Playback_Rate ()
 {
 	S32 retval = 0;
 
@@ -363,8 +343,6 @@ Sound3DHandleClass::Set_Sample_Playback_Rate (S32 rate)
 	if (SampleHandle != (H3DSAMPLE)INVALID_MILES_HANDLE) {
 		::AIL_set_3D_sample_playback_rate (SampleHandle, rate);
 	}
-
-	return ;
 }
 
 
@@ -379,5 +357,4 @@ Sound3DHandleClass::Set_Miles_Handle (uint32 handle)
 	WWASSERT (SampleHandle == (H3DSAMPLE)INVALID_MILES_HANDLE);
 
 	SampleHandle = (H3DSAMPLE)handle;
-	return ;
 }

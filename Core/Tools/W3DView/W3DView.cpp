@@ -27,18 +27,18 @@
 #include "W3DViewView.h"
 #include "Utils.h"
 #include "ColorUtils.h"
-#include "verchk.h"
-#include "wwmath.h"
-#include "WWAudio.h"
+#include "WWLib/verchk.h"
+#include "WWMath/wwmath.h"
+#include "WWAudio/WWAudio.h"
 #include "ViewerAssetMgr.h"
 #include "Globals.h"
 #include "AnimatedSoundOptionsDialog.h"
-#include "animatedsoundmgr.h"
+#include "WW3D2/animatedsoundmgr.h"
 
 
 #undef STRICT
-#include "ww3d.h"
-#include "assetmgr.h"
+#include "WW3D2/ww3d.h"
+#include "WW3D2/assetmgr.h"
 
 #ifdef RTS_DEBUG
 #define new DEBUG_NEW
@@ -84,7 +84,7 @@ END_MESSAGE_MAP()
 //
 // CW3DViewApp construction
 //
-CW3DViewApp::CW3DViewApp (void)
+CW3DViewApp::CW3DViewApp ()
 	: m_bInitialized (false)
 {
 	// TODO: add construction code here,
@@ -146,7 +146,7 @@ WinMain
 //
 ////////////////////////////////////////////////////////////
 void
-Do_Version_Check (void)
+Do_Version_Check ()
 {
 	char curr_filename[MAX_PATH];
 	::GetModuleFileName (nullptr, curr_filename, MAX_PATH);
@@ -161,8 +161,6 @@ Do_Version_Check (void)
 	if (Compare_EXE_Version ((int)::AfxGetInstanceHandle (), filename) < 0) {
 		::MessageBox (nullptr, "There is a newer version of the W3DViewer, please run W3DUpdate to upgrade your local copy.", "Version Info", MB_ICONEXCLAMATION | MB_OK | MB_SETFOREGROUND | MB_SYSTEMMODAL);
 	}
-
-	return ;
 }
 
 
@@ -170,7 +168,7 @@ Do_Version_Check (void)
 //
 // InitInstance
 //
-BOOL CW3DViewApp::InitInstance (void)
+BOOL CW3DViewApp::InitInstance ()
 {
 	// Standard initialization
 	// If you are not using these features and wish to reduce the size
@@ -316,7 +314,7 @@ void CW3DViewApp::OnAppAbout()
 /*
 **
 */
-void Debug_Refs(void)
+void Debug_Refs()
 {
 #ifdef RTS_DEBUG
 	TRACE("Detecting Active Refs...\r\n");
@@ -442,7 +440,7 @@ fnTopLevelWindowSearch
 //	OnInitDialog
 //
 BOOL
-CAboutDlg::OnInitDialog (void)
+CAboutDlg::OnInitDialog ()
 {
 	// Allow the base class to process this message
 	CDialog::OnInitDialog ();

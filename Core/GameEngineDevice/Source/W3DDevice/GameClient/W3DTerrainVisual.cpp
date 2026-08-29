@@ -42,6 +42,7 @@
 
 #include "GameClient/Drawable.h"
 #include "GameClient/ClientRandomValue.h"
+#include "GameClient/View.h"
 
 #include "GameLogic/Object.h"
 #include "GameLogic/GameLogic.h"
@@ -69,7 +70,7 @@
 class TestSeismicFilter : public SeismicSimulationFilterBase
 {
 
-  virtual SeismicSimStatusCode filterCallback( WorldHeightMapInterfaceClass *heightMap, const SeismicSimulationNode *node )
+  virtual SeismicSimStatusCode filterCallback( WorldHeightMapInterfaceClass *heightMap, const SeismicSimulationNode *node ) override
   {
 
 
@@ -140,7 +141,7 @@ class TestSeismicFilter : public SeismicSimulationFilterBase
       return SEISMIC_STATUS_ZERO_ENERGY;
   }
 
-  virtual Real applyGravityCallback( Real velocityIn )
+  virtual Real applyGravityCallback( Real velocityIn ) override
   {
     Real velocityOut = velocityIn;
     velocityOut -= 1.5f;
@@ -202,7 +203,7 @@ W3DTerrainVisual::~W3DTerrainVisual()
 //-------------------------------------------------------------------------------------------------
 /** init */
 //-------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::init( void )
+void W3DTerrainVisual::init()
 {
 
 	// extend
@@ -279,7 +280,7 @@ void W3DTerrainVisual::init( void )
 //-------------------------------------------------------------------------------------------------
 /** reset */
 //-------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::reset( void )
+void W3DTerrainVisual::reset()
 {
 
 	// extend
@@ -321,7 +322,7 @@ void W3DTerrainVisual::reset( void )
 //-------------------------------------------------------------------------------------------------
 /** update */
 //-------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::update( void )
+void W3DTerrainVisual::update()
 {
 
 	// extend
@@ -352,7 +353,7 @@ void W3DTerrainVisual::addSeismicSimulation( const SeismicSimulationNode& sim )
 
 
 
-void W3DTerrainVisual::handleSeismicSimulations( void )
+void W3DTerrainVisual::handleSeismicSimulations()
 {
   if ( ! m_clientHeightMap || ! m_logicHeightMap || ! m_terrainRenderObject )
     return;
@@ -443,7 +444,7 @@ void W3DTerrainVisual::handleSeismicSimulations( void )
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void W3DTerrainVisual::updateSeismicSimulations( void )
+void W3DTerrainVisual::updateSeismicSimulations()
 {
 
 	if (m_logicHeightMap==nullptr)
@@ -493,6 +494,10 @@ void W3DTerrainVisual::updateSeismicSimulations( void )
         ++it;
 
 	  }
+
+	if (TheTacticalView) {
+		TheTacticalView->onHeightMapChanged();
+	}
 
   }
 }
@@ -656,7 +661,7 @@ Bool W3DTerrainVisual::load( AsciiString filename )
 			Vector3 loc(pos->x, pos->y, pos->z);
 			Real radius = d->getReal(TheKey_objectRadius);
 			Scorches type = (Scorches)d->getInt(TheKey_scorchType);
-			m_terrainRenderObject->addScorch(loc, radius, type);
+			m_terrainRenderObject->addStaticScorch(loc, radius, type);
 		}
 		pMapObj = pMapObj->getNext();
 	}
@@ -1032,7 +1037,7 @@ void W3DTerrainVisual::removeFactionBib(Object *factionBuilding)
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::removeAllBibs(void)
+void W3DTerrainVisual::removeAllBibs()
 {
 	if (m_terrainRenderObject) {
 		m_terrainRenderObject->removeAllTerrainBibs();
@@ -1041,7 +1046,7 @@ void W3DTerrainVisual::removeAllBibs(void)
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::removeBibHighlighting(void)
+void W3DTerrainVisual::removeBibHighlighting()
 {
 	if (m_terrainRenderObject) {
 		m_terrainRenderObject->removeTerrainBibHighlighting();
@@ -1092,7 +1097,7 @@ void W3DTerrainVisual::addProp(const ThingTemplate *tTemplate, const Coord3D *po
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::setTerrainTracksDetail(void)
+void W3DTerrainVisual::setTerrainTracksDetail()
 {
 	if (TheTerrainTracksRenderObjClassSystem)
 		TheTerrainTracksRenderObjClassSystem->setDetail();
@@ -1100,7 +1105,7 @@ void W3DTerrainVisual::setTerrainTracksDetail(void)
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::setShoreLineDetail(void)
+void W3DTerrainVisual::setShoreLineDetail()
 {
 	if (m_terrainRenderObject)
 		m_terrainRenderObject->setShoreLineDetail();
@@ -1251,7 +1256,7 @@ void W3DTerrainVisual::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void W3DTerrainVisual::loadPostProcess( void )
+void W3DTerrainVisual::loadPostProcess()
 {
 
 	// extend base class

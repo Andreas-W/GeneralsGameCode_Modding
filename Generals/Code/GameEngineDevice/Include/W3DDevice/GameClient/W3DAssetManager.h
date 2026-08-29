@@ -44,7 +44,7 @@
 
 #pragma once
 
-#include "assetmgr.h"
+#include "WW3D2/assetmgr.h"
 #include "Lib/BaseType.h"
 
 class Vector3;
@@ -53,13 +53,13 @@ class VertexMaterialClass;
 class W3DAssetManager: public WW3DAssetManager
 {
 public:
-	W3DAssetManager(void);
-	virtual ~W3DAssetManager(void);
+	W3DAssetManager();
+	virtual ~W3DAssetManager() override;
 
-	virtual RenderObjClass * Create_Render_Obj(const char * name);
+	virtual RenderObjClass * Create_Render_Obj(const char * name) override;
 	// unique to W3DAssetManager
-	virtual HAnimClass *	Get_HAnim(const char * name);
-	virtual bool Load_3D_Assets( const char * filename ); // This CANNOT be Bool, as it will not inherit properly if you make Bool == Int
+	virtual HAnimClass *	Get_HAnim(const char * name) override;
+	virtual bool Load_3D_Assets( const char * filename ) override; // This CANNOT be Bool, as it will not inherit properly if you make Bool == Int
 	virtual TextureClass *			Get_Texture(
 		const char * filename,
 		MipCountType mip_level_count=MIP_LEVELS_ALL,
@@ -67,11 +67,11 @@ public:
 		bool allow_compression=true);
 
 	//'Generals' customizations
-	void Report_Used_Assets(void);
-	void Report_Used_Prototypes (void);
-	void Report_Used_Textures(void);
-	void Report_Used_Font3DDatas( void );
-	void Report_Used_FontChars (void);
+	void Report_Used_Assets();
+	void Report_Used_Prototypes ();
+	void Report_Used_Textures();
+	void Report_Used_Font3DDatas();
+	void Report_Used_FontChars ();
 
 	virtual RenderObjClass * Create_Render_Obj(const char * name,float scale, const int color, const char *oldTexture=nullptr, const char *newTexture=nullptr);
 	///Swaps the specified textures in the render object prototype.

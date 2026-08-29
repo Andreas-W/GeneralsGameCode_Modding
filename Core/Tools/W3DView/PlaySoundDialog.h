@@ -19,7 +19,7 @@
 #pragma once
 
 #include "resource.h"
-#include "WWAudio.h"
+#include "WWAudio/WWAudio.h"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ protected:
 
 private:
 	CString					Filename;
-	AudibleSoundClass *	SoundObj;
+	RefCountPtr<AudibleSoundClass>	SoundObj;
 };
 
 //{{AFX_INSERT_LOCATION}}

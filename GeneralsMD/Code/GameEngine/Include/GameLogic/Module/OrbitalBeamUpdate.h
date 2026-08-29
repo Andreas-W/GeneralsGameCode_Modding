@@ -28,6 +28,7 @@
 
 // FORWARD REFERENCES /////////////////////////////////////////////////////////////////////////////
 class FXList;
+class ObjectCreationList;
 class WeaponTemplate;
 enum ParticleSystemID CPP_11(: Int);
 
@@ -83,6 +84,11 @@ public:
 
 	const FXList*	m_chargeBeamStartFX; // < optional FXList played at each charge beam's impact point when it spawns
 	const FXList*	m_finalFX; // < optional FXList played once at the object center when the final beam appears
+	const ObjectCreationList*	m_finalOCL; // < optional OCL created at the object center when the final beam appears
+	const FXList*	m_initialFX; // < optional FXList played at the object position at the very start, before the initial delay
+	const ObjectCreationList*	m_initialOCL; // < optional OCL created at the object position at the very start, before the initial delay
+	const FXList*	m_chargeStartFX; // < optional FXList played at the object center when charge beams begin, after the initial delay
+	const ObjectCreationList*	m_chargeStartOCL; // < optional OCL created at the object center when charge beams begin, after the initial delay
 	const WeaponTemplate*	m_finalWeapon; // < optional weapon fired at the object center when the final beam appears
 	std::vector<const WeaponTemplate*> m_chargeWeapons; // < weapons fired at the object center during the charge beam animation stage
 

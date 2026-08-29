@@ -90,8 +90,8 @@ class SaveGameInfo
 
 public:
 
-	SaveGameInfo( void );
-	~SaveGameInfo( void );
+	SaveGameInfo();
+	~SaveGameInfo();
 
 	AsciiString saveGameMapName;			// map name of the "scratch pad" map extracted from save file
 	AsciiString pristineMapName;			// pristine map in the map or user maps directory
@@ -132,6 +132,15 @@ enum SaveCode CPP_11(: Int)
 	SC_ERROR,
 };
 
+struct SaveResult
+{
+	explicit SaveResult( SaveCode code ) : saveCode(code) { }
+	SaveResult( SaveCode code, const AsciiString &file ) : saveCode(code), filename(file) { }
+
+	SaveCode saveCode;
+	AsciiString filename;	///< the file that was written, empty when no filename could be found
+};
+
 enum SnapshotType CPP_11(: Int) {
 	SNAPSHOT_SAVELOAD,
 	SNAPSHOT_DEEPCRC_LOGICONLY,
@@ -147,22 +156,22 @@ class GameState : public SubsystemInterface,
 
 public:
 
-	GameState( void );
-	virtual ~GameState( void );
+	GameState();
+	virtual ~GameState() override;
 
 	// subsystem interface
-	virtual void init( void );
-	virtual void reset( void );
-	virtual void update( void ) { }
+	virtual void init() override;
+	virtual void reset() override;
+	virtual void update() override { }
 
 	// save game methods
-	SaveCode saveGame( AsciiString filename,
+	SaveResult saveGame( AsciiString filename,
 										 UnicodeString desc,
 										 SaveFileType saveType,
-										 SnapshotType which = SNAPSHOT_SAVELOAD  );  ///< save a game
-	SaveCode missionSave( void );																	 ///< do a in between mission save
+										 SnapshotType which = SNAPSHOT_SAVELOAD );  ///< save a game
+	SaveResult missionSave();																 ///< do a in between mission save
 	SaveCode loadGame( AvailableGameInfo gameInfo );							 ///< load a save file
-	SaveGameInfo *getSaveGameInfo( void ) { return &m_gameInfo; }
+	SaveGameInfo *getSaveGameInfo() { return &m_gameInfo; }
 
 	// snapshot interaction
 	void addPostProcessSnapshot( Snapshot *snapshot );					///< add snapshot to post process load
@@ -174,10 +183,10 @@ public:
 
 	void friend_xferSaveDataForCRC( Xfer *xfer, SnapshotType which );		///< This should only be called to DeepCRC sanity checking
 
-	Bool isInLoadGame(void) { return m_isInLoadGame; } // Brutal hack to allow bone pos validation while loading games
+	Bool isInLoadGame() { return m_isInLoadGame; } // Brutal hack to allow bone pos validation while loading games
 
 	void setPristineMapName( AsciiString name ) { m_gameInfo.pristineMapName = name; }
-	AsciiString getPristineMapName( void ) { return m_gameInfo.pristineMapName; }
+	AsciiString getPristineMapName() { return m_gameInfo.pristineMapName; }
 
 	AsciiString getSaveDirectory() const;
 	AsciiString getFilePathInSaveDirectory(const AsciiString& leaf) const;
@@ -191,9 +200,9 @@ public:
 protected:
 
 	// snapshot methods
-	virtual void crc( Xfer *xfer ) { }
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess( void ) { }
+	virtual void crc( Xfer *xfer ) override { }
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override { }
 
 private:
 
@@ -202,9 +211,9 @@ private:
 
 	void xferSaveData( Xfer *xfer, SnapshotType which );				///< save/load the file data
 
-	void gameStatePostProcessLoad( void );											///< post process entry point after a game load
+	void gameStatePostProcessLoad();											///< post process entry point after a game load
 
-	void clearAvailableGames( void );		///< clear any available games resources we got in our list
+	void clearAvailableGames();		///< clear any available games resources we got in our list
 
 	struct SnapshotBlock
 	{

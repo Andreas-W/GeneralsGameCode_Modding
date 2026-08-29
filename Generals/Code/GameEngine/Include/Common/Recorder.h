@@ -53,19 +53,45 @@ enum RecorderModeType CPP_11(: Int) {
 	RECORDERMODETYPE_NONE // this is a valid state to be in on the shell map, or in saved games
 };
 
-class CRCInfo;
+class RecorderClass : public SubsystemInterface
+{
+protected:
+	// TheSuperHackers @info helmutbuhler 03/04/2025 CRC overview:
+	// Each peer periodically computes a CRC from its local game state and broadcasts it to all peers, including itself,
+	// to verify synchronization. CRC messages are received a few frames later in network games to avoid stalling every
+	// frame while waiting for all peers. This works because all peers compare the same received CRCs on the same frame.
+	//
+	// Replays are different: recorded CRC messages appear on the frame they were originally received, so directly
+	// comparing them against the current local state would mismatch. To handle this, local CRCs must be queued until the
+	// corresponding replay CRC messages arrive. This class implements that queue.
+	class CRCInfo
+	{
+	public:
+		CRCInfo();
+		CRCInfo(UnsignedInt localPlayer, Bool isMultiplayer);
+		void addCRC(UnsignedInt val);
+		UnsignedInt readCRC();
+		int GetQueueSize() const { return m_data.size(); }
+		UnsignedInt getLocalPlayer() const { return m_localPlayer; }
+		void setSawCRCMismatch() { m_sawCRCMismatch = TRUE; }
+		Bool sawCRCMismatch() const { return m_sawCRCMismatch; }
 
-class RecorderClass : public SubsystemInterface {
+	protected:
+		Bool m_sawCRCMismatch;
+		Bool m_skippedOne;
+		UnsignedInt m_localPlayer;
+		std::list<UnsignedInt> m_data;
+	};
+
 public:
 	struct ReplayHeader;
 
-public:
 	RecorderClass();																	///< Constructor.
-	virtual ~RecorderClass();													///< Destructor.
+	virtual ~RecorderClass() override;													///< Destructor.
 
-	void init();																			///< Initialize TheRecorder.
-	void reset();																			///< Reset the state of TheRecorder.
-	void update();																		///< General purpose update function.
+	virtual void init() override;																			///< Initialize TheRecorder.
+	virtual void reset() override;																			///< Reset the state of TheRecorder.
+	virtual void update() override;																		///< General purpose update function.
 
 	// Methods dealing with recording.
 	void updateRecord();															///< The update function for recording.
@@ -75,7 +101,7 @@ public:
 	Bool playbackFile(AsciiString filename);					///< Starts playback of the specified file.
 	Bool replayMatchesGameVersion(AsciiString filename); ///< Returns true if the playback is a valid playback file for this version.
 	static Bool replayMatchesGameVersion(const ReplayHeader& header); ///< Returns true if the playback is a valid playback file for this version.
-	AsciiString getCurrentReplayFilename( void );			///< valid during playback only
+	AsciiString getCurrentReplayFilename();			///< valid during playback only
 	UnsignedInt getPlaybackFrameCount() const { return m_playbackFrameCount; }			///< valid during playback only
 	void stopPlayback();															///< Stops playback.  Its fine to call this even if not playing back a file.
 	Bool simulateReplay(AsciiString filename);
@@ -86,9 +112,6 @@ public:
 
 public:
 	void handleCRCMessage(UnsignedInt newCRC, Int playerIndex, Bool fromPlayback);
-protected:
-	CRCInfo *m_crcInfo;
-public:
 
 	// read in info relating to a replay, conditionally setting up m_file for playback
 	struct ReplayHeader
@@ -122,16 +145,16 @@ public:
 	static AsciiString getReplayExtention();					///< Returns the file extention for replay files.
 	static AsciiString getLastReplayFileName();				///< Returns the filename used for the default replay.
 
-	GameInfo *getGameInfo( void ) { return &m_gameInfo; }	///< Returns the slot list for playback game start
+	GameInfo *getGameInfo() { return &m_gameInfo; }	///< Returns the slot list for playback game start
 
-	Bool isMultiplayer( void );												///< is this a multiplayer game (record OR playback)?
+	Bool isMultiplayer();												///< is this a multiplayer game (record OR playback)?
 
-	Int getGameMode( void ) { return m_originalGameMode; }
+	Int getGameMode() { return m_originalGameMode; }
 
 	void logPlayerDisconnect(UnicodeString player, Int slot);
-	void logCRCMismatch( void );
+	void logCRCMismatch();
 	Bool sawCRCMismatch() const;
-	void cleanUpReplayFile( void );										///< after a crash, send replay/debug info to a central repository
+	void cleanUpReplayFile();										///< after a crash, send replay/debug info to a central repository
 
 	void setArchiveEnabled(Bool enable) { m_archiveReplays = enable; } ///< Enable or disable replay archiving.
 	void stopRecording();															///< Stop recording and close m_file.
@@ -141,7 +164,7 @@ protected:
 	void archiveReplay(AsciiString fileName);					///< Move the specified replay file to the archive directory.
 
 	void logGameStart(AsciiString options);
-	void logGameEnd( void );
+	void logGameEnd();
 
 	AsciiString readAsciiString();										///< Read the next string from m_file using ascii characters.
 	UnicodeString readUnicodeString();								///< Read the next string from m_file using unicode characters.
@@ -158,6 +181,7 @@ protected:
 
 	CullBadCommandsResult cullBadCommands(); ///< prevent the user from giving mouse commands that he shouldn't be able to do during playback.
 
+	CRCInfo m_crcInfo;
 	File* m_file;
 	AsciiString m_fileName;
 	Int m_currentFilePosition;

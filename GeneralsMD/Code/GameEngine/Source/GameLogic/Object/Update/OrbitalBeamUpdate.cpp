@@ -35,6 +35,7 @@
 #include "GameClient/ParticleSys.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
+#include "GameLogic/ObjectCreationList.h"
 #include "GameLogic/TerrainLogic.h"
 #include "GameLogic/Weapon.h"
 #include "GameLogic/Module/LaserUpdate.h"
@@ -84,6 +85,11 @@ OrbitalBeamUpdateModuleData::OrbitalBeamUpdateModuleData()
 	m_hitWaterSurface = FALSE;
 	m_chargeBeamStartFX = nullptr;
 	m_finalFX = nullptr;
+	m_finalOCL = nullptr;
+	m_initialFX = nullptr;
+	m_initialOCL = nullptr;
+	m_chargeStartFX = nullptr;
+	m_chargeStartOCL = nullptr;
 	m_finalWeapon = nullptr;
 }
 
@@ -112,6 +118,11 @@ OrbitalBeamUpdateModuleData::OrbitalBeamUpdateModuleData()
 		{ "HitWaterSurface",				INI::parseBool,									nullptr, offsetof( OrbitalBeamUpdateModuleData, m_hitWaterSurface ) },
 		{ "ChargeBeamStartFX",				INI::parseFXList,								nullptr, offsetof( OrbitalBeamUpdateModuleData, m_chargeBeamStartFX ) },
 		{ "FinalFX",						INI::parseFXList,								nullptr, offsetof( OrbitalBeamUpdateModuleData, m_finalFX ) },
+		{ "FinalOCL",						INI::parseObjectCreationList,		nullptr, offsetof( OrbitalBeamUpdateModuleData, m_finalOCL ) },
+		{ "InitialFX",						INI::parseFXList,								nullptr, offsetof( OrbitalBeamUpdateModuleData, m_initialFX ) },
+		{ "InitialOCL",						INI::parseObjectCreationList,		nullptr, offsetof( OrbitalBeamUpdateModuleData, m_initialOCL ) },
+		{ "ChargeStartFX",					INI::parseFXList,								nullptr, offsetof( OrbitalBeamUpdateModuleData, m_chargeStartFX ) },
+		{ "ChargeStartOCL",					INI::parseObjectCreationList,		nullptr, offsetof( OrbitalBeamUpdateModuleData, m_chargeStartOCL ) },
 		{ "InitialSound",					INI::parseAudioEventRTS,				nullptr, offsetof( OrbitalBeamUpdateModuleData, m_initialSound ) },
 		{ "ChargeSound",					INI::parseAudioEventRTS,				nullptr, offsetof( OrbitalBeamUpdateModuleData, m_chargeSound ) },
 		{ "FinalWeapon",					INI::parseWeaponTemplate,				nullptr, offsetof( OrbitalBeamUpdateModuleData, m_finalWeapon ) },
@@ -614,6 +625,13 @@ UpdateSleepTime OrbitalBeamUpdate::update( void )
 
 		// InitialSound plays through the initial delay and charge beam spawning.
 		startPhaseSound( m_initialSoundEvent, data->m_initialSound );
+
+		// Initial FX/OCL at the object position, at the very start (before the initial delay).
+		Coord3D initialPos = *getObject()->getPosition();
+		initialPos.z = surfaceZAt( initialPos.x, initialPos.y );
+		FXList::doFXPos( data->m_initialFX, &initialPos );
+		if( data->m_initialOCL )
+			ObjectCreationList::create( data->m_initialOCL, getObject(), &initialPos, nullptr, false );
 	}
 
 	// Destroy any beams whose fade-out has finished, regardless of stage.
@@ -633,6 +651,11 @@ UpdateSleepTime OrbitalBeamUpdate::update( void )
 				m_stage = STAGE_SPAWN_CHARGE;
 				m_stageStartFrame = now;
 				m_nextChargeSpawnFrame = now;
+
+				// Charge-start FX/OCL at the center, once the initial delay has elapsed.
+				FXList::doFXPos( data->m_chargeStartFX, &center );
+				if( data->m_chargeStartOCL )
+					ObjectCreationList::create( data->m_chargeStartOCL, getObject(), &center, nullptr, false );
 
 				// Build the ring-slot order for spawning. Positions are identical either way;
 				// only the order in which slots are filled changes.
@@ -792,8 +815,10 @@ UpdateSleepTime OrbitalBeamUpdate::update( void )
 				Coord3D finalSky = beamSkyPos( &center, &center );
 				m_finalBeamID = spawnBeam( data->m_finalBeamLaserNameName, &finalSky, &center );
 
-				// One-shot FX at the center as the final beam appears.
+				// One-shot FX/OCL at the center as the final beam appears.
 				FXList::doFXPos( data->m_finalFX, &center );
+				if( data->m_finalOCL )
+					ObjectCreationList::create( data->m_finalOCL, getObject(), &center, nullptr, false );
 
 				// Fire the final weapon at the center as the final beam appears; schedules repeats.
 				fireFinalWeapon( &center );

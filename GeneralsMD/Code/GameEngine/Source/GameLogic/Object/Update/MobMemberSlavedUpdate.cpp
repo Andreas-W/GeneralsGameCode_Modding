@@ -87,7 +87,7 @@ MobMemberSlavedUpdate::MobMemberSlavedUpdate( Thing *thing, const ModuleData* mo
 }
 
 //-------------------------------------------------------------------------------------------------
-MobMemberSlavedUpdate::~MobMemberSlavedUpdate( void )
+MobMemberSlavedUpdate::~MobMemberSlavedUpdate()
 {
 }
 
@@ -123,7 +123,7 @@ void MobMemberSlavedUpdate::onSlaverDamage( const DamageInfo *info )
 
 
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime MobMemberSlavedUpdate::update( void )
+UpdateSleepTime MobMemberSlavedUpdate::update()
 {
 /// @todo srj use SLEEPY_UPDATE here
 
@@ -225,7 +225,7 @@ UpdateSleepTime MobMemberSlavedUpdate::update( void )
 			else
 			{
 				Coord3D goalDelta = *myAI->getGoalPosition();
-				goalDelta.sub( &nuPos );
+				goalDelta.sub( nuPos );
 
 				if ( goalDelta.length() > 5.0f * PATHFIND_CELL_SIZE_F )// only if I am not headed there already
 				{
@@ -357,7 +357,7 @@ void MobMemberSlavedUpdate::doCatchUpLogic( Coord3D *pos )
 	// recalc where we want to be if we wander around
 	Real randomDirection = GameLogicRandomValue( 0, 2*PI );
 	Real randomRadius = GameLogicRandomValue( 0, data->m_noNeedToCatchUpRadius );
-	nuPos.set(pos);
+	nuPos.set(*pos);
 	nuPos.x += randomRadius * Cos( randomDirection );
 	nuPos.y += randomRadius * Sin( randomDirection );
 	nuPos.z = TheTerrainLogic->getGroundHeight( nuPos.x, nuPos.y );
@@ -454,7 +454,7 @@ void MobMemberSlavedUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void MobMemberSlavedUpdate::loadPostProcess( void )
+void MobMemberSlavedUpdate::loadPostProcess()
 {
 
 	// extend base class

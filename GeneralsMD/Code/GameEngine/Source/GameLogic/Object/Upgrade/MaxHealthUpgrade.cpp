@@ -39,7 +39,7 @@
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-MaxHealthUpgradeModuleData::MaxHealthUpgradeModuleData( void )
+MaxHealthUpgradeModuleData::MaxHealthUpgradeModuleData()
 {
 	m_addMaxHealth = 0.0f;
 	m_multiplyMaxHealth = 1.0f;
@@ -73,13 +73,13 @@ MaxHealthUpgrade::MaxHealthUpgrade( Thing *thing, const ModuleData* moduleData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-MaxHealthUpgrade::~MaxHealthUpgrade( void )
+MaxHealthUpgrade::~MaxHealthUpgrade()
 {
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void MaxHealthUpgrade::upgradeImplementation( )
+void MaxHealthUpgrade::upgradeImplementation()
 {
 	const MaxHealthUpgradeModuleData *data = getMaxHealthUpgradeModuleData();
 
@@ -128,7 +128,7 @@ void MaxHealthUpgrade::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void MaxHealthUpgrade::loadPostProcess( void )
+void MaxHealthUpgrade::loadPostProcess()
 {
 
 	// extend base class

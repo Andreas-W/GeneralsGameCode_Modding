@@ -164,7 +164,7 @@ StealthUpdate::StealthUpdate( Thing *thing, const ModuleData* moduleData ) : Upd
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-StealthUpdate::~StealthUpdate( void )
+StealthUpdate::~StealthUpdate()
 {
 
 }
@@ -317,7 +317,7 @@ Bool StealthUpdate::allowedToStealth( Object *stealthOwner ) const
 
 	if( flags & STEALTH_NOT_WHILE_TAKING_DAMAGE && self->getBodyModule()->getLastDamageTimestamp() >= now - 1 )
 	{
-#if PRESERVE_RETAIL_BEHAVIOR
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_STRUCTURE_STEALTH_DURING_REPAIR
 		//Only if it's not healing damage.
 		if( self->getBodyModule()->getLastDamageInfo()->in.m_damageType != DAMAGE_HEALING )
 #endif
@@ -332,8 +332,7 @@ Bool StealthUpdate::allowedToStealth( Object *stealthOwner ) const
 	}
 
 	//We need all required status or else we fail
-	// If we have any requirements
-	if( data->m_requiredStatus.any()  &&  !self->getStatusBits().testForAll( data->m_requiredStatus ) )
+	if( !self->getStatusBits().testForAll( data->m_requiredStatus ) )
 		return FALSE;
 
 	//If we have any forbidden statii, then fail
@@ -586,7 +585,7 @@ UpdateSleepTime StealthUpdate::calcSleepTime() const
 //-------------------------------------------------------------------------------------------------
 /** The update callback. */
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime StealthUpdate::update( void )
+UpdateSleepTime StealthUpdate::update()
 {
 
 	// restore disguise if we need to from a game load
@@ -852,7 +851,7 @@ void setWakeupIfInRange( Object *obj, void *userData)
 	Coord3D srcpos = *obj->getPosition();
 	Coord3D dstpos = *victim->getPosition();
 
-	srcpos.sub(&dstpos);
+	srcpos.sub(dstpos);
 	if (srcpos.length() > vision)
 		return;
 
@@ -1215,7 +1214,7 @@ void StealthUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void StealthUpdate::loadPostProcess( void )
+void StealthUpdate::loadPostProcess()
 {
 
 	// extend base class

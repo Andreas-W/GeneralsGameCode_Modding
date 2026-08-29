@@ -66,6 +66,7 @@ SpecialPowerModuleData::SpecialPowerModuleData()
 	m_specialPowerTemplate = nullptr;
 	m_updateModuleStartsAttack = false;
 	m_startsPaused = FALSE;
+	m_startsReady = FALSE;
 	m_scriptedSpecialPowerOnly = FALSE;
 
 }
@@ -81,6 +82,7 @@ SpecialPowerModuleData::SpecialPowerModuleData()
 		{ "SpecialPowerTemplate",			INI::parseSpecialPowerTemplate, nullptr, offsetof( SpecialPowerModuleData, m_specialPowerTemplate ) },
 		{ "UpdateModuleStartsAttack", INI::parseBool,									nullptr, offsetof( SpecialPowerModuleData, m_updateModuleStartsAttack ) },
 		{ "StartsPaused",							INI::parseBool,									nullptr, offsetof( SpecialPowerModuleData, m_startsPaused ) },
+		{ "StartsReady",							INI::parseBool,									nullptr, offsetof( SpecialPowerModuleData, m_startsReady ) },
 		{ "InitiateSound",						INI::parseAudioEventRTS,				nullptr, offsetof( SpecialPowerModuleData, m_initiateSound ) },
 		{ "ScriptedSpecialPowerOnly", INI::parseBool,									nullptr, offsetof( SpecialPowerModuleData, m_scriptedSpecialPowerOnly ) },
 		{ nullptr, nullptr, nullptr, 0 }
@@ -116,7 +118,12 @@ SpecialPowerModule::SpecialPowerModule( Thing *thing, const ModuleData *moduleDa
 		//A sharedNSync special only startPowerRecharges when first scienced or when executed,
 		//Since a new module with same SPTemplates may construct at any time.
 		if ( getSpecialPowerTemplate()->isSharedNSync() == FALSE )
+		{
 			startPowerRecharge();
+
+			if (startsReady())
+				m_availableOnFrame = TheGameLogic->getFrame();
+		}
 	}
 	// WE USED TO DO THE POLL-EVERYBODY-AND-VOTE-ON-WHO-TO-SYNC-TO THING HERE,
 	// BUT NO MORE, NOW IT IS HANDLED IN PLAYER
@@ -179,7 +186,7 @@ void SpecialPowerModule::setReadyFrame( UnsignedInt frame )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void SpecialPowerModule::resolveSpecialPower( void )
+void SpecialPowerModule::resolveSpecialPower()
 {
 	/*
 
@@ -201,7 +208,7 @@ void SpecialPowerModule::resolveSpecialPower( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void SpecialPowerModule::onSpecialPowerCreation( void )
+void SpecialPowerModule::onSpecialPowerCreation()
 {
 	// THIS gets called by addScience(), that is, when the General has purchased a new special power,
 	// and this module is thus activated.
@@ -240,7 +247,7 @@ void SpecialPowerModule::onSpecialPowerCreation( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-ScienceType SpecialPowerModule::getRequiredScience( void ) const
+ScienceType SpecialPowerModule::getRequiredScience() const
 {
 
 	return getSpecialPowerModuleData()->m_specialPowerTemplate->getRequiredScience();
@@ -248,7 +255,7 @@ ScienceType SpecialPowerModule::getRequiredScience( void ) const
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-const SpecialPowerTemplate * SpecialPowerModule::getSpecialPowerTemplate( void ) const
+const SpecialPowerTemplate * SpecialPowerModule::getSpecialPowerTemplate() const
 {
 
 	return getSpecialPowerModuleData()->m_specialPowerTemplate;
@@ -256,7 +263,7 @@ const SpecialPowerTemplate * SpecialPowerModule::getSpecialPowerTemplate( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-AsciiString SpecialPowerModule::getPowerName( void ) const
+AsciiString SpecialPowerModule::getPowerName() const
 {
 
 	return getSpecialPowerModuleData()->m_specialPowerTemplate->getName();
@@ -370,6 +377,16 @@ Real SpecialPowerModule::getPercentReady() const
 												 (Real)modData->m_specialPowerTemplate->getReloadTime());
 
 	return percent;
+}
+
+Bool SpecialPowerModule::startsReady() const
+{
+#if RETAIL_COMPATIBLE_CRC
+	return false;
+#endif
+
+	const SpecialPowerModuleData* modData = getSpecialPowerModuleData();
+	return modData->m_startsReady;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -927,7 +944,7 @@ void SpecialPowerModule::pauseCountdown( Bool pause )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UnsignedInt SpecialPowerModule::getReadyFrame( void ) const
+UnsignedInt SpecialPowerModule::getReadyFrame() const
 {
 	if ( getSpecialPowerTemplate()->isSharedNSync() )
 	{
@@ -1047,7 +1064,7 @@ void SpecialPowerModule::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void SpecialPowerModule::loadPostProcess( void )
+void SpecialPowerModule::loadPostProcess()
 {
 
 	// extend base class

@@ -39,12 +39,12 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "texture.h"
 #include "dx8wrapper.h"
 #include "ww3dformat.h"
 #include "dx8list.h"
-#include "multilist.h"
+#include "WWLib/multilist.h"
 
 class DX8TextureManagerClass;
 
@@ -99,7 +99,7 @@ public:
 	{
 	}
 
-	virtual void Recreate() const
+	virtual void Recreate() const override
 	{
 		WWASSERT(Texture->Peek_D3D_Base_Texture()==nullptr);
 		Texture->Poke_Texture
@@ -136,7 +136,7 @@ public:
 	{
 	}
 
-	virtual void Recreate() const
+	virtual void Recreate() const override
 	{
 		WWASSERT(Texture->Peek_D3D_Base_Texture()==nullptr);
 		Texture->Poke_Texture

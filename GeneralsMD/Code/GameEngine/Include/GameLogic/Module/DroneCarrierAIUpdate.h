@@ -70,6 +70,7 @@ public:
 	virtual Bool areAllSlavesStealthed() const;
 	virtual void revealSlaves();
 	virtual Bool doSlavesHaveFreedom() const { return false; };
+	virtual Int getSlaveCount() const override { return (Int)m_spawnIDs.size(); }
 
 	// DieModule
 	virtual void onDie(const DamageInfo* damageInfo);

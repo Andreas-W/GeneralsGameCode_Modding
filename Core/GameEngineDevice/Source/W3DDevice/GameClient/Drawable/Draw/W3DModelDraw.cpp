@@ -187,11 +187,11 @@ LogClass BonePosLog("bonePositions.txt");
 
 #else // DEBUG_CRC
 
-#define BONEPOS_LOG(x) {}
-#define BONEPOS_DUMPMATRIX3D(x) {}
-#define BONEPOS_DUMPMATRIX3DNAMED(x, y) {}
-#define BONEPOS_DUMPREAL(x) {}
-#define BONEPOS_DUMPREALNAMED(x, y) {}
+#define BONEPOS_LOG(x)
+#define BONEPOS_DUMPMATRIX3D(x)
+#define BONEPOS_DUMPMATRIX3DNAMED(x, y)
+#define BONEPOS_DUMPREAL(x)
+#define BONEPOS_DUMPREALNAMED(x, y)
 
 #endif // DEBUG_CRC
 
@@ -2074,7 +2074,7 @@ W3DModelDraw::W3DModelDraw(Thing *thing, const ModuleData* moduleData) : DrawMod
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void W3DModelDraw::onDrawableBoundToObject(void)
+void W3DModelDraw::onDrawableBoundToObject()
 {
 	getW3DModelDrawModuleData()->validateStuffForTimeAndWeather(getDrawable(),
 											TheGlobalData->m_timeOfDay == TIME_OF_DAY_NIGHT,
@@ -2083,7 +2083,7 @@ void W3DModelDraw::onDrawableBoundToObject(void)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-W3DModelDraw::~W3DModelDraw(void)
+W3DModelDraw::~W3DModelDraw()
 {
 	if (m_trackRenderObject && TheTerrainTracksRenderObjClassSystem)
 	{
@@ -2137,7 +2137,7 @@ void W3DModelDraw::setHidden(Bool hidden)
 }
 
 /**Free all data used by this model's shadow.  This is used to dynamically enable/disable shadows by the options screen*/
-void W3DModelDraw::releaseShadows(void)	///< frees all shadow resources used by this module - used by Options screen.
+void W3DModelDraw::releaseShadows()	///< frees all shadow resources used by this module - used by Options screen.
 {
 	if (m_shadow)
 		m_shadow->release();
@@ -2145,7 +2145,7 @@ void W3DModelDraw::releaseShadows(void)	///< frees all shadow resources used by 
 }
 
 /** Create shadow resources if not already present. This is used to dynamically enable/disable shadows by the options screen*/
-void W3DModelDraw::allocateShadows(void)
+void W3DModelDraw::allocateShadows()
 {
 	const ThingTemplate *tmplate=getDrawable()->getTemplate();
 
@@ -2545,15 +2545,17 @@ void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real pre
 
 		const W3DAnimationInfo& animInfo = m_curState->m_animations[m_whichAnimInCurState];
 
-		HAnimClass* animHandle = animInfo.getAnimHandle();	// note that this now returns an ADDREFED handle, which must be released by the caller!
-		if (m_renderObject && animHandle)
+		if (m_renderObject)
 		{
-			Int startFrame = 0;
-			if (m_curState->m_mode == RenderObjClass::ANIM_MODE_ONCE_BACKWARDS ||
-					m_curState->m_mode == RenderObjClass::ANIM_MODE_LOOP_BACKWARDS)
+			HAnimClass* animHandle = animInfo.getAnimHandle();	// note that this now returns an ADDREFED handle, which must be released by the caller!
+			if (animHandle)
 			{
-				startFrame = animHandle->Get_Num_Frames()-1;
-			}
+				Int startFrame = 0;
+				if (m_curState->m_mode == RenderObjClass::ANIM_MODE_ONCE_BACKWARDS ||
+						m_curState->m_mode == RenderObjClass::ANIM_MODE_LOOP_BACKWARDS)
+				{
+					startFrame = animHandle->Get_Num_Frames()-1;
+				}
 
 			if (testFlagBit(m_curState->m_flags, RANDOMIZE_START_FRAME))
 			{
@@ -2636,7 +2638,7 @@ void W3DModelDraw::adjustAnimation(const ModelConditionInfo* prevState, Real pre
 				}
 			}
 		}
-
+	}
 	}
 	else
 	{
@@ -4485,7 +4487,7 @@ void W3DModelDraw::setPauseAnimation(Bool pauseAnim)
 //-------------------------------------------------------------------------------------------------
 #ifdef ALLOW_ANIM_INQUIRIES
 // srj sez: not sure if this is a good idea, for net sync reasons...
-Real W3DModelDraw::getAnimationScrubScalar( void ) const
+Real W3DModelDraw::getAnimationScrubScalar() const
 {
 	return getCurAnimDistanceCovered();
 }
@@ -4888,7 +4890,7 @@ void W3DModelDraw::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void W3DModelDraw::loadPostProcess( void )
+void W3DModelDraw::loadPostProcess()
 {
 
 	// extend base class
@@ -4947,7 +4949,7 @@ void W3DModelDrawModuleData::xfer( Xfer *x )
 }
 
 // ------------------------------------------------------------------------------------------------
-void W3DModelDrawModuleData::loadPostProcess( void )
+void W3DModelDrawModuleData::loadPostProcess()
 {
 }
 

@@ -246,7 +246,7 @@ void AttackStateMachine::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AttackStateMachine::loadPostProcess( void )
+void AttackStateMachine::loadPostProcess()
 {
 	StateMachine::loadPostProcess();
 }
@@ -490,7 +490,7 @@ void AIRappelState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIRappelState::loadPostProcess( void )
+void AIRappelState::loadPostProcess()
 {
 }
 //-----------------------------------------------------------------------------------------------------------
@@ -807,7 +807,7 @@ void AIStateMachine::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIStateMachine::loadPostProcess( void )
+void AIStateMachine::loadPostProcess()
 {
 	StateMachine::loadPostProcess();
 }
@@ -826,7 +826,7 @@ void AIStateMachine::setGoalPath( std::vector<Coord3D>* path )
 /**
  * Get the current state name.
  */
-AsciiString AIStateMachine::getCurrentStateName(void) const
+AsciiString AIStateMachine::getCurrentStateName() const
 {
 	AsciiString name = StateMachine::getCurrentStateName();
 
@@ -1016,6 +1016,13 @@ void AIStateMachine::clear()
 	m_goalWaypoint = nullptr;
 	m_goalSquad = nullptr;
 
+#if !RETAIL_COMPATIBLE_CRC
+	if (m_temporaryState)
+		m_temporaryState->onExit(EXIT_RESET);
+
+	m_temporaryState = nullptr;
+#endif
+
 	AIUpdateInterface* ai = getOwner()->getAI();
 	if (ai)
 		ai->friend_notifyStateMachineChanged();
@@ -1077,7 +1084,7 @@ void AIStateMachine::setGoalAIGroup( const AIGroup *group )
 }
 
 //----------------------------------------------------------------------------------------------------------
-Squad *AIStateMachine::getGoalSquad( void )
+Squad *AIStateMachine::getGoalSquad()
 {
 	return m_goalSquad;
 }
@@ -1290,7 +1297,7 @@ void AIIdleState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIIdleState::loadPostProcess( void )
+void AIIdleState::loadPostProcess()
 {
 }
 //----------------------------------------------------------------------------------------------
@@ -1562,7 +1569,7 @@ void AIInternalMoveToState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIInternalMoveToState::loadPostProcess( void )
+void AIInternalMoveToState::loadPostProcess()
 {
 	startMoveSound();
 }
@@ -1668,7 +1675,7 @@ StateReturnType AIInternalMoveToState::onEnter()
 /**
  * Start playing the object's move sound.
  */
-void AIInternalMoveToState::startMoveSound(void)
+void AIInternalMoveToState::startMoveSound()
 {
 	Object *obj = getMachineOwner();
 	const BodyModuleInterface *objBody = obj->getBodyModule();
@@ -1906,9 +1913,9 @@ public:
 
 protected:
 	// snapshot interface
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess();
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1934,7 +1941,7 @@ void AIAttackMoveStateMachine::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackMoveStateMachine::loadPostProcess( void )
+void AIAttackMoveStateMachine::loadPostProcess()
 {
 	StateMachine::loadPostProcess();
 }
@@ -2157,7 +2164,7 @@ void AIMoveAndTightenState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIMoveAndTightenState::loadPostProcess( void )
+void AIMoveAndTightenState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -2485,7 +2492,7 @@ void AIAttackApproachTargetState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackApproachTargetState::loadPostProcess( void )
+void AIAttackApproachTargetState::loadPostProcess()
 {
  // extend base class
   AIInternalMoveToState::loadPostProcess();
@@ -2850,7 +2857,7 @@ void AIAttackPursueTargetState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackPursueTargetState::loadPostProcess( void )
+void AIAttackPursueTargetState::loadPostProcess()
 {
  // extend base class
   AIInternalMoveToState::loadPostProcess();
@@ -3075,7 +3082,7 @@ void AIPickUpCrateState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIPickUpCrateState::loadPostProcess( void )
+void AIPickUpCrateState::loadPostProcess()
 {
  // extend base class
   AIInternalMoveToState::loadPostProcess();
@@ -3152,7 +3159,7 @@ void AIFollowPathState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIFollowPathState::loadPostProcess( void )
+void AIFollowPathState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -3352,7 +3359,7 @@ void AIMoveAndEvacuateState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIMoveAndEvacuateState::loadPostProcess( void )
+void AIMoveAndEvacuateState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -3463,7 +3470,7 @@ void AIAttackMoveToState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackMoveToState::loadPostProcess( void )
+void AIAttackMoveToState::loadPostProcess()
 {
 }
 
@@ -3613,7 +3620,7 @@ void AIMoveAndDeleteState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIMoveAndDeleteState::loadPostProcess( void )
+void AIMoveAndDeleteState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -3679,7 +3686,7 @@ void AIMoveAndDeleteState::onExit( StateExitType status )
 
 #define ALLOW_BACKTRACK
 //----------------------------------------------------------------------------------------------------------
-const Waypoint * AIFollowWaypointPathState::getNextWaypoint(void)
+const Waypoint * AIFollowWaypointPathState::getNextWaypoint()
 {
 #ifdef ALLOW_BACKTRACK
 	Int linkCount = m_currentWaypoint->getNumLinks();
@@ -3718,7 +3725,7 @@ const Waypoint * AIFollowWaypointPathState::getNextWaypoint(void)
 }
 
 //----------------------------------------------------------------------------------------------------------
-Bool AIFollowWaypointPathState::hasNextWaypoint(void)
+Bool AIFollowWaypointPathState::hasNextWaypoint()
 {
 #ifdef ALLOW_BACKTRACK
 	return m_currentWaypoint->getNumLinks()>0;
@@ -3742,7 +3749,7 @@ Bool AIFollowWaypointPathState::hasNextWaypoint(void)
 }
 
 //----------------------------------------------------------------------------------------------------------
-Real AIFollowWaypointPathState::calcExtraPathDistance(void)
+Real AIFollowWaypointPathState::calcExtraPathDistance()
 {
 	Real extra = PATHFIND_CELL_SIZE_F/10.0f;
 	const Waypoint *curWay = m_currentWaypoint;
@@ -3829,7 +3836,7 @@ void AIFollowWaypointPathState::computeGoal(Bool useGroupOffsets)
 	}
 	Region3D extent;
 	TheTerrainLogic->getMaximumPathfindExtent(&extent);
-	if (!extent.isInRegionNoZ(&m_goalPosition)) {
+	if (!extent.isInRegionNoZ(m_goalPosition)) {
 		setAdjustsDestination(false); // moving off the map.
 		ai->getCurLocomotor()->setAllowInvalidPosition(true); // allow it to move off the map.
 		m_appendGoalPosition = true; // Moving off the map.
@@ -3885,7 +3892,7 @@ void AIFollowWaypointPathState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIFollowWaypointPathState::loadPostProcess( void )
+void AIFollowWaypointPathState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -4169,7 +4176,7 @@ void AIFollowWaypointPathExactState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIFollowWaypointPathExactState::loadPostProcess( void )
+void AIFollowWaypointPathExactState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -4297,7 +4304,7 @@ void AIAttackFollowWaypointPathState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackFollowWaypointPathState::loadPostProcess( void )
+void AIAttackFollowWaypointPathState::loadPostProcess()
 {
 }
 
@@ -4431,7 +4438,7 @@ void AIWanderState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIWanderState::loadPostProcess( void )
+void AIWanderState::loadPostProcess()
 {
 	AIFollowWaypointPathState::loadPostProcess();
 }
@@ -4554,7 +4561,7 @@ void AIWanderInPlaceState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** LoadPostProcess */
 // ------------------------------------------------------------------------------------------------
-void AIWanderInPlaceState::loadPostProcess( void )
+void AIWanderInPlaceState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -4663,7 +4670,7 @@ void AIPanicState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIPanicState::loadPostProcess( void )
+void AIPanicState::loadPostProcess()
 {
 	AIFollowWaypointPathState::loadPostProcess();
 }
@@ -4787,7 +4794,7 @@ void AIAttackAimAtTargetState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackAimAtTargetState::loadPostProcess( void )
+void AIAttackAimAtTargetState::loadPostProcess()
 {
 }
 
@@ -5246,7 +5253,7 @@ void AIAttackState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackState::loadPostProcess( void )
+void AIAttackState::loadPostProcess()
 {
 	Object* victim = getMachineGoalObject();
 	if (victim)
@@ -5535,9 +5542,9 @@ public:
 	AIAttackThenIdleStateMachine( Object *owner, AsciiString name );
 protected:
 	// snapshot interface .
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess();
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -5563,7 +5570,7 @@ void AIAttackThenIdleStateMachine::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackThenIdleStateMachine::loadPostProcess( void )
+void AIAttackThenIdleStateMachine::loadPostProcess()
 {
 	StateMachine::loadPostProcess();
 }
@@ -5629,7 +5636,7 @@ void AIAttackSquadState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackSquadState::loadPostProcess( void )
+void AIAttackSquadState::loadPostProcess()
 {
 }
 
@@ -5650,7 +5657,7 @@ AsciiString AIAttackSquadState::getName(  ) const
  * Begin an attack on the machine's goal team.
  * To do this, we use a sub attack machine.
  */
-StateReturnType AIAttackSquadState::onEnter( void )
+StateReturnType AIAttackSquadState::onEnter()
 {
 	// create new state machine for attack behavior
 	m_attackSquadMachine = newInstance(AIAttackThenIdleStateMachine)( getMachineOwner(), "AIAttackMachine"  );
@@ -5668,7 +5675,7 @@ StateReturnType AIAttackSquadState::onEnter( void )
  * Execute one frame of "attack enemy" behavior.
  */
 
-StateReturnType AIAttackSquadState::update( void )
+StateReturnType AIAttackSquadState::update()
 {
 
 	if( !m_attackSquadMachine )
@@ -5719,7 +5726,7 @@ void AIAttackSquadState::onExit( StateExitType status )
 }
 
 //----------------------------------------------------------------------------------------------------------
-Object *AIAttackSquadState::chooseVictim(void)
+Object *AIAttackSquadState::chooseVictim()
 {
 	Squad *victimSquad = ((AIStateMachine*)getMachine())->getGoalSquad();
 	if (!victimSquad)
@@ -5863,7 +5870,7 @@ void AIDockState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIDockState::loadPostProcess( void )
+void AIDockState::loadPostProcess()
 {
 }
 
@@ -5917,7 +5924,7 @@ StateReturnType AIDockState::onEnter()
 	// tell the docking machine what it is docking with
 	m_dockMachine->setGoalObject( dockWithMe );
 	// now that essential parameters are set, set the machine's initial state
-	return m_dockMachine->initDefaultState( );
+	return m_dockMachine->initDefaultState();
 }
 
 /**
@@ -6006,7 +6013,7 @@ void AIEnterState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIEnterState::loadPostProcess( void )
+void AIEnterState::loadPostProcess()
 {
 	AIInternalMoveToState::loadPostProcess();
 }
@@ -6227,7 +6234,7 @@ void AIExitState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIExitState::loadPostProcess( void )
+void AIExitState::loadPostProcess()
 {
 }
 
@@ -6274,6 +6281,12 @@ StateReturnType AIExitState::update()
 		ExitInterface* goalExitInterface = goal->getContain() ? goal->getContain()->getContainExitInterface() : nullptr;
 		if( goalExitInterface == nullptr )
 			return STATE_FAILURE;
+
+#if !RETAIL_COMPATIBLE_CRC
+		// TheSuperHackers @bugfix Stubbjax 03/05/2026 Stop trying to exit if the container is dead, as we are already ejected.
+		if (goal->isEffectivelyDead())
+			return STATE_FAILURE;
+#endif
 
 		if( goalExitInterface->isExitBusy() )
 			return STATE_CONTINUE;// Just wait a sec.
@@ -6374,7 +6387,7 @@ void AIGuardState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIGuardState::loadPostProcess( void )
+void AIGuardState::loadPostProcess()
 {
 }
 
@@ -6500,7 +6513,7 @@ void AITunnelNetworkGuardState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AITunnelNetworkGuardState::loadPostProcess( void )
+void AITunnelNetworkGuardState::loadPostProcess()
 {
 }
 
@@ -6615,7 +6628,7 @@ void AIHuntState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIHuntState::loadPostProcess( void )
+void AIHuntState::loadPostProcess()
 {
 }
 
@@ -6811,7 +6824,7 @@ void AIAttackAreaState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIAttackAreaState::loadPostProcess( void )
+void AIAttackAreaState::loadPostProcess()
 {
 }
 
@@ -6933,7 +6946,7 @@ void AIFaceState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AIFaceState::loadPostProcess( void )
+void AIFaceState::loadPostProcess()
 {
 	// empty.  jba.
 }

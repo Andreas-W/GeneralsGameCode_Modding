@@ -116,6 +116,8 @@ static const FieldParse audioSettingsFieldParseTable[] =
 	{ "Default3DSpeakerType",		 parseSpeakerType,							nullptr,							offsetof( AudioSettings, m_defaultSpeakerType3D) },
 
 	{ "MinSampleVolume",			INI::parsePercentToReal,						nullptr,							offsetof( AudioSettings, m_minVolume) },
+	{ "Use3DSoundRangeVolumeFade", INI::parseBool,								nullptr,							offsetof( AudioSettings, m_use3DSoundRangeVolumeFade) },
+	{ "3DSoundRangeVolumeFadeExponent", INI::parseReal,						nullptr,							offsetof( AudioSettings, m_3DSoundRangeVolumeFadeExponent) },
 	{ "GlobalMinRange",				INI::parseInt,											nullptr,							offsetof( AudioSettings, m_globalMinRange) },
 	{ "GlobalMaxRange",				INI::parseInt,											nullptr,							offsetof( AudioSettings, m_globalMaxRange) },
 	{ "TimeBetweenDrawableSounds", INI::parseDurationUnsignedInt, nullptr,							offsetof( AudioSettings, m_drawableAmbientFrames) },
@@ -280,16 +282,16 @@ void AudioManager::reset()
 //-------------------------------------------------------------------------------------------------
 void AudioManager::update()
 {
-	Coord3D groundPos, microphonePos;
-	TheTacticalView->getPosition( &groundPos );
+	Coord3D cameraPivot = TheTacticalView->getPosition();
 	Real angle = TheTacticalView->getAngle();
 	Matrix3D rot = Matrix3D::Identity;
 	rot.Rotate_Z( angle );
 	Vector3 forward( 0, 1, 0 );
 	rot.mulVector3( forward );
 
-	Real desiredHeight = m_audioSettings->m_microphoneDesiredHeightAboveTerrain;
-	Real maxPercentage = m_audioSettings->m_microphoneMaxPercentageBetweenGroundAndCamera;
+	const Real desiredHeightRel = m_audioSettings->m_microphoneDesiredHeightAboveTerrain;
+	const Real desiredHeightAbs = desiredHeightRel + cameraPivot.z;
+	const Real maxPercentage = m_audioSettings->m_microphoneMaxPercentageBetweenGroundAndCamera;
 
 	Coord3D lookTo;
 	lookTo.set(forward.X, forward.Y, forward.Z);
@@ -300,11 +302,11 @@ void AudioManager::update()
 	//of making sure we only go a certain percentage towards the camera or the desired height, whichever occurs first.
 	Coord3D cameraPos = TheTacticalView->get3DCameraPosition();
 	Coord3D groundToCameraVector;
-	groundToCameraVector.set( &cameraPos );
-	groundToCameraVector.sub( &groundPos );
+	groundToCameraVector.set( cameraPos );
+	groundToCameraVector.sub( cameraPivot );
 	Real bestScaleFactor;
 
-	if( cameraPos.z <= desiredHeight || groundToCameraVector.z <= 0.0f )
+	if( cameraPos.z <= desiredHeightAbs || groundToCameraVector.z <= 0.0f )
 	{
 		//Use the percentage calculation!
 		bestScaleFactor = maxPercentage;
@@ -312,7 +314,7 @@ void AudioManager::update()
 	else
 	{
 		//Calculate the stopping position of the groundToCameraVector when we force z to be m_microphoneDesiredHeightAboveTerrain
-		Real zScale = desiredHeight / groundToCameraVector.z;
+		Real zScale = desiredHeightRel / groundToCameraVector.z;
 
 		//Use the smallest of the two scale calculations
 		bestScaleFactor = MIN( maxPercentage, zScale );
@@ -322,9 +324,9 @@ void AudioManager::update()
 	groundToCameraVector.scale( bestScaleFactor );
 
 	//Set the microphone to be the ground position adjusted for terrain plus the vector we just calculated.
-	groundPos.z = TheTerrainLogic->getGroundHeight( groundPos.x, groundPos.y );
-	microphonePos.set( &groundPos );
-	microphonePos.add( &groundToCameraVector );
+	Coord3D microphonePos;
+	microphonePos.set( cameraPivot );
+	microphonePos.add( groundToCameraVector );
 
 	//Viola! A properly placed microphone.
 	setListenerPosition( &microphonePos, &lookTo );
@@ -343,7 +345,7 @@ void AudioManager::update()
 	{
 		//How far away is the camera from the microphone?
 		Coord3D vector = cameraPos;
-		vector.sub( &microphonePos );
+		vector.sub( microphonePos );
 		Real dist = vector.length();
 
 		if( dist < minDist )
@@ -435,13 +437,14 @@ AudioHandle AudioManager::addAudioEvent(const AudioEventRTS *eventToAdd)
 		return AHSV_NotForLocal;
 	}
 
-	AudioEventRTS *audioEvent = MSGNEW("AudioEventRTS") AudioEventRTS(*eventToAdd);		// poolify
+	RefCountPtr<DynamicAudioEventRTS> audioEvent;
+	audioEvent.Assign_No_Add_Ref(newInstance(DynamicAudioEventRTS)(*eventToAdd));
 	audioEvent->setPlayingHandle( allocateNewHandle() );
 	audioEvent->generateFilename();	// which file are we actually going to play?
 	eventToAdd->setPlayingAudioIndex( audioEvent->getPlayingAudioIndex() );
 	audioEvent->generatePlayInfo();	// generate pitch shift and volume shift now as well
 
-	std::list<std::pair<AsciiString, Real> >::iterator it;
+	std::list<std::pair<AsciiString, Real>/**/>::iterator it;
 	for (it = m_adjustedVolumes.begin(); it != m_adjustedVolumes.end(); ++it) {
 		if (it->first == audioEvent->getEventName()) {
 			audioEvent->setVolume(it->second);
@@ -452,7 +455,6 @@ AudioHandle AudioManager::addAudioEvent(const AudioEventRTS *eventToAdd)
 #if RETAIL_COMPATIBLE_CRC
 	if (notForLocal)
 	{
-		releaseAudioEventRTS(audioEvent);
 		return AHSV_NotForLocal;
 	}
 #endif
@@ -462,21 +464,22 @@ AudioHandle AudioManager::addAudioEvent(const AudioEventRTS *eventToAdd)
 #ifdef INTENSIVE_AUDIO_DEBUG
 		DEBUG_LOG((" - culled due to muting (%d).", audioEvent->getVolume()));
 #endif
-		releaseAudioEventRTS(audioEvent);
 		return AHSV_Muted;
 	}
 
 	if (soundType == AT_Music)
 	{
-		m_music->addAudioEvent(audioEvent);
+		m_music->addAudioEvent(audioEvent.Peek());
 	}
 	else
 	{
-		//Possible to nuke audioEvent inside.
-		m_sound->addAudioEvent(audioEvent);
+		if (!m_sound->addAudioEvent(audioEvent.Peek()))
+		{
+			audioEvent.Clear();
+		}
 	}
 
-	if( audioEvent )
+	if( audioEvent != nullptr )
 	{
 		return audioEvent->getPlayingHandle();
 	}
@@ -574,7 +577,7 @@ void AudioManager::removeAudioEvent(AudioHandle audioEvent)
 		return;
 	}
 
-	AudioRequest *req = allocateAudioRequest( false );
+	AudioRequest *req = allocateAudioRequest();
 	req->m_handleToInteractOn = audioEvent;
 	req->m_request = AR_Stop;
 	appendAudioRequest( req );
@@ -599,7 +602,7 @@ void AudioManager::setAudioEventVolumeOverride( AsciiString eventToAffect, Real 
 		adjustVolumeOfPlayingAudio(eventToAffect, newVolume);
 	}
 
-	std::list<std::pair<AsciiString, Real> >::iterator it;
+	std::list<std::pair<AsciiString, Real>/**/>::iterator it;
 	for (it = m_adjustedVolumes.begin(); it != m_adjustedVolumes.end(); ++it) {
 		if (it->first == eventToAffect) {
 			if (newVolume == -1.0f) {
@@ -778,16 +781,15 @@ void AudioManager::setListenerPosition( const Coord3D *newListenerPos, const Coo
 }
 
 //-------------------------------------------------------------------------------------------------
-const Coord3D *AudioManager::getListenerPosition( void ) const
+const Coord3D *AudioManager::getListenerPosition() const
 {
 	return &m_listenerPosition;
 }
 
 //-------------------------------------------------------------------------------------------------
-AudioRequest *AudioManager::allocateAudioRequest( Bool useAudioEvent )
+AudioRequest *AudioManager::allocateAudioRequest()
 {
 	AudioRequest *audioReq = newInstance(AudioRequest);
-	audioReq->m_usePendingEvent = useAudioEvent;
 	audioReq->m_requiresCheckForSample = false;
 	return audioReq;
 }
@@ -799,25 +801,24 @@ void AudioManager::releaseAudioRequest( AudioRequest *requestToRelease )
 }
 
 //-------------------------------------------------------------------------------------------------
-void AudioManager::appendAudioRequest( AudioRequest *m_request )
+void AudioManager::appendAudioRequest( AudioRequest *request )
 {
-	m_audioRequests.push_back(m_request);
+	m_audioRequests.push_back(request);
 }
 
 //-------------------------------------------------------------------------------------------------
 // Remove all pending audio requests
-void AudioManager::removeAllAudioRequests( void )
+void AudioManager::removeAllAudioRequests()
 {
-  std::list<AudioRequest*>::iterator it;
-  for ( it = m_audioRequests.begin(); it != m_audioRequests.end(); it++ ) {
-    releaseAudioRequest( *it );
-  }
-
-  m_audioRequests.clear();
+	std::list<AudioRequest*>::iterator it;
+	for ( it = m_audioRequests.begin(); it != m_audioRequests.end(); ++it ) {
+		releaseAudioRequest( *it );
+	}
+	m_audioRequests.clear();
 }
 
 //-------------------------------------------------------------------------------------------------
-void AudioManager::processRequestList( void )
+void AudioManager::processRequestList()
 {
 
 }
@@ -866,7 +867,7 @@ AudioEventInfo *AudioManager::findAudioEventInfo( AsciiString eventName ) const
 
 //-------------------------------------------------------------------------------------------------
 // Remove all AudioEventInfo's with the m_isLevelSpecific flag
-void AudioManager::removeLevelSpecificAudioEventInfos(void)
+void AudioManager::removeLevelSpecificAudioEventInfos()
 {
   AudioEventInfoHash::iterator it = m_allAudioEventInfo.begin();
 
@@ -887,31 +888,31 @@ void AudioManager::removeLevelSpecificAudioEventInfos(void)
 }
 
 //-------------------------------------------------------------------------------------------------
-const AudioSettings *AudioManager::getAudioSettings( void ) const
+const AudioSettings *AudioManager::getAudioSettings() const
 {
 	return m_audioSettings;
 }
 
 //-------------------------------------------------------------------------------------------------
-AudioSettings *AudioManager::friend_getAudioSettings( void )
+AudioSettings *AudioManager::friend_getAudioSettings()
 {
 	return m_audioSettings;
 }
 
 //-------------------------------------------------------------------------------------------------
-const MiscAudio *AudioManager::getMiscAudio( void ) const
+const MiscAudio *AudioManager::getMiscAudio() const
 {
 	return m_miscAudio;
 }
 
 //-------------------------------------------------------------------------------------------------
-MiscAudio *AudioManager::friend_getMiscAudio( void )
+MiscAudio *AudioManager::friend_getMiscAudio()
 {
 	return m_miscAudio;
 }
 
 //-------------------------------------------------------------------------------------------------
-const FieldParse *AudioManager::getFieldParseTable( void ) const
+const FieldParse *AudioManager::getFieldParseTable() const
 {
 	return audioSettingsFieldParseTable;
 }
@@ -940,33 +941,6 @@ Real AudioManager::getAudioLengthMS( const AudioEventRTS *event )
 	return getFileLengthMS(tmpEvent.getAttackFilename()) +
 				 getFileLengthMS(tmpEvent.getFilename()) +
 				 getFileLengthMS(tmpEvent.getDecayFilename());
-}
-
-//-------------------------------------------------------------------------------------------------
-Bool AudioManager::isMusicAlreadyLoaded(void) const
-{
-	const AudioEventInfo *musicToLoad = nullptr;
-	AudioEventInfoHash::const_iterator it;
-	for (it = m_allAudioEventInfo.begin(); it != m_allAudioEventInfo.end(); ++it) {
-		if (it->second) {
-			const AudioEventInfo *aet = it->second;
-			if (aet->m_soundType == AT_Music) {
-				musicToLoad = aet;
-			}
-		}
-	}
-
-	if (!musicToLoad) {
-		return FALSE;
-	}
-
-	AudioEventRTS aud;
-	aud.setAudioEventInfo(musicToLoad);
-	aud.generateFilename();
-
-	AsciiString astr = aud.getFilename();
-
-	return (TheFileSystem->doesFileExist(astr.str()));
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1066,17 +1040,10 @@ Bool AudioManager::shouldPlayLocally(const AudioEventRTS *audioEvent)
 }
 
 //-------------------------------------------------------------------------------------------------
-AudioHandle AudioManager::allocateNewHandle( void )
+AudioHandle AudioManager::allocateNewHandle()
 {
-	// note, intenionally a post increment rather than a pre increment.
+	// note, intentionally a post increment rather than a pre increment.
 	return theAudioHandlePool++;
-}
-
-//-------------------------------------------------------------------------------------------------
-void AudioManager::releaseAudioEventRTS( AudioEventRTS *&eventToRelease )
-{
-	delete eventToRelease;
-	eventToRelease = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------

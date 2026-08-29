@@ -38,10 +38,10 @@
 
 #pragma once
 
-#include "always.h"
-#include "vector3.h"
-#include "multilist.h"
-#include "mempool.h"
+#include "WWLib/always.h"
+#include "WWMath/vector3.h"
+#include "WWLib/multilist.h"
+#include "WWLib/mempool.h"
 
 class CameraClass;
 
@@ -54,8 +54,8 @@ class CameraShakeSystemClass
 {
 public:
 
-	CameraShakeSystemClass(void);
-	~CameraShakeSystemClass(void);
+	CameraShakeSystemClass();
+	~CameraShakeSystemClass();
 
 	enum
 	{
@@ -68,7 +68,7 @@ public:
 											float duration = 1.5f,
 											float power = 1.0f	);
 	void		Timestep(float dt);
-	bool		IsCameraShaking(void);
+	bool		IsCameraShaking();
 	void		Update_Camera_Shaker(Vector3 camera_position, Vector3 * shaker_angles);
 
 	/**
@@ -80,10 +80,10 @@ public:
 	{
 	public:
 		CameraShakerClass(const Vector3 & position,float radius,float duration,float power);
-		~CameraShakerClass(void);
+		virtual ~CameraShakerClass() override;
 
 		void					Timestep(float dt)							{ ElapsedTime += dt; }
-		bool					Is_Expired(void)								{ return (ElapsedTime >= Duration); }
+		bool					Is_Expired()								{ return (ElapsedTime >= Duration); }
 		void					Compute_Rotations(const Vector3 & pos,Vector3 * set_angles);
 
 	protected:

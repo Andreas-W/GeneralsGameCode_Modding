@@ -189,7 +189,7 @@ enum MoodActionAdjustment CPP_11(: Int)
 
 //-------------------------------------------------------------------------------------------------
 typedef std::vector< const LocomotorTemplate* > LocomotorTemplateVector;
-typedef std::map< LocomotorSetType, LocomotorTemplateVector, std::less<LocomotorSetType> > LocomotorTemplateMap;
+typedef std::map< LocomotorSetType, LocomotorTemplateVector, std::less<LocomotorSetType>/**/> LocomotorTemplateMap;
 
 
 
@@ -215,9 +215,9 @@ public:
 
 
   AIUpdateModuleData();
-	virtual ~AIUpdateModuleData();
+	virtual ~AIUpdateModuleData() override;
 
-	virtual Bool isAiModuleData() const { return true; }
+	virtual Bool isAiModuleData() const override { return true; }
 
 	const LocomotorTemplateVector* findLocomotorTemplateVector(LocomotorSetType t) const;
 	static void buildFieldParse(MultiIniFieldParse& p);
@@ -312,7 +312,7 @@ public:
 	AIUpdateInterface(Thing* thing, const ModuleData* moduleData);
 	// virtual destructor prototype provided by memory pool declaration
 
-	virtual AIUpdateInterface* getAIUpdateInterface() { return this; }
+	virtual AIUpdateInterface* getAIUpdateInterface() override { return this; }
 
 	// Disabled conditions to process. By default the AI only processes HELD (so a disabled
 	// unit's AI fully freezes, as it always did). We additionally process all disabled types
@@ -326,10 +326,10 @@ public:
 	virtual const DozerAIInterface* getDozerAIInterface() const {return nullptr;}
 	virtual const SupplyTruckAIInterface* getSupplyTruckAIInterface() const {return nullptr;}
 #ifdef ALLOW_SURRENDER
-	virtual POWTruckAIUpdateInterface *getPOWTruckAIUpdateInterface( void ) { return nullptr; }
+	virtual POWTruckAIUpdateInterface *getPOWTruckAIUpdateInterface() { return nullptr; }
 #endif
-	virtual WorkerAIInterface* getWorkerAIInterface( void ) { return nullptr; }
-	virtual const WorkerAIInterface* getWorkerAIInterface( void ) const { return nullptr; }
+	virtual WorkerAIInterface* getWorkerAIInterface() { return nullptr; }
+	virtual const WorkerAIInterface* getWorkerAIInterface() const { return nullptr; }
 	virtual HackInternetAIInterface* getHackInternetAIInterface() { return nullptr; }
 	virtual const HackInternetAIInterface* getHackInternetAIInterface() const { return nullptr; }
 	virtual AssaultTransportAIInterface* getAssaultTransportAIInterface() { return nullptr; }
@@ -343,7 +343,7 @@ public:
 	inline Int getSurrenderedPlayerIndex() const { return m_surrenderedPlayerIndex; }
 #endif
 
-	virtual void joinTeam( void );			///< This unit just got added to a team & needs to catch up.
+	virtual void joinTeam();			///< This unit just got added to a team & needs to catch up.
 
 	Bool areTurretsLinked() const { return getAIUpdateModuleData()->m_turretsLinked; }
 
@@ -370,14 +370,14 @@ public:
 	//Definition of busy -- when explicitly in the busy state. Moving or attacking is not considered busy!
 	virtual Bool isBusy() const;
 
-	virtual void onObjectCreated();
+	virtual void onObjectCreated() override;
 	virtual void doQuickExit( std::vector<Coord3D>* path );			///< get out of this Object
 
-	virtual void aiDoCommand(const AICommandParms* parms);
+	virtual void aiDoCommand(const AICommandParms* parms) override;
 
-	virtual const Coord3D *getGuardLocation( void ) const { return &m_locationToGuard;	}
-	virtual ObjectID getGuardObject( void ) const { return m_objectToGuard; }
-	virtual const PolygonTrigger *getAreaToGuard( void ) const { return m_areaToGuard; }
+	virtual const Coord3D *getGuardLocation() const { return &m_locationToGuard;	}
+	virtual ObjectID getGuardObject() const { return m_objectToGuard; }
+	virtual const PolygonTrigger *getAreaToGuard() const { return m_areaToGuard; }
 	virtual GuardTargetType getGuardTargetType() const { return m_guardTargetType[1]; }
 	virtual void clearGuardTargetType() { m_guardTargetType[1] = m_guardTargetType[0]; m_guardTargetType[0] = GUARDTARGET_NONE; }
 	virtual GuardMode getGuardMode() const { return m_guardMode; }
@@ -393,7 +393,7 @@ public:
 
 	AIStateType getAIStateType() const;							///< What general state is the AIState Machine in?
 
-	AsciiString getCurrentStateName(void) const { return m_stateMachine->getCurrentStateName(); }
+	AsciiString getCurrentStateName() const { return m_stateMachine->getCurrentStateName(); }
 
 	virtual Object* getEnterTarget();					///< if we are trying to enter something (see enter() above), what is the thing in question? (or null)
 
@@ -435,10 +435,10 @@ public:
 	virtual void setLocomotorGoalPositionExplicit(const Coord3D& newPos);
 	virtual void setLocomotorGoalOrientation(Real angle);
 	virtual void setLocomotorGoalNone();
-	virtual Bool isDoingGroundMovement(void) const;  ///< True if moving along ground.
+	virtual Bool isDoingGroundMovement() const;  ///< True if moving along ground.
 
 	Bool isValidLocomotorPosition(const Coord3D* pos) const;
-	Bool isAircraftThatAdjustsDestination(void) const;  ///< True if is aircraft that doesn't stack destinations (missles for example do stack destinations.)
+	Bool isAircraftThatAdjustsDestination() const;  ///< True if is aircraft that doesn't stack destinations (missles for example do stack destinations.)
 	Real getCurLocomotorSpeed() const;
 	Real getLocomotorDistanceToGoal();
 	const Locomotor* getCurLocomotor() const { return m_curLocomotor; }
@@ -515,8 +515,8 @@ public:
 	// They are used to determine when we are really through moving.  Due to the nature of the beast,
 	// we often exit one move state & immediately enter another.  This should not cause a "stop start".
 	// jba.
-	void friend_startingMove(void);
-	void friend_endingMove(void);
+	void friend_startingMove();
+	void friend_endingMove();
 
 	void friend_setPath(Path* newPath);
 	Path* friend_getPath() { return m_path; }
@@ -558,18 +558,18 @@ public:
 	void transferAttack(ObjectID fromID, ObjectID toID);
 
 	void setCurrentVictim( const Object *nemesis );			///<  Current victim.
-	Object *getCurrentVictim( void ) const;
+	Object *getCurrentVictim() const;
 	virtual void notifyVictimIsDead() { }
 
 	// if we are attacking a position (and NOT an object), return it. otherwise return null.
-	const Coord3D *getCurrentVictimPos( void ) const;
+	const Coord3D *getCurrentVictimPos() const;
 
 	void setLocomotorUpgrade(Bool set);
 
 	// This function is used to notify the unit that it may have a target of opportunity to attack.
-	void wakeUpAndAttemptToTarget( void );
+	void wakeUpAndAttemptToTarget();
 
-	void resetNextMoodCheckTime( void );
+	void resetNextMoodCheckTime();
 
 	//Specifically set a frame to check next mood time -- added for the purpose of ordering a stealth combat unit that can't
 	//autoacquire while stealthed, but isn't stealthed and can stealth and is not detected, and the player specifically orders
@@ -601,12 +601,12 @@ public:
 	void setDemoralized(UnsignedInt durationInFrames);
 #endif
 
-	Bool canPathThroughUnits( void ) const { return m_canPathThroughUnits; }
+	Bool canPathThroughUnits() const { return m_canPathThroughUnits; }
 	void setCanPathThroughUnits( Bool canPath ) { m_canPathThroughUnits = canPath; if (canPath) m_isBlockedAndStuck=false;}
 
 	// Notify the ai that it has caused a crate to be created (usually by killing something.)
 	void notifyCrate(ObjectID id) { m_crateCreated = id; }
-	ObjectID getCrateID(void) const { return m_crateCreated; }
+	ObjectID getCrateID() const { return m_crateCreated; }
 	Object* checkForCrateToPickup();
 
 	void setIgnoreCollisionTime(Int frames) { m_ignoreCollisionsUntil = TheGameLogic->getFrame() + frames; }
@@ -634,7 +634,7 @@ protected:
 		interesting oscillations can occur in some situations, with friction being applied
 		either before or after the locomotive force, making for huge stuttery messes. (srj)
 	*/
-	virtual SleepyUpdatePhase getUpdatePhase() const { return PHASE_INITIAL; }
+	virtual SleepyUpdatePhase getUpdatePhase() const override { return PHASE_INITIAL; }
 
 	void setGoalPositionClipped(const Coord3D* in, CommandSourceType cmdSource);
 
@@ -701,15 +701,15 @@ public:
 	WhichTurretType friend_getTurretSync() const { return m_turretSyncFlag; }
 	void friend_setTurretSync(WhichTurretType t) { m_turretSyncFlag = t; }
 
-	UnsignedInt getPriorWaypointID ( void ) { return m_priorWaypointID; };
-	UnsignedInt getCurrentWaypointID ( void ) { return m_currentWaypointID; };
+	UnsignedInt getPriorWaypointID () { return m_priorWaypointID; };
+	UnsignedInt getCurrentWaypointID () { return m_currentWaypointID; };
 
-	void clearMoveOutOfWay(void) {m_moveOutOfWay1 = INVALID_ID; m_moveOutOfWay2 = INVALID_ID;}
+	void clearMoveOutOfWay() {m_moveOutOfWay1 = INVALID_ID; m_moveOutOfWay2 = INVALID_ID;}
 
 	void setTmpValue(Int val) {m_tmpInt = val;}
-	Int getTmpValue(void) {return m_tmpInt;}
+	Int getTmpValue() {return m_tmpInt;}
 
-	Bool getRetryPath(void) {return m_retryPath;}
+	Bool getRetryPath() {return m_retryPath;}
 
 	void setAllowedToChase( Bool allow ) { m_allowedToChase = allow; }
 	Bool isAllowedToChase() const { return m_allowedToChase; }

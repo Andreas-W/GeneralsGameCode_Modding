@@ -91,8 +91,8 @@ private:
 class BattlePlanBonusBehaviorInterface
 {
 public:
-	virtual void applyBonus(const BattlePlanBonuses* bonus, bool checkIsValid = TRUE) = 0;
-	//virtual void removeBonus(const BattlePlanBonuses* bonus) = 0;
+	virtual void applyBonus(const BattlePlanBonusesData* bonus, bool checkIsValid = TRUE) = 0;
+	//virtual void removeBonus(const BattlePlanBonusesData* bonus) = 0;
 	virtual Bool shouldParalyze() const = 0;
 	virtual Bool isOverrideGlobalBonus() const = 0;
 	virtual Bool isConflicting() const = 0;
@@ -128,8 +128,8 @@ public:
 protected:
 	// BattlePlan stuff
 
-	void applyBonus(const BattlePlanBonuses*, bool checkIsValid = TRUE);
-	//void removeBonus(const BattlePlanBonuses*);
+	void applyBonus(const BattlePlanBonusesData*, bool checkIsValid = TRUE);
+	//void removeBonus(const BattlePlanBonusesData*);
 	Bool shouldParalyze() const;
 	Bool isOverrideGlobalBonus() const;
 

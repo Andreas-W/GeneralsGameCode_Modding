@@ -33,7 +33,7 @@
 
 #include "StdAfx.h"
 #include "Vector3RndCombo.h"
-#include "v3_rnd.h"
+#include "WWMath/v3_rnd.h"
 
 const char * const RANDOMIZER_NAMES[Vector3Randomizer::CLASSID_MAXKNOWN] =
 {
@@ -60,8 +60,6 @@ Fill_Vector3_Rnd_Combo (HWND hcombobox)
 	for (int index = 0; index < Vector3Randomizer::CLASSID_MAXKNOWN; index ++) {
 		::SendMessage (hcombobox, CB_ADDSTRING, 0, (LPARAM)RANDOMIZER_NAMES[index]);
 	}
-
-	return ;
 }
 
 

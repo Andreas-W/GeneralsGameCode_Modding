@@ -62,18 +62,18 @@ class RTS3DScene : public SimpleSceneClass, public SubsystemInterface
 public:
 
 	RTS3DScene();  ///< RTSScene constructor
-	~RTS3DScene();  ///< RTSScene destructor
+	virtual ~RTS3DScene() override;  ///< RTSScene destructor
 
 	/// ray picking against objects in scene
 	Bool castRay(RayCollisionTestClass & raytest, Bool testAll, Int collisionType);
 
 	/// customizable renderer for the RTS3DScene
-	virtual void	Customized_Render( RenderInfoClass &rinfo );
-	virtual void	Visibility_Check(CameraClass * camera);
-	virtual void  Render(RenderInfoClass & rinfo);
+	virtual void	Customized_Render( RenderInfoClass &rinfo ) override;
+	virtual void	Visibility_Check(CameraClass * camera) override;
+	virtual void  Render(RenderInfoClass & rinfo) override;
 
 	void setCustomPassMode (CustomScenePassModes mode) {m_customPassMode = mode;}
-	CustomScenePassModes getCustomPassMode (void)	{return m_customPassMode;}
+	CustomScenePassModes getCustomPassMode ()	{return m_customPassMode;}
 
 	void Flush(RenderInfoClass & rinfo);	//draw queued up models.
 	/// Drawing control method
@@ -85,17 +85,17 @@ public:
 	/// Lighting methods
 	void addDynamicLight(W3DDynamicLight * obj);
 	void removeDynamicLight(W3DDynamicLight * obj);
-	RefRenderObjListIterator *createLightsIterator(void);
+	RefRenderObjListIterator *createLightsIterator();
 	void destroyLightsIterator(RefRenderObjListIterator * it);
-	RefRenderObjListClass *getDynamicLights(void) {return &m_dynamicLightList;};
-	W3DDynamicLight *getADynamicLight(void);
+	RefRenderObjListClass *getDynamicLights() {return &m_dynamicLightList;};
+	W3DDynamicLight *getADynamicLight();
 	void setGlobalLight(LightClass *pLight,Int lightIndex=0);
-	LightEnvironmentClass &getDefaultLightEnv(void) {return m_defaultLightEnv;}
+	LightEnvironmentClass &getDefaultLightEnv() {return m_defaultLightEnv;}
 
-	void init() {}
-	void update() {}
-	void draw();
-	void reset(){}
+	virtual void init() override {}
+	virtual void update() override {}
+	virtual void draw() override;
+	virtual void reset() override {}
 	void doRender(CameraClass * cam);
 
 protected:
@@ -105,7 +105,7 @@ protected:
 	void flushOccludedObjects(RenderInfoClass & rinfo);
 	void flagOccludedObjects(CameraClass * camera);
 	void flushOccludedObjectsIntoStencil(RenderInfoClass & rinfo);
-	void updatePlayerColorPasses(void);
+	void updatePlayerColorPasses();
 
 protected:
 	RefRenderObjListClass	m_dynamicLightList;
@@ -149,14 +149,14 @@ class RTS2DScene : public SimpleSceneClass, public SubsystemInterface
 public:
 
 	RTS2DScene();
-	~RTS2DScene();
+	virtual ~RTS2DScene() override;
 
 	/// customizable renderer for the RTS2DScene
-	virtual void Customized_Render( RenderInfoClass &rinfo );
-	void init() {}
-	void update() {}
-	void draw();
-	void reset(){}
+	virtual void Customized_Render( RenderInfoClass &rinfo ) override;
+	virtual void init() override {}
+	virtual void update() override {}
+	virtual void draw() override;
+	virtual void reset() override {}
 	void doRender(CameraClass * cam);
 
 protected:
@@ -175,8 +175,8 @@ class RTS3DInterfaceScene : public SimpleSceneClass
 public:
 
 	RTS3DInterfaceScene();
-	~RTS3DInterfaceScene();
+	virtual ~RTS3DInterfaceScene() override;
 
 	/// customizable renderer for the RTS3DInterfaceScene
-	virtual void Customized_Render( RenderInfoClass &rinfo );
+	virtual void Customized_Render( RenderInfoClass &rinfo ) override;
 };

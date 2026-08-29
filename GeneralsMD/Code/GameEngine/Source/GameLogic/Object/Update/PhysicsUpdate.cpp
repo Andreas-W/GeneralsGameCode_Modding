@@ -32,8 +32,10 @@
 #define NO_DEBUG_CRC
 
 #include "Common/PerfTimer.h"
+#include "Common/Player.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h"
+#include "GameClient/FXList.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
@@ -235,7 +237,7 @@ PhysicsBehavior::PhysicsBehavior( Thing *thing, const ModuleData* moduleData ) :
 
 	m_pui = nullptr;
 	m_bounceSound = nullptr;
-	m_waterImpactSound = NULL;
+	m_waterImpactSound = nullptr;
 
 	m_waterImpactFX = getPhysicsBehaviorModuleData()->m_waterImpactFX;
 
@@ -268,8 +270,6 @@ void PhysicsBehavior::onObjectCreated()
 //-------------------------------------------------------------------------------------------------
 PhysicsBehavior::~PhysicsBehavior()
 {
-	deleteInstance(m_bounceSound);
-	m_bounceSound = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -624,14 +624,13 @@ void PhysicsBehavior::setBounceSound(const AudioEventRTS* bounceSound)
 	if (bounceSound)
 	{
 		if (m_bounceSound == nullptr)
-			m_bounceSound = newInstance(DynamicAudioEventRTS);
+			m_bounceSound.Assign_No_Add_Ref(newInstance(DynamicAudioEventRTS));
 
-		m_bounceSound->m_event = *bounceSound;
+		*m_bounceSound = *bounceSound;
 	}
 	else
 	{
-		deleteInstance(m_bounceSound);
-		m_bounceSound = nullptr;
+		m_bounceSound.Clear();
 	}
 }
 
@@ -640,15 +639,14 @@ void PhysicsBehavior::setWaterImpactSound(const AudioEventRTS* waterImpactSound)
 {
 	if (waterImpactSound)
 	{
-		if (m_waterImpactSound == NULL)
-			m_waterImpactSound = newInstance(DynamicAudioEventRTS);
+		if (m_waterImpactSound == nullptr)
+			m_waterImpactSound.Assign_No_Add_Ref(newInstance(DynamicAudioEventRTS));
 
-		m_waterImpactSound->m_event = *waterImpactSound;
+		*m_waterImpactSound = *waterImpactSound;
 	}
 	else
 	{
-		deleteInstance(m_waterImpactSound);
-		m_waterImpactSound = NULL;
+		m_waterImpactSound.Clear();
 	}
 }
 
@@ -977,7 +975,7 @@ UpdateSleepTime PhysicsBehavior::update()
 		//DEBUG_LOG((">>> WATER IMPACT NOW!"));
 		// do water splash sound
 		if (m_waterImpactSound) {
-			AudioEventRTS collisionSound = m_waterImpactSound->m_event;
+			AudioEventRTS collisionSound = *m_waterImpactSound.Peek();
 			collisionSound.setObjectID(getObject()->getID());
 			TheAudio->addAudioEvent(&collisionSound);
 		}
@@ -1159,7 +1157,7 @@ void PhysicsBehavior::transferVelocityTo(PhysicsBehavior* that) const
 {
 	if (that != nullptr)
 	{
-		that->m_vel.add(&m_vel);
+		that->m_vel.add(m_vel);
 		that->m_velMag = INVALID_VEL_MAG;
 	}
 }
@@ -1168,7 +1166,7 @@ void PhysicsBehavior::transferVelocityTo(PhysicsBehavior* that) const
 void PhysicsBehavior::addVelocityTo( const Coord3D *vel)
 {
 	if (vel != nullptr)
-		m_vel.add( vel );
+		m_vel.add( *vel );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1212,7 +1210,7 @@ void PhysicsBehavior::doBounceSound(const Coord3D& prevPos)
 	const Real NORMAL_MASS	= 50.0f;
 
 	// get the per-unit sound for the collision which was stuffed in on Object creation.
-	AudioEventRTS collisionSound = m_bounceSound->m_event;
+	AudioEventRTS collisionSound = *m_bounceSound.Peek();
 
 //Real vel = fabs(getVelocity()->z);
 // can't use velocity, because it's already been updated this frame, and will be zero... (srj)
@@ -1476,7 +1474,26 @@ void PhysicsBehavior::onCollide( Object *other, const Coord3D *loc, const Coord3
 					// fall into a building. if a vehicle, blow up. then destroy ourself (not die), regardless.
 					if (obj->isKindOf(KINDOF_VEHICLE))
 					{
+#if RETAIL_COMPATIBLE_CRC
 						TheWeaponStore->createAndFireTempWeapon(getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoBuildingWeaponTemplate, obj, obj->getPosition());
+#else
+						// TheSuperHackers @bugfix Stubbjax 17/05/2026 Prevent building collisions from dealing collateral damage to other objects.
+						const WeaponTemplate* weaponTemplate = getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoBuildingWeaponTemplate;
+						if (weaponTemplate != nullptr)
+						{
+							WeaponBonus nullBonus;
+
+							DamageInfo damageInfo;
+							damageInfo.in.m_damageType = weaponTemplate->getDamageType();
+							damageInfo.in.m_deathType = weaponTemplate->getDeathType();
+							damageInfo.in.m_sourceID = obj->getID();
+							damageInfo.in.m_sourcePlayerMask = obj->getControllingPlayer() ? obj->getControllingPlayer()->getPlayerMask() : 0;
+							damageInfo.in.m_amount = weaponTemplate->getPrimaryDamage(nullBonus);
+
+							other->attemptDamage(&damageInfo);
+							FXList::doFXObj(weaponTemplate->getFireFX(obj->getVeterancyLevel()), obj);
+						}
+#endif
 					}
 					TheGameLogic->destroyObject(obj);
 					return;
@@ -1486,14 +1503,26 @@ void PhysicsBehavior::onCollide( Object *other, const Coord3D *loc, const Coord3
 					// fall into a nonbuilding -- whatever. if we're a vehicle, quietly do a little damage.
 					if (obj->isKindOf(KINDOF_VEHICLE) && (!other->isAirborneTarget() || getPhysicsBehaviorModuleData()->m_vehicleCrashAllowAirborne))
 					{
-						//DEBUG_LOG((
-						//	">>> PhysicsUpdate - fire vehicleCrashesIntoNonBuildingWeapon; obj = %s (%d); other = %s (%d).\n",
-						//	obj->getTemplate()->getName().str(),
-						//	obj->getID(),
-						//	other->getTemplate()->getName().str(),
-						//	other->getID()
-						//	));
+#if RETAIL_COMPATIBLE_CRC
 						TheWeaponStore->createAndFireTempWeapon(getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoNonBuildingWeaponTemplate, obj, obj->getPosition());
+#else
+						// TheSuperHackers @bugfix Stubbjax 19/04/2026 Prevent non-building collisions from repeatedly dealing collateral damage to other objects.
+						const WeaponTemplate* weaponTemplate = getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoNonBuildingWeaponTemplate;
+						if (weaponTemplate != nullptr)
+						{
+							WeaponBonus nullBonus;
+
+							DamageInfo damageInfo;
+							damageInfo.in.m_damageType = weaponTemplate->getDamageType();
+							damageInfo.in.m_deathType = weaponTemplate->getDeathType();
+							damageInfo.in.m_sourceID = obj->getID();
+							damageInfo.in.m_sourcePlayerMask = obj->getControllingPlayer() ? obj->getControllingPlayer()->getPlayerMask() : 0;
+							damageInfo.in.m_amount = weaponTemplate->getPrimaryDamage(nullBonus);
+
+							other->attemptDamage(&damageInfo);
+							FXList::doFXObj(weaponTemplate->getFireFX(obj->getVeterancyLevel()), obj);
+						}
+#endif
 					}
 				}
 			}
@@ -1874,7 +1903,7 @@ Bool PhysicsBehavior::checkForOverlapCollision(Object *other)
 // ------------------------------------------------------------------------------------------------
 /** Test whether unit needs to die because of being on illegal cell, upside down, outside legal bounds **/
 // ------------------------------------------------------------------------------------------------
-void PhysicsBehavior::testStunnedUnitForDestruction(void)
+void PhysicsBehavior::testStunnedUnitForDestruction()
 {
 	// Only do test if unit is stunned
 	if (!getFlag(IS_STUNNED))
@@ -2011,7 +2040,7 @@ void PhysicsBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void PhysicsBehavior::loadPostProcess( void )
+void PhysicsBehavior::loadPostProcess()
 {
 
 	// extend base class

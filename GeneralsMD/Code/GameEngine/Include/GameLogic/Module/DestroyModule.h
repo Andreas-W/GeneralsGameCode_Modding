@@ -56,9 +56,7 @@ public:
 	static Int getInterfaceMask() { return MODULEINTERFACE_DESTROY; }
 
 	// BehaviorModule
-	virtual DestroyModuleInterface* getDestroy() { return this; }
-
-	virtual void onDestroy() = 0;
+	virtual DestroyModuleInterface* getDestroy() override { return this; }
 
 protected:
 

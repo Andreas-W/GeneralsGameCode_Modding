@@ -22,7 +22,7 @@
 #include "StdAfx.h"
 #include "PlaySoundDialog.h"
 #include "Utils.h"
-#include "AudibleSound.h"
+#include "WWAudio/AudibleSound.h"
 
 
 #ifdef RTS_DEBUG
@@ -39,13 +39,11 @@ static char THIS_FILE[] = __FILE__;
 /////////////////////////////////////////////////////////////////////////////
 PlaySoundDialogClass::PlaySoundDialogClass(LPCTSTR filename, CWnd* pParent /*=nullptr*/)
 	:	Filename (filename),
-		SoundObj (nullptr),
 		CDialog(PlaySoundDialogClass::IDD, pParent)
 {
 	//{{AFX_DATA_INIT(PlaySoundDialogClass)
 		// NOTE: the ClassWizard will add member initialization here
 	//}}AFX_DATA_INIT
-	return ;
 }
 
 
@@ -61,7 +59,6 @@ PlaySoundDialogClass::DoDataExchange (CDataExchange *pDX)
 	//{{AFX_DATA_MAP(PlaySoundDialogClass)
 		// NOTE: the ClassWizard will add DDX and DDV calls here
 	//}}AFX_DATA_MAP
-	return ;
 }
 
 
@@ -79,15 +76,13 @@ END_MESSAGE_MAP()
 //
 /////////////////////////////////////////////////////////////////////////////
 void
-PlaySoundDialogClass::OnPlaySoundEffect (void)
+PlaySoundDialogClass::OnPlaySoundEffect ()
 {
 	ASSERT (SoundObj != nullptr);
 	if (SoundObj != nullptr) {
 		SoundObj->Stop ();
 		SoundObj->Play ();
 	}
-
-	return ;
 }
 
 
@@ -97,13 +92,12 @@ PlaySoundDialogClass::OnPlaySoundEffect (void)
 //
 /////////////////////////////////////////////////////////////////////////////
 void
-PlaySoundDialogClass::OnCancel (void)
+PlaySoundDialogClass::OnCancel ()
 {
 	SoundObj->Stop ();
-	REF_PTR_RELEASE (SoundObj);
+	SoundObj.Clear();
 
 	CDialog::OnCancel ();
-	return ;
 }
 
 
@@ -113,7 +107,7 @@ PlaySoundDialogClass::OnCancel (void)
 //
 /////////////////////////////////////////////////////////////////////////////
 BOOL
-PlaySoundDialogClass::OnInitDialog (void)
+PlaySoundDialogClass::OnInitDialog ()
 {
 	CDialog::OnInitDialog ();
 
@@ -125,7 +119,7 @@ PlaySoundDialogClass::OnInitDialog (void)
 	//
 	//	Create the sound effect so we can play it
 	//
-	SoundObj = WWAudioClass::Get_Instance ()->Create_Sound_Effect (Filename);
+	SoundObj.Assign_No_Add_Ref (WWAudioClass::Get_Instance ()->Create_Sound_Effect (Filename));
 	if (SoundObj == nullptr) {
 		CString message;
 		message.Format ("Cannot find sound file: %s!", (LPCTSTR)Filename, MB_OK);
@@ -145,13 +139,11 @@ PlaySoundDialogClass::OnInitDialog (void)
 //
 /////////////////////////////////////////////////////////////////////////////
 void
-PlaySoundDialogClass::OnStopSoundEffect (void)
+PlaySoundDialogClass::OnStopSoundEffect ()
 {
 	ASSERT (SoundObj != nullptr);
 	if (SoundObj != nullptr) {
 		SoundObj->Stop ();
 	}
-
-	return ;
 }
 

@@ -56,6 +56,7 @@
 #include "GameClient/GameText.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/GUICallbacks.h"
+#include "GameClient/SaveLoadFeedback.h"
 #include "GameClient/Shell.h"
 #include "GameLogic/GameLogic.h"
 #include "GameClient/GameWindowTransitions.h"
@@ -97,7 +98,7 @@ extern Bool ReplayWasPressed;
 /** Given the current layout and selection in the game listbox, update the main save/load
 	* menu buttons to be enabled or disabled */
 // ------------------------------------------------------------------------------------------------
-static void updateMenuActions( void )
+static void updateMenuActions()
 {
 
 	// for loading only, disable the save button, otherwise enable it
@@ -373,38 +374,46 @@ static AvailableGameInfo *getSelectedSaveFileInfo( GameWindow *window )
 
 // ---------------------------------------------------con------------------------------------------
 // ------------------------------------------------------------------------------------------------				// close the save/load menu
-static void doLoadGame( void )
+static void doLoadGame()
 {
 
 	// get listbox of games
 	//GameWindow *listboxGames = TheWindowManager->winGetWindowFromId( parent, NAMEKEY( "PopupSaveLoad.wnd:ListboxGames" ) );
 	DEBUG_ASSERTCRASH( listboxGames, ("doLoadGame: Unable to find game listbox") );
 
-	// get selected game info
-	AvailableGameInfo *selectedGameInfo = getSelectedSaveFileInfo( listboxGames );
-	DEBUG_ASSERTCRASH( selectedGameInfo, ("doLoadGame: No selected game info found") );
-
-	// when loading a game we also close the quit/esc menu for the user when in-game
-	if( TheShell->isShellActive() == FALSE )
+	AsciiString filename;
+	SaveCode result = SC_INVALID;
 	{
-		destroyQuitMenu();
+		// get selected game info
+		AvailableGameInfo *selectedGameInfo = getSelectedSaveFileInfo( listboxGames );
+		DEBUG_ASSERTCRASH( selectedGameInfo, ("doLoadGame: No selected game info found") );
+
+		// when loading a game we also close the quit/esc menu for the user when in-game
+		if( TheShell->isShellActive() == FALSE )
+		{
+			destroyQuitMenu();
 //		ToggleQuitMenu();
 //		TheTransitionHandler->remove("QuitNoSave");
 //		TheTransitionHandler->remove("QuitFull");
-	}
-	else
-	{
-		TheTransitionHandler->remove("MainMenuLoadReplayMenu");
-		TheTransitionHandler->remove("MainMenuLoadReplayMenuBack");
-		TheGameLogic->prepareNewGame( GAME_SINGLE_PLAYER, DIFFICULTY_NORMAL, 0 );
+		}
+		else
+		{
+			TheTransitionHandler->remove("MainMenuLoadReplayMenu");
+			TheTransitionHandler->remove("MainMenuLoadReplayMenuBack");
+			TheGameLogic->prepareNewGame( GAME_SINGLE_PLAYER, DIFFICULTY_NORMAL, 0 );
+		}
+
+		//
+		// load game, note the *copy* of the selected game info is passed here because we will
+		// loose these allocated user data pointers attached as listbox item data when the
+		// engine resets
+		//
+		filename = selectedGameInfo->filename;
+		result = TheGameState->loadGame( *selectedGameInfo );
 	}
 
-	//
-	// load game, note the *copy* of the selected game info is passed here because we will
-	// loose these allocated user data pointers attached as listbox item data when the
-	// engine resets
-	//
-	if (TheGameState->loadGame( *selectedGameInfo ) != SC_OK)
+	presentLoadResult( result, filename );
+	if (result != SC_OK)
 	{
 		if (TheGameLogic->isInGame())
 			TheGameLogic->clearGameData( FALSE );
@@ -771,7 +780,7 @@ WindowMsgHandledType SaveLoadMenuSystem( GameWindow *window, UnsignedInt msg,
 					// save the game
 					AsciiString filename;
 					filename = selectedGameInfo->filename;
-					TheGameState->saveGame( filename, selectedGameInfo->saveGameInfo.description, fileType );
+					presentSaveResult( TheGameState->saveGame( filename, selectedGameInfo->saveGameInfo.description, fileType ) );
 
 /*
 					// set the description text entry field to default value
@@ -835,7 +844,7 @@ WindowMsgHandledType SaveLoadMenuSystem( GameWindow *window, UnsignedInt msg,
 				AsciiString filename;
 				if( selectedGameInfo )
 					filename = selectedGameInfo->filename;
-				TheGameState->saveGame( filename, desc, fileType );
+				presentSaveResult( TheGameState->saveGame( filename, desc, fileType ) );
 
 			}
 			else if( controlID == buttonSaveDescCancel )

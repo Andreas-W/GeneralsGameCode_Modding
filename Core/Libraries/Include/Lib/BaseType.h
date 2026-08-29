@@ -58,6 +58,56 @@ inline int sign(NUM x)
 	else return 0;
 }
 
+template <typename NUM>
+inline NUM highestBit(NUM x)
+{
+	static_assert(sizeof(NUM) <= 8, "NUM must be 8 bytes or less");
+	UnsignedInt64 y = static_cast<UnsignedInt64>(x);
+
+	y |= (y >> 1);
+	y |= (y >> 2);
+	y |= (y >> 4);
+	y |= (y >> 8);
+	y |= (y >> 16);
+	y |= (y >> 32);
+
+	return static_cast<NUM>(y & ~(y >> 1));
+}
+
+template <typename PTR>
+inline PTR maxPtr(PTR x, PTR y) noexcept
+{
+	static_assert(std::is_pointer<PTR>::value, "maxPtr is for pointer types only!");
+
+	if (x == nullptr)
+		return y;
+
+	if (y == nullptr)
+		return x;
+
+	if (x > y)
+		return x;
+
+	return y;
+}
+
+template <typename PTR>
+inline PTR minPtr(PTR x, PTR y) noexcept
+{
+	static_assert(std::is_pointer<PTR>::value, "minPtr is for pointer types only!");
+
+	if (x == nullptr)
+		return y;
+
+	if (y == nullptr)
+		return x;
+
+	if (x < y)
+		return x;
+
+	return y;
+}
+
 // TheSuperHackers @refactor JohnsterID 24/01/2026 Add lowercase min/max templates for GameEngine layer.
 // GameEngine code typically uses BaseType.h, but may include WWVegas headers (which define min/max in always.h).
 // Header guard prevents duplicate definitions. VC6's <algorithm> lacks std::min/std::max.
@@ -89,6 +139,7 @@ inline Real deg2rad(Real rad) { return rad * (PI/180); }
 //-----------------------------------------------------------------------------
 // TheSuperHackers @build xezon 17/03/2025 Renames BitTest to BitIsSet to prevent conflict with BitTest macro from winnt.h
 #define BitIsSet( x, i ) ( ( (x) & (i) ) != 0 )
+#define BitsAreSet( x, i ) ( ( (x) & (i) ) == (i) )
 #define BitSet( x, i ) ( (x) |= (i) )
 #define BitClear( x, i ) ( (x ) &= ~(i) )
 #define BitToggle( x, i ) ( (x) ^= (i) )
@@ -197,6 +248,17 @@ struct RealRange
 {
 	Real lo, hi;							// low and high values of the range
 
+	void zero()
+	{
+		lo = 0.0f;
+		hi = 0.0f;
+	}
+
+	bool is(Real value) const
+	{
+		return lo == value && hi == value;
+	}
+
 	// combine the given range with us such that we now encompass
 	// both ranges
 	void combine( RealRange &other )
@@ -210,9 +272,21 @@ struct Coord2D
 {
 	Real x, y;
 
-	Real length( void ) const { return (Real)sqrt( x*x + y*y ); }
+	void zero()
+	{
+		x = 0.0f;
+		y = 0.0f;
+	}
 
-	void normalize( void )
+	bool is(Real value) const
+	{
+		return x == value && y == value;
+	}
+
+	Real length() const { return (Real)sqrt( x*x + y*y ); }
+	Real lengthSqr() const { return x*x + y*y; }
+
+	void normalize()
 	{
 		Real len = length();
 		if( len != 0 )
@@ -222,12 +296,59 @@ struct Coord2D
 		}
 	}
 
-	Real toAngle( void ) const;  ///< turn 2D vector into angle (where angle 0 is down the +x axis)
+	Real toAngle() const;  ///< turn 2D vector into angle (where angle 0 is down the +x axis)
 
 	void rotateByAngle(Real angle); ///< rotate the vector by the given angle (radians)
+	void add( const Coord2D &a )
+	{
+		x += a.x;
+		y += a.y;
+	}
+
+	void sub( const Coord2D &a )
+	{
+		x -= a.x;
+		y -= a.y;
+	}
+
+	void operator+=( const Coord2D &a )
+	{
+		add(a);
+	}
+
+	void operator-=( const Coord2D &a )
+	{
+		sub(a);
+	}
+
+	void set( const Coord2D &a )
+	{
+		x = a.x;
+		y = a.y;
+	}
+
+	void set( Real ax, Real ay )
+	{
+		x = ax;
+		y = ay;
+	}
 };
 
-inline Real Coord2D::toAngle( void ) const
+inline Coord2D operator+( const Coord2D &a, const Coord2D &b )
+{
+	Coord2D c = a;
+	c.add(b);
+	return c;
+}
+
+inline Coord2D operator-( const Coord2D &a, const Coord2D &b )
+{
+	Coord2D c = a;
+	c.sub(b);
+	return c;
+}
+
+inline Real Coord2D::toAngle() const
 {
 #if RTS_GENERALS /*&& RETAIL_COMPATIBLE_CRC*/
 	Coord2D vector;
@@ -303,23 +424,107 @@ struct ICoord2D
 {
 	Int x, y;
 
-	Int length( void ) const { return (Int)sqrt( (double)(x*x + y*y) ); }
+	void zero()
+	{
+		x = 0;
+		y = 0;
+	}
+
+	bool is(Int value) const
+	{
+		return x == value && y == value;
+	}
+
+	Int length() const { return (Int)sqrt( (double)(x*x + y*y) ); }
+	Int lengthSqr() const { return x*x + y*y; }
+
+	void add( const ICoord2D &a )
+	{
+		x += a.x;
+		y += a.y;
+	}
+
+	void sub( const ICoord2D &a )
+	{
+		x -= a.x;
+		y -= a.y;
+	}
+
+	void operator+=( const ICoord2D &a )
+	{
+		add(a);
+	}
+
+	void operator-=( const ICoord2D &a )
+	{
+		sub(a);
+	}
+
+	void set( const ICoord2D &a )
+	{
+		x = a.x;
+		y = a.y;
+	}
+
+	void set( Int ax, Int ay )
+	{
+		x = ax;
+		y = ay;
+	}
 };
+
+inline ICoord2D operator+( const ICoord2D &a, const ICoord2D &b )
+{
+	ICoord2D c = a;
+	c.add(b);
+	return c;
+}
+
+inline ICoord2D operator-( const ICoord2D &a, const ICoord2D &b )
+{
+	ICoord2D c = a;
+	c.sub(b);
+	return c;
+}
 
 struct Region2D
 {
 	Coord2D lo, hi;						// bounds of 2D rectangular region
 
-	Real width( void ) const { return hi.x - lo.x; }
-	Real height( void ) const { return hi.y - lo.y; }
+	void zero()
+	{
+		lo.zero();
+		hi.zero();
+	}
+
+	bool is(Real value) const
+	{
+		return lo.is(value) && hi.is(value);
+	}
+
+	Real width() const { return hi.x - lo.x; }
+	Real height() const { return hi.y - lo.y; }
+	Bool isInRegion( Real x, Real y ) const { return (lo.x < x) && (x < hi.x) && (lo.y < y) && (y < hi.y); }
 };
 
 struct IRegion2D
 {
 	ICoord2D lo, hi;					// bounds of 2D rectangular region
 
-	Int width( void ) const { return hi.x - lo.x; }
-	Int height( void ) const { return hi.y - lo.y; }
+	void zero()
+	{
+		lo.zero();
+		hi.zero();
+	}
+
+	bool is(Int value) const
+	{
+		return lo.is(value) && hi.is(value);
+	}
+
+	Int width() const { return hi.x - lo.x; }
+	Int height() const { return hi.y - lo.y; }
+	Bool isInRegion( Int x, Int y ) const { return (lo.x < x) && (x < hi.x) && (lo.y < y) && (y < hi.y); }
 };
 
 
@@ -327,10 +532,10 @@ struct Coord3D
 {
 	Real x, y, z;
 
-	Real length( void ) const { return (Real)sqrt( x*x + y*y + z*z ); }
-	Real lengthSqr( void ) const { return ( x*x + y*y + z*z ); }
+	Real length() const { return (Real)sqrt( x*x + y*y + z*z ); }
+	Real lengthSqr() const { return ( x*x + y*y + z*z ); }
 
-	void normalize( void )
+	void normalize()
 	{
 		Real len = length();
 
@@ -342,39 +547,54 @@ struct Coord3D
 		}
 	}
 
-	static void crossProduct( const Coord3D *a, const Coord3D *b, Coord3D *r )
+	static void crossProduct( const Coord3D &a, const Coord3D &b, Coord3D &r )
 	{
-		r->x = (a->y * b->z - a->z * b->y);
-		r->y = (a->z * b->x - a->x * b->z);
-		r->z = (a->x * b->y - a->y * b->x);
+		r.x = (a.y * b.z - a.z * b.y);
+		r.y = (a.z * b.x - a.x * b.z);
+		r.z = (a.x * b.y - a.y * b.x);
 	}
 
-	void zero( void )
+	void zero()
 	{
 		x = 0.0f;
 		y = 0.0f;
 		z = 0.0f;
 	}
 
-	void add( const Coord3D *a )
+	bool is(Real value) const
 	{
-		x += a->x;
-		y += a->y;
-		z += a->z;
+		return x == value && y == value && z == value;
 	}
 
-	void sub( const Coord3D *a )
+	void add( const Coord3D &a )
 	{
-		x -= a->x;
-		y -= a->y;
-		z -= a->z;
+		x += a.x;
+		y += a.y;
+		z += a.z;
 	}
 
-	void set( const Coord3D *a )
+	void sub( const Coord3D &a )
 	{
-		x = a->x;
-		y = a->y;
-		z = a->z;
+		x -= a.x;
+		y -= a.y;
+		z -= a.z;
+	}
+
+	void operator+=( const Coord3D &a )
+	{
+		add(a);
+	}
+
+	void operator-=( const Coord3D &a )
+	{
+		sub(a);
+	}
+
+	void set( const Coord3D &a )
+	{
+		x = a.x;
+		y = a.y;
+		z = a.z;
 	}
 
 	void set( Real ax, Real ay, Real az )
@@ -406,31 +626,119 @@ struct Coord3D
 	}
 };
 
+inline Coord3D operator+( const Coord3D &a, const Coord3D &b )
+{
+	Coord3D c = a;
+	c.add(b);
+	return c;
+}
+
+inline Coord3D operator-( const Coord3D &a, const Coord3D &b )
+{
+	Coord3D c = a;
+	c.sub(b);
+	return c;
+}
+
 struct ICoord3D
 {
 	Int x, y, z;
 
-	Int length( void ) const { return (Int)sqrt( (double)(x*x + y*y + z*z) ); }
-	void zero( void )
-	{
+	Int length() const { return (Int)sqrt( (double)(x*x + y*y + z*z) ); }
+	Int lengthSqr() const { return x*x + y*y + z*z; }
 
+	void zero()
+	{
 		x = 0;
 		y = 0;
 		z = 0;
 	}
+
+	bool is(Int value) const
+	{
+		return x == value && y == value && z == value;
+	}
+
+	void add( const ICoord3D &a )
+	{
+		x += a.x;
+		y += a.y;
+		z += a.z;
+	}
+
+	void sub( const ICoord3D &a )
+	{
+		x -= a.x;
+		y -= a.y;
+		z -= a.z;
+	}
+
+	void operator+=( const ICoord3D &a )
+	{
+		add(a);
+	}
+
+	void operator-=( const ICoord3D &a )
+	{
+		sub(a);
+	}
+
+	void set( const ICoord3D &a )
+	{
+		x = a.x;
+		y = a.y;
+		z = a.z;
+	}
+
+	void set( Int ax, Int ay, Int az )
+	{
+		x = ax;
+		y = ay;
+		z = az;
+	}
 };
 
+inline ICoord3D operator+( const ICoord3D &a, const ICoord3D &b )
+{
+	ICoord3D c = a;
+	c.add(b);
+	return c;
+}
+
+inline ICoord3D operator-( const ICoord3D &a, const ICoord3D &b )
+{
+	ICoord3D c = a;
+	c.sub(b);
+	return c;
+}
+
+// For alternative see AABoxClass
 struct Region3D
 {
 	Coord3D lo, hi;						// axis-aligned bounding box
 
-	Real width( void ) const { return hi.x - lo.x; }
-	Real height( void ) const { return hi.y - lo.y; }
-	Real depth( void ) const { return hi.z - lo.z; }
+	Real width() const { return hi.x - lo.x; }
+	Real height() const { return hi.y - lo.y; }
+	Real depth() const { return hi.z - lo.z; }
 
 	void zero() { lo.zero(); hi.zero(); }
 
-	void setFromPointsNoZ(const Coord3D* points, Int count)
+	bool is(Real value) const
+	{
+		return lo.is(value) && hi.is(value);
+	}
+
+	// Set XY from a 2D region and leave Z unchanged.
+	void setXY(const Region2D &region)
+	{
+		lo.x = region.lo.x;
+		lo.y = region.lo.y;
+		hi.x = region.hi.x;
+		hi.y = region.hi.y;
+	}
+
+	// Set XY from any amount of points and leave Z unchanged.
+	void setXYFromPoints(const Coord3D* points, Int count)
 	{
 		lo.x = points[0].x;
 		lo.y = points[0].y;
@@ -470,16 +778,17 @@ struct Region3D
 		}
 	}
 
-	Bool isInRegionNoZ( const Coord3D *query ) const
+	Bool isInRegionNoZ( const Coord3D &query ) const
 	{
-		return (lo.x < query->x) && (query->x < hi.x)
-						&& (lo.y < query->y) && (query->y < hi.y);
+		return (lo.x < query.x) && (query.x < hi.x) &&
+					 (lo.y < query.y) && (query.y < hi.y);
 	}
-	Bool isInRegionWithZ( const Coord3D *query ) const
+
+	Bool isInRegion( const Coord3D &query ) const
 	{
-		return (lo.x < query->x) && (query->x < hi.x)
-						&& (lo.y < query->y) && (query->y < hi.y)
-						&& (lo.z < query->z) && (query->z < hi.z);
+		return (lo.x < query.x) && (query.x < hi.x) &&
+					 (lo.y < query.y) && (query.y < hi.y) &&
+					 (lo.z < query.z) && (query.z < hi.z);
 	}
 };
 
@@ -487,9 +796,20 @@ struct IRegion3D
 {
 	ICoord3D lo, hi;					// axis-aligned bounding box
 
-	Int width( void ) const { return hi.x - lo.x; }
-	Int height( void ) const { return hi.y - lo.y; }
-	Int depth( void ) const { return hi.z - lo.z; }
+	void zero()
+	{
+		lo.zero();
+		hi.zero();
+	}
+
+	bool is(Int value) const
+	{
+		return lo.is(value) && hi.is(value);
+	}
+
+	Int width() const { return hi.x - lo.x; }
+	Int height() const { return hi.y - lo.y; }
+	Int depth() const { return hi.z - lo.z; }
 };
 
 

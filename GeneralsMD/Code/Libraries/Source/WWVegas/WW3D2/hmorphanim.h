@@ -38,9 +38,9 @@
 
 #pragma once
 
-#include "always.h"
-#include "hanim.h"
-#include "simplevec.h"
+#include "WWLib/always.h"
+#include "WW3D2/hanim.h"
+#include "WWLib/simplevec.h"
 
 class TimeCodedMorphKeysClass;
 class ChunkLoadClass;
@@ -74,31 +74,31 @@ public:
 		LOAD_ERROR
 	};
 
-	HMorphAnimClass(void);
-	~HMorphAnimClass(void);
+	HMorphAnimClass();
+	virtual ~HMorphAnimClass() override;
 
-	void							Free_Morph(void);
+	void							Free_Morph();
 	int							Create_New_Morph(const int channels, HAnimClass *anim[]);
 	int							Load_W3D(ChunkLoadClass & cload);
 	int							Save_W3D(ChunkSaveClass & csave);
 
-	const char *				Get_Name(void) const								{ return Name; }
-	const char *				Get_HName(void) const							{ return HierarchyName; }
+	virtual const char *				Get_Name() const override { return Name; }
+	virtual const char *				Get_HName() const override { return HierarchyName; }
 
-	int							Get_Num_Frames(void)								{ return FrameCount; }
-	float							Get_Frame_Rate()									{ return FrameRate; }
-	float							Get_Total_Time()									{ return (float)FrameCount / FrameRate; }
+	virtual int							Get_Num_Frames() override { return FrameCount; }
+	virtual float							Get_Frame_Rate() override { return FrameRate; }
+	virtual float							Get_Total_Time() override { return (float)FrameCount / FrameRate; }
 
-	void							Get_Translation(Vector3& translation, int pividx,float frame) const;
-	void							Get_Orientation(Quaternion& orientation, int pividx,float frame) const;
-	void							Get_Transform(Matrix3D& transform, int pividx,float frame) const;
-	bool							Get_Visibility(int pividx,float frame)		{ return true; }
+	virtual void							Get_Translation(Vector3& translation, int pividx,float frame) const override;
+	virtual void							Get_Orientation(Quaternion& orientation, int pividx,float frame) const override;
+	virtual void							Get_Transform(Matrix3D& transform, int pividx,float frame) const override;
+	virtual bool							Get_Visibility(int pividx,float frame) override		{ return true; }
 
 	void							Insert_Morph_Key (const int channel, uint32 morph_frame, uint32 pose_frame);
-	void							Release_Keys (void);
+	void							Release_Keys ();
 
-	bool							Is_Node_Motion_Present(int pividx)			{ return true; }
-	int							Get_Num_Pivots(void)	const						{ return NumNodes; }
+	virtual bool							Is_Node_Motion_Present(int pividx) override { return true; }
+	virtual int							Get_Num_Pivots()	const override { return NumNodes; }
 
 	void							Set_Name(const char * name);
 	void							Set_HName(const char * hname);
@@ -107,10 +107,10 @@ public:
 
 protected:
 
-	void							Free(void);
+	void							Free();
 	void							read_channel(ChunkLoadClass & cload,int channel);
 	void							write_channel(ChunkSaveClass & csave,int channel);
-	void							Resolve_Pivot_Channels(void);
+	void							Resolve_Pivot_Channels();
 
 	char							Name[2*W3D_NAME_LEN];
 	char							AnimName[W3D_NAME_LEN];
@@ -142,8 +142,8 @@ class TimeCodedMorphKeysClass
 {
 public:
 
-	TimeCodedMorphKeysClass(void);
-	~TimeCodedMorphKeysClass(void);
+	TimeCodedMorphKeysClass();
+	~TimeCodedMorphKeysClass();
 
 	bool					Load_W3D(ChunkLoadClass & cload);
 	bool					Save_W3D(ChunkSaveClass & csave);
@@ -155,7 +155,7 @@ private:
 
 	struct MorphKeyStruct
 	{
-		MorphKeyStruct (void)
+		MorphKeyStruct ()
 			:	MorphFrame (0),
 				PoseFrame (0)			{}
 
@@ -170,7 +170,7 @@ private:
 	SimpleDynVecClass<MorphKeyStruct>	Keys;	// morph key data
 	uint32				CachedIdx;					// last accessed index
 
-	void 					Free(void);
+	void 					Free();
 
 	uint32				get_index(float time);
 	uint32				binary_search_index(float time);

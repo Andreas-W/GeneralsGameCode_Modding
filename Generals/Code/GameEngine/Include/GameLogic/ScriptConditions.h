@@ -43,11 +43,7 @@ class ScriptConditionsInterface : public SubsystemInterface
 
 public:
 
-	virtual ~ScriptConditionsInterface() { };
-
-	virtual void init( void ) = 0;		///< Init
-	virtual void reset( void ) = 0;		///< Reset
-	virtual void update( void ) = 0;	///< Update
+	virtual ~ScriptConditionsInterface() override { };
 
 	virtual Bool evaluateCondition( Condition *pCondition ) = 0; ///< evaluate a a script condition.
 
@@ -68,15 +64,15 @@ class ScriptConditions : public ScriptConditionsInterface
 
 public:
 	ScriptConditions();
-	~ScriptConditions();
+	virtual ~ScriptConditions() override;
 
 public:
 
-	virtual void init( void );		///< Init
-	virtual void reset( void );		///< Reset
-	virtual void update( void );	///< Update
+	virtual void init() override;		///< Init
+	virtual void reset() override;		///< Reset
+	virtual void update() override;	///< Update
 
-	Bool evaluateCondition( Condition *pCondition );
+	virtual Bool evaluateCondition( Condition *pCondition ) override;
 
 protected:
 	Player *playerFromParam(Parameter *pSideParm);			// Gets a player from a parameter.
@@ -113,9 +109,9 @@ protected:
 	Bool evaluateTeamCreated(Parameter* pTeamParm);		///< Implemented as evaluateTeamExists(...)
 	Bool evaluateNamedOwnedByPlayer(Parameter *pUnitParm, Parameter *pPlayerParm);
 	Bool evaluateTeamOwnedByPlayer(Parameter *pTeamParm, Parameter *pPlayerParm);
-	Bool evaluateMultiplayerAlliedVictory(void);
-	Bool evaluateMultiplayerAlliedDefeat(void);
-	Bool evaluateMultiplayerPlayerDefeat(void);
+	Bool evaluateMultiplayerAlliedVictory();
+	Bool evaluateMultiplayerAlliedDefeat();
+	Bool evaluateMultiplayerPlayerDefeat();
 	Bool evaluateNamedAttackedByType(Parameter *pUnitParm, Parameter *pTypeParm);
 	Bool evaluateTeamAttackedByType(Parameter *pTeamParm, Parameter *pTypeParm);
 	Bool evaluateNamedAttackedByPlayer(Parameter *pUnitParm, Parameter *pPlayerParm);
@@ -153,7 +149,7 @@ protected:
 	Bool evaluatePlayerHasUnitTypeInArea(Condition *pCondition, Parameter *pPlayerParm, Parameter *pComparisonParm, Parameter *pCountParm, Parameter *pTypeParm, Parameter *pTriggerParm);
 	Bool evaluatePlayerHasUnitKindInArea(Condition *pCondition, Parameter *pPlayerParm, Parameter *pComparisonParm, Parameter *pCountParm,Parameter *pKindParm, Parameter *pTriggerParm);
 	Bool evaluateUnitHasEmptied(Parameter *pUnitParm);
-	Bool evaluateTeamIsContained(Parameter *pTeamParm, Bool allContained);
+	virtual Bool evaluateTeamIsContained(Parameter *pTeamParm, Bool allContained) override;
 	Bool evaluateMusicHasCompleted(Parameter *pMusicParm, Parameter *pIntParm);
 	Bool evaluatePlayerLostObjectType(Parameter *pPlayerParm, Parameter *pTypeParm);
 
@@ -164,7 +160,7 @@ protected:
 	Bool evaluateSkirmishPlayerIsFaction(Parameter *pSkirmishPlayerParm, Parameter *pFactionParm);
 	Bool evaluateSkirmishSuppliesWithinDistancePerimeter(Parameter *pSkirmishPlayerParm, Parameter *pDistanceParm, Parameter *pLocationParm, Parameter *pValueParm);
 	Bool evaluateSkirmishPlayerTechBuildingWithinDistancePerimeter(Condition *pCondition, Parameter *pSkirmishPlayerParm, Parameter *pDistanceParm, Parameter *pLocationParm);
-	Bool evaluateSkirmishCommandButtonIsReady( Parameter *pSkirmishPlayerParm, Parameter *pTeamParm, Parameter *pCommandButtonParm, Bool allReady );
+	virtual Bool evaluateSkirmishCommandButtonIsReady( Parameter *pSkirmishPlayerParm, Parameter *pTeamParm, Parameter *pCommandButtonParm, Bool allReady ) override;
 	Bool evaluateSkirmishUnownedFactionUnitComparison( Parameter *pSkirmishPlayerParm, Parameter *pComparisonParm, Parameter *pCountParm );
 	Bool evaluateSkirmishPlayerHasPrereqsToBuild( Parameter *pSkirmishPlayerParm, Parameter *pObjectTypeParm );
 	Bool evaluateSkirmishPlayerHasComparisonGarrisoned(Parameter *pSkirmishPlayerParm, Parameter *pComparisonParm, Parameter *pCountParm );

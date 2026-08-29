@@ -79,7 +79,7 @@ static NameKeyType buttonReturn = NAMEKEY_INVALID;
 static NameKeyType buttonOptions = NAMEKEY_INVALID;
 static NameKeyType buttonSaveLoad = NAMEKEY_INVALID;
 
-static void initGadgetsFullQuit( void )
+static void initGadgetsFullQuit()
 {
 	buttonExit = TheNameKeyGenerator->nameToKey( "QuitMenu.wnd:ButtonExit" );
 	buttonRestart = TheNameKeyGenerator->nameToKey( "QuitMenu.wnd:ButtonRestart" );
@@ -93,7 +93,7 @@ static void initGadgetsFullQuit( void )
 	buttonExitWin = TheWindowManager->winGetWindowFromId( nullptr, buttonExit );
 }
 
-static void initGadgetsNoSaveQuit( void )
+static void initGadgetsNoSaveQuit()
 {
 	buttonExit = TheNameKeyGenerator->nameToKey( "QuitNoSave.wnd:ButtonExit" );
 	buttonRestart = TheNameKeyGenerator->nameToKey( "QuitNoSave.wnd:ButtonRestart" );
@@ -137,23 +137,9 @@ void destroyQuitMenu()
  */
 static void exitQuitMenu()
 {
+	TheGameLogic->quit(FALSE);
   // destroy the quit menu
 	destroyQuitMenu();
-
-	// clear out all the game data
-	if ( TheGameLogic->isInMultiplayerGame() && !TheGameLogic->isInSkirmishGame() && !TheGameInfo->isSandbox() )
-	{
-		GameMessage *msg = TheMessageStream->appendMessage(GameMessage::MSG_SELF_DESTRUCT);
-		msg->appendBooleanArgument(TRUE);
-	}
-	TheGameLogic->exitGame();
-	// TheGameLogic->clearGameData();
-	// display the menu on top of the shell stack
-  // TheShell->showShell();
-
-	// this will trigger an exit
-  // TheGameEngine->setQuitting( TRUE );
-	TheInGameUI->setClientQuiet( TRUE );
 }
 static void noExitQuitMenu()
 {
@@ -162,20 +148,9 @@ static void noExitQuitMenu()
 
 static void quitToDesktopQuitMenu()
 {
+	TheGameLogic->quit(TRUE);
   // destroy the quit menu
 	destroyQuitMenu();
-
-	if (TheGameLogic->isInGame())
-	{
-		if (TheRecorder->getMode() == RECORDERMODETYPE_RECORD)
-		{
-			TheRecorder->stopRecording();
-		}
-		TheGameLogic->clearGameData();
-	}
-	TheGameEngine->setQuitting(TRUE);
-	TheInGameUI->setClientQuiet( TRUE );
-
 }
 
 static void surrenderQuitMenu()
@@ -255,7 +230,7 @@ static void restartMissionMenu()
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void HideQuitMenu( void )
+void HideQuitMenu()
 {
 	// Note: This is called as a safety a lot, without checking for the presence of the quit menu.
 	// So don't do anything that counts on that menu actually being here.
@@ -276,12 +251,23 @@ void HideQuitMenu( void )
 
 }
 
+Bool canOpenQuitMenu()
+{
+	return (TheGameEngine != nullptr && TheGameEngine->isActive() 
+		&& TheGameLogic != nullptr
+		&& (!TheInGameUI || !TheInGameUI->isQuitMenuVisible()) 
+		&& !TheGameLogic->isLoadingMap() 
+		&& !TheGameLogic->isLoadingSave() 
+		&& !TheGameLogic->isIntroMoviePlaying() 
+		&& (TheScriptEngine == nullptr || !TheScriptEngine->isGameEnding()));
+}
+
 //-------------------------------------------------------------------------------------------------
 /** Toggle visibility of the quit menu */
 //-------------------------------------------------------------------------------------------------
 void ToggleQuitMenu()
 {
-	if (TheGameLogic->isIntroMoviePlaying() || TheGameLogic->isLoadingMap() ||TheScriptEngine->isGameEnding())
+	if (!isVisible && !canOpenQuitMenu())
 		return;
 
 	// BGC- If we are currently in the disconnect screen, don't let the quit menu come up.

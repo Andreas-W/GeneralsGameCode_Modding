@@ -74,7 +74,8 @@
 #include "WWDownload/Registry.h"
 #include "GameClient/MessageBox.h"
 
-#include "ww3d.h"
+#include "WW3D2/ww3d.h"
+#include "WW3D2/texturefilter.h"
 
 // This is for non-RC builds only!!!
 #define VERBOSE_VERSION L"Release"
@@ -116,9 +117,6 @@ static GameWindow *		checkUseCamera			= nullptr;
 
 static NameKeyType		checkSaveCameraID		= NAMEKEY_INVALID;
 static GameWindow *		checkSaveCamera			= nullptr;
-
-static NameKeyType		checkSendDelayID		= NAMEKEY_INVALID;
-static GameWindow *		checkSendDelay			= nullptr;
 
 static NameKeyType		checkDrawAnchorID		= NAMEKEY_INVALID;
 static GameWindow *		checkDrawAnchor			= nullptr;
@@ -217,7 +215,7 @@ WindowLayout *OptionsLayout = nullptr;
 
 static OptionPreferences *pref = nullptr;
 
-static void setDefaults( void )
+static void setDefaults()
 {
 	constexpr const Bool ModifyDisplaySettings = FALSE;
 
@@ -232,10 +230,6 @@ static void setDefaults( void )
 	//-------------------------------------------------------------------------------------------------
 	// language filter
 	GadgetCheckBoxSetChecked( checkLanguageFilter, TRUE );
-
-	//-------------------------------------------------------------------------------------------------
-	// send Delay
-	GadgetCheckBoxSetChecked(checkSendDelay, FALSE);
 
 	if constexpr (ModifyDisplaySettings)
 	{
@@ -373,7 +367,7 @@ static void setDefaults( void )
 	}
 }
 
-static void saveOptions( void )
+static void saveOptions()
 {
 	Int index;
 	Int val;
@@ -404,17 +398,6 @@ static void saveOptions( void )
 			(*pref)["LanguageFilter"] = "false";
 	}
 
-	//-------------------------------------------------------------------------------------------------
-	// send Delay
-	if (checkSendDelay && checkSendDelay->winGetEnabled())
-	{
-		TheWritableGlobalData->m_firewallSendDelay = GadgetCheckBoxIsChecked(checkSendDelay);
-		if (TheGlobalData->m_firewallSendDelay) {
-			(*pref)["SendDelay"] = "yes";
-		} else {
-			(*pref)["SendDelay"] = "no";
-		}
-	}
 
 	//-------------------------------------------------------------------------------------------------
 	// Custom game detail settings.
@@ -520,18 +503,6 @@ static void saveOptions( void )
 	}
 
 	//-------------------------------------------------------------------------------------------------
-	// HTTP Proxy
-	GameWindow *textEntryHTTPProxy = TheWindowManager->winGetWindowFromId(nullptr, NAMEKEY("OptionsMenu.wnd:TextEntryHTTPProxy"));
-	if (textEntryHTTPProxy && textEntryHTTPProxy->winGetEnabled())
-	{
-		UnicodeString uStr = GadgetTextEntryGetText(textEntryHTTPProxy);
-		AsciiString aStr;
-		aStr.translate(uStr);
-		SetStringInRegistry("", "Proxy", aStr.str());
-		ghttpSetProxy(aStr.str());
-	}
-
-	//-------------------------------------------------------------------------------------------------
 	// Firewall Port Override
 	GameWindow *textEntryFirewallPortOverride = TheWindowManager->winGetWindowFromId(nullptr, NAMEKEY("OptionsMenu.wnd:TextEntryFirewallPortOverride"));
 	if (textEntryFirewallPortOverride && textEntryFirewallPortOverride->winGetEnabled())
@@ -539,12 +510,12 @@ static void saveOptions( void )
 		UnicodeString uStr = GadgetTextEntryGetText(textEntryFirewallPortOverride);
 		AsciiString aStr;
 		aStr.translate(uStr);
-		Int override = atoi(aStr.str());
-		if (override < 0 || override > 65535)
-			override = 0;
-		if (TheGlobalData->m_firewallPortOverride != override)
-		{	TheWritableGlobalData->m_firewallPortOverride = override;
-		    aStr.format("%d", override);
+		Int portOverride = atoi(aStr.str());
+		if (portOverride < 0 || portOverride > 65535)
+			portOverride = 0;
+		if (TheGlobalData->m_firewallPortOverride != portOverride)
+		{	TheWritableGlobalData->m_firewallPortOverride = portOverride;
+		    aStr.format("%d", portOverride);
 			(*pref)["FirewallPortOverride"] = aStr;
 		}
 	}
@@ -552,19 +523,57 @@ static void saveOptions( void )
 	//-------------------------------------------------------------------------------------------------
 	// antialiasing
   GadgetComboBoxGetSelectedPos(comboBoxAntiAliasing, &index);
-  if( index >= 0 && TheGlobalData->m_antiAliasBoxValue != index )
+  if( index >= 0 )
   {
-    TheWritableGlobalData->m_antiAliasBoxValue = index;
+		Int mode = WW3D::MULTISAMPLE_MODE_NONE;
+
+		// TheSuperHackers @info We are converting comboBox entry position to MultiSampleModeEnum values
+		index = clamp((int)OptionPreferences::AntiAliasingMode_OFF, index, (int)OptionPreferences::AntiAliasingMode_MSAA_8X);
+		mode = (index > 0) ? 1 << index : 0;
+
+		TheWritableGlobalData->m_antiAliasLevel = mode;
     AsciiString prefString;
-		prefString.format("%d", index);
+		prefString.format("%d", mode);
 		(*pref)["AntiAliasing"] = prefString;
   }
 
+	//-------------------------------------------------------------------------------------------------
+	// texture filter mode
+	val = pref->getTextureFilterMode();
+	if (val >= 0)
+	{
+		val = clamp((int)TextureFilterClass::TEXTURE_FILTER_NONE, val, (int)TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC);
+
+		TheWritableGlobalData->m_textureFilteringMode = val;
+		AsciiString prefString;
+		prefString = TextureFilterClass::TextureFilterModeString[val];
+		(*pref)["TextureFilter"] = prefString;
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	// anisotropy level
+	val = pref->getTextureAnisotropyLevel();
+	if (val >= 0)
+	{
+		val = clamp((int)TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_2X, val, (int)TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_16X);
+
+		TheWritableGlobalData->m_textureAnisotropyLevel = val;
+		AsciiString prefString;
+		prefString.format("%d", val);
+		(*pref)["AnisotropyLevel"] = prefString;
+	}
 
 	//-------------------------------------------------------------------------------------------------
 	// mouse mode
 	TheWritableGlobalData->m_useAlternateMouse = GadgetCheckBoxIsChecked(checkAlternateMouse);
 	(*pref)["UseAlternateMouse"] = TheWritableGlobalData->m_useAlternateMouse ? "yes" : "no";
+
+	// TheSuperHackers @todo Add check box ?
+	{
+		Bool useRightMouseScrollWithAlternateMouse = pref->getRightMouseScrollWithAlternateMouseEnabled();
+		(*pref)["UseRightMouseScrollWithAlternateMouse"] = useRightMouseScrollWithAlternateMouse ? "yes" : "no";
+		TheWritableGlobalData->m_useRightMouseScrollWithAlternateMouse = useRightMouseScrollWithAlternateMouse;
+	}
 
 	TheWritableGlobalData->m_clientRetaliationModeEnabled = GadgetCheckBoxIsChecked(checkRetaliation);
 	(*pref)["Retaliation"] = TheWritableGlobalData->m_clientRetaliationModeEnabled? "yes" : "no";
@@ -806,6 +815,26 @@ static void saveOptions( void )
 	}
 
 	//-------------------------------------------------------------------------------------------------
+	// Set Game Window Transition Speed Multiplier
+	{
+		Real speed = pref->getGameWindowTransitionSpeedMultiplier();
+		AsciiString prefString;
+		prefString.format("%g", speed);
+		(*pref)["GameWindowTransitionSpeedMultiplier"] = prefString;
+		TheWritableGlobalData->m_gameWindowTransitionSpeedMultiplier = speed;
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	// Set JPEG screenshot quality
+	{
+		Int quality = pref->getJpegQuality();
+		AsciiString prefString;
+		prefString.format("%d", quality);
+		(*pref)["JpegQuality"] = prefString;
+		TheWritableGlobalData->m_jpegQuality = quality;
+	}
+
+	//-------------------------------------------------------------------------------------------------
 	// Resolution
 	//
 	// TheSuperHackers @bugfix xezon 12/06/2025 Now performs the resolution change at the very end of
@@ -938,10 +967,17 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	checkLanguageFilterID  = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckLanguageFilter" );
 	checkLanguageFilter    = TheWindowManager->winGetWindowFromId( nullptr, checkLanguageFilterID );
-	checkSendDelayID       = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckSendDelay" );
-	checkSendDelay				 = TheWindowManager->winGetWindowFromId( nullptr, checkSendDelayID);
 	buttonFirewallRefreshID	= TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:ButtonFirewallRefresh" );
 	buttonFirewallRefresh		= TheWindowManager->winGetWindowFromId( nullptr, buttonFirewallRefreshID);
+
+#if ENABLE_GUI_HACKS
+	// TheSuperHackers @tweak 26/07/2026 The Send Delay feature was obsoleted because it only worked around
+	// a source port remapping bug in early 2000s Netgear firewalls. Hide the obsoleted UI element accordingly.
+	GameWindow *checkSendDelay = TheWindowManager->winGetWindowFromId(nullptr, NAMEKEY("OptionsMenu.wnd:CheckSendDelay"));
+	if (checkSendDelay)
+		checkSendDelay->winHide(TRUE);
+#endif
+
 	checkDrawAnchorID       = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckBoxDrawAnchor" );
 	checkDrawAnchor				 = TheWindowManager->winGetWindowFromId( nullptr, checkDrawAnchorID);
 	checkMoveAnchorID       = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckBoxMoveAnchor" );
@@ -1024,14 +1060,6 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 	Color color =  GameMakeColor(255,255,255,255);
 
-  enum AliasingMode CPP_11(: Int)
-  {
-    OFF = 0,
-    LOW,
-    HIGH,
-    NUM_ALIASING_MODES
-  };
-
 	initLabelVersion();
 
 	// Choose an IP address, then initialize the IP combo box
@@ -1106,16 +1134,19 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 		}
 	}
 
-	// HTTP Proxy
-	GameWindow *textEntryHTTPProxy = TheWindowManager->winGetWindowFromId(nullptr, NAMEKEY("OptionsMenu.wnd:TextEntryHTTPProxy"));
+#if ENABLE_GUI_HACKS
+	// TheSuperHackers @tweak 26/07/2026 The http proxy feature was obsoleted because it did nothing for the UDP game traffic or match sockets.
+	// Hide the relevant obsoleted UI elements accordingly.
+	NameKeyType textEntryHTTPProxyID = TheNameKeyGenerator->nameToKey("OptionsMenu.wnd:TextEntryHTTPProxy");
+	GameWindow *textEntryHTTPProxy = TheWindowManager->winGetWindowFromId(nullptr, textEntryHTTPProxyID);
 	if (textEntryHTTPProxy)
-	{
-		UnicodeString uStr;
-		std::string proxy;
-		GetStringFromRegistry("", "Proxy", proxy);
-		uStr.translate(proxy.c_str());
-		GadgetTextEntrySetText(textEntryHTTPProxy, uStr);
-	}
+		textEntryHTTPProxy->winHide(TRUE);
+
+	NameKeyType staticTextHTTPProxyID = TheNameKeyGenerator->nameToKey("OptionsMenu.wnd:StaticTextHTTPProxy");
+	GameWindow *staticTextHTTPProxy = TheWindowManager->winGetWindowFromId(nullptr, staticTextHTTPProxyID);
+	if (staticTextHTTPProxy)
+		staticTextHTTPProxy->winHide(TRUE);
+#endif
 
 	// Firewall Port Override
 	GameWindow *textEntryFirewallPortOverride = TheWindowManager->winGetWindowFromId(nullptr, NAMEKEY("OptionsMenu.wnd:TextEntryFirewallPortOverride"));
@@ -1135,18 +1166,32 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 	GadgetComboBoxReset(comboBoxAntiAliasing);
 	AsciiString temp;
 	Int i=0;
-	for (; i < NUM_ALIASING_MODES; ++i)
+	for (; i < OptionPreferences::AntiAliasingMode_Count; ++i)
 	{
 		temp.format("GUI:AntiAliasing%d", i);
 		str = TheGameText->fetch( temp );
 		index = GadgetComboBoxAddEntry(comboBoxAntiAliasing, str, color);
 	}
 	Int val = atoi(selectedAliasingMode.str());
-	if( val < 0 || val > NUM_ALIASING_MODES )
+	Int pos = 0;
+
+	// TheSuperHackers @info We are converting from human readable value to comboBox entry position
+	val = highestBit(val);
+
+	if (val == WW3D::MULTISAMPLE_MODE_NONE)
+		pos = OptionPreferences::AntiAliasingMode_OFF;
+	else if (val == WW3D::MULTISAMPLE_MODE_2X)
+		pos = OptionPreferences::AntiAliasingMode_MSAA_2X;
+	else if (val == WW3D::MULTISAMPLE_MODE_4X)
+		pos = OptionPreferences::AntiAliasingMode_MSAA_4X;
+	else if (val == WW3D::MULTISAMPLE_MODE_8X)
+		pos = OptionPreferences::AntiAliasingMode_MSAA_8X;
+
+	if (val < 0 || val > WW3D::MULTISAMPLE_MODE_8X)
 	{
-		TheWritableGlobalData->m_antiAliasBoxValue = val = 0;
+		TheWritableGlobalData->m_antiAliasLevel = pos = 0;
 	}
-	GadgetComboBoxSetSelectedPos(comboBoxAntiAliasing, val);
+	GadgetComboBoxSetSelectedPos(comboBoxAntiAliasing, pos);
 
 	// get resolution from saved preferences file
 	AsciiString selectedResolution = (*pref) ["Resolution"];
@@ -1326,9 +1371,6 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 	}
 	DEBUG_LOG(("Scroll Speed %d", scrollPos));
 
-	// set the send delay check box
-	GadgetCheckBoxSetChecked(checkSendDelay, TheGlobalData->m_firewallSendDelay);
-
  	// set volume sliders
 
 	// set music volume slider
@@ -1360,8 +1402,6 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 		if (comboBoxOnlineIP)
 			comboBoxOnlineIP->winEnable(FALSE);
 
-		checkSendDelay->winEnable(FALSE);
-
 		buttonFirewallRefresh->winEnable(FALSE);
 
 		if (comboBoxDetail)
@@ -1372,9 +1412,6 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 
 		if (textEntryFirewallPortOverride)
 			textEntryFirewallPortOverride->winEnable(FALSE);
-
-		if (textEntryHTTPProxy)
-			textEntryHTTPProxy->winEnable(FALSE);
 
 //		if (checkAudioSurround)
 //			checkAudioSurround->winEnable(FALSE);

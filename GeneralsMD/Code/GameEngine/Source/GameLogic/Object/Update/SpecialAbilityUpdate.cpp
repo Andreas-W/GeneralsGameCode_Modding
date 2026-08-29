@@ -92,13 +92,13 @@ SpecialAbilityUpdate::SpecialAbilityUpdate( Thing *thing, const ModuleData* modu
 }
 
 //-------------------------------------------------------------------------------------------------
-SpecialAbilityUpdate::~SpecialAbilityUpdate( void )
+SpecialAbilityUpdate::~SpecialAbilityUpdate()
 {
   onExit( true );
 }
 
 /*------------------------------------------------------------------------------------------------
-void SpecialAbilityUpdate::update( void )
+void SpecialAbilityUpdate::update()
 
 This is the brains of the entire special ability update. There are several optional steps and
 variations that can be processed for any particular type of special ability. A special ability
@@ -184,7 +184,7 @@ Options:
   7 -- FINISH: Stop the special ability
 
 -------------------------------------------------------------------------------------------------*/
-UpdateSleepTime SpecialAbilityUpdate::update( void )
+UpdateSleepTime SpecialAbilityUpdate::update()
 {
 
 /// @todo srj -- this could probably sleep more between stages. maybe someday.
@@ -1139,7 +1139,7 @@ Bool SpecialAbilityUpdate::initLaser(Object* specialObject, Object* target )
   if( !getObject()->getSingleLogicalBonePosition( data->m_specialObjectAttachToBoneName.str(), &startPos, nullptr ) )
   {
     //If we can't find the bone, then set it to our current position.
-    startPos.set( getObject()->getPosition() );
+    startPos.set( *getObject()->getPosition() );
   }
 
   Coord3D endPos;
@@ -1416,11 +1416,20 @@ void SpecialAbilityUpdate::triggerAbilityEffect()
         const ParticleSystemTemplate *tmp = data->m_disableFXParticleSystem;
         if (tmp)
         {
+#if RETAIL_COMPATIBLE_CRC
+          // TheSuperHackers @fix The particle system is now decoupled from the logic crc
+          // and the side effects on the logic random seed values are preserved for retail compatibility.
+          {
+            Coord3D offs = {0,0,0};
+            target->getGeometryInfo().makeRandomOffsetWithinFootprint( offs, LogicRandomValueClass() );
+          }
+#endif
+
           ParticleSystem *sys = TheParticleSystemManager->createParticleSystem(tmp);
           if (sys)
           {
             Coord3D offs = {0,0,0};
-            target->getGeometryInfo().makeRandomOffsetWithinFootprint( offs );
+            target->getGeometryInfo().makeRandomOffsetWithinFootprint( offs, ClientRandomValueClass() );
 
             sys->attachToObject(target);
             sys->setPosition( &offs );
@@ -1500,7 +1509,7 @@ void SpecialAbilityUpdate::triggerAbilityEffect()
       if( targetMoney && objectMoney )
       {
         UnsignedInt cash = targetMoney->countMoney();
-#if RETAIL_COMPATIBLE_CRC || PRESERVE_RETAIL_BEHAVIOR
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_HARDCODED_BLACK_LOTUS_CASH_HACK
         UnsignedInt desiredAmount = 1000;
 #else
         UnsignedInt desiredAmount = data->m_effectValue;
@@ -1526,13 +1535,13 @@ void SpecialAbilityUpdate::triggerAbilityEffect()
           UnicodeString moneyString;
           moneyString.format( TheGameText->fetch( "GUI:AddCash" ), cash );
           Coord3D pos;
-          pos.set( object->getPosition() );
+          pos.set( *object->getPosition() );
           pos.z += 20.0f; //add a little z to make it show up above the unit.
           TheInGameUI->addFloatingText( moneyString, &pos, GameMakeColor( 0, 255, 0, 255 ) );
 
           //Display cash lost floating over the target
           moneyString.format( TheGameText->fetch( "GUI:LoseCash" ), cash );
-          pos.set( target->getPosition() );
+          pos.set( *target->getPosition() );
           pos.z += 30.0f; //add a little z to make it show up above the unit.
           TheInGameUI->addFloatingText( moneyString, &pos, GameMakeColor( 255, 0, 0, 255 ) );
         }
@@ -1823,22 +1832,22 @@ void SpecialAbilityUpdate::finishAbility()
   if( data->m_fleeRangeAfterCompletion && validTarget )
   {
     Coord3D pos;
-    pos.set( getObject()->getPosition() );
+    pos.set( *getObject()->getPosition() );
 
     AIUpdateInterface *ai = getObject()->getAIUpdateInterface();
     if( ai )
     {
       Coord3D dir;
-      dir.set( getObject()->getUnitDirectionVector2D() );
+      dir.set( *getObject()->getUnitDirectionVector2D() );
 			dir.scale( data->m_fleeRangeAfterCompletion );
 
 			if( data->m_flipObjectAfterUnpacking || data->m_flipObjectAfterPacking )
 			{
-				pos.add( &dir );
+				pos.add( dir );
 			}
 			else
 			{
-				pos.sub( &dir );
+				pos.sub( dir );
 			}
 			// Now check for mines.  Normally we are fleeing from a bomb we just planted.
 			// It is not good to run back towards the previous mine we just planted about
@@ -1856,7 +1865,7 @@ void SpecialAbilityUpdate::finishAbility()
 						dir.normalize();
 						dir.scale(data->m_fleeRangeAfterCompletion);
 						pos = *mine->getPosition();
-						pos.add(&dir);
+						pos.add(dir);
 					}
 				}
 			}
@@ -2167,7 +2176,7 @@ void SpecialAbilityUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void SpecialAbilityUpdate::loadPostProcess( void )
+void SpecialAbilityUpdate::loadPostProcess()
 {
 
 	// extend base class

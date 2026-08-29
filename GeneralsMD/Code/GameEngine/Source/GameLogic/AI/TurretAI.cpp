@@ -148,21 +148,36 @@ void TurretStateMachine::crc( Xfer *xfer )
 }
 
 // ------------------------------------------------------------------------------------------------
-/** Xfer Method */
+/** Xfer Method
+	* Version Info:
+	* 1: Initial version
+	* 2: TheSuperHackers @bugfix bobtista 19/07/2026 Serialize the base StateMachine state.
+	*    Without this the turret reverts to its default state on load.
+	*/
 // ------------------------------------------------------------------------------------------------
 void TurretStateMachine::xfer( Xfer *xfer )
 {
-	XferVersion cv = 1;
-	XferVersion v = cv;
-	xfer->xferVersion( &v, cv );
+	// version
+#if RETAIL_COMPATIBLE_XFER_SAVE
+	XferVersion currentVersion = 1;
+#else
+	XferVersion currentVersion = 2;
+#endif
+	XferVersion version = currentVersion;
+	xfer->xferVersion( &version, currentVersion );
 
+	if (version >= 2)
+	{
+		StateMachine::xfer(xfer);
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TurretStateMachine::loadPostProcess( void )
+void TurretStateMachine::loadPostProcess()
 {
+	StateMachine::loadPostProcess();
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -208,12 +223,10 @@ TurretAIData::TurretAIData()
 static void parseTWS(INI* ini, void * /*instance*/, void * store, const void* /*userData*/)
 {
 	UnsignedInt* tws = (UnsignedInt*)store;
-	const char* token = ini->getNextToken();
-	while (token != nullptr)
+	for (const char* token = ini->getNextToken(); token; token = ini->getNextTokenOrNull())
 	{
 		WeaponSlotType wslot = (WeaponSlotType)INI::scanIndexList(token, TheWeaponSlotTypeNames);
 		*tws |= (1 << wslot);
-		token = ini->getNextTokenOrNull();
 	}
 }
 
@@ -388,7 +401,7 @@ void TurretAI::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TurretAI::loadPostProcess( void )
+void TurretAI::loadPostProcess()
 {
 	Object *victim = m_turretStateMachine->getGoalObject();
 	if (victim) {
@@ -1485,7 +1498,7 @@ void TurretAIIdleState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TurretAIIdleState::loadPostProcess( void )
+void TurretAIIdleState::loadPostProcess()
 {
 }
 
@@ -1562,7 +1575,7 @@ void TurretAIIdleScanState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TurretAIIdleScanState::loadPostProcess( void )
+void TurretAIIdleScanState::loadPostProcess()
 {
 }
 
@@ -1637,7 +1650,7 @@ void TurretAIHoldTurretState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TurretAIHoldTurretState::loadPostProcess( void )
+void TurretAIHoldTurretState::loadPostProcess()
 {
 }
 

@@ -47,6 +47,7 @@ public:
 	Real                  m_sideAttackAreaRadius;
 	Real                  m_aaAttackAreaRadius;
   Real                  m_targetingReticleRadius;
+  Real                  m_areaDecalRadius;
   Real                  m_gunshipOrbitRadius;
 	Real									m_missileLockRadius;
 	UnsignedInt           m_numMainTurrets;

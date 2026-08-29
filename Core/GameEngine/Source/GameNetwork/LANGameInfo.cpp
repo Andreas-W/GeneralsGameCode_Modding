@@ -34,7 +34,7 @@
 #include "GameNetwork/LANGameInfo.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "Common/MultiplayerSettings.h"
-#include "strtok_r.h"
+#include "WWLib/strtok_r.h"
 /*
 #include "GameNetwork/LAN.h"
 #include "GameNetwork/LANGame.h"
@@ -55,7 +55,7 @@ LANGameSlot::LANGameSlot()
 }
 
 
-LANPlayer * LANGameSlot::getUser( void )
+LANPlayer * LANGameSlot::getUser()
 {
 	if (isHuman())
 	{
@@ -79,7 +79,7 @@ Bool LANGameSlot::isUser( UnicodeString userName )
 	return (m_state == SLOT_PLAYER && !userName.compareNoCase(getName()));
 }
 
-Bool LANGameSlot::isLocalPlayer( void ) const
+Bool LANGameSlot::isLocalPlayer() const
 {
 	return isHuman() && TheLAN && TheLAN->GetLocalIP() == getIP();
 }
@@ -131,7 +131,7 @@ const LANGameSlot* LANGameInfo::getConstLANSlot( Int slotNum ) const
 	return &m_LANSlot[slotNum];
 }
 
-Int LANGameInfo::getLocalSlotNum( void ) const
+Int LANGameInfo::getLocalSlotNum() const
 {
 	DEBUG_ASSERTCRASH(m_inGame, ("Looking for local game slot while not in game"));
 	if (!m_inGame)
@@ -161,13 +161,13 @@ Int LANGameInfo::getSlotNum( UnicodeString userName )
 	return -1;
 }
 
-Bool LANGameInfo::amIHost( void )
+Bool LANGameInfo::amIHost() const
 {
 	DEBUG_ASSERTCRASH(m_inGame, ("Looking for game slot while not in game"));
 	if (!m_inGame)
 		return false;
 
-	return getLANSlot(0)->isLocalPlayer();
+	return getConstLANSlot(0)->isLocalPlayer();
 }
 
 void LANGameInfo::setMap( AsciiString mapName )
@@ -180,7 +180,7 @@ void LANGameInfo::setSeed( Int seed )
 	GameInfo::setSeed(seed);
 }
 
-void LANGameInfo::resetAccepted( void )
+void LANGameInfo::resetAccepted()
 {
 	if (TheLAN)
 	{
@@ -240,7 +240,7 @@ void LANDisplayGameList( GameWindow *gameListbox, LANGameInfo *gameList )
 	}
 }
 
-AsciiString GenerateGameOptionsString( void )
+AsciiString GenerateGameOptionsString()
 {
 	if(!TheLAN->GetMyGame() || !TheLAN->GetMyGame()->amIHost())
 		return AsciiString::TheEmptyString;

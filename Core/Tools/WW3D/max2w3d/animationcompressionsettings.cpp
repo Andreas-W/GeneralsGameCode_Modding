@@ -54,7 +54,6 @@ AnimationCompressionSettingsDialogClass::AnimationCompressionSettingsDialogClass
 	Wnd (nullptr),
 	ParentWnd (parent_wnd)
 {
-	return ;
 }
 
 
@@ -63,9 +62,8 @@ AnimationCompressionSettingsDialogClass::AnimationCompressionSettingsDialogClass
 //	~AnimationCompressionSettingsDialogClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////
-AnimationCompressionSettingsDialogClass::~AnimationCompressionSettingsDialogClass (void)
+AnimationCompressionSettingsDialogClass::~AnimationCompressionSettingsDialogClass ()
 {
-	return ;
 }
 
 
@@ -75,7 +73,7 @@ AnimationCompressionSettingsDialogClass::~AnimationCompressionSettingsDialogClas
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 int
-AnimationCompressionSettingsDialogClass::Do_Modal (void)
+AnimationCompressionSettingsDialogClass::Do_Modal ()
 {
 	int retval = ::DialogBoxParam (AppInstance, MAKEINTRESOURCE (IDD_ANIMATION_COMPRESSION),
 													ParentWnd, Real_Message_Proc, (LPARAM)this);
@@ -197,7 +195,7 @@ AnimationCompressionSettingsDialogClass::Message_Proc
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-AnimationCompressionSettingsDialogClass::Initialize_Controls (void)
+AnimationCompressionSettingsDialogClass::Initialize_Controls ()
 {
 	SetCheckBox (Wnd, IDC_REDUCE_ANIMATION_CHECK, Options->ReduceAnimation);
 	char string[128] = { 0 };
@@ -244,7 +242,6 @@ AnimationCompressionSettingsDialogClass::Initialize_Controls (void)
 
 	::sprintf (string, "%f", Options->CompressAnimationRotationError);
 	::SetDlgItemText (Wnd, IDC_MAX_ROT_ERROR_EDIT, string);
-	return ;
 }
 
 
@@ -254,7 +251,7 @@ AnimationCompressionSettingsDialogClass::Initialize_Controls (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-AnimationCompressionSettingsDialogClass::Save_Settings (void)
+AnimationCompressionSettingsDialogClass::Save_Settings ()
 {
 	//
 	//	Read the compression type setting
@@ -287,5 +284,4 @@ AnimationCompressionSettingsDialogClass::Save_Settings (void)
 	::GetDlgItemText (Wnd, IDC_MAX_ROT_ERROR_EDIT, string, sizeof (string));
 	float rot_error = ::atof (string);
 	Options->CompressAnimationRotationError = rot_error;
-	return ;
 }

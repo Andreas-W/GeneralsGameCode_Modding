@@ -75,19 +75,16 @@ void parseUpgradePair( INI *ini, void *instance, void *store, const void *userDa
 	info.amount = 0;
 
 	const char *token = ini->getNextToken( ini->getSepsColon() );
-
 	if ( stricmp(token, "UpgradeType") == 0 )
 	{
-		token = ini->getNextTokenOrNull( ini->getSepsColon() );
-		if (!token)	throw INI_INVALID_DATA;
-
+		token = ini->getNextToken( ini->getSepsColon() );
 		info.type = token;
 	}
 	else
 		throw INI_INVALID_DATA;
 
 
-	token = ini->getNextTokenOrNull( ini->getSepsColon() );
+	token = ini->getNextToken( ini->getSepsColon() );
 	if ( stricmp(token, "Boost") == 0 )
 		info.amount = INI::scanInt(ini->getNextToken( ini->getSepsColon() ));
 	else
@@ -110,7 +107,7 @@ AutoDepositUpdate::AutoDepositUpdate( Thing *thing, const ModuleData* moduleData
 }
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-AutoDepositUpdate::~AutoDepositUpdate( void )
+AutoDepositUpdate::~AutoDepositUpdate()
 {
 
 }
@@ -132,7 +129,7 @@ void AutoDepositUpdate::awardInitialCaptureBonus( Player *player )
 		UnicodeString moneyString;
 		moneyString.format( TheGameText->fetch( "GUI:AddCash" ), getAutoDepositUpdateModuleData()->m_initialCaptureBonus );
 		Coord3D pos;
-		pos.set( getObject()->getPosition() );
+		pos.set( *getObject()->getPosition() );
 		pos.z += 10.0f + getAutoDepositUpdateModuleData()->m_textZOffset; //add a little z to make it show up above the unit.
 		Color color = player->getPlayerColor() | GameMakeColor( 0, 0, 0, 230 );
 		TheInGameUI->addFloatingText( moneyString, &pos, color );
@@ -143,7 +140,7 @@ void AutoDepositUpdate::awardInitialCaptureBonus( Player *player )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime AutoDepositUpdate::update( void )
+UpdateSleepTime AutoDepositUpdate::update()
 {
 	const AutoDepositUpdateModuleData *modData = getAutoDepositUpdateModuleData();
 /// @todo srj use SLEEPY_UPDATE here
@@ -183,7 +180,7 @@ UpdateSleepTime AutoDepositUpdate::update( void )
 			  UnicodeString moneyString;
 			  moneyString.format( TheGameText->fetch( "GUI:AddCash" ), moneyAmount );
 			  Coord3D pos;
-			  pos.set( getObject()->getPosition() );
+			  pos.set( *getObject()->getPosition() );
 			  pos.z += 10.0f + modData->m_textZOffset; //add a little z to make it show up above the unit.
 
         if ( owner->isKindOf( KINDOF_STRUCTURE ) )
@@ -271,7 +268,7 @@ void AutoDepositUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AutoDepositUpdate::loadPostProcess( void )
+void AutoDepositUpdate::loadPostProcess()
 {
 
 	// extend base class

@@ -40,10 +40,10 @@
 
 #pragma once
 
-#include "always.h"
-#include "composite.h"
-#include "htree.h"
-#include "hanim.h"
+#include "WWLib/always.h"
+#include "WW3D2/composite.h"
+#include "WW3D2/htree.h"
+#include "WW3D2/hanim.h"
 
 class SkinClass;
 class RenderInfoClass;
@@ -62,24 +62,24 @@ public:
 	Animatable3DObjClass(const char * htree_name);
 	Animatable3DObjClass(const Animatable3DObjClass & src);
 	Animatable3DObjClass & operator = (const Animatable3DObjClass &);
-	virtual ~Animatable3DObjClass(void);
+	virtual ~Animatable3DObjClass() override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Rendering
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void					Render(RenderInfoClass & rinfo);
-	virtual void					Special_Render(SpecialRenderInfoClass & rinfo);
+	virtual void					Render(RenderInfoClass & rinfo) override;
+	virtual void					Special_Render(SpecialRenderInfoClass & rinfo) override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - "Scene Graph"
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void 					Set_Transform(const Matrix3D &m);
-	virtual void 					Set_Position(const Vector3 &v);
+	virtual void 					Set_Transform(const Matrix3D &m) override;
+	virtual void 					Set_Position(const Vector3 &v) override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Hierarchical Animation
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void					Set_Animation(void);
+	virtual void					Set_Animation() override;
 	virtual void					Set_Animation( HAnimClass * motion,
 															float frame, int anim_mode = ANIM_MODE_MANUAL);
 	virtual void					Set_Animation(HAnimClass* motion0,
@@ -106,18 +106,18 @@ public:
 		HAnimClass** anim1, float& frame1, int& numFrames1, int& mode1, float& mult1,
 		float& percentage, int& fadeOutTime, int& startFadeTime);
 
-	virtual HAnimClass *			Peek_Animation( void );
-	virtual bool					Is_Animation_Complete( void ) const;
-	virtual int						Get_Num_Bones(void);
-	virtual const char *			Get_Bone_Name(int bone_index);
-	virtual int						Get_Bone_Index(const char * bonename);
-	virtual const Matrix3D &	Get_Bone_Transform(const char * bonename);
-	virtual const Matrix3D &	Get_Bone_Transform(int boneindex);
-	virtual void					Capture_Bone(int boneindex);
-	virtual void					Release_Bone(int boneindex);
-	virtual bool					Is_Bone_Captured(int boneindex) const;
-	virtual void					Control_Bone(int bindex,const Matrix3D & objtm,bool world_space_translation = false);
-	virtual const HTreeClass *	Get_HTree(void) const { return HTree; }
+	virtual HAnimClass *			Peek_Animation() override;
+	virtual bool					Is_Animation_Complete() const;
+	virtual int						Get_Num_Bones() override;
+	virtual const char *			Get_Bone_Name(int bone_index) override;
+	virtual int						Get_Bone_Index(const char * bonename) override;
+	virtual const Matrix3D &	Get_Bone_Transform(const char * bonename) override;
+	virtual const Matrix3D &	Get_Bone_Transform(int boneindex) override;
+	virtual void					Capture_Bone(int boneindex) override;
+	virtual void					Release_Bone(int boneindex) override;
+	virtual bool					Is_Bone_Captured(int boneindex) const override;
+	virtual void					Control_Bone(int bindex,const Matrix3D & objtm,bool world_space_translation = false) override;
+	virtual const HTreeClass *	Get_HTree() const override { return HTree; }
 
 	//
 	//	Simple bone evaluation methods for when the caller doesn't want
@@ -144,7 +144,7 @@ protected:
 	float								Compute_Current_Frame(float* frame0, float* frame1, float* newDirection = NULL) const;
 
 	// Update the sub-object transforms according to the current anim state and root transform.
-	virtual	void					Update_Sub_Object_Transforms(void);
+	virtual	void					Update_Sub_Object_Transforms() override;
 
 	// Update the transforms using the base pose only
 	void								Base_Update(const Matrix3D & root);
@@ -167,14 +167,14 @@ protected:
 															HAnimComboClass *anim);
 
 	// flag to keep track of whether the hierarchy tree transforms are currently valid
-	bool								Is_Hierarchy_Valid(void) const				{ return IsTreeValid; }
+	bool								Is_Hierarchy_Valid() const				{ return IsTreeValid; }
 	void								Set_Hierarchy_Valid(bool onoff) const  	{ IsTreeValid = onoff; }
 
 	// Progress animations for single anim (loop and once)
-	void								Single_Anim_Progress( void );
+	void								Single_Anim_Progress();
 
 	// Release any animations
-	void								Release( void );
+	void								Release();
 
 protected:
 

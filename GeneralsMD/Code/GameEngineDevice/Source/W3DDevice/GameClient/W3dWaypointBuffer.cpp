@@ -54,8 +54,8 @@
 
 #include "W3DDevice/GameClient/W3DWaypointBuffer.h"
 
-#include <assetmgr.h>
-#include <texture.h>
+#include <WW3D2/assetmgr.h>
+#include <WW3D2/texture.h>
 
 #include "Common/GameUtility.h"
 #include "Common/GlobalData.h"
@@ -95,7 +95,7 @@
 /** Constructor. Sets m_initialized to true if it finds the w3d models it needs
 for the bibs. */
 //=============================================================================
-W3DWaypointBuffer::W3DWaypointBuffer(void)
+W3DWaypointBuffer::W3DWaypointBuffer()
 {
 	m_waypointNodeRobj = WW3DAssetManager::Get_Instance()->Create_Render_Obj( "SCMNode" );
 	m_line = new SegmentedLineClass;
@@ -111,7 +111,7 @@ W3DWaypointBuffer::W3DWaypointBuffer(void)
 //=============================================================================
 /** Destructor. Releases w3d assets. */
 //=============================================================================
-W3DWaypointBuffer::~W3DWaypointBuffer(void)
+W3DWaypointBuffer::~W3DWaypointBuffer()
 {
 	REF_PTR_RELEASE( m_waypointNodeRobj );
 	REF_PTR_RELEASE( m_texture );
@@ -128,7 +128,7 @@ void W3DWaypointBuffer::freeWaypointBuffers()
 }
 
 
-void W3DWaypointBuffer::setDefaultLineStyle( void )
+void W3DWaypointBuffer::setDefaultLineStyle()
 {
 	if( m_texture )
 	{
@@ -253,7 +253,7 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
               {
 
                 Coord3D delta = *obj->getPosition();
-                delta.sub( enemy->getPosition() );
+                delta.sub( *enemy->getPosition() );
                 if ( delta.length() <= obj->getVisionRange() ) // is listening outpost close enough to do this?
                 {
 
@@ -381,12 +381,12 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
 							wayOutPoint.normalize();
 							wayOutPoint.scale( 99999.9f );
 							Real wayOutLength = wayOutPoint.length();
-							wayOutPoint.add(&naturalRallyPoint);
+							wayOutPoint.add(naturalRallyPoint);
 
 
 							//if the rallypoint is closer to the wayoutpoint than it is to the natural rally point then we definitely do not wrap
 							Coord3D rallyToWayOutDelta = wayOutPoint;
-							rallyToWayOutDelta.sub(rallyPoint);
+							rallyToWayOutDelta.sub(*rallyPoint);
 							if ( (100.0f + rallyToWayOutDelta.length()) > wayOutLength)
 							{
 
@@ -394,7 +394,7 @@ void W3DWaypointBuffer::drawWaypoints(RenderInfoClass &rinfo)
 								wayOutPoint.normalize();// a normal shooting straight out the door
 								//next comes the delta between the NRP and the RP
 								Coord3D NRPToRPDelta = naturalRallyPoint;
-								NRPToRPDelta.sub(rallyPoint);
+								NRPToRPDelta.sub(*rallyPoint);
 								NRPToRPDelta.normalize();
 								Real dot = NRPToRPDelta.x * wayOutPoint.x + NRPToRPDelta.y * wayOutPoint.y;
 								if (dot > 0)

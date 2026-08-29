@@ -104,29 +104,12 @@ GrantStealthBehavior::GrantStealthBehavior( Thing *thing, const ModuleData* modu
 
   m_currentScanRadius = d->m_startRadius;
 
-
-  Object *obj = getObject();
-
-	{
-		if( d->m_radiusParticleSystemTmpl )
-		{
-			ParticleSystem *particleSystem;
-
-			particleSystem = TheParticleSystemManager->createParticleSystem( d->m_radiusParticleSystemTmpl );
-			if( particleSystem )
-			{
-				particleSystem->setPosition( obj->getPosition() );
-				m_radiusParticleSystemID = particleSystem->getSystemID();
-			}
-		}
-	}
-
-		setWakeFrame( getObject(), UPDATE_SLEEP_NONE );
+	setWakeFrame( getObject(), UPDATE_SLEEP_NONE );
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-GrantStealthBehavior::~GrantStealthBehavior( void )
+GrantStealthBehavior::~GrantStealthBehavior()
 {
 
 	if( m_radiusParticleSystemID != INVALID_PARTICLE_SYSTEM_ID )
@@ -139,13 +122,17 @@ GrantStealthBehavior::~GrantStealthBehavior( void )
 //-------------------------------------------------------------------------------------------------
 /** The update callback. */
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime GrantStealthBehavior::update( void )
+UpdateSleepTime GrantStealthBehavior::update()
 {
 
 	Object *self = getObject();
 
 	if ( self->isEffectivelyDead())
 		return UPDATE_SLEEP_FOREVER;
+
+	// TheSuperHackers @bugfix stephanmeesters 18/04/2026 Delay emitter creation until update, to ensure that the particle
+	// systems are not created before ParticleManager has xfer-loaded.
+	createEmitters();
 
 	const GrantStealthBehaviorModuleData *d = getGrantStealthBehaviorModuleData();
 	// setup scan filters
@@ -248,11 +235,26 @@ void GrantStealthBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void GrantStealthBehavior::loadPostProcess( void )
+void GrantStealthBehavior::loadPostProcess()
 {
 
 	// extend base class
 	UpdateModule::loadPostProcess();
 
+}
 
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+void GrantStealthBehavior::createEmitters()
+{
+	if( m_radiusParticleSystemID == INVALID_PARTICLE_SYSTEM_ID )
+	{
+		const GrantStealthBehaviorModuleData *d = getGrantStealthBehaviorModuleData();
+		ParticleSystem *particleSystem = TheParticleSystemManager->createParticleSystem(d->m_radiusParticleSystemTmpl);
+		if( particleSystem )
+		{
+			particleSystem->setPosition( getObject()->getPosition() );
+			m_radiusParticleSystemID = particleSystem->getSystemID();
+		}
+	}
 }

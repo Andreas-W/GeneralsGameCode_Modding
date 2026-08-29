@@ -39,10 +39,7 @@
 #if defined(_MSC_VER) && _MSC_VER < 1300
 
 // Import the Browser Type Library
-// BGC, the path for the dll file is pretty odd, no?
-//      I'll leave it like this till I can figure out a
-//      better way.
-#import "../../../../../Run/BrowserEngine.dll" no_namespace
+#import "EABrowserEngine/BrowserEngine.tlb" no_namespace
 
 #else
 
@@ -148,7 +145,7 @@ void DX8WebBrowser::Shutdown()
 // * Argument:    	void
 // *
 // ******************************************************************************************
-void	DX8WebBrowser::Update(void)
+void	DX8WebBrowser::Update()
 {
 	if(pBrowser) pBrowser->D3DUpdate();
 };

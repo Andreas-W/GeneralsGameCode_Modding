@@ -64,14 +64,14 @@
 
 #include "aabtree.h"
 #include "aabtreebuilder.h"
-#include "wwdebug.h"
-#include "tri.h"
+#include "WWDebug/wwdebug.h"
+#include "WWMath/tri.h"
 #include "meshgeometry.h"
 #include "coltest.h"
 #include "inttest.h"
-#include "colmathinlines.h"
+#include "WWMath/colmathinlines.h"
 #include "w3d_file.h"
-#include "chunkio.h"
+#include "WWLib/chunkio.h"
 
 
 
@@ -86,7 +86,7 @@
  *                                                                                             *
  * HISTORY:                                                                                    *
  *=============================================================================================*/
-AABTreeClass::AABTreeClass(void) :
+AABTreeClass::AABTreeClass() :
 	NodeCount(0),
 	Nodes(nullptr),
 	PolyCount(0),
@@ -157,7 +157,7 @@ AABTreeClass::AABTreeClass(const AABTreeClass & that) :
  * HISTORY:                                                                                    *
  *   6/19/98    GTH : Created.                                                                 *
  *=============================================================================================*/
-AABTreeClass::~AABTreeClass(void)
+AABTreeClass::~AABTreeClass()
 {
 	Reset();
 }
@@ -208,7 +208,7 @@ AABTreeClass & AABTreeClass::operator = (const AABTreeClass & that)
  * HISTORY:                                                                                    *
  *   6/22/99    GTH : Created.                                                                 *
  *=============================================================================================*/
-void AABTreeClass::Reset(void)
+void AABTreeClass::Reset()
 {
 	NodeCount = 0;
 	delete[] Nodes;

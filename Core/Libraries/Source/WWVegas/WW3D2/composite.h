@@ -37,7 +37,7 @@
 #pragma once
 
 #include "rendobj.h"
-#include "wwstring.h"
+#include "WWLib/wwstring.h"
 
 /*
 ** CompositeRenderObjClass
@@ -50,35 +50,35 @@ class CompositeRenderObjClass : public RenderObjClass
 {
 public:
 
-	CompositeRenderObjClass(void);
+	CompositeRenderObjClass();
 	CompositeRenderObjClass(const CompositeRenderObjClass & that);
-	virtual ~CompositeRenderObjClass(void);
+	virtual ~CompositeRenderObjClass() override;
 	CompositeRenderObjClass & operator = (const CompositeRenderObjClass & that);
 
-	virtual void					Restart(void);
+	virtual void					Restart() override;
 
-	virtual const char *			Get_Name(void) const;
-	virtual void					Set_Name(const char * name);
-	virtual const char *			Get_Base_Model_Name (void) const;
-	virtual void					Set_Base_Model_Name (const char *name);
-	virtual int						Get_Num_Polys(void) const;
-	virtual void					Notify_Added(SceneClass * scene);
-	virtual void					Notify_Removed(SceneClass * scene);
+	virtual const char *			Get_Name() const override;
+	virtual void					Set_Name(const char * name) override;
+	virtual const char *			Get_Base_Model_Name () const override;
+	virtual void					Set_Base_Model_Name (const char *name) override;
+	virtual int						Get_Num_Polys() const override;
+	virtual void					Notify_Added(SceneClass * scene) override;
+	virtual void					Notify_Removed(SceneClass * scene) override;
 
-	virtual bool					Cast_Ray(RayCollisionTestClass & raytest);
-	virtual bool					Cast_AABox(AABoxCollisionTestClass & boxtest);
-	virtual bool					Cast_OBBox(OBBoxCollisionTestClass & boxtest);
-	virtual bool					Intersect_AABox(AABoxIntersectionTestClass & boxtest);
-	virtual bool					Intersect_OBBox(OBBoxIntersectionTestClass & boxtest);
+	virtual bool					Cast_Ray(RayCollisionTestClass & raytest) override;
+	virtual bool					Cast_AABox(AABoxCollisionTestClass & boxtest) override;
+	virtual bool					Cast_OBBox(OBBoxCollisionTestClass & boxtest) override;
+	virtual bool					Intersect_AABox(AABoxIntersectionTestClass & boxtest) override;
+	virtual bool					Intersect_OBBox(OBBoxIntersectionTestClass & boxtest) override;
 
-	virtual void					Create_Decal(DecalGeneratorClass * generator);
-	virtual void					Delete_Decal(uint32 decal_id);
+	virtual void					Create_Decal(DecalGeneratorClass * generator) override;
+	virtual void					Delete_Decal(uint32 decal_id) override;
 
-	virtual void					Get_Obj_Space_Bounding_Sphere(SphereClass	& sphere) const { sphere = ObjSphere; }
-   virtual void					Get_Obj_Space_Bounding_Box(AABoxClass & box) const { box = ObjBox; }
-	virtual void					Update_Obj_Space_Bounding_Volumes(void);
+	virtual void					Get_Obj_Space_Bounding_Sphere(SphereClass	& sphere) const override { sphere = ObjSphere; }
+   virtual void					Get_Obj_Space_Bounding_Box(AABoxClass & box) const override { box = ObjBox; }
+	virtual void					Update_Obj_Space_Bounding_Volumes() override;
 
-	virtual void					Set_User_Data(void *value, bool recursive = false);
+	virtual void					Set_User_Data(void *value, bool recursive = false) override;
 
 protected:
 

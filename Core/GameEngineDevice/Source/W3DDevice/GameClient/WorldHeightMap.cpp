@@ -74,7 +74,7 @@ protected:
 	File* m_file;
 public:
 	GDIFileStream(File* pFile):m_file(pFile) {};
-	virtual Int read(void *pData, Int numBytes) {
+	virtual Int read(void *pData, Int numBytes) override {
 			return(m_file->read(pData, numBytes));
 	};
 };
@@ -119,7 +119,7 @@ MapObject::MapObject(Coord3D loc, AsciiString name, Real angle, Int flags, const
 }
 
 
-MapObject::~MapObject(void)
+MapObject::~MapObject()
 {
 	setRenderObj(nullptr);
 	setShadowObj(nullptr);
@@ -138,7 +138,7 @@ MapObject::~MapObject(void)
 
 }
 
-MapObject *MapObject::duplicate(void)
+MapObject *MapObject::duplicate()
 {
 	MapObject *pObj = newInstance( MapObject)(m_location, m_objectName, m_angle, m_flags, &m_properties, m_thingTemplate);
 	pObj->setColor(getColor());
@@ -168,13 +168,13 @@ RenderObjClass* MapObject::getBridgeRenderObject( BridgeTowerType type )
 
 }
 
-void MapObject::validate(void)
+void MapObject::validate()
 {
 	verifyValidTeam();
 	verifyValidUniqueID();
 }
 
-void MapObject::verifyValidTeam(void)
+void MapObject::verifyValidTeam()
 {
 	// if this map object has a valid team, then do nothing.
 	// if it has an invalid team, the place it on the default neutral team, (by clearing the
@@ -207,7 +207,7 @@ void MapObject::verifyValidTeam(void)
 	}
 }
 
-void MapObject::verifyValidUniqueID(void)
+void MapObject::verifyValidUniqueID()
 {
 	Bool exists;
 	AsciiString uniqueID = getProperties()->getAsciiString(TheKey_uniqueID, &exists);
@@ -272,7 +272,7 @@ void MapObject::verifyValidUniqueID(void)
 	getProperties()->setAsciiString(TheKey_uniqueID, newID);
 }
 
-void MapObject::fastAssignAllUniqueIDs(void)
+void MapObject::fastAssignAllUniqueIDs()
 {
 	// here's what we do. Take all of them, push them onto a stack. Then, pop each one, setting its id.
 	// should be much faster than what we currently do.
@@ -356,7 +356,7 @@ void MapObject::setWaypointName(AsciiString n) { getProperties()->setAsciiString
 }
 
 //-------------------------------------------------------------------------------------------------
-const ThingTemplate *MapObject::getThingTemplate( void ) const
+const ThingTemplate *MapObject::getThingTemplate() const
 {
 	if (m_thingTemplate)
 		return (const ThingTemplate*) m_thingTemplate->getFinalOverride();
@@ -372,7 +372,7 @@ TileData *WorldHeightMap::m_alphaTiles[NUM_ALPHA_TILES]={0};
 //
 // WorldHeightMap destructor .
 //
-WorldHeightMap::~WorldHeightMap(void)
+WorldHeightMap::~WorldHeightMap()
 {
 	delete[](m_data);
 	m_data = nullptr;
@@ -414,7 +414,7 @@ WorldHeightMap::~WorldHeightMap(void)
 	REF_PTR_RELEASE(m_alphaEdgeTex);
 }
 
-void WorldHeightMap::freeListOfMapObjects(void)
+void WorldHeightMap::freeListOfMapObjects()
 {
 	if (MapObject::TheMapObjectListPtr)
 	{
@@ -488,10 +488,6 @@ WorldHeightMap::WorldHeightMap(ChunkInputStream *pStrm, Bool logicalDataOnly):
 		m_sourceTiles[i]=nullptr;
 		m_edgeTiles[i]=nullptr;
 	}
-	if (TheGlobalData && TheGlobalData->m_stretchTerrain) {
-		m_drawWidthX=STRETCH_DRAW_WIDTH;
-		m_drawHeightY=STRETCH_DRAW_HEIGHT;
-	}
 
 	DataChunkInput file( pStrm );
 
@@ -530,10 +526,7 @@ WorldHeightMap::WorldHeightMap(ChunkInputStream *pStrm, Bool logicalDataOnly):
 			}
 		}
 	}
-	if (TheGlobalData && TheGlobalData->m_drawEntireTerrain) {
-		m_drawWidthX=m_width;
-		m_drawHeightY=m_height;
-	}
+
 	if (m_drawWidthX > m_width) {
 		m_drawWidthX = m_width;
 	}
@@ -575,7 +568,7 @@ void WorldHeightMap::setFlipState(Int xIndex, Int yIndex, Bool value)
 
 /** Clears all flip state bits.
 */
-void WorldHeightMap::clearFlipStates(void) {
+void WorldHeightMap::clearFlipStates() {
 	if (m_cellFlipState) {
 		memset(m_cellFlipState,0,m_flipStateWidth*m_height);	//clear all flags
 	}
@@ -603,7 +596,7 @@ void WorldHeightMap::setSeismicUpdateFlag(Int xIndex, Int yIndex, Bool value)
 		*curVal &= ~(1<<(xIndex&0x7));
 	}
 }
-void WorldHeightMap::clearSeismicUpdateFlags(void)
+void WorldHeightMap::clearSeismicUpdateFlags()
 {
 	if (m_seismicUpdateFlag) {
 		memset(m_seismicUpdateFlag,0,m_seismicUpdateWidth*m_height);	//clear all flags
@@ -1749,10 +1742,10 @@ Bool WorldHeightMap::getUVForTileIndex(Int ndx, Short tileNdx, float U[4], float
 			}
 		}
 
-// TheSuperHackers @bugfix xezon 11/12/2025 Disables the old uv adjustment for cliffs,
-// because it produces bad uv tiles on steep terrain and is also not helping performance.
-// @todo Delete this code when we are certain we never need this again.
-//#define DO_OLD_UV
+// TheSuperHackers @info xezon 11/12/2025 The old uv adjustment for cliffs produces bad uv tiles on steep terrain
+// and is also not helping performance. But we cannot just remove it, because it is required to render smooth
+// steep diagonal slopes.
+#define DO_OLD_UV
 #ifdef DO_OLD_UV
 // old uv adjustment for cliffs
 		static Real STRETCH_LIMIT = 1.5f;	 // If it is stretching less than this, don't adjust.
@@ -2133,7 +2126,7 @@ void WorldHeightMap::setTextureLOD(Int lod)
 		m_terrainTex->setLOD(lod);
 }
 
-TextureClass *WorldHeightMap::getTerrainTexture(void)
+TextureClass *WorldHeightMap::getTerrainTexture()
 {
 	if (m_terrainTex == nullptr) {
 		Int edgeHeight;
@@ -2180,7 +2173,7 @@ TextureClass *WorldHeightMap::getTerrainTexture(void)
 	return m_terrainTex;
 }
 
-TextureClass *WorldHeightMap::getAlphaTerrainTexture(void)
+TextureClass *WorldHeightMap::getAlphaTerrainTexture()
 {
 	if (m_alphaTerrainTex == nullptr) {
 		getTerrainTexture();
@@ -2188,7 +2181,7 @@ TextureClass *WorldHeightMap::getAlphaTerrainTexture(void)
 	return m_alphaTerrainTex;
 }
 
-TextureClass *WorldHeightMap::getEdgeTerrainTexture(void)
+TextureClass *WorldHeightMap::getEdgeTerrainTexture()
 {
 	if (m_alphaEdgeTex == nullptr) {
 		getTerrainTexture();
@@ -2214,43 +2207,58 @@ TerrainTextureClass *WorldHeightMap::getFlatTexture(Int xCell, Int yCell, Int ce
 	return newTexture;
 }
 
+Region2D WorldHeightMap::getDrawRegion2D()
+{
+	// Get region in heightmap space
+	const Int loX = getDrawOrgX() - getBorderSizeInline();
+	const Int loY = getDrawOrgY() - getBorderSizeInline();
+	const Int hiX = loX + getDrawWidth();
+	const Int hiY = loY + getDrawHeight();
+
+	// Convert to world space
+	Region2D region;
+	region.lo.x = loX * MAP_XY_FACTOR;
+	region.lo.y = loY * MAP_XY_FACTOR;
+	region.hi.x = hiX * MAP_XY_FACTOR;
+	region.hi.y = hiY * MAP_XY_FACTOR;
+
+	return region;
+}
+
+WorldHeightMap::DrawArea WorldHeightMap::createDrawArea(Int xOrg, Int yOrg)
+{
+	DrawArea area;
+	area.sizeX = std::min(m_drawWidthX, m_width);
+	area.sizeY = std::min(m_drawHeightY, m_height);
+	area.originX = clamp(0, xOrg, m_width - area.sizeX);
+	area.originY = clamp(0, yOrg, m_height - area.sizeY);
+
+	return area;
+}
+
+Bool WorldHeightMap::setDrawArea(const DrawArea& area)
+{
+	Bool anythingDifferent =
+		m_drawOriginX != area.originX ||
+		m_drawOriginY != area.originY ||
+		m_drawWidthX != area.sizeX ||
+		m_drawHeightY != area.sizeY;
+
+	if (anythingDifferent) {
+		m_drawOriginX = area.originX;
+		m_drawOriginY = area.originY;
+		m_drawWidthX = area.sizeX;
+		m_drawHeightY = area.sizeY;
+		return true;
+	}
+	return false;
+}
 
 Bool WorldHeightMap::setDrawOrg(Int xOrg, Int yOrg)
 {
-	Int newX, newY;
-	Int newWidth, newHeight;
-	newX = xOrg;
-	newY = yOrg;
-	newWidth = m_drawWidthX;
-	newHeight = m_drawHeightY;
-	if (TheGlobalData && TheGlobalData->m_stretchTerrain) {
-		newWidth=STRETCH_DRAW_WIDTH;
-		newHeight=STRETCH_DRAW_HEIGHT;
-	}
-	if (TheGlobalData && TheGlobalData->m_drawEntireTerrain) {
-		newWidth=m_width;
-		newHeight=m_height;
-	}
-	if (newWidth > m_width) newWidth = m_width;
-	if (newHeight > m_height) newHeight = m_height;
-	if (newX > m_width - newWidth) newX = m_width-newWidth;
-	if (newX<0) newX=0;
-	if (newY > m_height - newHeight) newY = m_height - newHeight;
-	if (newY<0) newY=0;
-	Bool anythingDifferent = (m_drawOriginX!=newX) ||
-										 (m_drawOriginY!=newY) ||
-										 (m_drawWidthX!=newWidth) ||
-										 (m_drawHeightY!=newHeight) ;
-
-	if (anythingDifferent) {
-		m_drawOriginX=newX;
-		m_drawOriginY=newY;
-		m_drawWidthX=newWidth;
-		m_drawHeightY=newHeight;
-		return(true);
-	}
-	return(false);
+	return setDrawArea(createDrawArea(xOrg, yOrg));
 }
+
 
 /** Gets global texture class. */
 Int WorldHeightMap::getTextureClass(Int xIndex, Int yIndex, Bool baseClass)
@@ -2448,7 +2456,7 @@ UnsignedByte *WorldHeightMap::getRGBAlphaDataForWidth(Int width, TBlendTileInfo 
 	return m_alphaTiles[alphaTileNdx]->getRGBDataForWidth(width);
 }
 
-void WorldHeightMap::setupAlphaTiles(void)
+void WorldHeightMap::setupAlphaTiles()
 {
 	TBlendTileInfo blendInfo;
 	if (m_alphaTiles[0] != nullptr) return;

@@ -33,8 +33,8 @@
 #pragma once
 
 #include "resource.h"
-#include "rendobj.h"
-#include "Vector3i.h"
+#include "WW3D2/rendobj.h"
+#include "WWMath/Vector3i.h"
 
 // Forward declarations
 class VertexMaterialClass;
@@ -51,9 +51,9 @@ class ScreenCursorClass : public RenderObjClass
 		////////////////////////////////////////////////////////////////////////
 		//	Public constructors/destructors
 		////////////////////////////////////////////////////////////////////////
-		ScreenCursorClass (void);
+		ScreenCursorClass ();
 		ScreenCursorClass (const ScreenCursorClass &src);
-		virtual ~ScreenCursorClass (void);
+		virtual ~ScreenCursorClass ();
 
 		////////////////////////////////////////////////////////////////////////
 		//	Public operators
@@ -69,10 +69,10 @@ class ScreenCursorClass : public RenderObjClass
 		////////////////////////////////////////////////////////////////////////
 		//	Base class overrides
 		////////////////////////////////////////////////////////////////////////
-		RenderObjClass *		Clone (void) const								{ return new ScreenCursorClass (*this); }
-		virtual int				Class_ID(void) const								{ return CLASSID_LAST + 103L; }
+		RenderObjClass *		Clone () const								{ return new ScreenCursorClass (*this); }
+		virtual int				Class_ID() const								{ return CLASSID_LAST + 103L; }
 		virtual void			Render (RenderInfoClass &rinfo);
-		virtual void			On_Frame_Update (void);
+		virtual void			On_Frame_Update ();
 		virtual void			Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const;
 		virtual void			Get_Obj_Space_Bounding_Box(AABoxClass & box) const;
 
@@ -84,7 +84,7 @@ class ScreenCursorClass : public RenderObjClass
 		////////////////////////////////////////////////////////////////////////
 		//	Protected methods
 		////////////////////////////////////////////////////////////////////////
-		void						Initialize (void);
+		void						Initialize ();
 
 	private:
 
@@ -93,8 +93,8 @@ class ScreenCursorClass : public RenderObjClass
 		////////////////////////////////////////////////////////////////////////
 		HWND						m_hWnd;
 		Vector2					m_ScreenPos;
-		TextureClass *			m_pTexture;
-		VertexMaterialClass *m_pVertMaterial;
+		RefCountPtr<TextureClass>			m_pTexture;
+		RefCountPtr<VertexMaterialClass> m_pVertMaterial;
 
 		Vector3					m_Verticies[4];
 		Vector3					m_Normals[4];

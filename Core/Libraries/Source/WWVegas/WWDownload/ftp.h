@@ -26,7 +26,7 @@
 #include <winsock.h>
 #include <Utility/stdio_adapter.h>
 
-#include "WWDownload/ftpdefs.h"
+#include "ftpdefs.h"
 
 // FTP server return codes.  See RFC 959
 
@@ -86,8 +86,8 @@ private:
 				// Convert a local filename into a temp filename to download into
 	void		GetDownloadFilename( const char* localname, char* downloadname, size_t downloadname_size);
 
-	void		CloseSockets(void);
-	void		ZeroStuff(void);
+	void		CloseSockets();
+	void		ZeroStuff();
 
 
 public:
@@ -99,7 +99,7 @@ public:
 	HRESULT DisconnectFromServer();
 
 	HRESULT LoginToServer( LPCSTR szUserName, LPCSTR szPassword );
-	HRESULT LogoffFromServer( void );
+	HRESULT LogoffFromServer();
 
 	HRESULT FindFile( LPCSTR szRemoteFileName, int * piSize );
 

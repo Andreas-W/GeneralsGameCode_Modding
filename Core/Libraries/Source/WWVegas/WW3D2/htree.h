@@ -37,13 +37,13 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "pivot.h"
-#include "quat.h"
-#include "matrix3d.h"
-#include "vector3.h"
-#include "w3d_file.h"
-#include "wwdebug.h"
+#include "WWMath/quat.h"
+#include "WWMath/matrix3d.h"
+#include "WWMath/vector3.h"
+#include "WW3D2/w3d_file.h"
+#include "WWDebug/wwdebug.h"
 
 class HAnimClass;
 class HAnimComboClass;
@@ -66,9 +66,9 @@ class HRawAnimClass;
 	by the HierarchyModelClass.
 
 */
-class HTreeClass : public W3DMPO
+class HTreeClass
 {
-	W3DMPO_GLUE(HTreeClass)
+	W3DMPO_CODE(HTreeClass)
 public:
 
 	enum
@@ -77,15 +77,15 @@ public:
 		LOAD_ERROR
 	};
 
-	HTreeClass(void);
+	HTreeClass();
 	HTreeClass(const HTreeClass & src);
-	~HTreeClass(void);
+	~HTreeClass();
 
 	int					Load_W3D(ChunkLoadClass & cload);
-	void					Init_Default(void);
+	void					Init_Default();
 
-	WWINLINE const char *		Get_Name(void)								const { return Name; }
-	WWINLINE int					Num_Pivots(void)							const { return NumPivots; }
+	WWINLINE const char *		Get_Name()								const { return Name; }
+	WWINLINE int					Num_Pivots()							const { return NumPivots; }
 	int					Get_Bone_Index(const char * name)	const;
 	const char *		Get_Bone_Name(int boneid)				const;
 	int					Get_Parent_Index(int bone_indx)		const;
@@ -118,7 +118,7 @@ public:
 	WWINLINE const Matrix3D	&	Get_Transform(int pivot) const;
 	WWINLINE bool					Get_Visibility(int pivot) const;
 
-	WWINLINE const Matrix3D &	Get_Root_Transform(void) const;
+	WWINLINE const Matrix3D &	Get_Root_Transform() const;
 
 	// User control over a bone.  While a bone is captured, you can over-ride the
 	// animation transform used by the bone.
@@ -169,7 +169,7 @@ private:
 	PivotClass *		Pivot;
 	float					ScaleFactor;
 
-	void					Free(void);
+	void					Free();
 	bool					read_pivots(ChunkLoadClass & cload,bool pre30);
 
 	friend class MeshClass;
@@ -178,7 +178,7 @@ private:
 
 };
 
-WWINLINE const Matrix3D &	HTreeClass::Get_Root_Transform(void) const
+WWINLINE const Matrix3D &	HTreeClass::Get_Root_Transform() const
 {
 	return Pivot[0].Transform;
 }

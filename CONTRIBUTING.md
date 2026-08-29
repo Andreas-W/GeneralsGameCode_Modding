@@ -2,6 +2,21 @@
 
 To contribute, fork this repository to create your own copy that you can clone locally and push back to. You can use your fork to create pull requests for your code to be merged into this repository.
 
+
+## Contribution guidelines
+
+Prefer opening fewer high quality Pull Requests over many low quality ones. Prioritize polishing existing Pull Requests instead of creating new ones. Do not open Pull Requests as draft unless there are specific requirements that justify it, because draft Pull Requests are generally not looked at and pollute the Pull Request section.
+
+
+## AI code generation guidelines
+
+Creating changes with LLM generated code is generally allowed. The author is responsible for verifying that all generated code is human readable, maintainable and logically correct. Furthermore, all generated code needs to be tested and verified. The author is not allowed to outsource the polishing of the generated code to the human code reviewers. In a Pull Request, generated code needs to be announced as such and to what extent it was polished by human intervention.
+
+### New code contributors and AI generated code
+
+New contributors are discouraged from submitting Pull Requests with thousands of lines changed or added with the help of LLMs, because human code reviewers cannot attend such volumes at the risk of wasting precious time with potentially poorly generated code.
+
+
 ## Code guidelines
 
 ### Scope of code changes
@@ -83,7 +98,7 @@ Optionally, the pull request number can be appended to the comment. This can onl
 
 ### Pull request documentation
 
-The title of a new Pull Request, and/or commit(s) within, begins with a [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) tag. The tag is followed by a concise and descriptive sentence about the change and/or commit, beginning with an upper case letter and ending without a dot. The sentence ideally begins with a word that describes the action that the change takes, for example `fix *this*`, `change *that*`, `add *those*`, `refactor *thing*`.
+The title of a new Pull Request, and/or commit(s) within, begins with a [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) tag. The tag is followed by a concise and descriptive sentence about the change and/or commit, beginning with an upper case letter and ending without a dot. The sentence ideally begins with a word that describes the action that the change takes, for example `Fix *this*`, `Change *that*`, `Add *those*`, `Refactor *thing*`.
 
 Allowed (extended) commit title types are:
 ```
@@ -96,6 +111,7 @@ fix:
 feat:
 perf:
 refactor:
+revert:
 style:
 test:
 tweak:
@@ -106,7 +122,7 @@ For the optional scope behind the type pick a suitable word that describes the o
 
 Good:
 ```
-bugfix(system): fix uninitialized memory access in Get_OS_Info
+bugfix(system): Fix uninitialized memory access in Get_OS_Info
 ```
 
 Bad:

@@ -35,7 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "definition.h"
-#include "chunkio.h"
+#include "WWLib/chunkio.h"
 
 //////////////////////////////////////////////////////////////////////////////////
 //	Constants
@@ -157,7 +157,5 @@ DefinitionClass::Set_ID (uint32 id)
 		DefinitionMgrClass::Unregister_Definition (this);
 		DefinitionMgrClass::Register_Definition (this);
 	}
-
-	return ;
 }
 

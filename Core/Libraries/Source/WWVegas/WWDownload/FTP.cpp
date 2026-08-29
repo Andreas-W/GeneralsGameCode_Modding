@@ -35,7 +35,7 @@
 #include <time.h>
 #include <direct.h>
 #include <errno.h>
-#include <WWCommon.h>
+#include <WWLib/WWCommon.h>
 //#include "wlib/wstring.h"
 
 #include "DownloadDebug.h"
@@ -116,7 +116,7 @@ bool Prepare_Directories(const char *rootdir, const char *filename);
 // This is here as a hack...
 // Some firewalls break the TCP stack so non-blocking sockets don't work right...
 //
-static bool Use_Non_Blocking_Mode(void)
+static bool Use_Non_Blocking_Mode()
 {
 	HKEY regKey;
 	LONG regRetval;
@@ -202,7 +202,7 @@ Cftp::~Cftp()
 	}
 }
 
-void Cftp::CloseSockets(void)
+void Cftp::CloseSockets()
 {
 
 	if( m_iDataSocket )
@@ -219,7 +219,7 @@ void Cftp::CloseSockets(void)
 
 }
 
-void Cftp::ZeroStuff(void)
+void Cftp::ZeroStuff()
 {
 	m_iBytesRead = 0;
 	m_iFileSize = 0;
@@ -555,7 +555,7 @@ HRESULT  Cftp::LoginToServer( LPCSTR szUserName, LPCSTR szPassword )
 
 /*$_Function****************************************************************
 * $_Name        :
-*	STDMETHOD Cftp::LogoffFromServer( void )
+*	STDMETHOD Cftp::LogoffFromServer()
 *
 * $_Description :
 *	Logs off from a server.  LoginToServer() must have succeeded before this
@@ -571,7 +571,7 @@ HRESULT  Cftp::LoginToServer( LPCSTR szUserName, LPCSTR szPassword )
 ***************************************************************************/
 
 
-HRESULT  Cftp::LogoffFromServer( void )
+HRESULT  Cftp::LogoffFromServer()
 {
 	char command[ 256 ];
 	int iReply, iRetCode;
@@ -1069,7 +1069,7 @@ unsigned long MyIPAddress( int sockfd )
 
 /*$_Function****************************************************************
 * $_Name        :
-*	int Cftp::SendNewPort( void )
+*	int Cftp::SendNewPort()
 *
 * $_Description :
 *	Sends a PORT command to the server specifying a new ephemeral port to
@@ -1086,7 +1086,7 @@ unsigned long MyIPAddress( int sockfd )
 ***************************************************************************/
 
 
-int Cftp::SendNewPort( void )
+int Cftp::SendNewPort()
 {
 	unsigned long uTemp;
 	char command[ 256 ];
@@ -1813,7 +1813,6 @@ void Cftp::GetDownloadFilename(const char *localname, char *downloadname, size_t
 	name.replace(" ","_");
 	sprintf(downloadname,"download\\%s_%d.tmp",name.get(),m_iFileSize);
 	*/
-	return;
 }
 
 

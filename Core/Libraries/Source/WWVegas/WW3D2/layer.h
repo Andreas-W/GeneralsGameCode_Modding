@@ -36,9 +36,9 @@
 
 #pragma once
 
-#include "always.h"
-#include "LISTNODE.h"
-#include "vector3.h"
+#include "WWLib/always.h"
+#include "WWLib/LISTNODE.h"
+#include "WWMath/vector3.h"
 
 class SceneClass;
 class CameraClass;
@@ -51,10 +51,10 @@ class LayerClass : public LayerNodeClass
 
 public:
 
-	LayerClass(void);
+	LayerClass();
 	LayerClass(SceneClass * s,CameraClass * c,bool clear = false,bool clearz = false,const Vector3 & color = Vector3(0,0,0));
 	LayerClass(const LayerClass & src);
-	~LayerClass(void);
+	virtual ~LayerClass() override;
 
 
 	/*
@@ -62,11 +62,11 @@ public:
 	** objects properly.
 	*/
 	void						Set_Scene(SceneClass * scene);
-	SceneClass *			Get_Scene(void) const;
-	SceneClass *			Peek_Scene(void) const;
+	SceneClass *			Get_Scene() const;
+	SceneClass *			Peek_Scene() const;
 	void						Set_Camera(CameraClass * cam);
-	CameraClass *			Get_Camera(void) const;
-	CameraClass *			Peek_Camera(void) const;
+	CameraClass *			Get_Camera() const;
+	CameraClass *			Peek_Camera() const;
 
 
 	// [SKB: Aug 14 2001 @ 1:53pm] :

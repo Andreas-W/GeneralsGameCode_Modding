@@ -37,8 +37,8 @@
 #include "render2dsentence.h"
 #include "surfaceclass.h"
 #include "texture.h"
-#include "wwprofile.h"
-#include "wwmemlog.h"
+#include "WWDebug/wwprofile.h"
+#include "WWDebug/wwmemlog.h"
 #include "dx8wrapper.h"
 
 
@@ -53,7 +53,7 @@
 //	Render2DSentenceClass
 //
 ////////////////////////////////////////////////////////////////////////////////////
-Render2DSentenceClass::Render2DSentenceClass (void) :
+Render2DSentenceClass::Render2DSentenceClass () :
 	Font (nullptr),
 	Location (0.0F,0.0F),
 	Cursor (0.0F,0.0F),
@@ -75,7 +75,6 @@ Render2DSentenceClass::Render2DSentenceClass (void) :
 	useHardWordWrap( false)
 {
 	Shader = Render2DClass::Get_Default_Shader ();
-	return ;
 }
 
 
@@ -84,11 +83,10 @@ Render2DSentenceClass::Render2DSentenceClass (void) :
 //	~Render2DSentenceClass
 //
 ////////////////////////////////////////////////////////////////////////////////////
-Render2DSentenceClass::~Render2DSentenceClass (void)
+Render2DSentenceClass::~Render2DSentenceClass ()
 {
 	REF_PTR_RELEASE (Font);
 	Reset ();
-	return ;
 }
 
 
@@ -102,7 +100,6 @@ Render2DSentenceClass::Set_Font (FontCharsClass *font)
 {
 	Reset ();
 	REF_PTR_SET (Font, font);
-	return ;
 }
 
 
@@ -112,13 +109,11 @@ Render2DSentenceClass::Set_Font (FontCharsClass *font)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Reset_Polys (void)
+Render2DSentenceClass::Reset_Polys ()
 {
 	for (int index = 0; index < Renderers.Count (); index ++) {
 		Renderers[index].Renderer->Reset ();
 	}
-
-	return ;
 }
 
 
@@ -128,7 +123,7 @@ Render2DSentenceClass::Reset_Polys (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Reset (void)
+Render2DSentenceClass::Reset ()
 {
 	//
 	//	Make sure we unlock the current surface (if necessary)
@@ -157,7 +152,6 @@ Render2DSentenceClass::Reset (void)
 
 	Release_Pending_Surfaces ();
 	Reset_Sentence_Data ();
-	return ;
 }
 
 
@@ -167,7 +161,7 @@ Render2DSentenceClass::Reset (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Make_Additive (void)
+Render2DSentenceClass::Make_Additive ()
 {
 	Shader.Set_Dst_Blend_Func (ShaderClass::DSTBLEND_ONE);
 	Shader.Set_Src_Blend_Func (ShaderClass::SRCBLEND_ONE);
@@ -175,7 +169,6 @@ Render2DSentenceClass::Make_Additive (void)
 	Shader.Set_Secondary_Gradient (ShaderClass::SECONDARY_GRADIENT_DISABLE);
 
 	Set_Shader (Shader);
-	return ;
 }
 
 
@@ -196,8 +189,6 @@ Render2DSentenceClass::Set_Shader (ShaderClass shader)
 		ShaderClass *curr_shader = Renderers[i].Renderer->Get_Shader ();
 		(*curr_shader) = Shader;
 	}
-
-	return ;
 }
 
 
@@ -207,7 +198,7 @@ Render2DSentenceClass::Set_Shader (ShaderClass shader)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Render (void)
+Render2DSentenceClass::Render ()
 {
 	//
 	//	Build any textures that are pending
@@ -220,8 +211,6 @@ Render2DSentenceClass::Render (void)
 	for (int i = 0; i < Renderers.Count (); i ++) {
 		Renderers[i].Renderer->Render ();
 	}
-
-	return ;
 }
 
 
@@ -238,8 +227,6 @@ Render2DSentenceClass::Set_Base_Location (const Vector2 &loc)
 	for (int i = 0; i < Renderers.Count (); i ++) {
 		Renderers[i].Renderer->Move (dif);
 	}
-
-	return ;
 }
 
 
@@ -252,7 +239,6 @@ void
 Render2DSentenceClass::Set_Location (const Vector2 &loc)
 {
 	Location	= loc;
-	return ;
 }
 
 
@@ -296,7 +282,7 @@ Render2DSentenceClass::Get_Formatted_Text_Extents (const WCHAR *text)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Reset_Sentence_Data (void)
+Render2DSentenceClass::Reset_Sentence_Data ()
 {
 	//
 	//	Release our hold on each texture used in the sentence
@@ -308,7 +294,6 @@ Render2DSentenceClass::Reset_Sentence_Data (void)
 	if (SentenceData.Count()>0) {
 		SentenceData.Delete_All ();
 	}
-	return ;
 }
 
 
@@ -318,7 +303,7 @@ Render2DSentenceClass::Reset_Sentence_Data (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Release_Pending_Surfaces (void)
+Render2DSentenceClass::Release_Pending_Surfaces ()
 {
 	//
 	//	Release our hold on each pending surface
@@ -329,7 +314,6 @@ Render2DSentenceClass::Release_Pending_Surfaces (void)
 	}
 
 	if (PendingSurfaces.Count()>0) PendingSurfaces.Delete_All ();
-	return;
 }
 
 
@@ -339,7 +323,7 @@ Render2DSentenceClass::Release_Pending_Surfaces (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Build_Textures (void)
+Render2DSentenceClass::Build_Textures ()
 {
 	WWMEMLOG(MEM_TEXTURE);
 
@@ -410,7 +394,6 @@ Render2DSentenceClass::Build_Textures (void)
 	if (PendingSurfaces.Count()>0) {
 		PendingSurfaces.Delete_All ();
 	}
-	return ;
 }
 
 
@@ -572,8 +555,6 @@ Render2DSentenceClass::Draw_Sentence (uint32 color)
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -583,7 +564,7 @@ Render2DSentenceClass::Draw_Sentence (uint32 color)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-Render2DSentenceClass::Record_Sentence_Chunk (void)
+Render2DSentenceClass::Record_Sentence_Chunk ()
 {
 	//
 	//	Do we have anything to store?
@@ -613,8 +594,6 @@ Render2DSentenceClass::Record_Sentence_Chunk (void)
 		//
 		SentenceData.Add (sentence_data);
 	}
-
-	return ;
 }
 
 
@@ -713,7 +692,6 @@ Render2DSentenceClass::Allocate_New_Surface (const WCHAR *text, bool justCalcExt
 	//
 	TextureOffset.Set (0, 0);
 	TextureStartX = 0;
-	return ;
 }
 
 float FindStartingXPos( const WCHAR *text )
@@ -966,7 +944,6 @@ void	Render2DSentenceClass::Build_Sentence_Centered (const WCHAR *text, int *hkX
 			*hkX = hotKeyPosX;
 		if(hkX)
 			*hkY = hotKeyPosY;
-	return ;
 }
 ////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1175,8 +1152,6 @@ Render2DSentenceClass::Build_Sentence (const WCHAR *text, int *hkX, int *hkY)
 	else
 		Build_Sentence_Not_Centered(text, hkX, hkY);
 
-	return;
-
 }
 
 
@@ -1185,7 +1160,7 @@ Render2DSentenceClass::Build_Sentence (const WCHAR *text, int *hkX, int *hkY)
 //	FontCharsClass
 //
 ////////////////////////////////////////////////////////////////////////////////////
-FontCharsClass::FontCharsClass (void) :
+FontCharsClass::FontCharsClass () :
 	OldGDIFont(	nullptr ),
 	OldGDIBitmap( nullptr ),
 	GDIFont( nullptr ),
@@ -1202,7 +1177,6 @@ FontCharsClass::FontCharsClass (void) :
 {
 	AlternateUnicodeFont = nullptr;
 	::memset( ASCIICharArray, 0, sizeof (ASCIICharArray) );
-	return ;
 }
 
 
@@ -1211,7 +1185,7 @@ FontCharsClass::FontCharsClass (void) :
 //	~FontCharsClass
 //
 ////////////////////////////////////////////////////////////////////////////////////
-FontCharsClass::~FontCharsClass (void)
+FontCharsClass::~FontCharsClass ()
 {
 	while ( BufferList.Count() ) {
 		delete BufferList[0];
@@ -1220,7 +1194,6 @@ FontCharsClass::~FontCharsClass (void)
 
 	Free_GDI_Font();
 	Free_Character_Arrays();
-	return ;
 }
 
 
@@ -1329,8 +1302,6 @@ FontCharsClass::Blit_Char (WCHAR ch, uint16 *dest_ptr, int dest_stride, int x, i
 			dest_ptr	+= dest_inc;
 		}
 	}
-
-	return ;
 }
 
 
@@ -1493,8 +1464,6 @@ FontCharsClass::Update_Current_Buffer (int char_width)
 		BufferList.Add( new_buffer );
 		CurrPixelOffset = 0;
 	}
-
-	return ;
 }
 
 
@@ -1608,7 +1577,7 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-FontCharsClass::Free_GDI_Font (void)
+FontCharsClass::Free_GDI_Font ()
 {
 	//
 	//	Select the old font back into the DC and delete
@@ -1637,8 +1606,6 @@ FontCharsClass::Free_GDI_Font (void)
 		::DeleteDC( MemDC );
 		MemDC = nullptr;
 	}
-
-	return ;
 }
 
 
@@ -1743,7 +1710,6 @@ FontCharsClass::Grow_Unicode_Array (WCHAR ch)
 	FirstUnicodeChar	= first_index;
 	LastUnicodeChar	= last_index;
 	UnicodeCharArray	= new_array;
-	return ;
 }
 
 
@@ -1753,7 +1719,7 @@ FontCharsClass::Grow_Unicode_Array (WCHAR ch)
 //
 ////////////////////////////////////////////////////////////////////////////////////
 void
-FontCharsClass::Free_Character_Arrays (void)
+FontCharsClass::Free_Character_Arrays ()
 {
 	if ( UnicodeCharArray != nullptr ) {
 
@@ -1781,6 +1747,4 @@ FontCharsClass::Free_Character_Arrays (void)
 		delete ASCIICharArray[index];
 		ASCIICharArray[index] = nullptr;
 	}
-
-	return ;
 }

@@ -31,8 +31,8 @@
 #include <winsock.h>	// This one has to be here. Prevents collisions with windsock2.h
 
 #include "GameNetwork/GameSpy/PingThread.h"
-#include "mutex.h"
-#include "thread.h"
+#include "WWLib/mutex.h"
+#include "WWLib/thread.h"
 
 #include "Common/SubsystemInterface.h"
 
@@ -47,23 +47,23 @@ class PingThreadClass;
 class Pinger : public PingerInterface
 {
 public:
-	virtual ~Pinger();
+	virtual ~Pinger() override;
 	Pinger();
-	virtual void startThreads( void );
-	virtual void endThreads( void );
-	virtual Bool areThreadsRunning( void );
+	virtual void startThreads() override;
+	virtual void endThreads() override;
+	virtual Bool areThreadsRunning() override;
 
-	virtual void addRequest( const PingRequest& req );
-	virtual Bool getRequest( PingRequest& resp );
+	virtual void addRequest( const PingRequest& req ) override;
+	virtual Bool getRequest( PingRequest& resp ) override;
 
-	virtual void addResponse( const PingResponse& resp );
-	virtual Bool getResponse( PingResponse& resp );
+	virtual void addResponse( const PingResponse& resp ) override;
+	virtual Bool getResponse( PingResponse& resp ) override;
 
-	virtual Bool arePingsInProgress( void );
-	virtual Int getPing( AsciiString hostname );
+	virtual Bool arePingsInProgress() override;
+	virtual Int getPing( AsciiString hostname ) override;
 
-	virtual void clearPingMap( void );
-	virtual AsciiString getPingString( Int timeout );
+	virtual void clearPingMap() override;
+	virtual AsciiString getPingString( Int timeout ) override;
 
 private:
 	MutexClass m_requestMutex;
@@ -79,7 +79,7 @@ private:
 	PingThreadClass *m_workerThreads[NumWorkerThreads];
 };
 
-PingerInterface* PingerInterface::createNewPingerInterface( void )
+PingerInterface* PingerInterface::createNewPingerInterface()
 {
 	return NEW Pinger;
 }
@@ -94,7 +94,7 @@ class PingThreadClass : public ThreadClass
 public:
 	PingThreadClass() : ThreadClass() {}
 
-	void Thread_Function();
+	virtual void Thread_Function() override;
 
 private:
 	Int doPing( UnsignedInt IP, Int timeout );
@@ -116,7 +116,7 @@ Pinger::~Pinger()
 	endThreads();
 }
 
-void Pinger::startThreads( void )
+void Pinger::startThreads()
 {
 	endThreads();
 	for (Int i=0; i<NumWorkerThreads; ++i)
@@ -126,7 +126,7 @@ void Pinger::startThreads( void )
 	}
 }
 
-void Pinger::endThreads( void )
+void Pinger::endThreads()
 {
 	for (Int i=0; i<NumWorkerThreads; ++i)
 	{
@@ -135,7 +135,7 @@ void Pinger::endThreads( void )
 	}
 }
 
-Bool Pinger::areThreadsRunning( void )
+Bool Pinger::areThreadsRunning()
 {
 	for (Int i=0; i<NumWorkerThreads; ++i)
 	{
@@ -197,7 +197,7 @@ Bool Pinger::getResponse( PingResponse& resp )
 	return true;
 }
 
-Bool Pinger::arePingsInProgress( void )
+Bool Pinger::arePingsInProgress()
 {
 	return (m_requestCount != m_responseCount);
 }
@@ -215,7 +215,7 @@ Int Pinger::getPing( AsciiString hostname )
 	return -1;
 }
 
-void Pinger::clearPingMap( void )
+void Pinger::clearPingMap()
 {
 	MutexClass::LockClass m(m_pingMapMutex);
 	m_pingMap.clear();
@@ -333,7 +333,7 @@ void PingThreadClass::Thread_Function()
 //-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
 
-HANDLE WINAPI IcmpCreateFile(VOID); /* INVALID_HANDLE_VALUE on error */
+HANDLE WINAPI IcmpCreateFile(); /* INVALID_HANDLE_VALUE on error */
 BOOL WINAPI IcmpCloseHandle(HANDLE IcmpHandle); /* FALSE on error */
 
 /* Note 2: For the most part, you can refer to RFC 791 for detials
@@ -442,7 +442,7 @@ Int PingThreadClass::doPing(UnsignedInt IP, Int timeout)
    char achRepData[sizeof(ICMPECHO) + BUFSIZE];
 
 
-   HANDLE ( WINAPI *lpfnIcmpCreateFile )( VOID ) = nullptr;
+   HANDLE ( WINAPI *lpfnIcmpCreateFile )() = nullptr;
    BOOL ( WINAPI *lpfnIcmpCloseHandle )( HANDLE ) = nullptr;
    DWORD (WINAPI *lpfnIcmpSendEcho)(HANDLE, DWORD, LPVOID, WORD, LPVOID,
                                     LPVOID, DWORD, DWORD) = nullptr;
@@ -461,7 +461,7 @@ Int PingThreadClass::doPing(UnsignedInt IP, Int timeout)
    /*
     * Get pointers to ICMP.DLL functions
     */
-   lpfnIcmpCreateFile = (void * (__stdcall *)(void))GetProcAddress( (HINSTANCE)hICMP_DLL, "IcmpCreateFile");
+   lpfnIcmpCreateFile = (void * (__stdcall *)())GetProcAddress( (HINSTANCE)hICMP_DLL, "IcmpCreateFile");
    lpfnIcmpCloseHandle = (int (__stdcall *)(void *))GetProcAddress( (HINSTANCE)hICMP_DLL, "IcmpCloseHandle");
    lpfnIcmpSendEcho = (unsigned long (__stdcall *)(void *, unsigned long, void *, unsigned short,
                        void *, void *, unsigned long, unsigned long))GetProcAddress( (HINSTANCE)hICMP_DLL, "IcmpSendEcho" );

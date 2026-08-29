@@ -187,11 +187,11 @@ class ObjectCreationListStore : public SubsystemInterface
 public:
 
 	ObjectCreationListStore();
-	~ObjectCreationListStore();
+	virtual ~ObjectCreationListStore() override;
 
-	void init() { }
-	void reset() { }
-	void update() { }
+	virtual void init() override { }
+	virtual void reset() override { }
+	virtual void update() override { }
 
 	/**
 		return the ObjectCreationList with the given namekey.
@@ -205,7 +205,7 @@ public:
 
 private:
 
-	typedef std::map< NameKeyType, ObjectCreationList, std::less<NameKeyType> > ObjectCreationListMap;
+	typedef std::map< NameKeyType, ObjectCreationList, std::less<NameKeyType>/**/> ObjectCreationListMap;
 	ObjectCreationListMap m_ocls;
 
 	// note, this list doesn't own the nuggets; all nuggets are owned by the Store.

@@ -49,7 +49,7 @@
 #include <Utility/stdio_adapter.h>
 #include <assert.h>
 #include <signal.h>
-#include "Except.h"
+#include "WWLib/Except.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -522,7 +522,5 @@ void WWDebug_DBWin32_Message_Handler( const char * str )
     CloseHandle(hSharedFile);
     CloseHandle(heventData);
     CloseHandle(heventDBWIN);
-
-    return;
 }
 #endif // WWDEBUG

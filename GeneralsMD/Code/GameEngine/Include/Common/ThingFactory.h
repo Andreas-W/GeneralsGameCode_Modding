@@ -44,7 +44,7 @@ class Object;
 class Drawable;
 class INI;
 
-typedef std::hash_map<AsciiString, ThingTemplate*, rts::hash<AsciiString>, rts::equal_to<AsciiString> > ThingTemplateHashMap;
+typedef std::hash_map<AsciiString, ThingTemplate*, rts::hash<AsciiString>, rts::equal_to<AsciiString>/**/> ThingTemplateHashMap;
 typedef ThingTemplateHashMap::iterator ThingTemplateHashMapIt;
 //-------------------------------------------------------------------------------------------------
 /** Implementation of the thing manager interface singleton */
@@ -53,31 +53,31 @@ class ThingFactory : public SubsystemInterface
 {
 public:
 
-	ThingFactory( void );
-	virtual ~ThingFactory( void );
+	ThingFactory();
+	virtual ~ThingFactory() override;
 
 	// From the subsystem interface =================================================================
-	virtual void init( void );
-	virtual void postProcessLoad( void );
-	virtual void reset( void );
-	virtual void update( void );
+	virtual void init() override;
+	virtual void postProcessLoad() override;
+	virtual void reset() override;
+	virtual void update() override;
 	//===============================================================================================
 
 	/// create a new template with name 'name' and add to template list
 	ThingTemplate *newTemplate( const AsciiString& name );
 
-	// get the first template in our list
-	const ThingTemplate *firstTemplate( void ) { return m_firstTemplate; }
+	// Get the first template in the database. Does not resolve the final override.
+	const ThingTemplate *firstTemplate() { return m_firstTemplate; }
 
 	/**
-		get a template given template database name. return null if not found.
-		note, this is now substantially faster (does a hash-table lookup)
+		Get a template by database name. Returns null if not found.
+		Does not resolve the final override.
 	*/
 	const ThingTemplate *findTemplate( const AsciiString& name, Bool check = TRUE ) { return findTemplateInternal( name, check ); }
 
 	/**
-		get a template given ID. return null if not found.
-		note, this is not particularly fast (does a linear search).
+		Get a template by ID. Returns null if not found.
+		Does not resolve the final override.
 	*/
 	const ThingTemplate *findByTemplateID( UnsignedShort id );
 
@@ -98,7 +98,7 @@ public:
 private:
 
 	/// free all template database data
-	void freeDatabase( void );
+	void freeDatabase();
 
 	void addTemplate( ThingTemplate *thing );		///< add the template to the DB
 

@@ -45,7 +45,7 @@
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/AIUpdate.h"
-#include "vector3.h"
+#include "WWMath/vector3.h"
 #include <array>
 static const Real DONUT_TIME_DELAY_SECONDS=2.5f;
 static const Real DONUT_DISTANCE=4.0*PATHFIND_CELL_SIZE_F;
@@ -435,6 +435,12 @@ void LocomotorTemplate::validate()
 		}
 	}
 
+#if RTS_GENERALS
+	// TheSuperHackers @info DecelerationPitchLimit was just added in Zero Hour and is therefore defaulted to
+	// AccelerationPitchLimit when zero to preserve the original behavior of Generals.
+	if (m_decelPitchLimit == 0.0f)
+		m_decelPitchLimit = m_accelPitchLimit;
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -472,55 +478,51 @@ const FieldParse* LocomotorTemplate::getFieldParse() const
 		{ "Appearance", INI::parseIndexList, TheLocomotorAppearanceNames, offsetof(LocomotorTemplate, m_appearance) },		\
 		{ "GroupMovementPriority", INI::parseIndexList, TheLocomotorPriorityNames, offsetof(LocomotorTemplate, m_movePriority) },		\
 
-		{ "AccelerationPitchLimit", INI::parseAngleReal, NULL, offsetof(LocomotorTemplate, m_accelPitchLimit) },
-		{ "DecelerationPitchLimit", INI::parseAngleReal, NULL, offsetof(LocomotorTemplate, m_decelPitchLimit) },
-		{ "BounceAmount", INI::parseAngularVelocityReal, NULL, offsetof(LocomotorTemplate, m_bounceKick) },
-		{ "PitchStiffness", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_pitchStiffness) },
-		{ "RollStiffness", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_rollStiffness) },
-		{ "PitchDamping", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_pitchDamping) },
-		{ "RollDamping", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_rollDamping) },
-		{ "ThrustRoll", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_thrustRoll) },
-		{ "ThrustWobbleRate",	INI::parseReal, NULL, offsetof(LocomotorTemplate, m_wobbleRate) },
-		{ "ThrustMinWobble",	INI::parseReal, NULL, offsetof(LocomotorTemplate, m_minWobble) },
-		{ "ThrustMaxWobble",	INI::parseReal, NULL, offsetof(LocomotorTemplate, m_maxWobble) },
-		{ "PitchInDirectionOfZVelFactor", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_pitchByZVelCoef) },
-		{ "ForwardVelocityPitchFactor", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_forwardVelCoef) },
-		{ "LateralVelocityRollFactor", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_lateralVelCoef) },
-		{ "ForwardAccelerationPitchFactor", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_forwardAccelCoef) },
-		{ "LateralAccelerationRollFactor", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_lateralAccelCoef) },
-		{ "UniformAxialDamping", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_uniformAxialDamping) },
-		{ "TurnPivotOffset", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_turnPivotOffset) },
-		{ "Apply2DFrictionWhenAirborne", INI::parseBool, NULL, offsetof(LocomotorTemplate, m_apply2DFrictionWhenAirborne) },
-		{ "DownhillOnly", INI::parseBool, NULL, offsetof(LocomotorTemplate, m_downhillOnly) },
-		{ "AllowAirborneMotiveForce", INI::parseBool, NULL, offsetof(LocomotorTemplate, m_allowMotiveForceWhileAirborne) },
-		{ "LocomotorWorksWhenDead", INI::parseBool, NULL, offsetof(LocomotorTemplate, m_locomotorWorksWhenDead) },
-		{ "LocomotorWorksWhenDisabled", INI::parseBool, NULL, offsetof(LocomotorTemplate, m_locomotorWorksWhenDisabled) },
-		{ "AirborneTargetingHeight", INI::parseInt, NULL, offsetof( LocomotorTemplate, m_airborneTargetingHeight ) },
-		{ "StickToGround",				INI::parseBool,			NULL,	offsetof(LocomotorTemplate, m_stickToGround) },
-		{ "CanMoveBackwards",				INI::parseBool,			NULL,	offsetof(LocomotorTemplate, m_canMoveBackward) },
-		{ "BackwardsMoveAngleThreshold",				INI::parseAngleReal,	NULL,	offsetof(LocomotorTemplate, m_backwardsMoveAngleThreshold) },
-		{ "BackwardsMoveDistanceFactorThreshold",	INI::parseReal,			NULL,	offsetof(LocomotorTemplate, m_backwardsMoveDistanceFactorThreshold) },
-		{ "BackwardsMoveSpeedFactor",				INI::parseReal,			NULL,	offsetof(LocomotorTemplate, m_backwardsMoveSpeedFactor) },
-		{ "HasSuspension",				INI::parseBool,			NULL,	offsetof(LocomotorTemplate, m_hasSuspension) },
-		{ "FrontWheelTurnAngle", INI::parseAngleReal, NULL, offsetof(LocomotorTemplate, m_wheelTurnAngle) },
-		{ "MaximumWheelExtension", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_maximumWheelExtension) },
-		{ "MaximumWheelCompression", INI::parseReal, NULL, offsetof(LocomotorTemplate, m_maximumWheelCompression) },
-		{ "CloseEnoughDist",				 INI::parseReal, NULL, offsetof(LocomotorTemplate, m_closeEnoughDist) },
-		{ "CloseEnoughDist3D",			 INI::parseBool, NULL, offsetof(LocomotorTemplate, m_isCloseEnoughDist3D) },
-		{ "SlideIntoPlaceTime",		INI::parseDurationReal, NULL, offsetof(LocomotorTemplate, m_ultraAccurateSlideIntoPlaceFactor) },
+		{ "AccelerationPitchLimit", INI::parseAngleReal, nullptr, offsetof(LocomotorTemplate, m_accelPitchLimit) },
+		{ "DecelerationPitchLimit", INI::parseAngleReal, nullptr, offsetof(LocomotorTemplate, m_decelPitchLimit) }, // Added in Zero Hour
+		{ "BounceAmount", INI::parseAngularVelocityReal, nullptr, offsetof(LocomotorTemplate, m_bounceKick) },
+		{ "PitchStiffness", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_pitchStiffness) },
+		{ "RollStiffness", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rollStiffness) },
+		{ "PitchDamping", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_pitchDamping) },
+		{ "RollDamping", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rollDamping) },
+		{ "ThrustRoll", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_thrustRoll) },
+		{ "ThrustWobbleRate",	INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_wobbleRate) },
+		{ "ThrustMinWobble",	INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_minWobble) },
+		{ "ThrustMaxWobble",	INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_maxWobble) },
+		{ "PitchInDirectionOfZVelFactor", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_pitchByZVelCoef) },
+		{ "ForwardVelocityPitchFactor", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_forwardVelCoef) },
+		{ "LateralVelocityRollFactor", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_lateralVelCoef) },
+		{ "ForwardAccelerationPitchFactor", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_forwardAccelCoef) },
+		{ "LateralAccelerationRollFactor", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_lateralAccelCoef) },
+		{ "UniformAxialDamping", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_uniformAxialDamping) },
+		{ "TurnPivotOffset", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_turnPivotOffset) },
+		{ "Apply2DFrictionWhenAirborne", INI::parseBool, nullptr, offsetof(LocomotorTemplate, m_apply2DFrictionWhenAirborne) },
+		{ "DownhillOnly", INI::parseBool, nullptr, offsetof(LocomotorTemplate, m_downhillOnly) },
+		{ "AllowAirborneMotiveForce", INI::parseBool, nullptr, offsetof(LocomotorTemplate, m_allowMotiveForceWhileAirborne) },
+		{ "LocomotorWorksWhenDead", INI::parseBool, nullptr, offsetof(LocomotorTemplate, m_locomotorWorksWhenDead) },
+		{ "LocomotorWorksWhenDisabled", INI::parseBool, nullptr, offsetof(LocomotorTemplate, m_locomotorWorksWhenDisabled) },
+		{ "AirborneTargetingHeight", INI::parseInt, nullptr, offsetof( LocomotorTemplate, m_airborneTargetingHeight ) },
+		{ "StickToGround",				INI::parseBool,			nullptr,	offsetof(LocomotorTemplate, m_stickToGround) },
+		{ "CanMoveBackwards",				INI::parseBool,			nullptr,	offsetof(LocomotorTemplate, m_canMoveBackward) },
+		{ "BackwardsMoveAngleThreshold",				INI::parseAngleReal,	nullptr,	offsetof(LocomotorTemplate, m_backwardsMoveAngleThreshold) },
+		{ "BackwardsMoveDistanceFactorThreshold",	INI::parseReal,			nullptr,	offsetof(LocomotorTemplate, m_backwardsMoveDistanceFactorThreshold) },
+		{ "BackwardsMoveSpeedFactor",				INI::parseReal,			nullptr,	offsetof(LocomotorTemplate, m_backwardsMoveSpeedFactor) },
+		{ "HasSuspension",				INI::parseBool,			nullptr,	offsetof(LocomotorTemplate, m_hasSuspension) },
+		{ "FrontWheelTurnAngle", INI::parseAngleReal, nullptr, offsetof(LocomotorTemplate, m_wheelTurnAngle) },
+		{ "MaximumWheelExtension", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_maximumWheelExtension) },
+		{ "MaximumWheelCompression", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_maximumWheelCompression) },
+		{ "CloseEnoughDist",				 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_closeEnoughDist) },
+		{ "CloseEnoughDist3D",			 INI::parseBool, nullptr, offsetof(LocomotorTemplate, m_isCloseEnoughDist3D) },
+		{ "SlideIntoPlaceTime",		INI::parseDurationReal, nullptr, offsetof(LocomotorTemplate, m_ultraAccurateSlideIntoPlaceFactor) },
 
 		{ "WanderWidthFactor", INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_wanderWidthFactor) },
 		{ "WanderLengthFactor",				 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_wanderLengthFactor) },
 		{ "WanderAboutPointRadius",				 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_wanderAboutPointRadius) },
 
-		{ "RudderCorrectionDegree",		 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rudderCorrectionDegree) },
-		{ "RudderCorrectionRate",			 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rudderCorrectionRate) },
-		{ "ElevatorCorrectionDegree",	 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_elevatorCorrectionDegree) },
-		{ "ElevatorCorrectionRate",		 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_elevatorCorrectionRate) },
-		{ "RudderCorrectionDegree",		 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rudderCorrectionDegree) },
-		{ "RudderCorrectionRate",			 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rudderCorrectionRate) },
-		{ "ElevatorCorrectionDegree",	 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_elevatorCorrectionDegree) },
-		{ "ElevatorCorrectionRate",		 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_elevatorCorrectionRate) },
+		{ "RudderCorrectionDegree",		 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rudderCorrectionDegree) }, // Added in Zero Hour
+		{ "RudderCorrectionRate",			 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_rudderCorrectionRate) }, // Added in Zero Hour
+		{ "ElevatorCorrectionDegree",	 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_elevatorCorrectionDegree) }, // Added in Zero Hour
+		{ "ElevatorCorrectionRate",		 INI::parseReal, nullptr, offsetof(LocomotorTemplate, m_elevatorCorrectionRate) }, // Added in Zero Hour
 		{ "RequiredWaterLevel",        INI::parseUnsignedInt, nullptr, offsetof(LocomotorTemplate, m_requiredWaterLevel)},
 
 		{ nullptr, nullptr, nullptr, 0 }
@@ -843,13 +845,13 @@ void Locomotor::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void Locomotor::loadPostProcess( void )
+void Locomotor::loadPostProcess()
 {
 
 }
 
 //-------------------------------------------------------------------------------------------------
-void Locomotor::startMove(void)
+void Locomotor::startMove()
 {
 	// Reset the donut timer.
 	m_donutTimer = TheGameLogic->getFrame()+DONUT_TIME_DELAY_SECONDS*LOGICFRAMES_PER_SECOND;
@@ -1165,7 +1167,7 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 					break;
 			case LOCO_WHEELS_FOUR:
 			case LOCO_MOTORCYCLE:
-					moveTowardsPositionWheels( obj, physics, goalPos, onPathDistToGoal, desiredSpeed );
+					moveTowardsPositionWheels(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
 					break;
 			case LOCO_TREADS:
 					moveTowardsPositionTreads(obj, physics, goalPos, onPathDistToGoal, desiredSpeed);
@@ -2850,14 +2852,6 @@ void Locomotor::maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physi
 			force.y = accelForce * dir->y;
 			force.z = 0.0f;
 
-
-      // Apply a random kick (if applicable) to dirty-up visually.
-      // The idea is that chopper pilots have to do course corrections all the time
-      // Because of changes in wind, pressure, etc.
-      // Those changes are added here, then the
-
-
-
 			// apply forces to object
 			physics->applyMotiveForce( &force );
 		}
@@ -2983,7 +2977,7 @@ void LocomotorSet::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void LocomotorSet::loadPostProcess( void )
+void LocomotorSet::loadPostProcess()
 {
 
 }

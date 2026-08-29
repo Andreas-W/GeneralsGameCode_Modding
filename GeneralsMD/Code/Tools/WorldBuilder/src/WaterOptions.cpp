@@ -70,7 +70,7 @@ void WaterOptions::setHeight(Int height)
 	}
 }
 
-void WaterOptions::updateTheUI(void)
+void WaterOptions::updateTheUI()
 {
 	PolygonTrigger *theTrigger = WaypointOptions::getSingleSelectedPolygon();
 
@@ -98,7 +98,7 @@ void WaterOptions::updateTheUI(void)
 	}
 }
 
-void WaterOptions::update(void)
+void WaterOptions::update()
 {
 	if (m_staticThis) {
 		m_staticThis->updateTheUI();
@@ -162,7 +162,7 @@ void WaterOptions::OnChangeWaterEdit()
 		PolygonTrigger *pTrig;
 		for (pTrig=PolygonTrigger::getFirstPolygonTrigger(); !didMatch && pTrig; pTrig = pTrig->getNext()) {
 			if (pTrig==theTrigger) continue; // don't check against yourself.
-			AsciiString trigName = pTrig->getTriggerName();
+			const AsciiString& trigName = pTrig->getTriggerName();
 			if (name == trigName) {
 				if (pTrig->isValid()) {
 					didMatch = true;
@@ -405,7 +405,7 @@ void WaterOptions::PopSliderFinished(const long sliderID, long theVal)
 
 }
 
-void WaterOptions::startUpdateHeight(void)
+void WaterOptions::startUpdateHeight()
 {
 	PolygonTrigger *theTrigger = WaypointOptions::getSingleSelectedPolygon();
 	if (!theTrigger) {
@@ -432,7 +432,7 @@ void WaterOptions::startUpdateHeight(void)
 }
 
 
-void WaterOptions::updateHeight(void)
+void WaterOptions::updateHeight()
 {
 	PolygonTrigger *theTrigger = WaypointOptions::getSingleSelectedPolygon();
 	if (!theTrigger || !m_moveUndoable) {
@@ -457,7 +457,7 @@ void WaterOptions::updateHeight(void)
 	pView->Invalidate();
 }
 
-void WaterOptions::endUpdateHeight(void)
+void WaterOptions::endUpdateHeight()
 {
 	REF_PTR_RELEASE(m_moveUndoable); // belongs to pDoc now.
 }

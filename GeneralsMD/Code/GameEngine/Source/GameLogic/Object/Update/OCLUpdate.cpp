@@ -49,19 +49,16 @@ void parseFactionObjectCreationList( INI *ini, void *instance, void *store, cons
 	info.m_ocl = nullptr;
 
 	const char *token = ini->getNextToken( ini->getSepsColon() );
-
 	if ( stricmp(token, "Faction") == 0 )
 	{
-		token = ini->getNextTokenOrNull( ini->getSepsColon() );
-		if (!token)	throw INI_INVALID_DATA;
-
+		token = ini->getNextToken( ini->getSepsColon() );
 		info.m_factionName = token;
 	}
 	else
 		throw INI_INVALID_DATA;
 
 
-	token = ini->getNextTokenOrNull( ini->getSepsColon() );
+	token = ini->getNextToken( ini->getSepsColon() );
 	if ( stricmp(token, "OCL") == 0 )
 		ini->parseObjectCreationList( ini, instance, &info.m_ocl, nullptr );
 	else
@@ -116,13 +113,13 @@ OCLUpdate::OCLUpdate( Thing *thing, const ModuleData* moduleData ) : UpdateModul
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-OCLUpdate::~OCLUpdate( void )
+OCLUpdate::~OCLUpdate()
 {
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime OCLUpdate::update( void )
+UpdateSleepTime OCLUpdate::update()
 {
 #if RETAIL_COMPATIBLE_CRC
 	if( getObject()->isDisabled() )
@@ -331,7 +328,7 @@ void OCLUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void OCLUpdate::loadPostProcess( void )
+void OCLUpdate::loadPostProcess()
 {
 
 	// extend base class

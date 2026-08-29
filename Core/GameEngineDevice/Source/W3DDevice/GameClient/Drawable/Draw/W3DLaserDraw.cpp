@@ -262,7 +262,7 @@ W3DLaserDraw::W3DLaserDraw( Thing *thing, const ModuleData* moduleData ) :
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-W3DLaserDraw::~W3DLaserDraw( void )
+W3DLaserDraw::~W3DLaserDraw()
 {
 	const W3DLaserDrawModuleData *data = getW3DLaserDrawModuleData();
 
@@ -376,21 +376,21 @@ void W3DLaserDraw::doDrawModule(const Matrix3D* transformMtx)
 
 				//Get the desired direct line
 				Coord3D lineStart, lineEnd, lineVector;
-				lineStart.set( update->getStartPos() );
-				lineEnd.set( update->getEndPos() );
+				lineStart.set( *update->getStartPos() );
+				lineEnd.set( *update->getEndPos() );
 				//This is critical -- in the case we have sloped lines (at the end, we'll fix it)
 //				lineEnd.z = lineStart.z;
 
 				//Get the length of the line
-				lineVector.set( &lineEnd );
-				lineVector.sub( &lineStart );
+				lineVector.set( lineEnd );
+				lineVector.sub( lineStart );
 				Real lineLength = lineVector.length();
 
 				//Get the middle point (we'll use this to determine how far we are from
 				//that to calculate our height -- middle point is the highest).
 				Coord3D lineMiddle;
-				lineMiddle.set( &lineStart );
-				lineMiddle.add( &lineEnd );
+				lineMiddle.set( lineStart );
+				lineMiddle.add( lineEnd );
 				lineMiddle.scale( 0.5 );
 
 				//The half length is used to scale with the distance from middle to
@@ -414,16 +414,16 @@ void W3DLaserDraw::doDrawModule(const Matrix3D* transformMtx)
 
 				//Calculate our start segment position on the *ground*.
 				Coord3D segmentStart, segmentEnd, vector;
-				vector.set( &lineVector );
+				vector.set( lineVector );
 				vector.scale( startSegmentRatio );
-				segmentStart.set( &lineStart );
-				segmentStart.add( &vector );
+				segmentStart.set( lineStart );
+				segmentStart.add( vector );
 
 				//Calculate our end segment position on the *ground*.
-				vector.set( &lineVector );
+				vector.set( lineVector );
 				vector.scale( endSegmentRatio );
-				segmentEnd.set( &lineStart );
-				segmentEnd.add( &vector );
+				segmentEnd.set( lineStart );
+				segmentEnd.add( vector );
 
 				//--------------------------------------------------------------------------------
 				//Now at this point, we have our segment line in the level positions that we want.
@@ -431,8 +431,8 @@ void W3DLaserDraw::doDrawModule(const Matrix3D* transformMtx)
 				//--------------------------------------------------------------------------------
 
 				//Calculate the distance from midpoint for the start positions.
-				vector.set( &lineMiddle );
-				vector.sub( &segmentStart );
+				vector.set( lineMiddle );
+				vector.sub( segmentStart );
 				Real dist = vector.length();
 				Real scaledRadians = dist / halfLength * PI * 0.5f;
 				Real height = cos( scaledRadians );
@@ -440,8 +440,8 @@ void W3DLaserDraw::doDrawModule(const Matrix3D* transformMtx)
 				segmentStart.z += height;
 
 				//Now do the same thing for the end position.
-				vector.set( &lineMiddle );
-				vector.sub( &segmentEnd );
+				vector.set( lineMiddle );
+				vector.sub( segmentEnd );
 				dist = vector.length();
 				scaledRadians = dist / halfLength * PI * 0.5f;
 				height = cos( scaledRadians );
@@ -551,8 +551,6 @@ void W3DLaserDraw::doDrawModule(const Matrix3D* transformMtx)
 			}
 		}
 	}
-
-	return;
 }
 
 
@@ -591,7 +589,7 @@ void W3DLaserDraw::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void W3DLaserDraw::loadPostProcess( void )
+void W3DLaserDraw::loadPostProcess()
 {
 
 	// extend base class

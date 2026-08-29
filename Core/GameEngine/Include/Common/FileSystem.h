@@ -53,7 +53,7 @@
 
 #include <Utility/hash_map_adapter.h>
 
-#include "mutex.h"
+#include "WWLib/mutex.h"
 
 //----------------------------------------------------------------------------
 //           Forward References
@@ -63,7 +63,7 @@
 //           Type Defines
 //----------------------------------------------------------------------------
 
-typedef std::set<AsciiString, rts::less_than_nocase<AsciiString> > FilenameList;
+typedef std::set<AsciiString, rts::less_than_nocase<AsciiString>/**/> FilenameList;
 typedef FilenameList::iterator FilenameListIter;
 typedef UnsignedByte FileInstance;
 
@@ -134,6 +134,8 @@ struct FileInfo {
 // TheSuperHackers @bugfix xezon 26/10/2025 Adds a mutex to the file exist map to try prevent
 // application hangs during level load after the file exist map was corrupted because of writes
 // from multiple threads.
+//
+// TheSuperHackers @feature Mauller 24/04/2026 Add extension removal functions
 //===============================
 class FileSystem : public SubsystemInterface
 {
@@ -142,11 +144,11 @@ class FileSystem : public SubsystemInterface
 
 public:
 	FileSystem();
-	virtual	~FileSystem();
+	virtual ~FileSystem() override;
 
-	void init();
-	void reset();
-	void update();
+	virtual void init() override;
+	virtual void reset() override;
+	virtual void update() override;
 
 	File* openFile( const Char *filename, Int access = File::NONE, size_t bufferSize = File::BUFFERSIZE, FileInstance instance = 0 ); ///< opens a File interface to the specified file
 	Bool doesFileExist(const Char *filename, FileInstance instance = 0) const; ///< returns TRUE if the file exists.  filename should have no directory.
@@ -157,6 +159,9 @@ public:
 
 	static AsciiString normalizePath(const AsciiString& path);	///< normalizes a file path. The path can refer to a directory. File path must be absolute, but does not need to exist. Returns an empty string on failure.
 	static Bool isPathInDirectory(const AsciiString& testPath, const AsciiString& basePath);	///< determines if a file path is within a base path. Both paths must be absolute, but do not need to exist.
+
+	static bool removeExtension(AsciiString& path);
+	static bool removeExtension(UnicodeString& path);
 
 protected:
 #if ENABLE_FILESYSTEM_EXISTENCE_CACHE
@@ -169,7 +174,7 @@ protected:
 	typedef std::hash_map<
 		rts::string_key<AsciiString>, FileExistData,
 		rts::string_key_hash<AsciiString>,
-		rts::string_key_equal<AsciiString> > FileExistMap;
+		rts::string_key_equal<AsciiString>/**/> FileExistMap;
 
 	mutable FileExistMap m_fileExist;
 	mutable FastCriticalSectionClass m_fileExistMutex;

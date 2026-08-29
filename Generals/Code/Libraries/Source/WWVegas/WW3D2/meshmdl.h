@@ -36,22 +36,22 @@
 
 #pragma once
 
-#include "vector2.h"
-#include "vector3.h"
-#include "vector4.h"
-#include "Vector3i.h"
-#include "sharebuf.h"
+#include "WWMath/vector2.h"
+#include "WWMath/vector3.h"
+#include "WWMath/vector4.h"
+#include "WWMath/Vector3i.h"
+#include "WWLib/sharebuf.h"
 #include "shader.h"
-#include "wwdebug.h"
+#include "WWDebug/wwdebug.h"
 #include "vertmaterial.h"
-#include "bittype.h"
-#include "colmath.h"
-#include "simplevec.h"
-#include "wwstring.h"
+#include "WWLib/bittype.h"
+#include "WWMath/colmath.h"
+#include "WWLib/simplevec.h"
+#include "WWLib/wwstring.h"
 #include "rinfo.h"
 #include "meshgeometry.h"
 #include "meshmatdesc.h"
-#include "dx8list.h"
+#include "WW3D2/dx8list.h"
 
 class TextureClass;
 class RenderInfoClass;
@@ -117,9 +117,9 @@ struct VertexFormatXYZNDUV2;
 ** GapFillerClass
 ** This class is used to generate gap-filling polygons for "N-Patched" meshes
 */
-class GapFillerClass : public W3DMPO
+class GapFillerClass
 {
-	W3DMPO_GLUE(GapFillerClass)
+	W3DMPO_CODE(GapFillerClass)
 
 	TriIndex* PolygonArray;
 	unsigned PolygonCount;
@@ -129,7 +129,7 @@ class GapFillerClass : public W3DMPO
 	ShaderClass* ShaderArray[MeshMatDescClass::MAX_PASSES];
 	MeshModelClass* mmc;
 
-	GapFillerClass& operator = (const GapFillerClass&) CPP_11(= delete);
+	GapFillerClass& operator = (const GapFillerClass&) FUNCTION_DELETE;
 public:
 	GapFillerClass(MeshModelClass* mmc);
 	GapFillerClass(const GapFillerClass& that);
@@ -147,14 +147,14 @@ public:
 
 class MeshModelClass : public MeshGeometryClass
 {
-	W3DMPO_GLUE(MeshModelClass)
+	W3DMPO_CODE(MeshModelClass)
 	GapFillerClass* GapFiller;
 
 public:
 
-	MeshModelClass(void);
+	MeshModelClass();
 	MeshModelClass(const MeshModelClass & that);
-	~MeshModelClass(void);
+	virtual ~MeshModelClass() override;
 
 	MeshModelClass & operator = (const MeshModelClass & that);
 	void							Reset(int polycount,int vertcount,int passcount);
@@ -166,10 +166,10 @@ public:
 	// material description.
 	/////////////////////////////////////////////////////////////////////////////////////
 	void							Set_Pass_Count(int passes)														{ CurMatDesc->Set_Pass_Count(passes); }
-	int							Get_Pass_Count(void) const														{ return CurMatDesc->Get_Pass_Count(); }
+	int							Get_Pass_Count() const														{ return CurMatDesc->Get_Pass_Count(); }
 
 	const Vector2 *			Get_UV_Array(int pass = 0, int stage = 0)									{ return CurMatDesc->Get_UV_Array(pass,stage); }
-	int							Get_UV_Array_Count(void)														{ return CurMatDesc->Get_UV_Array_Count(); }
+	int							Get_UV_Array_Count()														{ return CurMatDesc->Get_UV_Array_Count(); }
 	const Vector2 *			Get_UV_Array_By_Index(int index)												{ return CurMatDesc->Get_UV_Array_By_Index(index, false); }
 
 	unsigned *					Get_DCG_Array(int pass)															{ return CurMatDesc->Get_DCG_Array(pass); }
@@ -224,7 +224,7 @@ public:
 	void							Make_Color_Array_Unique(int array_index=0);
 
 	// Load the w3d file format
-	WW3DErrorType				Load_W3D(ChunkLoadClass & cload);
+	virtual WW3DErrorType				Load_W3D(ChunkLoadClass & cload) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	//	Decal interface
@@ -237,21 +237,21 @@ public:
 	// Some models will allow you to alternate between multiple material descriptions
 	/////////////////////////////////////////////////////////////////////////////////////
 	void							Enable_Alternate_Material_Description(bool onoff);
-	bool							Is_Alternate_Material_Description_Enabled(void);
+	bool							Is_Alternate_Material_Description_Enabled();
 
 	// Process texture reductions
-//	void							Process_Texture_Reduction(void);
+//	void							Process_Texture_Reduction();
 
 	// FVF category container will be null if the mesh hasn't been registered to the rendering system
 	DX8FVFCategoryContainer* Peek_FVF_Category_Container();
 
 	// Determine whether any rendering feature used by this mesh requires vertex normals
-	bool							Needs_Vertex_Normals(void);
+	bool							Needs_Vertex_Normals();
 
 	void							Init_For_NPatch_Rendering();
 	const GapFillerClass*	Get_Gap_Filler() const { return GapFiller; }
 
-	bool							Has_Polygon_Renderers(void) { return !PolygonRendererList.Is_Empty(); }
+	bool							Has_Polygon_Renderers() { return !PolygonRendererList.Is_Empty(); }
 
 protected:
 
@@ -314,12 +314,12 @@ protected:
 	WW3DErrorType read_prelit_material (ChunkLoadClass &cload, MeshLoadContextClass *context);
 
 	// post-processing
-	void post_process(void);
-	void post_process_fog(void);
+	void post_process();
+	void post_process_fog();
 
 	unsigned int get_sort_flags(int pass) const;
-	unsigned int get_sort_flags(void) const;
-	void compute_static_sort_levels(void);
+	unsigned int get_sort_flags() const;
+	void compute_static_sort_levels();
 
 	// mat info support
 	void install_materials(MeshLoadContextClass * loadinfo);

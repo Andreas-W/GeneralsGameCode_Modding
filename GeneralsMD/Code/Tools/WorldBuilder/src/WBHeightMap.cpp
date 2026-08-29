@@ -41,9 +41,9 @@
 //-----------------------------------------------------------------------------
 #include "WBHeightMap.h"
 #include "Common/GlobalData.h"
-#include <tri.h>
-#include <colmath.h>
-#include <coltest.h>
+#include <WWMath/tri.h>
+#include <WWMath/colmath.h>
+#include <WW3D2/coltest.h>
 
 #define dontUSE_FLAT_HEIGHT_MAP
 //-----------------------------------------------------------------------------
@@ -84,7 +84,7 @@ void WBHeightMap::setFlattenHeights(Bool flat)
 //=============================================================================
 /** Flattens the terrain for the top down view.. */
 //=============================================================================
-void WBHeightMap::flattenHeights(void) {
+void WBHeightMap::flattenHeights() {
 #ifndef USE_FLAT_HEIGHT_MAP
 	Real theZ = THE_Z;
 	Int i, j;

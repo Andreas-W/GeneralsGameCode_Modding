@@ -73,7 +73,7 @@
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-CostModifierUpgradeModuleData::CostModifierUpgradeModuleData( void )
+CostModifierUpgradeModuleData::CostModifierUpgradeModuleData()
 {
 
 	m_kindOf = KINDOFMASK_NONE;
@@ -116,14 +116,14 @@ CostModifierUpgrade::CostModifierUpgrade( Thing *thing, const ModuleData* module
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-CostModifierUpgrade::~CostModifierUpgrade( void )
+CostModifierUpgrade::~CostModifierUpgrade()
 {
 
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void CostModifierUpgrade::onDelete( void )
+void CostModifierUpgrade::onDelete()
 {
 	const CostModifierUpgradeModuleData* d = getCostModifierUpgradeModuleData();
 	
@@ -190,7 +190,7 @@ void CostModifierUpgrade::onCapture( Player *oldOwner, Player *newOwner )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void CostModifierUpgrade::upgradeImplementation( void )
+void CostModifierUpgrade::upgradeImplementation()
 {
 	const CostModifierUpgradeModuleData * d = getCostModifierUpgradeModuleData();
 
@@ -238,7 +238,7 @@ void CostModifierUpgrade::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void CostModifierUpgrade::loadPostProcess( void )
+void CostModifierUpgrade::loadPostProcess()
 {
 
 	// extend base class

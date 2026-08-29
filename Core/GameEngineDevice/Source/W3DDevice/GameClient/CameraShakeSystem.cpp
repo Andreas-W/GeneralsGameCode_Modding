@@ -37,13 +37,13 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include <stdlib.h>
-#include <assetmgr.h>
-#include <texture.h>
-#include <tri.h>
-#include <colmath.h>
-#include <coltest.h>
-#include <rinfo.h>
-#include <camera.h>
+#include <WW3D2/assetmgr.h>
+#include <WW3D2/texture.h>
+#include <WWMath/tri.h>
+#include <WWMath/colmath.h>
+#include <WW3D2/coltest.h>
+#include <WW3D2/rinfo.h>
+#include <WW3D2/camera.h>
 #include <d3dx8core.h>
 #include "Common/GlobalData.h"
 #include "Common/PerfTimer.h"
@@ -63,7 +63,6 @@
 #include "W3DDevice/GameClient/W3DRoadBuffer.h"
 #include "W3DDevice/GameClient/W3DBridgeBuffer.h"
 #include "W3DDevice/GameClient/W3DWaypointBuffer.h"
-#include "W3DDevice/GameClient/W3DCustomEdging.h"
 #include "W3DDevice/GameClient/WorldHeightMap.h"
 #include "W3DDevice/GameClient/W3DShaderManager.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
@@ -128,7 +127,7 @@ CameraShakeSystemClass::CameraShakerClass::CameraShakerClass
 	Phi.Z = WWMath::Random_Float(MIN_PHI,MAX_PHI);
 }
 
-CameraShakeSystemClass::CameraShakerClass::~CameraShakerClass(void)
+CameraShakeSystemClass::CameraShakerClass::~CameraShakerClass()
 {
 }
 
@@ -181,11 +180,11 @@ void CameraShakeSystemClass::CameraShakerClass::Compute_Rotations(const Vector3 
 ** CameraShakeSystemClass Implementation
 **
 ************************************************************************************************/
-CameraShakeSystemClass::CameraShakeSystemClass(void)
+CameraShakeSystemClass::CameraShakeSystemClass()
 {
 }
 
-CameraShakeSystemClass::~CameraShakeSystemClass(void)
+CameraShakeSystemClass::~CameraShakeSystemClass()
 {
 	/*
 	** delete all of the objects out of the list
@@ -218,7 +217,7 @@ void CameraShakeSystemClass::Add_Camera_Shake
 	CameraShakerList.Add(shaker);
 }
 
-bool CameraShakeSystemClass::IsCameraShaking(void)
+bool CameraShakeSystemClass::IsCameraShaking()
 {
 	/*
 	** Loop through to find if there is any active camera shakers

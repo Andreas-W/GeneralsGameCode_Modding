@@ -36,8 +36,8 @@
 #include "part_ldr.h"
 #include "part_emt.h"
 #include "w3derr.h"
-#include "chunkio.h"
-#include "win.h"		// for lstrcpy, can this be improved?
+#include "WWLib/chunkio.h"
+#include "WWLib/win.h"		// for lstrcpy, can this be improved?
 #include "assetmgr.h"
 #include "texture.h"
 
@@ -67,7 +67,7 @@ const char *EMITTER_TYPE_NAMES[EMITTER_TYPEID_COUNT] =
 //
 //	ParticleEmitterDefClass
 //
-ParticleEmitterDefClass::ParticleEmitterDefClass (void)
+ParticleEmitterDefClass::ParticleEmitterDefClass ()
 	:	m_pName (nullptr),
 		m_Version (0L),
 		m_pUserString (nullptr),
@@ -87,7 +87,6 @@ ParticleEmitterDefClass::ParticleEmitterDefClass (void)
 	::memset (&m_FrameKeyframes, 0, sizeof (m_FrameKeyframes));
 	::memset (&m_BlurTimeKeyframes, 0, sizeof (m_BlurTimeKeyframes));
 	::memset (&m_LineProperties, 0, sizeof (m_LineProperties));
-	return ;
 }
 
 
@@ -117,7 +116,6 @@ ParticleEmitterDefClass::ParticleEmitterDefClass (const ParticleEmitterDefClass 
 	::memset (&m_LineProperties, 0, sizeof (m_LineProperties));
 
 	(*this) = src;
-	return ;
 }
 
 
@@ -125,7 +123,7 @@ ParticleEmitterDefClass::ParticleEmitterDefClass (const ParticleEmitterDefClass 
 //
 //	~ParticleEmitterDefClass
 //
-ParticleEmitterDefClass::~ParticleEmitterDefClass (void)
+ParticleEmitterDefClass::~ParticleEmitterDefClass ()
 {
 	// Free the name buffer if necessary
 	if (m_pName != nullptr) {
@@ -147,7 +145,6 @@ ParticleEmitterDefClass::~ParticleEmitterDefClass (void)
 
 	SAFE_DELETE (m_pCreationVolume);
 	SAFE_DELETE (m_pVelocityRandomizer);
-	return ;
 }
 
 
@@ -201,7 +198,7 @@ ParticleEmitterDefClass::operator= (const ParticleEmitterDefClass &src)
 //	Free_Props
 //
 void
-ParticleEmitterDefClass::Free_Props (void)
+ParticleEmitterDefClass::Free_Props ()
 {
 	m_ColorKeyframes.NumKeyFrames = 0;
 	m_OpacityKeyframes.NumKeyFrames = 0;
@@ -222,8 +219,6 @@ ParticleEmitterDefClass::Free_Props (void)
 	SAFE_DELETE_ARRAY (m_FrameKeyframes.Values);
 	SAFE_DELETE_ARRAY (m_BlurTimeKeyframes.KeyTimes);
 	SAFE_DELETE_ARRAY (m_BlurTimeKeyframes.Values);
-
-	return ;
 }
 
 
@@ -243,8 +238,6 @@ ParticleEmitterDefClass::Set_Velocity_Random (Vector3Randomizer *randomizer)
 	if (m_pVelocityRandomizer != nullptr) {
 		Initialize_Randomizer_Struct (*m_pVelocityRandomizer, m_InfoV2.VelRandom);
 	}
-
-	return ;
 }
 
 
@@ -264,8 +257,6 @@ ParticleEmitterDefClass::Set_Creation_Volume (Vector3Randomizer *randomizer)
 	if (m_pCreationVolume != nullptr) {
 		Initialize_Randomizer_Struct (*m_pCreationVolume, m_InfoV2.CreationVolume);
 	}
-
-	return ;
 }
 
 
@@ -278,7 +269,6 @@ ParticleEmitterDefClass::Set_User_String (const char *pstring)
 {
 	SAFE_FREE (m_pUserString);
 	m_pUserString = ::_strdup (pstring);
-	return ;
 }
 
 
@@ -291,7 +281,6 @@ ParticleEmitterDefClass::Set_Name (const char *pname)
 {
 	SAFE_FREE (m_pName);
 	m_pName = ::_strdup (pname);
-	return ;
 }
 
 
@@ -304,7 +293,6 @@ ParticleEmitterDefClass::Set_Texture_Filename (const char *pname)
 {
 	::lstrcpy (m_Info.TextureFilename, pname);
 	Normalize_Filename ();
-	return ;
 }
 
 
@@ -313,7 +301,7 @@ ParticleEmitterDefClass::Set_Texture_Filename (const char *pname)
 //	Normalize_Filename
 //
 void
-ParticleEmitterDefClass::Normalize_Filename (void)
+ParticleEmitterDefClass::Normalize_Filename ()
 {
 	TCHAR path[MAX_PATH];
 	::lstrcpy (path, m_Info.TextureFilename);
@@ -328,8 +316,6 @@ ParticleEmitterDefClass::Normalize_Filename (void)
 		// Now copy the filename portion of the path to the structure
 		::lstrcpy (m_Info.TextureFilename, filename);
 	}
-
-	return ;
 }
 
 
@@ -412,7 +398,7 @@ ParticleEmitterDefClass::Load_W3D (ChunkLoadClass &chunk_load)
 //	Initialize_To_Ver2
 //
 void
-ParticleEmitterDefClass::Initialize_To_Ver2 (void)
+ParticleEmitterDefClass::Initialize_To_Ver2 ()
 {
 	::memset (&m_Info, 0, sizeof (m_Info));
 	::memset (&m_InfoV2, 0, sizeof (m_InfoV2));
@@ -437,7 +423,6 @@ ParticleEmitterDefClass::Initialize_To_Ver2 (void)
 	m_InfoV2.VelRandom.Value3 = 0;
 
 	Free_Props ();
-	return ;
 }
 
 
@@ -446,7 +431,7 @@ ParticleEmitterDefClass::Initialize_To_Ver2 (void)
 //	Convert_To_Ver2
 //
 void
-ParticleEmitterDefClass::Convert_To_Ver2 (void)
+ParticleEmitterDefClass::Convert_To_Ver2 ()
 {
 	if (m_Version < 0x00020000) {
 		m_InfoV2.BurstSize = 1;
@@ -514,8 +499,6 @@ ParticleEmitterDefClass::Convert_To_Ver2 (void)
 		m_SizeKeyframes.Rand = 0;
 		m_SizeKeyframes.NumKeyFrames = 0;
 	}
-
-	return ;
 }
 
 
@@ -695,8 +678,6 @@ ParticleEmitterDefClass::Initialize_Randomizer_Struct
 			info.Value2 = ((Vector3SolidCylinderRandomizer &)randomizer).Get_Radius ();
 			break;
 	}
-
-	return ;
 }
 
 
@@ -1687,7 +1668,6 @@ ParticleEmitterDefClass::Set_Color_Keyframes (ParticlePropertyStruct<Vector3> &k
 	SAFE_DELETE_ARRAY (m_ColorKeyframes.Values);
 
 	::Copy_Emitter_Property_Struct (m_ColorKeyframes, keyframes);
-	return ;
 }
 
 
@@ -1702,7 +1682,6 @@ ParticleEmitterDefClass::Set_Opacity_Keyframes (ParticlePropertyStruct<float> &k
 	SAFE_DELETE_ARRAY (m_OpacityKeyframes.Values);
 
 	::Copy_Emitter_Property_Struct (m_OpacityKeyframes, keyframes);
-	return ;
 }
 
 
@@ -1717,7 +1696,6 @@ ParticleEmitterDefClass::Set_Size_Keyframes (ParticlePropertyStruct<float> &keyf
 	SAFE_DELETE_ARRAY (m_SizeKeyframes.Values);
 
 	::Copy_Emitter_Property_Struct (m_SizeKeyframes, keyframes);
-	return ;
 }
 
 
@@ -1733,7 +1711,6 @@ ParticleEmitterDefClass::Set_Rotation_Keyframes (ParticlePropertyStruct<float> &
 
 	::Copy_Emitter_Property_Struct (m_RotationKeyframes, keyframes);
 	m_InitialOrientationRandom = orient_rnd;
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1747,7 +1724,6 @@ ParticleEmitterDefClass::Set_Frame_Keyframes (ParticlePropertyStruct<float> &key
 	SAFE_DELETE_ARRAY (m_FrameKeyframes.Values);
 
 	::Copy_Emitter_Property_Struct (m_FrameKeyframes, keyframes);
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1761,7 +1737,6 @@ ParticleEmitterDefClass::Set_Blur_Time_Keyframes (ParticlePropertyStruct<float> 
 	SAFE_DELETE_ARRAY (m_BlurTimeKeyframes.Values);
 
 	::Copy_Emitter_Property_Struct (m_BlurTimeKeyframes, keyframes);
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1772,7 +1747,6 @@ void
 ParticleEmitterDefClass::Get_Color_Keyframes (ParticlePropertyStruct<Vector3> &keyframes) const
 {
 	::Copy_Emitter_Property_Struct (keyframes, m_ColorKeyframes);
-	return ;
 }
 
 
@@ -1784,7 +1758,6 @@ void
 ParticleEmitterDefClass::Get_Opacity_Keyframes (ParticlePropertyStruct<float> &keyframes) const
 {
 	::Copy_Emitter_Property_Struct (keyframes, m_OpacityKeyframes);
-	return ;
 }
 
 
@@ -1796,7 +1769,6 @@ void
 ParticleEmitterDefClass::Get_Size_Keyframes (ParticlePropertyStruct<float> &keyframes) const
 {
 	::Copy_Emitter_Property_Struct (keyframes, m_SizeKeyframes);
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1807,7 +1779,6 @@ void
 ParticleEmitterDefClass::Get_Rotation_Keyframes (ParticlePropertyStruct<float> &keyframes) const
 {
 	::Copy_Emitter_Property_Struct (keyframes, m_RotationKeyframes);
-	return ;
 }
 
 
@@ -1819,7 +1790,6 @@ void
 ParticleEmitterDefClass::Get_Frame_Keyframes (ParticlePropertyStruct<float> &keyframes) const
 {
 	::Copy_Emitter_Property_Struct (keyframes, m_FrameKeyframes);
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -1830,7 +1800,6 @@ void
 ParticleEmitterDefClass::Get_Blur_Time_Keyframes (ParticlePropertyStruct<float> &blurtimeframes) const
 {
 	::Copy_Emitter_Property_Struct (blurtimeframes, m_BlurTimeKeyframes);
-	return ;
 }
 
 
@@ -1839,7 +1808,7 @@ ParticleEmitterDefClass::Get_Blur_Time_Keyframes (ParticlePropertyStruct<float> 
 //	Create
 //
 RenderObjClass *
-ParticleEmitterPrototypeClass::Create (void)
+ParticleEmitterPrototypeClass::Create ()
 {
 	return ParticleEmitterClass::Create_From_Definition (*m_pDefinition);
 }

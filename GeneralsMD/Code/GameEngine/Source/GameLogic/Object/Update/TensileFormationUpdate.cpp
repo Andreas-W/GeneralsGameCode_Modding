@@ -72,9 +72,9 @@ private:
 public:
 	PartitionFilterTensileFormationMember( Object* obj ) : m_obj( obj ) { }
 #if defined(RTS_DEBUG)
-	virtual const char* debugGetName() { return "PartitionFilterTensileFormationMember"; }
+	virtual const char* debugGetName() override { return "PartitionFilterTensileFormationMember"; }
 #endif
-	virtual Bool allow( Object *objOther )
+	virtual Bool allow( Object *objOther ) override
 	{
 		return ( getTFU( objOther ) != nullptr );
 	}
@@ -83,7 +83,7 @@ public:
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-TensileFormationUpdateModuleData::TensileFormationUpdateModuleData( void )
+TensileFormationUpdateModuleData::TensileFormationUpdateModuleData()
 {
 
 	m_enabled = FALSE;
@@ -153,14 +153,14 @@ TensileFormationUpdate::TensileFormationUpdate( Thing *thing, const ModuleData *
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-TensileFormationUpdate::~TensileFormationUpdate( void )
+TensileFormationUpdate::~TensileFormationUpdate()
 {
 
 }
 
 
 
-void TensileFormationUpdate::initLinks( void )
+void TensileFormationUpdate::initLinks()
 {
 
 	m_linksInited = TRUE;
@@ -214,7 +214,7 @@ void TensileFormationUpdate::initLinks( void )
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-UpdateSleepTime TensileFormationUpdate::update( void )
+UpdateSleepTime TensileFormationUpdate::update()
 {
 
 	if ( ! m_linksInited )
@@ -281,7 +281,7 @@ UpdateSleepTime TensileFormationUpdate::update( void )
 	Real steepness = 1.0f - normal.z;
 	slope.scale( 0.3f + steepness);
 
-	m_inertia.add( &slope );
+	m_inertia.add( slope );
 
 	Real friction = 0.95f;
 	m_inertia.scale( friction );
@@ -313,7 +313,7 @@ UpdateSleepTime TensileFormationUpdate::update( void )
 
 			Coord3D tensor = m_links[ t ].tensor;
 
-			desiredPos.sub( &tensor );
+			desiredPos.sub( tensor );
 
 			//Coord3D desiredPos = { theirPos->x - m_links[ t ].tensor.x, theirPos->y - m_links[ t ].tensor.y, theirPos->z - m_links[ t ].tensor.z };
 
@@ -322,7 +322,7 @@ UpdateSleepTime TensileFormationUpdate::update( void )
 			newPos.z = MIN( m_lowestSlideElevation, TheTerrainLogic->getGroundHeight(newPos.x, newPos.y) );//rest on surface here
 
 			tensor.normalize();
-			tensorSum.add( &tensor );
+			tensorSum.add( tensor );
 
 		}
 
@@ -466,7 +466,7 @@ void TensileFormationUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TensileFormationUpdate::loadPostProcess( void )
+void TensileFormationUpdate::loadPostProcess()
 {
 
 	// extend base class

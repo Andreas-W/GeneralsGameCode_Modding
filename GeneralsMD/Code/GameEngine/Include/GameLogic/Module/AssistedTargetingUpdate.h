@@ -39,15 +39,13 @@ public:
 	Int m_clipSize;
 	WeaponSlotType m_weaponSlot;
 
-  AsciiString m_laserFromAssistedName;
-  AsciiString m_laserToTargetName;
+	AsciiString m_laserFromAssistedName;
+	AsciiString m_laserToTargetName;
 
 	AssistedTargetingUpdateModuleData()
 	{
 		m_clipSize = 1;
 		m_weaponSlot = PRIMARY_WEAPON;
-    m_laserFromAssistedName.clear();
-    m_laserToTargetName.clear();
 	}
 
 	static void buildFieldParse(MultiIniFieldParse& p);
@@ -66,7 +64,7 @@ public:
 	AssistedTargetingUpdate( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
-	virtual UpdateSleepTime update( void );
+	virtual UpdateSleepTime update() override;
 
 	Bool isFreeToAssist() const;
 	void assistAttack( const Object *requestingObject, Object *victimObject );
@@ -76,6 +74,4 @@ private:
 
 	const ThingTemplate *m_laserFromAssisted;
 	const ThingTemplate *m_laserToTarget;
-
-
 };

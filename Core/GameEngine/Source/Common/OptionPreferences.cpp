@@ -38,6 +38,7 @@
 #include "Common/OptionPreferences.h"
 
 #include "GameClient/ClientInstance.h"
+#include "GameClient/Display.h"
 #include "GameClient/LookAtXlat.h"
 #include "GameClient/Mouse.h"
 
@@ -66,7 +67,42 @@ Bool OptionPreferences::loadFromIniFile()
 	return load("Options.ini");
 }
 
-Int OptionPreferences::getCampaignDifficulty(void)
+WW3D::MultiSampleModeEnum OptionPreferences::getAntiAliasing() const
+{
+	OptionPreferences::const_iterator it = find("AntiAliasing");
+	if (it == end())
+		return WW3D::MULTISAMPLE_MODE_NONE;
+
+	WW3D::MultiSampleModeEnum level = (WW3D::MultiSampleModeEnum)atoi(it->second.str());
+	level = clamp(WW3D::MULTISAMPLE_MODE_NONE, level, WW3D::MULTISAMPLE_MODE_8X);
+	level = highestBit(level);
+
+	return level;
+}
+
+TextureFilterClass::TextureFilterMode OptionPreferences::getTextureFilterMode() const
+{
+	OptionPreferences::const_iterator it = find("TextureFilter");
+	if (it == end())
+		return TextureFilterClass::TEXTURE_FILTER_BILINEAR;
+
+	return TextureFilterClass::getTextureFilterMode(it->second.str());
+}
+
+TextureFilterClass::AnisotropicFilterMode OptionPreferences::getTextureAnisotropyLevel() const
+{
+	OptionPreferences::const_iterator it = find("AnisotropyLevel");
+	if (it == end())
+		return TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_2X;
+
+	TextureFilterClass::AnisotropicFilterMode level = (TextureFilterClass::AnisotropicFilterMode)atoi(it->second.str());
+	level = clamp(TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_2X, level, TextureFilterClass::TEXTURE_FILTER_ANISOTROPIC_16X);
+	level = highestBit(level);
+
+	return level;
+}
+
+Int OptionPreferences::getCampaignDifficulty()
 {
 	OptionPreferences::const_iterator it = find("CampaignDifficulty");
 	if (it == end())
@@ -88,7 +124,7 @@ void OptionPreferences::setCampaignDifficulty(Int diff)
 	(*this)["CampaignDifficulty"] = prefString;
 }
 
-UnsignedInt OptionPreferences::getLANIPAddress(void)
+UnsignedInt OptionPreferences::getLANIPAddress()
 {
 	AsciiString selectedIP = (*this)["IPAddress"];
 	IPEnumeration IPs;
@@ -116,7 +152,7 @@ void OptionPreferences::setLANIPAddress(UnsignedInt IP)
 	(*this)["IPAddress"] = tmp;
 }
 
-UnsignedInt OptionPreferences::getOnlineIPAddress(void)
+UnsignedInt OptionPreferences::getOnlineIPAddress()
 {
 	AsciiString selectedIP = (*this)["GameSpyIPAddress"];
 	IPEnumeration IPs;
@@ -156,7 +192,7 @@ Bool OptionPreferences::getArchiveReplaysEnabled() const
 	return FALSE;
 }
 
-Bool OptionPreferences::getAlternateMouseModeEnabled(void)
+Bool OptionPreferences::getAlternateMouseModeEnabled()
 {
 	OptionPreferences::const_iterator it = find("UseAlternateMouse");
 	if (it == end())
@@ -168,7 +204,19 @@ Bool OptionPreferences::getAlternateMouseModeEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getRetaliationModeEnabled(void)
+Bool OptionPreferences::getRightMouseScrollWithAlternateMouseEnabled() const
+{
+	OptionPreferences::const_iterator it = find("UseRightMouseScrollWithAlternateMouse");
+	if (it == end())
+		return TheGlobalData->m_useRightMouseScrollWithAlternateMouse;
+
+	if (stricmp(it->second.str(), "yes") == 0) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+Bool OptionPreferences::getRetaliationModeEnabled()
 {
 	OptionPreferences::const_iterator it = find("Retaliation");
 	if (it == end())
@@ -180,7 +228,7 @@ Bool OptionPreferences::getRetaliationModeEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getDoubleClickAttackMoveEnabled(void)
+Bool OptionPreferences::getDoubleClickAttackMoveEnabled()
 {
 	OptionPreferences::const_iterator it = find("UseDoubleClickAttackMove");
 	if( it == end() )
@@ -192,7 +240,19 @@ Bool OptionPreferences::getDoubleClickAttackMoveEnabled(void)
 	return FALSE;
 }
 
-Real OptionPreferences::getScrollFactor(void)
+Int OptionPreferences::getJpegQuality() const
+{
+	OptionPreferences::const_iterator it = find("JpegQuality");
+	if (it == end())
+		return DEFAULT_JPEG_QUALITY;
+
+	// TheSuperHackers @info bobtista 14/07/2026 Clamp the quality to 50-95: above 95 the file
+	// size increases significantly with no visible benefit, below 50 the image degrades visibly.
+	const Int quality = atoi(it->second.str());
+	return clamp(50, quality, 95);
+}
+
+Real OptionPreferences::getScrollFactor()
 {
 	OptionPreferences::const_iterator it = find("ScrollFactor");
 	if (it == end())
@@ -209,7 +269,7 @@ Real OptionPreferences::getScrollFactor(void)
 	return factor/100.0f;
 }
 
-Bool OptionPreferences::getDrawScrollAnchor(void)
+Bool OptionPreferences::getDrawScrollAnchor()
 {
 	OptionPreferences::const_iterator it = find("DrawScrollAnchor");
 	// TheSuperHackers @info this default is based on the same variable within InGameUi.ini
@@ -222,7 +282,7 @@ Bool OptionPreferences::getDrawScrollAnchor(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getMoveScrollAnchor(void)
+Bool OptionPreferences::getMoveScrollAnchor()
 {
 	OptionPreferences::const_iterator it = find("MoveScrollAnchor");
 	// TheSuperHackers @info this default is based on the same variable within InGameUi.ini
@@ -325,7 +385,7 @@ ScreenEdgeScrollMode OptionPreferences::getScreenEdgeScrollMode() const
 	return mode;
 }
 
-Bool OptionPreferences::usesSystemMapDir(void)
+Bool OptionPreferences::usesSystemMapDir()
 {
 	OptionPreferences::const_iterator it = find("UseSystemMapDir");
 	if (it == end())
@@ -337,7 +397,7 @@ Bool OptionPreferences::usesSystemMapDir(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::saveCameraInReplays(void)
+Bool OptionPreferences::saveCameraInReplays()
 {
 	OptionPreferences::const_iterator it = find("SaveCameraInReplays");
 	if (it == end())
@@ -349,7 +409,7 @@ Bool OptionPreferences::saveCameraInReplays(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::useCameraInReplays(void)
+Bool OptionPreferences::useCameraInReplays()
 {
 	OptionPreferences::const_iterator it = find("UseCameraInReplays");
 	if (it == end())
@@ -373,7 +433,7 @@ Bool OptionPreferences::getPlayerObserverEnabled() const
 	return FALSE;
 }
 
-Int OptionPreferences::getIdealStaticGameDetail(void)
+Int OptionPreferences::getIdealStaticGameDetail()
 {
 	OptionPreferences::const_iterator it = find("IdealStaticGameLOD");
 	if (it == end())
@@ -382,25 +442,13 @@ Int OptionPreferences::getIdealStaticGameDetail(void)
 	return TheGameLODManager->getStaticGameLODIndex(it->second);
 }
 
-Int OptionPreferences::getStaticGameDetail(void)
+Int OptionPreferences::getStaticGameDetail()
 {
 	OptionPreferences::const_iterator it = find("StaticGameLOD");
 	if (it == end())
 		return TheGameLODManager->getStaticLODLevel();
 
 	return TheGameLODManager->getStaticGameLODIndex(it->second);
-}
-
-Bool OptionPreferences::getSendDelay(void)
-{
-	OptionPreferences::const_iterator it = find("SendDelay");
-	if (it == end())
-		return TheGlobalData->m_firewallSendDelay;
-
-	if (stricmp(it->second.str(), "yes") == 0) {
-		return TRUE;
-	}
-	return FALSE;
 }
 
 Int OptionPreferences::getFirewallBehavior()
@@ -435,10 +483,10 @@ UnsignedShort OptionPreferences::getFirewallPortOverride()
 		return TheGlobalData->m_firewallPortOverride;
 	}
 
-	Int override = atoi(it->second.str());
-	if (override < 0 || override > 65535)
-		override = 0;
-	return override;
+	Int portOverride = atoi(it->second.str());
+	if (portOverride < 0 || portOverride > 65535)
+		portOverride = 0;
+	return portOverride;
 }
 
 Bool OptionPreferences::getFirewallNeedToRefresh()
@@ -456,7 +504,7 @@ Bool OptionPreferences::getFirewallNeedToRefresh()
 	return retval;
 }
 
-AsciiString OptionPreferences::getPreferred3DProvider(void)
+AsciiString OptionPreferences::getPreferred3DProvider()
 {
 	OptionPreferences::const_iterator it = find("3DAudioProvider");
 	if (it == end())
@@ -464,7 +512,7 @@ AsciiString OptionPreferences::getPreferred3DProvider(void)
 	return it->second;
 }
 
-AsciiString OptionPreferences::getSpeakerType(void)
+AsciiString OptionPreferences::getSpeakerType()
 {
 	OptionPreferences::const_iterator it = find("SpeakerType");
 	if (it == end())
@@ -472,7 +520,7 @@ AsciiString OptionPreferences::getSpeakerType(void)
 	return it->second;
 }
 
-Real OptionPreferences::getSoundVolume(void)
+Real OptionPreferences::getSoundVolume()
 {
 	OptionPreferences::const_iterator it = find("SFXVolume");
 	if (it == end())
@@ -494,7 +542,7 @@ Real OptionPreferences::getSoundVolume(void)
 	return volume;
 }
 
-Real OptionPreferences::get3DSoundVolume(void)
+Real OptionPreferences::get3DSoundVolume()
 {
 	OptionPreferences::const_iterator it = find("SFX3DVolume");
 	if (it == end())
@@ -516,7 +564,7 @@ Real OptionPreferences::get3DSoundVolume(void)
 	return volume;
 }
 
-Real OptionPreferences::getSpeechVolume(void)
+Real OptionPreferences::getSpeechVolume()
 {
 	OptionPreferences::const_iterator it = find("VoiceVolume");
 	if (it == end())
@@ -530,7 +578,7 @@ Real OptionPreferences::getSpeechVolume(void)
 	return volume;
 }
 
-Bool OptionPreferences::getCloudShadowsEnabled(void)
+Bool OptionPreferences::getCloudShadowsEnabled()
 {
 	OptionPreferences::const_iterator it = find("UseCloudMap");
 	if (it == end())
@@ -542,7 +590,7 @@ Bool OptionPreferences::getCloudShadowsEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getLightmapEnabled(void)
+Bool OptionPreferences::getLightmapEnabled()
 {
 	OptionPreferences::const_iterator it = find("UseLightMap");
 	if (it == end())
@@ -554,7 +602,7 @@ Bool OptionPreferences::getLightmapEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getSmoothWaterEnabled(void)
+Bool OptionPreferences::getSmoothWaterEnabled()
 {
 	OptionPreferences::const_iterator it = find("ShowSoftWaterEdge");
 	if (it == end())
@@ -566,7 +614,7 @@ Bool OptionPreferences::getSmoothWaterEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getTreesEnabled(void)
+Bool OptionPreferences::getTreesEnabled()
 {
 	OptionPreferences::const_iterator it = find("ShowTrees");
 	if (it == end())
@@ -578,7 +626,7 @@ Bool OptionPreferences::getTreesEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getExtraAnimationsDisabled(void)
+Bool OptionPreferences::getExtraAnimationsDisabled()
 {
 	OptionPreferences::const_iterator it = find("ExtraAnimations");
 	if (it == end())
@@ -590,7 +638,7 @@ Bool OptionPreferences::getExtraAnimationsDisabled(void)
 	return TRUE;
 }
 
-Bool OptionPreferences::getUseHeatEffects(void)
+Bool OptionPreferences::getUseHeatEffects()
 {
 	OptionPreferences::const_iterator it = find("HeatEffects");
 	if (it == end())
@@ -602,7 +650,7 @@ Bool OptionPreferences::getUseHeatEffects(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getDynamicLODEnabled(void)
+Bool OptionPreferences::getDynamicLODEnabled()
 {
 	OptionPreferences::const_iterator it = find("DynamicLOD");
 	if (it == end())
@@ -614,7 +662,7 @@ Bool OptionPreferences::getDynamicLODEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getFPSLimitEnabled(void)
+Bool OptionPreferences::getFPSLimitEnabled()
 {
 	OptionPreferences::const_iterator it = find("FPSLimit");
 	if (it == end())
@@ -626,7 +674,7 @@ Bool OptionPreferences::getFPSLimitEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::get3DShadowsEnabled(void)
+Bool OptionPreferences::get3DShadowsEnabled()
 {
 	OptionPreferences::const_iterator it = find("UseShadowVolumes");
 	if (it == end())
@@ -638,7 +686,7 @@ Bool OptionPreferences::get3DShadowsEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::get2DShadowsEnabled(void)
+Bool OptionPreferences::get2DShadowsEnabled()
 {
 	OptionPreferences::const_iterator it = find("UseShadowDecals");
 	if (it == end())
@@ -650,7 +698,7 @@ Bool OptionPreferences::get2DShadowsEnabled(void)
 	return FALSE;
 }
 
-Bool OptionPreferences::getBuildingOcclusionEnabled(void)
+Bool OptionPreferences::getBuildingOcclusionEnabled()
 {
 	OptionPreferences::const_iterator it = find("BuildingOcclusion");
 	if (it == end())
@@ -662,7 +710,7 @@ Bool OptionPreferences::getBuildingOcclusionEnabled(void)
 	return FALSE;
 }
 
-Int OptionPreferences::getParticleCap(void)
+Int OptionPreferences::getParticleCap()
 {
 	OptionPreferences::const_iterator it = find("MaxParticleCount");
 	if (it == end())
@@ -675,7 +723,7 @@ Int OptionPreferences::getParticleCap(void)
 	return factor;
 }
 
-Int OptionPreferences::getTextureReduction(void)
+Int OptionPreferences::getTextureReduction()
 {
 	OptionPreferences::const_iterator it = find("TextureReduction");
 	if (it == end())
@@ -687,7 +735,7 @@ Int OptionPreferences::getTextureReduction(void)
 	return factor;
 }
 
-Real OptionPreferences::getGammaValue(void)
+Real OptionPreferences::getGammaValue()
 {
 	OptionPreferences::const_iterator it = find("Gamma");
 	if (it == end())
@@ -714,7 +762,7 @@ void OptionPreferences::getResolution(Int *xres, Int *yres)
 	*yres=selectedYRes;
 }
 
-Real OptionPreferences::getMusicVolume(void)
+Real OptionPreferences::getMusicVolume()
 {
 	OptionPreferences::const_iterator it = find("MusicVolume");
 	if (it == end())
@@ -728,7 +776,7 @@ Real OptionPreferences::getMusicVolume(void)
 	return volume;
 }
 
-Real OptionPreferences::getMoneyTransactionVolume(void) const
+Real OptionPreferences::getMoneyTransactionVolume() const
 {
 	OptionPreferences::const_iterator it = find("MoneyTransactionVolume");
 	if (it == end())
@@ -741,7 +789,7 @@ Real OptionPreferences::getMoneyTransactionVolume(void) const
 	return volume;
 }
 
-Int OptionPreferences::getNetworkLatencyFontSize(void)
+Int OptionPreferences::getNetworkLatencyFontSize()
 {
 	OptionPreferences::const_iterator it = find("NetworkLatencyFontSize");
 	if (it == end())
@@ -755,7 +803,7 @@ Int OptionPreferences::getNetworkLatencyFontSize(void)
 	return fontSize;
 }
 
-Int OptionPreferences::getRenderFpsFontSize(void)
+Int OptionPreferences::getRenderFpsFontSize()
 {
 	OptionPreferences::const_iterator it = find("RenderFpsFontSize");
 	if (it == end())
@@ -769,7 +817,7 @@ Int OptionPreferences::getRenderFpsFontSize(void)
 	return fontSize;
 }
 
-Int OptionPreferences::getSystemTimeFontSize(void)
+Int OptionPreferences::getSystemTimeFontSize()
 {
 	OptionPreferences::const_iterator it = find("SystemTimeFontSize");
 	if (it == end())
@@ -783,7 +831,7 @@ Int OptionPreferences::getSystemTimeFontSize(void)
 	return fontSize;
 }
 
-Int OptionPreferences::getGameTimeFontSize(void)
+Int OptionPreferences::getGameTimeFontSize()
 {
 	OptionPreferences::const_iterator it = find("GameTimeFontSize");
 	if (it == end())
@@ -797,7 +845,7 @@ Int OptionPreferences::getGameTimeFontSize(void)
 	return fontSize;
 }
 
-Int OptionPreferences::getPlayerInfoListFontSize(void)
+Int OptionPreferences::getPlayerInfoListFontSize()
 {
 	OptionPreferences::const_iterator it = find("PlayerInfoListFontSize");
 	if (it == end())
@@ -811,7 +859,7 @@ Int OptionPreferences::getPlayerInfoListFontSize(void)
 	return fontSize;
 }
 
-Real OptionPreferences::getResolutionFontAdjustment(void)
+Real OptionPreferences::getResolutionFontAdjustment()
 {
 	OptionPreferences::const_iterator it = find("ResolutionFontAdjustment");
 	if (it == end())
@@ -825,7 +873,7 @@ Real OptionPreferences::getResolutionFontAdjustment(void)
 	return fontScale;
 }
 
-Bool OptionPreferences::getShowMoneyPerMinute(void) const
+Bool OptionPreferences::getShowMoneyPerMinute() const
 {
 	OptionPreferences::const_iterator it = find("ShowMoneyPerMinute");
 	if (it == end())
@@ -836,4 +884,14 @@ Bool OptionPreferences::getShowMoneyPerMinute(void) const
 		return TRUE;
 	}
 	return FALSE;
+}
+
+Real OptionPreferences::getGameWindowTransitionSpeedMultiplier() const
+{
+	OptionPreferences::const_iterator it = find("GameWindowTransitionSpeedMultiplier");
+	if (it == end())
+		return 1.0f;
+
+	Real speed = (Real) atof(it->second.str());
+	return clamp(1.0f, speed, 1000.0f);
 }

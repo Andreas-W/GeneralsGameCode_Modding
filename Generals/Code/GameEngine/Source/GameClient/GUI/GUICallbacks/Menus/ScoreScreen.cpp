@@ -74,6 +74,7 @@
 #include "GameLogic/VictoryConditions.h"
 #include "GameClient/Display.h"
 #include "GameClient/GUICallbacks.h"
+#include "GameClient/SaveLoadFeedback.h"
 #include "GameClient/WindowLayout.h"
 #include "GameClient/GameWindowManager.h"
 #include "GameClient/Gadget.h"
@@ -105,7 +106,7 @@ static NameKeyType parentID = NAMEKEY_INVALID;
 static NameKeyType buttonOkID = NAMEKEY_INVALID;
 ///static NameKeyType buttonRehostID = NAMEKEY_INVALID;
 static NameKeyType textEntryChatID = NAMEKEY_INVALID;
-static NameKeyType buttonEmoteID = NAMEKEY_INVALID;
+static NameKeyType buttonChatID = NAMEKEY_INVALID;
 static NameKeyType chatBoxBorderID = NAMEKEY_INVALID;
 static NameKeyType buttonContinueID = NAMEKEY_INVALID;
 static NameKeyType buttonBuddiesID = NAMEKEY_INVALID;
@@ -116,7 +117,7 @@ static GameWindow *buttonOk = nullptr;
 //static GameWindow *buttonRehost = nullptr;
 static GameWindow *buttonContinue = nullptr;
 static GameWindow *textEntryChat = nullptr;
-static GameWindow *buttonEmote = nullptr;
+static GameWindow *buttonChat = nullptr;
 static GameWindow *chatBoxBorder = nullptr;
 static GameWindow *buttonBuddies = nullptr;
 static GameWindow *staticTextGameSaved = nullptr;
@@ -130,19 +131,19 @@ std::string LastReplayFileName;
 static Bool canSaveReplay = FALSE;
 extern void PopupReplayUpdate(WindowLayout *layout, void *userData);
 
-void initSinglePlayer( void );
-void finishSinglePlayerInit( void );
+void initSinglePlayer();
+void finishSinglePlayerInit();
 static Bool s_needToFinishSinglePlayerInit = FALSE;
 static Bool buttonIsFinishCampaign = FALSE;
 static WindowLayout *s_blankLayout = nullptr;
 
-void initSkirmish( void );
-void initLANMultiPlayer(void);
-void initInternetMultiPlayer(void);
-void initReplayMultiPlayer(void);
-void initReplaySinglePlayer(void);
-void grabMultiPlayerInfo( void );
-void grabSinglePlayerInfo( void );
+void initSkirmish();
+void initLANMultiPlayer();
+void initInternetMultiPlayer();
+void initReplayMultiPlayer();
+void initReplaySinglePlayer();
+void grabMultiPlayerInfo();
+void grabSinglePlayerInfo();
 void hideWindows( Int pos );
 void ScoreScreenEnableControls(Bool enable);
 void setObserverWindows( Player *player, Int i );
@@ -172,7 +173,7 @@ void populateSideInfo( UnicodeString side,ScoreGather *sg, Int pos, Color color)
 // PUBLIC FUNCTIONS ///////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
 
-void startNextCampaignGame(void)
+void startNextCampaignGame()
 {
 	TheShell->popImmediate();
 	TheShell->hideShell();
@@ -228,7 +229,7 @@ void ScoreScreenInit( WindowLayout *layout, void *userData )
 	parentID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:ParentScoreScreen" );
 	buttonOkID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:ButtonOk" );
 	textEntryChatID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:TextEntryChat" );
-	buttonEmoteID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:ButtonEmote" );
+	buttonChatID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:ButtonEmote" ); // TODO Rename ButtonEmote to ButtonChat in .wnd file
 	listboxChatWindowScoreScreenID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:ListboxChatWindowScoreScreen" );
 //	buttonRehostID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:ButtonRehost" );
 	chatBoxBorderID = TheNameKeyGenerator->nameToKey( "ScoreScreen.wnd:ChatBoxBorder" );
@@ -239,7 +240,7 @@ void ScoreScreenInit( WindowLayout *layout, void *userData )
 	parent = TheWindowManager->winGetWindowFromId( nullptr, parentID );
 	buttonOk = TheWindowManager->winGetWindowFromId( parent, buttonOkID );
 	textEntryChat = TheWindowManager->winGetWindowFromId( parent, textEntryChatID );
-	buttonEmote = TheWindowManager->winGetWindowFromId( parent,buttonEmoteID  );
+	buttonChat = TheWindowManager->winGetWindowFromId( parent,buttonChatID  );
 	listboxChatWindowScoreScreen = TheWindowManager->winGetWindowFromId( parent, listboxChatWindowScoreScreenID );
 //	buttonRehost = TheWindowManager->winGetWindowFromId( parent, buttonRehostID );
 	chatBoxBorder = TheWindowManager->winGetWindowFromId( parent, chatBoxBorderID );
@@ -316,7 +317,7 @@ void ScoreScreenInit( WindowLayout *layout, void *userData )
 	}
 }
 
-void FixupScoreScreenMovieWindow( void )
+void FixupScoreScreenMovieWindow()
 {
 	if (s_blankLayout)
 	{
@@ -498,7 +499,7 @@ WindowMsgHandledType ScoreScreenSystem( GameWindow *window, UnsignedInt msg,
 				saveReplayLayout->bringForward();
 			}
 
-			else if ( controlID == buttonEmoteID )
+			else if ( controlID == buttonChatID )
 			{
 				// read the user's input
 				txtInput.set(GadgetTextEntryGetText( textEntryChat ));
@@ -509,7 +510,9 @@ WindowMsgHandledType ScoreScreenSystem( GameWindow *window, UnsignedInt msg,
 				// Echo the user's input to the chat window
 				if (!txtInput.isEmpty())
 					if(TheLAN)
-						TheLAN->RequestChat(txtInput, LANAPIInterface::LANCHAT_EMOTE);
+					{
+						TheLAN->RequestPlayerChat(txtInput);
+					}
 					//add the gamespy chat request here
 			}
 			for(Int i = 0; i < MAX_SLOTS; ++i)
@@ -566,7 +569,9 @@ WindowMsgHandledType ScoreScreenSystem( GameWindow *window, UnsignedInt msg,
 				// Echo the user's input to the chat window
 				if (!txtInput.isEmpty())
 					if(TheLAN)
-						TheLAN->RequestChat(txtInput, LANAPIInterface::LANCHAT_NORMAL);
+					{
+						TheLAN->RequestPlayerChat(txtInput);
+					}
 					//add the gamespy chat request here
 
 			}
@@ -584,14 +589,14 @@ WindowMsgHandledType ScoreScreenSystem( GameWindow *window, UnsignedInt msg,
 
 /** Special Init path for making this a single player Score Screen */
 //-------------------------------------------------------------------------------------------------
-void initSkirmish( void )
+void initSkirmish()
 {
 	screenType = SCORESCREEN_SKIRMISH;
 	grabMultiPlayerInfo();
 	if (textEntryChat)
 		textEntryChat->winHide(TRUE);
-	if (buttonEmote)
-		buttonEmote->winHide(TRUE);
+	if (buttonChat)
+		buttonChat->winHide(TRUE);
 	if (chatBoxBorder)
 		chatBoxBorder->winHide(TRUE);
 	if (buttonBuddies)
@@ -686,7 +691,7 @@ void PlayMovieAndBlock(AsciiString movieTitle)
 	setFPMode();
 }
 
-void initSinglePlayer( void )
+void initSinglePlayer()
 {
 	screenType = SCORESCREEN_SINGLEPLAYER;
 	TheCampaignManager->setRankPoints(ThePlayerList->getLocalPlayer()->getSkillPoints());
@@ -700,7 +705,7 @@ void initSinglePlayer( void )
 	s_blankLayout->getFirstWindow()->winClearStatus(WIN_STATUS_IMAGE);
 }
 
-void finishSinglePlayerInit( void )
+void finishSinglePlayerInit()
 {
 	if(TheCampaignManager->isVictorious())
 	{
@@ -729,8 +734,8 @@ void finishSinglePlayerInit( void )
 					buttonContinue->winHide(TRUE);
 				if (textEntryChat)
 					textEntryChat->winHide(TRUE);
-				if (buttonEmote)
-					buttonEmote->winHide(TRUE);
+				if (buttonChat)
+					buttonChat->winHide(TRUE);
 				if (listboxChatWindowScoreScreen)
 					listboxChatWindowScoreScreen->winHide(TRUE);
 				if (chatBoxBorder)
@@ -763,7 +768,7 @@ void finishSinglePlayerInit( void )
 			GadgetButtonSetText(buttonContinue, TheGameText->fetch("GUI:SaveAndContinue"));
 
 			// auto save game
-			TheGameState->missionSave();
+			presentSaveResult( TheGameState->missionSave() );
 			if(staticTextGameSaved)
 				staticTextGameSaved->winHide(FALSE);
 		}
@@ -792,8 +797,8 @@ void finishSinglePlayerInit( void )
 		buttonContinue->winHide(FALSE);
 	if (textEntryChat)
 		textEntryChat->winHide(TRUE);
-	if (buttonEmote)
-		buttonEmote->winHide(TRUE);
+	if (buttonChat)
+		buttonChat->winHide(TRUE);
 	if (listboxChatWindowScoreScreen)
 		listboxChatWindowScoreScreen->winHide(TRUE);
 	if (chatBoxBorder)
@@ -809,7 +814,7 @@ void finishSinglePlayerInit( void )
 
 /** Special Init path for making this a single player replay Score Screen */
 //-------------------------------------------------------------------------------------------------
-void initReplaySinglePlayer( void )
+void initReplaySinglePlayer()
 {
 	screenType = SCORESCREEN_REPLAY;
 	grabSinglePlayerInfo();
@@ -817,8 +822,8 @@ void initReplaySinglePlayer( void )
 		staticTextGameSaved->winHide(TRUE);
 	if (textEntryChat)
 		textEntryChat->winHide(TRUE);
-	if (buttonEmote)
-		buttonEmote->winHide(TRUE);
+	if (buttonChat)
+		buttonChat->winHide(TRUE);
 	if (chatBoxBorder)
 		chatBoxBorder->winHide(TRUE);
 	if (buttonContinue)
@@ -833,7 +838,7 @@ void initReplaySinglePlayer( void )
 
 /** Special Init path for making this a Multiplayer Score Screen(LAN) */
 //-------------------------------------------------------------------------------------------------
-void initLANMultiPlayer(void)
+void initLANMultiPlayer()
 {
 	screenType = SCORESCREEN_LAN;
 	grabMultiPlayerInfo();
@@ -843,8 +848,8 @@ void initLANMultiPlayer(void)
 		staticTextGameSaved->winHide(TRUE);
 	if (textEntryChat)
 		textEntryChat->winHide(FALSE);
-	if (buttonEmote)
-		buttonEmote->winHide(FALSE);
+	if (buttonChat)
+		buttonChat->winHide(FALSE);
 	if (buttonContinue)
 		buttonContinue->winHide(TRUE);
 	if (listboxChatWindowScoreScreen)
@@ -857,7 +862,7 @@ void initLANMultiPlayer(void)
 
 /** Special Init path for making this a Multiplayer Score Screen(Internet) */
 //-------------------------------------------------------------------------------------------------
-void initInternetMultiPlayer(void)
+void initInternetMultiPlayer()
 {
 	screenType = SCORESCREEN_INTERNET;
 	grabMultiPlayerInfo();
@@ -869,8 +874,8 @@ void initInternetMultiPlayer(void)
 		buttonContinue->winHide(TRUE);
 	if (textEntryChat)
 		textEntryChat->winHide(TRUE);
-	if (buttonEmote)
-		buttonEmote->winHide(TRUE);
+	if (buttonChat)
+		buttonChat->winHide(TRUE);
 	if (listboxChatWindowScoreScreen)
 		listboxChatWindowScoreScreen->winHide(FALSE);
 	if (chatBoxBorder)
@@ -893,7 +898,7 @@ void initInternetMultiPlayer(void)
 
 /** Special Init path for making this a Multiplayer Score Screen(Replay) */
 //-------------------------------------------------------------------------------------------------
-void initReplayMultiPlayer(void)
+void initReplayMultiPlayer()
 {
 	screenType = SCORESCREEN_REPLAY;
 	grabMultiPlayerInfo();
@@ -901,8 +906,8 @@ void initReplayMultiPlayer(void)
 		staticTextGameSaved->winHide(TRUE);
 	if (textEntryChat)
 		textEntryChat->winHide(TRUE);
-	if (buttonEmote)
-		buttonEmote->winHide(TRUE);
+	if (buttonChat)
+		buttonChat->winHide(TRUE);
 	if (listboxChatWindowScoreScreen)
 		listboxChatWindowScoreScreen->winHide(TRUE);
 	if (chatBoxBorder)
@@ -1764,22 +1769,20 @@ winName.format("ScoreScreen.wnd:StaticTextScore%d", pos);
 /** We Grab information about the players differently in Multiplayer.  We only want the players
 		listed in the slots */
 //-------------------------------------------------------------------------------------------------
-void grabMultiPlayerInfo( void )
+void grabMultiPlayerInfo()
 {
 	typedef std::map<Int, Player *> ScoreMap;
 	typedef ScoreMap::iterator ScoreMapIt;
 	typedef ScoreMap::reverse_iterator RevScoreMapIt;
 
 	Int playerCount = 0;
-	AsciiString playerName;
-	Player *player;
 	ScoreMap scores;
 	ScoreMapIt it;
 	scores.clear();
 	Int adder = 1; // Varible used to add on an offset to the score to make sure we don't add people to the same map
 
-	player = ThePlayerList->getLocalPlayer();
-	if (player)
+	Player *localPlayer = ThePlayerList->getLocalPlayer();
+	if (localPlayer)
 	{
 		const Image *image = TheMappedImageCollection->findImageByName("MutiPlayer_ScoreScreen");
 		if(image)
@@ -1792,8 +1795,7 @@ void grabMultiPlayerInfo( void )
 	// Add each player and score to the map. THis allows us to sort the players based on score.
 	for( Int i = 0; i < MAX_SLOTS; ++i)
 	{
-		playerName.format("player%d",i);
-		player = ThePlayerList->findPlayerWithNameKey(TheNameKeyGenerator->nameToKey(playerName));
+		Player *player = ThePlayerList->getPlayerFromSlotIndex(i);
 		if(player)
 		{
 			Int score = player->getScoreKeeper()->calculateScore();
@@ -1835,7 +1837,7 @@ enum
 };
 /**	Grab the single player info */
 //-------------------------------------------------------------------------------------------------
-void grabSinglePlayerInfo( void )
+void grabSinglePlayerInfo()
 {
 	Int playerCount = 0;
 	Player *player, *localPlayer;

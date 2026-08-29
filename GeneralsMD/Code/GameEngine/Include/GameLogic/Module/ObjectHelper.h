@@ -42,9 +42,9 @@ class ObjectHelper : public UpdateModule
 protected:
 
 	// snapshot methods
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess( void );
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
 
 public:
 
@@ -53,9 +53,6 @@ public:
 	{
 		setWakeFrame(getObject(), UPDATE_SLEEP_FOREVER);
 	}
-
-	// inherited from UpdateModuleInterface
-	virtual UpdateSleepTime update() = 0;
 
 	// custom to this class.
 	void sleepUntil(UnsignedInt when);

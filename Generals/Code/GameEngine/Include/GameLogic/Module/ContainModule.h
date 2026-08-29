@@ -145,13 +145,14 @@ public:
 	virtual Bool isPassengerAllowedToFire() const = 0;	///< Hey, can I shoot out of this container?
 	virtual void setOverrideDestination( const Coord3D * ) = 0; ///< Instead of falling peacefully towards a clear spot, I will now aim here
 	virtual Bool isDisplayedOnControlBar() const = 0;///< Does this container display its contents on the ControlBar?
-	virtual Int getExtraSlotsInUse( void ) = 0;
+	virtual Int getExtraSlotsInUse() = 0;
 	virtual Bool isKickOutOnCapture() = 0;///< Does this contain module kick people out when captured?
 
 	// list access
 	virtual void iterateContained( ContainIterateFunc func, void *userData, Bool reverse ) = 0;		///< iterate the contain list
 	virtual UnsignedInt getContainCount() const = 0;											///< contained count
 	virtual const ContainedItemsList* getContainedItemsList() const = 0;
+	virtual Bool isContained( const Object *obj ) const = 0;	///< Return whether the object is contained in this module
 	virtual const Object *friend_getRider() const = 0; ///< Damn.  The draw order dependency bug for riders means that our draw module needs to cheat to get around it.
 	virtual Real getContainedItemsMass() const = 0;
 	virtual UnsignedInt getStealthUnitsContained() const = 0;
@@ -162,9 +163,10 @@ public:
 	virtual Bool attemptBestFirePointPosition( Object *source, Weapon *weapon, const Coord3D *targetPos ) = 0;
 
 	// Player Occupancy.
-	virtual PlayerMaskType getPlayerWhoEntered(void) const = 0;
+	virtual PlayerMaskType getPlayerWhoEntered() const = 0;
 
-	virtual void processDamageToContained() = 0; ///< Do our % damage to units now.
+	virtual void processDamageToContained(Real percentDamage) = 0; ///< Do our % damage to units now.
+  virtual Object* getClosestRider ( const Coord3D *pos ) = 0;
 
 	virtual void enableLoadSounds( Bool enable ) = 0;
 

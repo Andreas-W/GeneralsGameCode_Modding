@@ -61,7 +61,7 @@ ParkingPlaceBehavior::ParkingPlaceBehavior( Thing *thing, const ModuleData* modu
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-ParkingPlaceBehavior::~ParkingPlaceBehavior( void )
+ParkingPlaceBehavior::~ParkingPlaceBehavior()
 {
 }
 
@@ -409,7 +409,7 @@ void ParkingPlaceBehavior::calcPPInfo( ObjectID id, PPInfo *info )
 
 		//Cache the runway's takeoff distance used by JetAIUpdate for calculating lift.
 		Coord3D vector = info->runwayStart;
-		vector.sub( &info->runwayEnd );
+		vector.sub( info->runwayEnd );
 		info->runwayTakeoffDist = vector.length();
 
 		for (std::vector<RunwayInfo>::iterator it = m_runways.begin(); it != m_runways.end(); ++it)
@@ -928,10 +928,8 @@ void ParkingPlaceBehavior::exitObjectViaDoor( Object *newObj, ExitDoorType exitD
 		CRCDEBUG_LOG(("Produced at helipad (door = %d)", exitDoor));
 		DEBUG_ASSERTCRASH(exitDoor == DOOR_NONE_NEEDED, ("Hmm, unlikely"));
 		Matrix3D mtx;
-#ifdef DEBUG_CRASHING
-		Bool boneOk =
-#endif
-			getObject()->getSingleLogicalBonePosition("HeliPark01", &ppinfo.hangarInternal, &mtx);
+		MAYBE_UNUSED Bool boneOk = getObject()->getSingleLogicalBonePosition("HeliPark01", &ppinfo.hangarInternal, &mtx);
+		(void)boneOk;
 
 		DEBUG_ASSERTCRASH(boneOk, ("Could not get bone!"));
 		ppinfo.hangarInternalOrient = mtx.Get_Z_Rotation();
@@ -1013,12 +1011,12 @@ void ParkingPlaceBehavior::unreserveDoorForExit( ExitDoorType exitDoor )
 void ParkingPlaceBehavior::setRallyPoint( const Coord3D *pos )
 {
 	m_heliRallyPointExists = TRUE;
-	m_heliRallyPoint.set( pos );
+	m_heliRallyPoint.set( *pos );
 	// nothing
 }
 
 //-------------------------------------------------------------------------------------------------
-const Coord3D* ParkingPlaceBehavior::getRallyPoint( void ) const
+const Coord3D* ParkingPlaceBehavior::getRallyPoint() const
 {
 	if( m_heliRallyPointExists )
 	{
@@ -1240,7 +1238,7 @@ void ParkingPlaceBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void ParkingPlaceBehavior::loadPostProcess( void )
+void ParkingPlaceBehavior::loadPostProcess()
 {
 
 	// extend base class

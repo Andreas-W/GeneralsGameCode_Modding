@@ -87,7 +87,7 @@ void ProfileFreeMemory(void *ptr)
 
 //////////////////////////////////////////////////////////////////////////////
 
-static _int64 GetClockCyclesFast(void)
+static _int64 GetClockCyclesFast()
 {
   // this is where we're adding our internal result functions
   Profile::AddResultFunction(ProfileResultFileCSV::Create,
@@ -199,7 +199,7 @@ void Profile::StartRange(const char *range)
 
   if (active)
   {
-#ifdef RTS_PROFILE
+#ifdef RTS_PROFILE_LEGACY
     m_frameNames[k].funcIndex=ProfileFuncLevelTracer::FrameStart();
     DASSERT(m_frameNames[k].funcIndex>=0);
 #endif
@@ -250,7 +250,7 @@ void Profile::AppendRange(const char *range)
 
   if (active)
   {
-#ifdef RTS_PROFILE
+#ifdef RTS_PROFILE_LEGACY
     m_frameNames[k].funcIndex=ProfileFuncLevelTracer::FrameStart();
     DASSERT(m_frameNames[k].funcIndex>=0);
 #endif
@@ -281,7 +281,7 @@ void Profile::StopRange(const char *range)
   // stop recording
   m_frameNames[k].isRecording=false;
   if (
-#ifdef RTS_PROFILE
+#ifdef RTS_PROFILE_LEGACY
     m_frameNames[k].funcIndex>=0 ||
 #endif
     m_frameNames[k].highIndex>=0
@@ -300,7 +300,7 @@ void Profile::StopRange(const char *range)
     }
     else
       atIndex=m_frameNames[k].lastGlobalIndex;
-#ifdef RTS_PROFILE
+#ifdef RTS_PROFILE_LEGACY
     if (m_frameNames[k].funcIndex>=0)
       ProfileFuncLevelTracer::FrameEnd(m_frameNames[k].funcIndex,atIndex);
     if (m_frameNames[k].highIndex>=0)
@@ -309,7 +309,7 @@ void Profile::StopRange(const char *range)
   }
 }
 
-bool Profile::IsEnabled(void)
+bool Profile::IsEnabled()
 {
   for (unsigned k=0;k<m_names;++k)
     if (m_frameNames[k].isRecording)
@@ -317,7 +317,7 @@ bool Profile::IsEnabled(void)
   return false;
 }
 
-unsigned Profile::GetFrameCount(void)
+unsigned Profile::GetFrameCount()
 {
   return m_rec;
 }
@@ -327,15 +327,15 @@ const char *Profile::GetFrameName(unsigned frame)
   return frame>=m_rec?nullptr:m_recNames[frame];
 }
 
-void Profile::ClearTotals(void)
+void Profile::ClearTotals()
 {
-#ifdef RTS_PROFILE
+#ifdef RTS_PROFILE_LEGACY
   ProfileFuncLevelTracer::ClearTotals();
 #endif
   ProfileId::ClearTotals();
 }
 
-_int64 Profile::GetClockCyclesPerSecond(void)
+_int64 Profile::GetClockCyclesPerSecond()
 {
   return m_clockCycles;
 }
@@ -370,9 +370,9 @@ bool Profile::SimpleMatch(const char *str, const char *pattern)
   return *str==*pattern;
 }
 
-static void ProfileShutdown(void)
+static void ProfileShutdown()
 {
-#ifdef RTS_PROFILE
+#ifdef RTS_PROFILE_LEGACY
   ProfileFuncLevelTracer::Shutdown();
 #endif
   ProfileId::Shutdown();

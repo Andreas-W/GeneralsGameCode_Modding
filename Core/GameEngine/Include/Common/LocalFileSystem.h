@@ -34,11 +34,7 @@
 class LocalFileSystem : public SubsystemInterface
 {
 public:
-	virtual ~LocalFileSystem() {}
-
-	virtual void init() = 0;
-	virtual void reset() = 0;
-	virtual void update() = 0;
+	virtual ~LocalFileSystem() override {}
 
 	virtual File * openFile(const Char *filename, Int access = File::NONE, size_t bufferSize = File::BUFFERSIZE) = 0;
 	virtual Bool doesFileExist(const Char *filename) const = 0;

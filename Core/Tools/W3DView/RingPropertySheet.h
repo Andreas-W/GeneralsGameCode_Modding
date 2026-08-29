@@ -95,11 +95,11 @@ protected:
 	//////////////////////////////////////////////////////////////////////
 	//	Protected methods
 	//////////////////////////////////////////////////////////////////////
-	void						Initialize (void);
-	RingRenderObjClass *	Create_Object (void);
-	void						Update_Object (void);
-	void						Add_Object_To_Viewer (void);
-	void						Create_New_Object (void);
+	void						Initialize ();
+	RingRenderObjClass *	Create_Object ();
+	void						Update_Object ();
+	void						Add_Object_To_Viewer ();
+	void						Create_New_Object ();
 
 private:
 
@@ -109,7 +109,7 @@ private:
 	RingGeneralPropPageClass	m_GeneralPage;
 	RingColorPropPageClass		m_ColorPage;
 	RingSizePropPageClass		m_ScalePage;
-	RingRenderObjClass *			m_RenderObj;
+	RefCountPtr<RingRenderObjClass>			m_RenderObj;
 	CString							m_LastSavedName;
 };
 

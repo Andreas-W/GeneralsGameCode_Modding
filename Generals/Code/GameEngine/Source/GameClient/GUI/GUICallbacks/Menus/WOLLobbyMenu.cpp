@@ -78,7 +78,7 @@ void refreshPlayerList( Bool forceRefresh = FALSE );
 static LogClass s_perfLog("Perf.txt");
 #define PERF_LOG(x) s_perfLog.log x
 #else // DEBUG_LOGGING
-#define PERF_LOG(x) {}
+#define PERF_LOG(x)
 #endif // DEBUG_LOGGING
 
 // PRIVATE DATA ///////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +103,7 @@ static NameKeyType buttonHostID = NAMEKEY_INVALID;
 static NameKeyType buttonRefreshID = NAMEKEY_INVALID;
 static NameKeyType buttonJoinID = NAMEKEY_INVALID;
 static NameKeyType buttonBuddyID = NAMEKEY_INVALID;
-static NameKeyType buttonEmoteID = NAMEKEY_INVALID;
+static NameKeyType buttonChatID = NAMEKEY_INVALID;
 static NameKeyType textEntryChatID = NAMEKEY_INVALID;
 static NameKeyType listboxLobbyPlayersID = NAMEKEY_INVALID;
 static NameKeyType listboxLobbyChatID = NAMEKEY_INVALID;
@@ -117,7 +117,7 @@ static GameWindow *buttonHost = nullptr;
 static GameWindow *buttonRefresh = nullptr;
 static GameWindow *buttonJoin = nullptr;
 static GameWindow *buttonBuddy = nullptr;
-static GameWindow *buttonEmote = nullptr;
+static GameWindow *buttonChat = nullptr;
 static GameWindow *textEntryChat = nullptr;
 static GameWindow *listboxLobbyPlayers = nullptr;
 static GameWindow *listboxLobbyChat = nullptr;
@@ -137,7 +137,7 @@ std::list<PeerResponse> TheLobbyQueuedUTMs;
 
 // Slash commands -------------------------------------------------------------------------
 extern "C" {
-int getQR2HostingStatus(void);
+int getQR2HostingStatus();
 }
 extern int isThreadHosting;
 
@@ -468,7 +468,7 @@ static Int insertPlayerInListbox(const PlayerInfo& info, Color color)
 	return index;
 }
 
-void PopulateLobbyPlayerListbox(void)
+void PopulateLobbyPlayerListbox()
 {
 	if (!listboxLobbyPlayers)
 		return;
@@ -624,8 +624,8 @@ void WOLLobbyMenuInit( WindowLayout *layout, void *userData )
 	buttonBuddyID = TheNameKeyGenerator->nameToKey("WOLCustomLobby.wnd:ButtonBuddy");
 	buttonBuddy = TheWindowManager->winGetWindowFromId(parent, buttonBuddyID);
 
-	buttonEmoteID = TheNameKeyGenerator->nameToKey("WOLCustomLobby.wnd:ButtonEmote");
-	buttonEmote = TheWindowManager->winGetWindowFromId(parent, buttonEmoteID);
+	buttonChatID = TheNameKeyGenerator->nameToKey("WOLCustomLobby.wnd:ButtonEmote"); // TODO Rename ButtonEmote to ButtonChat in .wnd file
+	buttonChat = TheWindowManager->winGetWindowFromId(parent, buttonChatID);
 
 	textEntryChatID = TheNameKeyGenerator->nameToKey("WOLCustomLobby.wnd:TextEntryChat");
 	textEntryChat = TheWindowManager->winGetWindowFromId(parent, textEntryChatID);
@@ -1621,7 +1621,7 @@ WindowMsgHandledType WOLLobbyMenuSystem( GameWindow *window, UnsignedInt msg,
 				{
 					ToggleGameListType();
 				}
-				else if ( controlID == buttonEmoteID )
+				else if ( controlID == buttonChatID )
 				{
 				// read the user's input and clear the entry box
 					UnicodeString txtInput;

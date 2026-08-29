@@ -246,7 +246,7 @@ void Matrix3D::Set_Rotation(const Quaternion & q)
  * HISTORY:                                                                                    *
  *   08/11/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
-float Matrix3D::Get_X_Rotation(void) const
+float Matrix3D::Get_X_Rotation() const
 {
 	return WWMath::Atan2(Row[2][1], Row[1][1]);
 }
@@ -264,7 +264,7 @@ float Matrix3D::Get_X_Rotation(void) const
  * HISTORY:                                                                                    *
  *   08/11/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
-float Matrix3D::Get_Y_Rotation(void) const
+float Matrix3D::Get_Y_Rotation() const
 {
 	return WWMath::Atan2(Row[0][2], Row[2][2]);
 }
@@ -282,7 +282,7 @@ float Matrix3D::Get_Y_Rotation(void) const
  * HISTORY:                                                                                    *
  *   08/11/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
-float Matrix3D::Get_Z_Rotation(void) const
+float Matrix3D::Get_Z_Rotation() const
 {
 	return WWMath::Atan2(Row[1][0], Row[0][0]);
 }
@@ -355,26 +355,30 @@ Vector3 Matrix3D::Inverse_Rotate_Vector(const Vector3 &vect) const
  *=============================================================================================*/
 void Matrix3D::Look_At(const Vector3 &p,const Vector3 &t,float roll)
 {
-	float	dx,dy,dz;	//vector from p to t
-	float	len1,len2;
-	float	sinp,cosp;	//sine and cosine of the pitch ("up-down" tilt about x)
-	float	siny,cosy;	//sine and cosine of the yaw ("left-right"tilt about z)
+	Vector3 dir(t - p);
+	dir.Normalize();
 
-	dx = (t[0] - p[0]);
-	dy = (t[1] - p[1]);
-	dz = (t[2] - p[2]);
+	Look_At_Dir(p, dir, roll);
+}
 
-	len1 = (float)WWMath::Sqrt(dx*dx + dy*dy + dz*dz);
-	len2 = (float)WWMath::Sqrt(dx*dx + dy*dy);
 
-	if (len1 != 0.0f) {
-		sinp = dz/len1;
-		cosp = len2/len1;
-	} else {
-		sinp = 0.0f;
-		cosp = 1.0f;
-	}
+void Matrix3D::Look_At_Dir(const Vector3 &pos, const Vector3 &dir, float roll)
+{
+	float sinp, cosp; //sine and cosine of the pitch ("up-down" tilt about x)
+	float siny, cosy; //sine and cosine of the yaw ("left-right"tilt about z)
 
+	float dx = dir.X;
+	float dy = dir.Y;
+	float dz = dir.Z;
+
+	// length of projection onto XY plane
+	float len2 = (float)WWMath::Sqrt(dx*dx + dy*dy);
+
+	// pitch
+	sinp = dz;
+	cosp = len2;
+
+	// yaw
 	if (len2 != 0.0f) {
 		siny = dy/len2;
 		cosy = dx/len2;
@@ -388,9 +392,9 @@ void Matrix3D::Look_At(const Vector3 &p,const Vector3 &t,float roll)
 	Row[1].X = -1.0f;	Row[1].Y = 0.0f;	Row[1].Z = 0.0f;
 	Row[2].X = 0.0f;	Row[2].Y = 1.0f;	Row[2].Z = 0.0f;
 
-	Row[0].W = p.X;
-	Row[1].W = p.Y;
-	Row[2].W = p.Z;
+	Row[0].W = pos.X;
+	Row[1].W = pos.Y;
+	Row[2].W = pos.Z;
 
 	// Yaw rotation to make the matrix look at the projection of the target
 	// into the x-y plane
@@ -1136,7 +1140,7 @@ void Matrix3D::Transform_Center_Extent_AABox
  * HISTORY:                                                                                    *
  *   9/16/98    GTH : Created.                                                                 *
  *=============================================================================================*/
-int Matrix3D::Is_Orthogonal(void) const
+int Matrix3D::Is_Orthogonal() const
 {
 	Vector3 x(Row[0].X,Row[0].Y,Row[0].Z);
 	Vector3 y(Row[1].X,Row[1].Y,Row[1].Z);
@@ -1167,7 +1171,7 @@ int Matrix3D::Is_Orthogonal(void) const
  * HISTORY:                                                                                    *
  *   9/16/98    GTH : Created.                                                                 *
  *=============================================================================================*/
-void Matrix3D::Re_Orthogonalize(void)
+void Matrix3D::Re_Orthogonalize()
 {
 	Vector3 x(Row[0][0],Row[0][1],Row[0][2]);
 	Vector3 y(Row[1][0],Row[1][1],Row[1][2]);

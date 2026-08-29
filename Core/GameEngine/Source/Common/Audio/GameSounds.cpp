@@ -71,7 +71,7 @@ SoundManager::~SoundManager()
 }
 
 //-------------------------------------------------------------------------------------------------
-void SoundManager::init( void )
+void SoundManager::init()
 {
 
 }
@@ -84,26 +84,25 @@ void SoundManager::postProcessLoad()
 }
 
 //-------------------------------------------------------------------------------------------------
-void SoundManager::update( void )
+void SoundManager::update()
 {
 
 }
 
 //-------------------------------------------------------------------------------------------------
-void SoundManager::reset( void )
-{
-	m_numPlaying2DSamples = 0;
-	m_numPlaying3DSamples = 0;
-}
-
-//-------------------------------------------------------------------------------------------------
-void SoundManager::loseFocus( void )
+void SoundManager::reset()
 {
 
 }
 
 //-------------------------------------------------------------------------------------------------
-void SoundManager::regainFocus( void )
+void SoundManager::loseFocus()
+{
+
+}
+
+//-------------------------------------------------------------------------------------------------
+void SoundManager::regainFocus()
 {
 
 }
@@ -127,70 +126,26 @@ void SoundManager::setCameraAudibleDistance( Real audibleDistance )
 }
 
 //-------------------------------------------------------------------------------------------------
-Real SoundManager::getCameraAudibleDistance( void )
+Real SoundManager::getCameraAudibleDistance()
 {
 	return 1.0f;
 }
 
 //-------------------------------------------------------------------------------------------------
-void SoundManager::addAudioEvent(AudioEventRTS *&eventToAdd)
+Bool SoundManager::addAudioEvent(DynamicAudioEventRTS *eventToAdd)
 {
-	if (m_num2DSamples == 0 && m_num3DSamples == 0) {
-		m_num2DSamples = TheAudio->getNum2DSamples();
-		m_num3DSamples = TheAudio->getNum3DSamples();
-	}
-
 	if (canPlayNow(eventToAdd)) {
 #ifdef INTENSIVE_AUDIO_DEBUG
 		DEBUG_LOG((" - appended to request list with handle '%d'.", (UnsignedInt) eventToAdd->getPlayingHandle()));
 #endif
-		AudioRequest *audioRequest = TheAudio->allocateAudioRequest( true );
-		audioRequest->m_pendingEvent = eventToAdd;
+		AudioRequest *audioRequest = TheAudio->allocateAudioRequest();
+		audioRequest->m_pendingEvent.Assign_Add_Ref(eventToAdd);
 		audioRequest->m_request = AR_Play;
 		TheAudio->appendAudioRequest(audioRequest);
-	} else {
-		TheAudio->releaseAudioEventRTS(eventToAdd);
+		return true;
 	}
-}
 
-//-------------------------------------------------------------------------------------------------
-void SoundManager::notifyOf2DSampleStart( void )
-{
-	++m_numPlaying2DSamples;
-}
-
-//-------------------------------------------------------------------------------------------------
-void SoundManager::notifyOf3DSampleStart( void )
-{
-	++m_numPlaying3DSamples;
-}
-
-//-------------------------------------------------------------------------------------------------
-void SoundManager::notifyOf2DSampleCompletion( void )
-{
-	if (m_numPlaying2DSamples > 0) {
-		--m_numPlaying2DSamples;
-	}
-}
-
-//-------------------------------------------------------------------------------------------------
-void SoundManager::notifyOf3DSampleCompletion( void )
-{
-	if (m_numPlaying3DSamples > 0) {
-		--m_numPlaying3DSamples;
-	}
-}
-
-//-------------------------------------------------------------------------------------------------
-Int SoundManager::getAvailableSamples( void )
-{
-	return (m_num2DSamples - m_numPlaying2DSamples);
-}
-
-//-------------------------------------------------------------------------------------------------
-Int SoundManager::getAvailable3DSamples( void )
-{
-	return (m_num3DSamples - m_numPlaying3DSamples);
+	return false;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -220,7 +175,7 @@ Bool SoundManager::canPlayNow( AudioEventRTS *event )
 		const Coord3D *pos = event->getCurrentPosition();
 		if (pos)
 		{
-			distance.sub(pos);
+			distance.sub(*pos);
 			if (distance.length() >= event->getAudioEventInfo()->m_maxDistance)
 			{
 #ifdef INTENSIVE_AUDIO_DEBUG
@@ -272,18 +227,19 @@ Bool SoundManager::canPlayNow( AudioEventRTS *event )
 
 	if (event->isPositionalAudio())
 	{
-		if (m_numPlaying3DSamples < m_num3DSamples)
+		if (TheAudio->getNumAvailable3DSamples() > 0)
 		{
 			return true;
 		}
 #ifdef INTENSIVE_AUDIO_DEBUG
-		DEBUG_LOG(("- %d samples playing, %d samples available", m_numPlaying3DSamples, m_num3DSamples));
+		DEBUG_LOG(("- %d samples playing, %d samples available",
+			TheAudio->getNum3DSamples() - TheAudio->getNumAvailable3DSamples(), TheAudio->getNum3DSamples()));
 #endif
 	}
 	else
 	{
 		// its a UI sound (and thus, 2-D)
-		if (m_numPlaying2DSamples < m_num2DSamples)
+		if (TheAudio->getNumAvailable2DSamples() > 0)
 		{
 			return true;
 		}

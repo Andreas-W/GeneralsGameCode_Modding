@@ -178,7 +178,7 @@ MissileAIUpdate::~MissileAIUpdate()
 }
 
 //-------------------------------------------------------------------------------------------------
-void MissileAIUpdate::onDelete( void )
+void MissileAIUpdate::onDelete()
 {
 	//
 	// there is no need to destroy the attached particle systems here because the particle
@@ -677,7 +677,20 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 	if(curLoco && (curLoco->getPreferredHeight() > 0)) // || curLoco->getPreferredHeight() < 0) )
 	{
 		// Am I close enough to the target to ignore my preferred height setting?
-		Real distanceToTargetSquared = ThePartitionManager->getDistanceSquared( getObject(), getGoalPosition(), FROM_CENTER_2D );
+#if RETAIL_COMPATIBLE_CRC
+		Real distanceToTargetSquared = ThePartitionManager->getDistanceSquared(getObject(), getGoalPosition(), FROM_CENTER_2D);
+#else
+		// TheSuperHackers @bugfix Stubbjax 23/08/2026 Diving missiles now use their target's position to determine distance
+		// when applicable rather than the goal position. This allows them to properly determine when to dive on moving targets.
+		Real distanceToTargetSquared;
+		if (m_isTrackingTarget && (getGoalObject() != nullptr)) {
+			distanceToTargetSquared = ThePartitionManager->getDistanceSquared(getObject(), getGoalObject(), FROM_CENTER_2D);
+		}
+		else {
+			distanceToTargetSquared = ThePartitionManager->getDistanceSquared(getObject(), getGoalPosition(), FROM_CENTER_2D);
+		}
+#endif
+
 		Real diveDistanceSquared = d->m_diveDistance;
 		if (curLoco && curLoco->getPreferredHeight()) {
 			diveDistanceSquared *= diveDistanceSquared;
@@ -705,7 +718,7 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 				targetPos = *getGoalPosition();
 
 			// get halfway position
-			targetPos.add(getObject()->getPosition());
+			targetPos.add(*getObject()->getPosition());
 			targetPos.scale(0.5);
 
 			// TODO: add flag or check for Z scattering
@@ -729,7 +742,7 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 			};
 			adjustVector(&offset, &mtx);
 
-			targetPos.add(&offset);
+			targetPos.add(offset);
 
 			if (!d->m_isTorpedo) {
 				// Make sure Z is above ground
@@ -776,7 +789,7 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 }
 
 //-------------------------------------------------------------------------------------------------
-void MissileAIUpdate::doKillState(void)
+void MissileAIUpdate::doKillState()
 {
 	const MissileAIUpdateModuleData* d = getMissileAIUpdateModuleData();
 	if (TheGameLogic->getFrame() >= m_fuelExpirationDate)
@@ -1226,7 +1239,7 @@ void MissileAIUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void MissileAIUpdate::loadPostProcess( void )
+void MissileAIUpdate::loadPostProcess()
 {
  // extend base class
 	AIUpdateInterface::loadPostProcess();

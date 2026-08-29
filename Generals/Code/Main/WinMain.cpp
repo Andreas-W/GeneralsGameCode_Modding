@@ -51,6 +51,7 @@
 #include "Common/GameMemory.h"
 #include "Common/StackDump.h"
 #include "Common/MessageStream.h"
+#include "Common/PlayerList.h"
 #include "Common/Team.h"
 #include "GameClient/ClientInstance.h"
 #include "GameClient/InGameUI.h"
@@ -349,7 +350,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message,
 			//-------------------------------------------------------------------------
 			case WM_SYSCOMMAND:
 				// Prevent moving/sizing and power loss in fullscreen mode
-				switch( wParam )
+				switch( wParam & 0xFFF0 )
 				{
 					case SC_KEYMENU:
 						// TheSuperHackers @bugfix Mauller 10/05/2025 Always handle this command to prevent halting the game when left Alt is pressed.
@@ -364,12 +365,38 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message,
 				}
 				break;
 
+			case WM_QUERYENDSESSION:
+			{
+				if (TheGameEngine && !TheGameEngine->getQuitting())
+				{
+					if (TheMessageStream && TheMessageStream->isReadyForMessages())
+					{
+						TheMessageStream->appendMessage(GameMessage::MSG_META_DEMO_INSTANT_QUIT);
+					}
+					else
+					{
+						TheGameEngine->setQuitting(TRUE);
+					}
+				}
+				return 0;	//don't allow Windows to shutdown while game is running.
+			}
+
 			// ------------------------------------------------------------------------
 			case WM_CLOSE:
-				TheGameEngine->checkAbnormalQuitting();
-				TheGameEngine->reset();
-				TheGameEngine->setQuitting(TRUE);
-				_exit(EXIT_SUCCESS);
+				// TheSuperHackers @feature Intercept Alt+F4/Close to show the quit menu in-game. 
+				// Repeating the command when the menu is visible triggers a Self-Destruct followed by a sequenced quit.
+				// If not in a match (e.g. main menu), the command instantly closes the application.
+				if (TheGameEngine && !TheGameEngine->getQuitting())
+				{
+					if (TheMessageStream && TheMessageStream->isReadyForMessages())
+					{
+						TheMessageStream->appendMessage(GameMessage::MSG_META_DEMO_INSTANT_QUIT);
+					}
+					else
+					{
+						TheGameEngine->setQuitting(TRUE);
+					}
+				}
 				return 0;
 
 			//-------------------------------------------------------------------------
@@ -682,7 +709,7 @@ static Bool initializeAppWindows( HINSTANCE hInstance, Int nCmdShow, Bool runWin
    // Create our main window
 	windowStyle =  WS_POPUP|WS_VISIBLE;
 	if (runWindowed)
-		windowStyle |= WS_DLGFRAME | WS_CAPTION | WS_SYSMENU;
+		windowStyle |= WS_MINIMIZEBOX | WS_SYSMENU | WS_DLGFRAME | WS_CAPTION;
 	else
 		windowStyle |= WS_EX_TOPMOST | WS_SYSMENU;
 
@@ -826,7 +853,9 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 #endif
 		// register windows class and create application window
 		if(!TheGlobalData->m_headless && initializeAppWindows(hInstance, nCmdShow, TheGlobalData->m_windowed) == false)
+		{
 			return exitcode;
+		}
 
 		// save our application instance for future use
 		ApplicationHInstance = hInstance;
@@ -906,7 +935,7 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 // CreateGameEngine ===========================================================
 /** Create the Win32 game engine we're going to use */
 //=============================================================================
-GameEngine *CreateGameEngine( void )
+GameEngine *CreateGameEngine()
 {
 	Win32GameEngine *engine;
 

@@ -76,6 +76,7 @@
 #include "GameLogic/Module/ProjectileStreamUpdate.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameLogic/Module/LifetimeUpdate.h"
+#include "GameLogic/Module/SpawnBehavior.h"
 #include "GameLogic/TerrainLogic.h"
 
 #define RATIONALIZE_ATTACK_RANGE
@@ -379,7 +380,7 @@ WeaponTemplate::~WeaponTemplate()
 }
 
 // ------------------------------------------------------------------------------------------------
-void WeaponTemplate::reset( void )
+void WeaponTemplate::reset()
 {
 	m_historicDamage.clear();
 }
@@ -442,13 +443,12 @@ void WeaponTemplate::copy_from(const WeaponTemplate& other) {
 	static const char *MIN_LABEL = "Min";
 	static const char *MAX_LABEL = "Max";
 
-	const char* token = ini->getNextTokenOrNull(ini->getSepsColon());
-
+	const char* token = ini->getNextToken(ini->getSepsColon());
 	if( stricmp(token, MIN_LABEL) == 0 )
 	{
 		// Two entry min/max
 		self->m_minDelayBetweenShots = INI::scanInt(ini->getNextToken(ini->getSepsColon()));
-		token = ini->getNextTokenOrNull(ini->getSepsColon());
+		token = ini->getNextToken(ini->getSepsColon());
 		if( stricmp(token, MAX_LABEL) != 0 )
 		{
 			// Messed up double entry
@@ -734,11 +734,21 @@ Real WeaponTemplate::estimateWeaponTemplateDamage(
   // hmm.. must be shooting a firebase or such, if there is noone home to take the bullet, return 0!
   if ( victimObj->isKindOf( KINDOF_STRUCTURE) && damageType == DAMAGE_SNIPER )
   {
+
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_SNIPING_EMPTY_STINGER_SITES
     if ( victimObj->getContain() )
     {
       if ( victimObj->getContain()->getContainCount() == 0 )
         return 0.0f;
     }
+#else
+		// TheSuperHackers @bugfix Stubbjax 22/06/2026 Only allow targeting Stinger Sites when they contain Soldiers.
+		const Bool hasOccupants = victimObj->getContain() && victimObj->getContain()->getContainCount() > 0;
+		const Bool hasSlaves = victimObj->getSpawnBehaviorInterface() && victimObj->getSpawnBehaviorInterface()->getSlaveCount() > 0;
+
+		if (!hasOccupants && !hasSlaves)
+			return 0.0f;
+#endif
   }
 
 
@@ -1041,7 +1051,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 		}
 		else
 		{
-			targetPos.set( victimPos );
+			targetPos.set( *victimPos );
 		}
 		Real reAngle = getWeaponRecoilAmount();
 		Real reDir = reAngle != 0.0f ? (atan2(victimPos->y - sourcePos->y, victimPos->x - sourcePos->x)) : 0.0f;
@@ -1191,7 +1201,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 				//adjust the laser's position to prevent it from hitting the ground.
 				if( victimObj )
 				{
-					projectileDestination.set( victimObj->getPosition() );
+					projectileDestination.set( *victimObj->getPosition() );
 				}
 				if (firingWeapon->getContinuousLaserLoopTime() > 0)
 					firingWeapon->handleContinuousLaser(sourceObj, victimObj, &projectileDestination);
@@ -1210,7 +1220,7 @@ UnsignedInt WeaponTemplate::fireWeaponTemplate
 
 			// Handle Detonation OCL
 			Coord3D targetPos; // We need a better position to match the visual laser;
-			targetPos.set(&projectileDestination);
+			targetPos.set(projectileDestination);
 
 			if (victimObj) {
 				if (!victimObj->isKindOf(KINDOF_PROJECTILE) && !victimObj->isAirborneTarget()) {
@@ -1409,7 +1419,7 @@ void WeaponTemplate::createPreAttackFX
 		}
 		else if (victimPos)
 		{
-			targetPos.set(victimPos);
+			targetPos.set(*victimPos);
 		}
 
 		/*DEBUG_LOG((">>> INFO - creating PRE_ATTACK FX for '%s' with victim '%s' and pos '(%f, %f, %f)' \n",
@@ -1435,7 +1445,7 @@ void WeaponTemplate::createPreAttackFX
 	}
 }
 //-------------------------------------------------------------------------------------------------
-#if RETAIL_COMPATIBLE_CRC || PRESERVE_RETAIL_BEHAVIOR
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_UNRELIABLE_FIRESTORMS
 void WeaponTemplate::trimOldHistoricDamage() const
 {
 	UnsignedInt expirationDate = TheGameLogic->getFrame() - TheGlobalData->m_historicDamageLimit;
@@ -1498,7 +1508,7 @@ static Bool is2DDistSquaredLessThan(const Coord3D& a, const Coord3D& b, Real dis
 }
 
 //-------------------------------------------------------------------------------------------------
-#if RETAIL_COMPATIBLE_CRC || PRESERVE_RETAIL_BEHAVIOR
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_UNRELIABLE_FIRESTORMS
 void WeaponTemplate::processHistoricDamage(const Object* source, const Coord3D* pos) const
 {
 	//
@@ -1832,8 +1842,8 @@ void WeaponTemplate::dealDamageInternal(ObjectID sourceID, ObjectID victimID, co
 			damageDirection.zero();
 			if( curVictim && source )
 			{
-				damageDirection.set( curVictim->getPosition() );
-				damageDirection.sub( source->getPosition() );
+				damageDirection.set( *curVictim->getPosition() );
+				damageDirection.sub( *source->getPosition() );
 			}
 
 			Real allowedAngle = getRadiusDamageAngle();
@@ -2013,7 +2023,7 @@ const WeaponTemplate *WeaponStore::findWeaponTemplate( const AsciiString& name )
 	if (name.compareNoCase("None") == 0)
 		return nullptr;
 	const WeaponTemplate * wt = findWeaponTemplatePrivate( TheNameKeyGenerator->nameToKey( name ) );
-	DEBUG_ASSERTCRASH(wt != nullptr, ("Weapon %s not found!",name));
+	DEBUG_ASSERTCRASH(wt != nullptr, ("Weapon %s not found!", name.str()));
 	return wt;
 }
 
@@ -2098,7 +2108,7 @@ void WeaponStore::deleteAllDelayedDamage()
 }
 
 // ------------------------------------------------------------------------------------------------
-void WeaponStore::resetWeaponTemplates( void )
+void WeaponStore::resetWeaponTemplates()
 {
 
 	for (size_t i = 0; i < m_weaponTemplateVector.size(); i++)
@@ -2121,9 +2131,9 @@ void WeaponStore::reset()
 		WeaponTemplate *wt = m_weaponTemplateVector[i];
 		if (wt->isOverride())
 		{
-			WeaponTemplate *override = wt;
+			WeaponTemplate *overrideData = wt;
 			wt = wt->friend_clearNextTemplate();
-			deleteInstance(override);
+			deleteInstance(overrideData);
 		}
 	}
 
@@ -4348,7 +4358,7 @@ void Weapon::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void Weapon::loadPostProcess( void )
+void Weapon::loadPostProcess()
 {
 	if( m_projectileStreamID != INVALID_ID )
 	{

@@ -33,13 +33,13 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "render2d.h"
-#include "mutex.h"
+#include "WWLib/mutex.h"
 #include "ww3d.h"
 #include "font3d.h"
-#include "rect.h"
+#include "WWMath/rect.h"
 #include "texture.h"
-#include "matrix4.h"
-#include "matrix3d.h"
+#include "WWMath/matrix4.h"
+#include "WWMath/matrix3d.h"
 #include "dx8wrapper.h"
 #include "dx8indexbuffer.h"
 #include "dx8vertexbuffer.h"
@@ -47,8 +47,8 @@
 #include "vertmaterial.h"
 #include "dx8fvf.h"
 #include "dx8caps.h"
-#include "wwprofile.h"
-#include "wwmemlog.h"
+#include "WWDebug/wwprofile.h"
+#include "WWDebug/wwmemlog.h"
 #include "assetmgr.h"
 
 RectClass							Render2DClass::ScreenResolution( 0,0,0,0 );
@@ -67,7 +67,6 @@ Render2DClass::Render2DClass( TextureClass* tex ) :
 {
 	Set_Texture( tex );
    Shader = Get_Default_Shader();
-	return ;
 }
 
 Render2DClass::~Render2DClass()
@@ -76,7 +75,7 @@ Render2DClass::~Render2DClass()
 }
 
 ShaderClass
-Render2DClass::Get_Default_Shader( void )
+Render2DClass::Get_Default_Shader()
 {
 	ShaderClass shader;
 
@@ -91,7 +90,7 @@ Render2DClass::Get_Default_Shader( void )
 	return shader;
 }
 
-void	Render2DClass::Reset(void)
+void	Render2DClass::Reset()
 {
 	Vertices.Delete_All( false );
 	UVCoordinates.Delete_All( false );
@@ -170,7 +169,7 @@ void	Render2DClass::Set_Coordinate_Range( const RectClass & range )
 	Update_Bias();
 }
 
-void	  Render2DClass::Update_Bias( void )
+void	  Render2DClass::Update_Bias()
 {
 	BiasedCoordinateOffset = CoordinateOffset;
 
@@ -504,7 +503,6 @@ void	Render2DClass::Add_Rect( const RectClass & rect, float border_width, uint32
 		fill_rect.Bottom	-= border_width - 1;
 	}
 	Add_Quad (fill_rect, fill_color);
-	return ;
 }
 
 void	Render2DClass::Add_Outline( const RectClass & rect, float width, unsigned long color )
@@ -525,7 +523,7 @@ void	Render2DClass::Add_Outline( const RectClass & rect, float width, const Rect
 	Add_Line (Vector2 (rect.Right, rect.Bottom),	Vector2 (rect.Left + 1, rect.Bottom),	width, color);
 }
 
-void Render2DClass::Render(void)
+void Render2DClass::Render()
 {
 	if ( !Indices.Count() || IsHidden) {
 		return;
@@ -653,7 +651,7 @@ Render2DTextClass::~Render2DTextClass()
 	REF_PTR_RELEASE(Font);
 }
 
-void	Render2DTextClass::Reset(void)
+void	Render2DTextClass::Reset()
 {
 	Render2DClass::Reset();
 	Cursor = Location;

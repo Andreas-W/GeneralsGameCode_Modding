@@ -619,12 +619,12 @@ void DroneCarrierAIUpdate::aiDoCommand(const AICommandParms* parms)
 		{
 		case AICMD_GUARD_POSITION:
 			m_designatedTarget = INVALID_ID;
-			m_designatedPosition.set(&parms->m_pos);
+			m_designatedPosition.set(parms->m_pos);
 			m_designatedCommand = parms->m_cmd;
 			break;
 		case AICMD_ATTACK_POSITION:
 			m_designatedTarget = INVALID_ID;
-			m_designatedPosition.set(&parms->m_pos);
+			m_designatedPosition.set(parms->m_pos);
 			m_designatedCommand = parms->m_cmd;
 			break;
 		case AICMD_FORCE_ATTACK_OBJECT:
@@ -635,7 +635,7 @@ void DroneCarrierAIUpdate::aiDoCommand(const AICommandParms* parms)
 			break;
 		case AICMD_ATTACKMOVE_TO_POSITION:
 			m_designatedTarget = INVALID_ID;
-			m_designatedPosition.set(&parms->m_pos);
+			m_designatedPosition.set(parms->m_pos);
 			m_designatedCommand = parms->m_cmd;
 			break;
 		case AICMD_IDLE:

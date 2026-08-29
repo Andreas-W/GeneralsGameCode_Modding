@@ -37,9 +37,9 @@
 
 #pragma once
 
-#include "always.h"
-#include "bittype.h"
-#include "iostruct.h"
+#include "WWLib/always.h"
+#include "WWLib/bittype.h"
+#include "WWLib/iostruct.h"
 #include <limits.h>
 
 /********************************************************************************
@@ -719,7 +719,7 @@ struct W3dMaterialInfoStruct
 
 struct W3dVertexMaterialStruct
 {
-	W3dVertexMaterialStruct(void) {}
+	W3dVertexMaterialStruct() {}
 
 	bool operator == (W3dVertexMaterialStruct vm)
 	{
@@ -877,7 +877,7 @@ enum PS2_SHADER_SETTINGS {
 
 struct W3dShaderStruct
 {
-	W3dShaderStruct(void) {}
+	W3dShaderStruct() {}
 
 	uint8						DepthCompare;
 	uint8						DepthMask;
@@ -1065,7 +1065,7 @@ inline int W3d_Shader_Get_Post_Detail_Alpha_Func(const W3dShaderStruct * s)	 { r
 
 struct W3dTextureInfoStruct
 {
-	W3dTextureInfoStruct(void)	{}
+	W3dTextureInfoStruct()	{}
 	uint16					Attributes;					// flags for this texture
 	uint16					AnimType;					// animation logic
 	uint32					FrameCount;					// Number of frames (1 if not animated)
@@ -2270,4 +2270,4 @@ struct W3dShdSubMeshHeaderStruct
 /*
 ** Include the obsolete structures and chunk ID's
 */
-#include "w3d_obsolete.h"
+#include "WW3D2/w3d_obsolete.h"

@@ -243,7 +243,7 @@ static Bool loadMap( AsciiString filename )
 	return TRUE;
 }
 
-static void resetMap( void )
+static void resetMap()
 {
 	delete[] m_data;
 	m_data = nullptr;
@@ -272,7 +272,7 @@ static void getExtent( Region3D *extent )
 
 //-------------------------------------------------------------------------------
 
-void WaypointMap::update( void )
+void WaypointMap::update()
 {
 	if (!m_waypoints)
 	{
@@ -404,7 +404,7 @@ void MapCache::writeCacheINI( const AsciiString &mapDir )
 	fclose(fp);
 }
 
-void MapCache::updateCache( void )
+void MapCache::updateCache()
 {
 	setFPMode();
 
@@ -722,7 +722,7 @@ Bool WouldMapTransfer( const AsciiString& mapName )
 }
 
 //-------------------------------------------------------------------------------------------------
-typedef std::set<UnicodeString, rts::less_than_nocase<UnicodeString> > MapNameList;
+typedef std::set<UnicodeString, rts::less_than_nocase<UnicodeString>/**/> MapNameList;
 typedef std::map<UnicodeString, AsciiString> MapDisplayToFileNameList;
 
 static void buildMapListForNumPlayers(MapNameList &outMapNames, MapDisplayToFileNameList &outFileNames, Int numPlayers)

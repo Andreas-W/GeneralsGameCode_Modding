@@ -113,9 +113,9 @@ public:
 		///<if this is set, then no render will occur, even if enableShadowRender() is enabled. Used by Shroud.
 		void enableShadowInvisible(Bool isEnabled);
 		void enableShadowRender(Bool isEnabled);
-		Bool isRenderEnabled(void) {return m_isEnabled;}
-		Bool isInvisibleEnabled(void) {return m_isInvisibleEnabled;}
-		virtual void release(void)=0;	///<release this shadow from suitable manager.
+		Bool isRenderEnabled() {return m_isEnabled;}
+		Bool isInvisibleEnabled() {return m_isInvisibleEnabled;}
+		virtual void release()=0;	///<release this shadow from suitable manager.
 		void setOpacity(Int value); ///<adjust opacity of decal/shadow
 		void setColor(Color value);///<adjust ARGB color of decal/shadow
 		void setAngle(Real angle);		///<adjust orientation around z-axis

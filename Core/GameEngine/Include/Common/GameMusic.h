@@ -81,7 +81,7 @@ public:
 		MusicTrack();
 		// virtual destructor prototype defined by memory pool object
 
-		const FieldParse *getFieldParse( void ) const { return m_musicTrackFieldParseTable; }
+		const FieldParse *getFieldParse() const { return m_musicTrackFieldParseTable; }
 
 		Int					index;									///< Track index
 		AsciiString name;										///< Logical name of track
@@ -102,10 +102,10 @@ class MusicManager
 		MusicManager();
 		virtual ~MusicManager();
 
-		void playTrack( AudioEventRTS *eventToUse );
+		void playTrack( DynamicAudioEventRTS *eventToUse );
 		void stopTrack( AudioHandle eventToRemove );
 
-		virtual void addAudioEvent(AudioEventRTS *eventToAdd);	// pre-copied
+		virtual void addAudioEvent( DynamicAudioEventRTS *eventToAdd );	// pre-copied
 		virtual void removeAudioEvent( AudioHandle eventToRemove );
 
 		void setVolume( Real m_volume );

@@ -44,6 +44,7 @@ class ObjectCreationList;
 class Object;
 enum ScienceType CPP_11(: Int);
 struct FieldParse;
+enum AcademyClassificationType CPP_11(: Int);
 
 // For SpecialPowerType and SpecialPowerMaskType::s_bitNameList. Part of detangling.
 #include "Common/SpecialPowerType.h"
@@ -99,7 +100,7 @@ public:
   SpecialPowerTemplate();
 	// virtual destructor prototype provided by MemoryPoolObject
 
-	static const FieldParse* getFieldParse( void ) { return m_specialPowerFieldParse; }
+	static const FieldParse* getFieldParse() { return m_specialPowerFieldParse; }
 
 	void friend_setNameAndID(const AsciiString& name, UnsignedInt id)
 	{
@@ -107,20 +108,21 @@ public:
 		m_id = id;
 	}
 
-	AsciiString getName( void ) const { return getFO()->m_name; }
-	UnsignedInt getID( void ) const { return getFO()->m_id; }
-	SpecialPowerType getSpecialPowerType( void ) const { return getFO()->m_type; }
-	UnsignedInt getReloadTime( void ) const { return getFO()->m_reloadTime; }
-	ScienceType getRequiredScience( void ) const { return getFO()->m_requiredScience; }
-	const AudioEventRTS *getInitiateSound( void ) const { return &getFO()->m_initiateSound; }
-	const AudioEventRTS *getInitiateAtTargetSound( void ) const { return &getFO()->m_initiateAtLocationSound; }
-	Bool hasPublicTimer( void ) const { return getFO()->m_publicTimer; }
-	Bool isSharedNSync( void ) const { return getFO()->m_sharedNSync; }
-	UnsignedInt getDetectionTime( void ) const { return getFO()->m_detectionTime; }
-	UnsignedInt getViewObjectDuration( void ) const { return getFO()->m_viewObjectDuration; }
-	Real getViewObjectRange( void ) const { return getFO()->m_viewObjectRange; }
+	AsciiString getName() const { return getFO()->m_name; }
+	UnsignedInt getID() const { return getFO()->m_id; }
+	SpecialPowerType getSpecialPowerType() const { return getFO()->m_type; }
+	UnsignedInt getReloadTime() const { return getFO()->m_reloadTime; }
+	ScienceType getRequiredScience() const { return getFO()->m_requiredScience; }
+	const AudioEventRTS *getInitiateSound() const { return &getFO()->m_initiateSound; }
+	const AudioEventRTS *getInitiateAtTargetSound() const { return &getFO()->m_initiateAtLocationSound; }
+	Bool hasPublicTimer() const { return getFO()->m_publicTimer; }
+	Bool isSharedNSync() const { return getFO()->m_sharedNSync; }
+	UnsignedInt getDetectionTime() const { return getFO()->m_detectionTime; }
+	UnsignedInt getViewObjectDuration() const { return getFO()->m_viewObjectDuration; }
+	Real getViewObjectRange() const { return getFO()->m_viewObjectRange; }
 	Real getRadiusCursorRadius() const { return getFO()->m_radiusCursorRadius; }
 	Bool isShortcutPower() const { return getFO()->m_shortcutPower; }
+	AcademyClassificationType getAcademyClassificationType() const { return m_academyClassificationType; }
 
 private:
 
@@ -133,6 +135,7 @@ private:
 	ScienceType				m_requiredScience;		///< science required (if any) to actually execute this power
 	AudioEventRTS			m_initiateSound;			///< sound to play when initiated
 	AudioEventRTS			m_initiateAtLocationSound;		///< sound to play at target location (if any)
+	AcademyClassificationType m_academyClassificationType; ///< A value used by the academy to evaluate advice based on what players do.
 	UnsignedInt				m_detectionTime;			///< (frames) after using infiltration power (defection, etc.),
 																					///< how long it takes for ex comrades to realize it on their own
 	UnsignedInt				m_viewObjectDuration;	///< Lifetime of a looking object we slap down so you can watch the effect
@@ -153,12 +156,12 @@ class SpecialPowerStore : public SubsystemInterface
 
 public:
 
-	SpecialPowerStore( void );
-	~SpecialPowerStore( void );
+	SpecialPowerStore();
+	virtual ~SpecialPowerStore() override;
 
-	virtual void init( void ) { };
-	virtual void update( void ) { };
-	virtual void reset( void );
+	virtual void init() override { };
+	virtual void update() override { };
+	virtual void reset() override;
 
 	const SpecialPowerTemplate *findSpecialPowerTemplate( AsciiString name ) { return findSpecialPowerTemplatePrivate(name); }
 	const SpecialPowerTemplate *findSpecialPowerTemplateByID( UnsignedInt id );
@@ -167,7 +170,7 @@ public:
 	/// does the object (and therefore the player) meet all the requirements to use this power
 	Bool canUseSpecialPower( Object *obj, const SpecialPowerTemplate *specialPowerTemplate );
 
-	Int getNumSpecialPowers( void ); // for WorldBuilder
+	Int getNumSpecialPowers(); // for WorldBuilder
 
 	static void parseSpecialPowerDefinition( INI *ini );
 

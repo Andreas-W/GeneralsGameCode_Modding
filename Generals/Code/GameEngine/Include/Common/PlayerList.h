@@ -48,10 +48,12 @@
 #include "Common/GameCommon.h"
 #include "Common/NameKeyGenerator.h"
 #include "Common/Snapshot.h"
+#include "GameNetwork/NetworkDefs.h"
 
 class DataChunkInput;
 struct DataChunkInfo;
 class DataChunkOutput;
+class GameInfo;
 class Player;
 class Team;
 class TeamFactory;
@@ -77,15 +79,15 @@ class PlayerList : public SubsystemInterface,
 public:
 
 	PlayerList();
-	~PlayerList();
+	virtual ~PlayerList() override;
 
 	// subsystem methods
-	virtual void init( void );
-	virtual void reset( void );
-	virtual void update( void );
+	virtual void init() override;
+	virtual void reset() override;
+	virtual void update() override;
 
-	virtual void newGame( void ); // called during GameLogic::startNewGame()
-	virtual void newMap( void );	 // Called after a new map is loaded.
+	virtual void newGame(); // called during GameLogic::startNewGame()
+	virtual void newMap();	 // Called after a new map is loaded.
 
 	void teamAboutToBeDeleted(Team* team);
 
@@ -141,7 +143,7 @@ public:
 	/**
 		a convenience routine to quickly clear the entered/exited flags on all teams.
 	*/
-	void updateTeamStates(void);
+	void updateTeamStates();
 
 	/**
 		a convenience routine to return the players who srcPlayer considers to have one of the
@@ -150,18 +152,27 @@ public:
 	*/
 	PlayerMaskType getPlayersWithRelationship( Int srcPlayerIndex, UnsignedInt allowedRelationships );
 
+	Int getSlotIndex(Int playerIndex) const;
+	Player *getPlayerFromSlotIndex(Int slotIndex) const;
+
 protected:
 
 	// snapshot methods
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess( void );
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
+
+	Int getPlayerIndexFromSlotIndex(Int slotIndex) const;
 
 private:
+	void assignSlotIndices(const GameInfo& gameInfo);
+	void setSlotIndex(Int playerIndex, Int slotIndex);
 
 	Player				*m_local;
 	Int						m_playerCount;
 	Player				*m_players[MAX_PLAYER_COUNT];
+	Int						m_slotIndices[MAX_PLAYER_COUNT];
+	Int						m_slotToPlayerIndices[MAX_SLOTS];
 
 };
 

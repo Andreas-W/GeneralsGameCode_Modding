@@ -36,8 +36,8 @@
 
 #pragma once
 
-#include "always.h"
-#include "bittype.h"
+#include "WWLib/always.h"
+#include "WWLib/bittype.h"
 #include "definitionclassids.h"
 
 class DefinitionFactoryClass;
@@ -64,7 +64,7 @@ public:
 	static DefinitionFactoryClass *	Get_Next (DefinitionFactoryClass *current, uint32 superclass_id);
 
 	// Factory enumeration
-	static DefinitionFactoryClass *	Get_First (void);
+	static DefinitionFactoryClass *	Get_First ();
 	static DefinitionFactoryClass *	Get_Next (DefinitionFactoryClass *current);
 
 private:

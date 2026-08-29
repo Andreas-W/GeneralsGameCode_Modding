@@ -75,7 +75,7 @@ StructureCollapseUpdate::StructureCollapseUpdate( Thing *thing, const ModuleData
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-StructureCollapseUpdate::~StructureCollapseUpdate( void )
+StructureCollapseUpdate::~StructureCollapseUpdate()
 {
 }
 
@@ -84,7 +84,7 @@ static void parseFX( INI* ini, void *instance, void * /*store*/, const void* /*u
 {
 	StructureCollapseUpdateModuleData* self = (StructureCollapseUpdateModuleData*)instance;
 	StructureCollapsePhaseType scphase = (StructureCollapsePhaseType)INI::scanIndexList(ini->getNextToken(), TheStructureCollapsePhaseNames);
-	for (const char* token = ini->getNextToken(); token != nullptr; token = ini->getNextTokenOrNull())
+	for (const char* token = ini->getNextToken(); token; token = ini->getNextTokenOrNull())
 	{
 		const FXList *fxl = TheFXListStore->findFXList((token));	// could be null! this is OK!
 		self->m_fxs[scphase].push_back(fxl);
@@ -96,7 +96,7 @@ static void parseOCL( INI* ini, void *instance, void * /*store*/, const void* /*
 {
 	StructureCollapseUpdateModuleData* self = (StructureCollapseUpdateModuleData*)instance;
 	StructureCollapsePhaseType stphase = (StructureCollapsePhaseType)INI::scanIndexList(ini->getNextToken(), TheStructureCollapsePhaseNames);
-	for (const char* token = ini->getNextToken(); token != nullptr; token = ini->getNextTokenOrNull())
+	for (const char* token = ini->getNextToken(); token; token = ini->getNextTokenOrNull())
 	{
 		const ObjectCreationList *ocl = TheObjectCreationListStore->findObjectCreationList(token);	// could be null! this is OK!
 		self->m_ocls[stphase].push_back(ocl);
@@ -165,7 +165,7 @@ void StructureCollapseUpdate::onDie( const DamageInfo *damageInfo )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime StructureCollapseUpdate::update( void )
+UpdateSleepTime StructureCollapseUpdate::update()
 {
 	static const Real COLLAPSE_ACCELERATION_FACTOR = 0.02f;
 	const StructureCollapseUpdateModuleData *d = getStructureCollapseUpdateModuleData();
@@ -397,7 +397,7 @@ void StructureCollapseUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void StructureCollapseUpdate::loadPostProcess( void )
+void StructureCollapseUpdate::loadPostProcess()
 {
 
 	// extend base class

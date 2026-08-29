@@ -4,6 +4,7 @@ option(RTS_BUILD_CORE_EXTRAS "Build core extra tools/tests" OFF)
 option(RTS_BUILD_ZEROHOUR "Build Zero Hour code." ON)
 option(RTS_BUILD_GENERALS "Build Generals code." ON)
 option(RTS_BUILD_OPTION_PROFILE "Build code with the \"Profile\" configuration." OFF)
+option(RTS_BUILD_OPTION_PROFILE_TRACY "Build code with Tracy profiling enabled." OFF)
 option(RTS_BUILD_OPTION_DEBUG "Build code with the \"Debug\" configuration." OFF)
 option(RTS_BUILD_OPTION_ASAN "Build code with Address Sanitizer." OFF)
 option(RTS_BUILD_OPTION_VC6_FULL_DEBUG "Build VC6 with full debug info." OFF)
@@ -23,6 +24,8 @@ add_feature_info(DebugBuild RTS_BUILD_OPTION_DEBUG "Building as a \"Debug\" buil
 add_feature_info(AddressSanitizer RTS_BUILD_OPTION_ASAN "Building with address sanitizer")
 add_feature_info(Vc6FullDebug RTS_BUILD_OPTION_VC6_FULL_DEBUG "Building VC6 with full debug info")
 add_feature_info(FFmpegSupport RTS_BUILD_OPTION_FFMPEG "Building with FFmpeg support")
+
+set(RTS_BUILD_OUTPUT_SUFFIX "" CACHE STRING "Suffix appended to output names of installable targets")
 
 if(RTS_BUILD_ZEROHOUR)
     option(RTS_BUILD_ZEROHOUR_TOOLS "Build tools for Zero Hour" ON)
@@ -71,5 +74,12 @@ else()
 endif()
 
 if(RTS_BUILD_OPTION_PROFILE)
-    target_compile_definitions(core_config INTERFACE RTS_PROFILE)
+    target_compile_definitions(core_config INTERFACE RTS_PROFILE_LEGACY)
+endif()
+
+# Define a dummy Tracy target when the build option is disabled.
+if(RTS_BUILD_OPTION_PROFILE_TRACY)
+    include(cmake/tracy.cmake)
+else()
+    add_library(core_profile_tracy INTERFACE)
 endif()

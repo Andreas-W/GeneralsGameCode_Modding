@@ -164,7 +164,7 @@ public:
 
 #ifdef STATE_MACHINE_DEBUG
 	virtual AsciiString getName() const {return m_name;}
-	std::vector<StateID> *getTransitions(void);
+	std::vector<StateID> *getTransitions();
 #endif
 
 	// for internal use by the StateMachine class ---------------------------------------------------------
@@ -180,15 +180,6 @@ protected:
 #ifdef STATE_MACHINE_DEBUG
 	inline void setName(AsciiString n) { m_name = n; }
 #endif
-
-protected:
-	// snapshot interface	 - pure virtual here.
-	// Essentially all the member data gets set up on creation and shouldn't change.
-	// So none of it needs to be saved, and it nicely forces all user states to
-	// remember to implement crc, xfer & loadPostProcess.  jba
-	virtual void crc( Xfer *xfer )=0;
-	virtual void xfer( Xfer *xfer )=0;
-	virtual void loadPostProcess()=0;
 
 private:
 
@@ -312,7 +303,7 @@ public:
 	const Coord3D *getGoalPosition() const { return &m_goalPosition; }
 	Bool isGoalObjectDestroyed() const;  ///< Returns true if we had a goal object, but it has been destroyed.
 
-	virtual void halt(void); ///< Stops the state machine & disables it in preparation for deleting it.
+	virtual void halt(); ///< Stops the state machine & disables it in preparation for deleting it.
 
 	//
 	// The following methods are for internal use by the State class
@@ -336,9 +327,9 @@ public:
 
 protected:
 	// snapshot interface
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess();
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
 
 protected:
 
@@ -404,13 +395,13 @@ class SuccessState : public State
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(SuccessState, "SuccessState")
 public:
 	SuccessState( StateMachine *machine ) : State( machine, "SuccessState") { }
-	virtual StateReturnType onEnter() { return STATE_SUCCESS; }
-	virtual StateReturnType update() { return STATE_SUCCESS; }
+	virtual StateReturnType onEnter() override { return STATE_SUCCESS; }
+	virtual StateReturnType update() override { return STATE_SUCCESS; }
 protected:
 	// snapshot interface STUBBED.
-	virtual void crc( Xfer *xfer ){};
-	virtual void xfer( Xfer *xfer ){XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
-	virtual void loadPostProcess(){};
+	virtual void crc( Xfer *xfer ) override {};
+	virtual void xfer( Xfer *xfer ) override {XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
+	virtual void loadPostProcess() override {};
 
 };
 EMPTY_DTOR(SuccessState)
@@ -424,13 +415,13 @@ class FailureState : public State
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(FailureState, "FailureState")
 public:
 	FailureState( StateMachine *machine ) : State( machine, "FailureState") { }
-	virtual StateReturnType onEnter() { return STATE_FAILURE; }
-	virtual StateReturnType update() { return STATE_FAILURE; }
+	virtual StateReturnType onEnter() override { return STATE_FAILURE; }
+	virtual StateReturnType update() override { return STATE_FAILURE; }
 protected:
 	// snapshot interface STUBBED.
-	virtual void crc( Xfer *xfer ){};
-	virtual void xfer( Xfer *xfer ){XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
-	virtual void loadPostProcess(){};
+	virtual void crc( Xfer *xfer ) override {};
+	virtual void xfer( Xfer *xfer ) override {XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
+	virtual void loadPostProcess() override {};
 };
 EMPTY_DTOR(FailureState)
 
@@ -444,13 +435,13 @@ class ContinueState :  public State
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(ContinueState, "ContinueState")
 public:
 	ContinueState( StateMachine *machine ) : State( machine, "ContinueState" ) { }
-	virtual StateReturnType onEnter() { return STATE_CONTINUE; }
-	virtual StateReturnType update() { return STATE_CONTINUE; }
+	virtual StateReturnType onEnter() override { return STATE_CONTINUE; }
+	virtual StateReturnType update() override { return STATE_CONTINUE; }
 protected:
 	// snapshot interface STUBBED.
-	virtual void crc( Xfer *xfer ){};
-	virtual void xfer( Xfer *xfer ){XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
-	virtual void loadPostProcess(){};
+	virtual void crc( Xfer *xfer ) override {};
+	virtual void xfer( Xfer *xfer ) override {XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
+	virtual void loadPostProcess() override {};
 };
 EMPTY_DTOR(ContinueState)
 
@@ -464,13 +455,13 @@ class SleepState :  public State
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(SleepState, "SleepState")
 public:
 	SleepState( StateMachine *machine ) : State( machine, "SleepState" ) { }
-	virtual StateReturnType onEnter() { return STATE_SLEEP_FOREVER; }
-	virtual StateReturnType update() { return STATE_SLEEP_FOREVER; }
+	virtual StateReturnType onEnter() override { return STATE_SLEEP_FOREVER; }
+	virtual StateReturnType update() override { return STATE_SLEEP_FOREVER; }
 protected:
 	// snapshot interface STUBBED.
-	virtual void crc( Xfer *xfer ){};
-	virtual void xfer( Xfer *xfer ){XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
-	virtual void loadPostProcess(){};
+	virtual void crc( Xfer *xfer ) override {};
+	virtual void xfer( Xfer *xfer ) override {XferVersion cv = 1;	XferVersion v = cv; xfer->xferVersion( &v, cv );}
+	virtual void loadPostProcess() override {};
 };
 EMPTY_DTOR(SleepState)
 

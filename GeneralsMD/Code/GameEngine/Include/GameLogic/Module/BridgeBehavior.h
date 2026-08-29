@@ -97,8 +97,8 @@ class BridgeBehaviorModuleData : public BehaviorModuleData
 
 public:
 
-	BridgeBehaviorModuleData( void );
-	~BridgeBehaviorModuleData( void );
+	BridgeBehaviorModuleData();
+	virtual ~BridgeBehaviorModuleData() override;
 
 	static void buildFieldParse( MultiIniFieldParse &p );
 
@@ -132,27 +132,27 @@ public:
 	// virtual destructor prototype provided by memory pool declaration
 
 	// module methods
-	static Int getInterfaceMask( void ) { return (MODULEINTERFACE_DAMAGE) |
+	static Int getInterfaceMask() { return (MODULEINTERFACE_DAMAGE) |
 																							 (MODULEINTERFACE_DIE) |
 																							 (MODULEINTERFACE_UPDATE); }
-	virtual BridgeBehaviorInterface* getBridgeBehaviorInterface( void ) { return this; }
-	virtual void onDelete( void );
+	virtual BridgeBehaviorInterface* getBridgeBehaviorInterface() override { return this; }
+	virtual void onDelete() override;
 
 	// Damage methods
-	virtual DamageModuleInterface* getDamage( void ) { return this; }
-	virtual void onDamage( DamageInfo *damageInfo );
-	virtual void onHealing( DamageInfo *damageInfo );
+	virtual DamageModuleInterface* getDamage() override { return this; }
+	virtual void onDamage( DamageInfo *damageInfo ) override;
+	virtual void onHealing( DamageInfo *damageInfo ) override;
 	virtual void onBodyDamageStateChange( const DamageInfo* damageInfo,
 																				BodyDamageType oldState,
-																				BodyDamageType newState );
+																				BodyDamageType newState ) override;
 
 	// Die methods
-	virtual DieModuleInterface* getDie( void ) { return this; }
-	virtual void onDie( const DamageInfo *damageInfo );
+	virtual DieModuleInterface* getDie() override { return this; }
+	virtual void onDie( const DamageInfo *damageInfo ) override;
 
 	// Update methods
-	virtual UpdateModuleInterface *getUpdate( void ) { return this; }
-	virtual UpdateSleepTime update( void );
+	virtual UpdateModuleInterface *getUpdate() override { return this; }
+	virtual UpdateSleepTime update() override;
 
 	virtual void towerCaptured(Player* oldOwner, Player* newOwner, const Object* fromTower) override;
 
@@ -168,8 +168,8 @@ public:
 
 protected:
 
-	void resolveFX( void );
-	void handleObjectsOnBridgeOnDie( void );
+	void resolveFX();
+	void handleObjectsOnBridgeOnDie();
 	void doAreaEffects( TerrainRoadType *bridgeTemplate, Bridge *bridge,
 											const ObjectCreationList *ocl, const FXList *fx );
 	void setScaffoldData( Object *obj,

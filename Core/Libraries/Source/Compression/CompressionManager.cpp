@@ -34,7 +34,7 @@
 
 
 // TheSuperHackers @todo Recover debug logging in this file?
-#define DEBUG_LOG(x) {}
+#define DEBUG_LOG(x)
 
 const char *CompressionManager::getCompressionNameByType( CompressionType compType )
 {
@@ -87,7 +87,7 @@ Bool CompressionManager::isDataCompressed( const void *mem, Int len )
 	return t != COMPRESSION_NONE;
 }
 
-CompressionType CompressionManager::getPreferredCompression( void )
+CompressionType CompressionManager::getPreferredCompression()
 {
 	return COMPRESSION_REFPACK;
 }
@@ -358,7 +358,7 @@ public:
 	Int compressedSize[COMPRESSION_MAX+1];
 };
 
-void DoCompressTest( void )
+void DoCompressTest()
 {
 
 	Int i;

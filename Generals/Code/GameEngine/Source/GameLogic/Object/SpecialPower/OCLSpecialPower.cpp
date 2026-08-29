@@ -63,7 +63,7 @@ static_assert(ARRAY_SIZE(TheOCLCreateLocTypeNames) == OCL_CREATE_LOC_COUNT + 1, 
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-OCLSpecialPowerModuleData::OCLSpecialPowerModuleData( void )
+OCLSpecialPowerModuleData::OCLSpecialPowerModuleData()
 {
 	m_defaultOCL = nullptr;
 	m_upgradeOCL.clear();
@@ -133,7 +133,7 @@ const ObjectCreationList* OCLSpecialPower::findOCL() const
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-OCLSpecialPower::~OCLSpecialPower( void )
+OCLSpecialPower::~OCLSpecialPower()
 {
 
 }
@@ -181,7 +181,7 @@ void OCLSpecialPower::doSpecialPowerAtLocation( const Coord3D *loc, Real angle, 
 			ObjectCreationList::create( ocl, getObject(), &creationCoord, loc );
 			break;
 		case USE_OWNER_OBJECT:
-			creationCoord.set( loc );
+			creationCoord.set( *loc );
 			ObjectCreationList::create( ocl, getObject(), &creationCoord, loc, false );
 			break;
 		case CREATE_ABOVE_LOCATION:
@@ -213,7 +213,7 @@ void OCLSpecialPower::doSpecialPower( UnsignedInt commandOptions )
 		return;
 
 	Coord3D creationCoord;
-	creationCoord.set( getObject()->getPosition() );
+	creationCoord.set( *getObject()->getPosition() );
 
 	// call the base class action cause we are *EXTENDING* functionality
 	SpecialPowerModule::doSpecialPowerAtLocation( &creationCoord, INVALID_ANGLE, commandOptions );
@@ -254,7 +254,7 @@ void OCLSpecialPower::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void OCLSpecialPower::loadPostProcess( void )
+void OCLSpecialPower::loadPostProcess()
 {
 
 	// extend base class

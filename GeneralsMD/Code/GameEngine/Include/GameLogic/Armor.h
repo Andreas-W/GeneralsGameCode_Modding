@@ -102,11 +102,11 @@ class ArmorStore : public SubsystemInterface
 public:
 
 	ArmorStore();
-	~ArmorStore();
+	virtual ~ArmorStore() override;
 
-	void init() { }
-	void reset() { }
-	void update() { }
+	virtual void init() override { }
+	virtual void reset() override { }
+	virtual void update() override { }
 
 	const ArmorTemplate* findArmorTemplate(NameKeyType namekey) const;
 	/**
@@ -125,7 +125,7 @@ public:
 
 private:
 
-	typedef std::hash_map< NameKeyType, ArmorTemplate, rts::hash<NameKeyType>, rts::equal_to<NameKeyType> > ArmorTemplateMap;
+	typedef std::hash_map< NameKeyType, ArmorTemplate, rts::hash<NameKeyType>, rts::equal_to<NameKeyType>/**/> ArmorTemplateMap;
 	ArmorTemplateMap m_armorTemplates;
 
 };

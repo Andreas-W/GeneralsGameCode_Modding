@@ -24,7 +24,7 @@
 #include "MainFrm.h"
 #include "OpenMap.h"
 #include "SplashScreen.h"
-#include "textureloader.h"
+#include "WW3D2/textureloader.h"
 #include "WorldBuilderDoc.h"
 #include "WorldBuilderView.h"
 #include "WBFrameWnd.h"
@@ -110,7 +110,7 @@ class WBGameFileClass : public GameFileClass
 
 public:
 	WBGameFileClass(char const *filename):GameFileClass(filename){};
-	virtual char const * Set_Name(char const *filename);
+	virtual char const * Set_Name(char const *filename) override;
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -137,7 +137,7 @@ char const * WBGameFileClass::Set_Name( char const *filename )
 // wb only data.  jba.
 
 class	WB_W3DFileSystem : public W3DFileSystem {
-	virtual FileClass * Get_File( char const *filename );
+	virtual FileClass * Get_File( char const *filename ) override;
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -386,9 +386,6 @@ BOOL CWorldBuilderApp::InitInstance()
 	ini.loadFileDirectory( "Data\\Scripts\\Scripts", INI_LOAD_OVERWRITE, nullptr );
 
 	initSubsystem(TheAudio, (AudioManager*)new MilesAudioManager());
-	if (!TheAudio->isMusicAlreadyLoaded())
-		return FALSE;
-
 	initSubsystem(TheVideoPlayer, (VideoPlayerInterface*)(new VideoPlayer()));
 	initSubsystem(TheModuleFactory, (ModuleFactory*)(new W3DModuleFactory()));
 	initSubsystem(TheSidesList, new SidesList());
@@ -516,7 +513,7 @@ BOOL CWorldBuilderApp::OnCmdMsg(UINT nID, int nCode, void* pExtra,
 //=============================================================================
 /** Sets the active tool to the pointer, and clears the selection. */
 //=============================================================================
-void CWorldBuilderApp::selectPointerTool(void)
+void CWorldBuilderApp::selectPointerTool()
 {
 	setActiveTool(&m_pointerTool);
 	// Clear selection.
@@ -590,7 +587,7 @@ public:
 	// ClassWizard generated virtual function overrides
 	//{{AFX_VIRTUAL(CAboutDlg)
 	protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+	virtual void DoDataExchange(CDataExchange* pDX) override;    // DDX/DDV support
 	//}}AFX_VIRTUAL
 
 // Implementation

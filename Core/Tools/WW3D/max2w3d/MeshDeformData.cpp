@@ -45,10 +45,9 @@
 //	~MeshDeformModData
 //
 ///////////////////////////////////////////////////////////////////////////
-MeshDeformModData::~MeshDeformModData (void)
+MeshDeformModData::~MeshDeformModData ()
 {
 	Free_Sets_List ();
-	return ;
 }
 
 
@@ -77,8 +76,6 @@ MeshDeformModData::Record_Mesh_State (TriObject &tri_obj, float state, bool upda
 		m_SetsList[m_CurrentSet]->Set_State (state);
 		m_SetsList[m_CurrentSet]->Update_Mesh (tri_obj);
 	}
-
-	return ;
 }
 
 
@@ -88,7 +85,7 @@ MeshDeformModData::Record_Mesh_State (TriObject &tri_obj, float state, bool upda
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformModData::Free_Sets_List (void)
+MeshDeformModData::Free_Sets_List ()
 {
 	//
 	//	Delete all the object pointers in the set list
@@ -100,7 +97,6 @@ MeshDeformModData::Free_Sets_List (void)
 
 	// Remove all the entries from the list
 	m_SetsList.Delete_All ();
-	return ;
 }
 
 
@@ -141,8 +137,6 @@ MeshDeformModData::Set_Max_Deform_Sets (int max)
 			m_SetsList.Delete (max);
 		}
 	}
-
-	return ;
 }
 
 
@@ -164,8 +158,6 @@ MeshDeformModData::Restore_Set (int set_index)
 	} else {
 		m_SetsList[set_index]->Restore_Members ();
 	}
-
-	return ;
 }
 
 

@@ -130,7 +130,7 @@ public:
 	virtual AIUpdateInterface* getAIUpdateInterface() = 0;
 	virtual ExitInterface* getUpdateExitInterface() = 0;
 	virtual DockUpdateInterface* getDockUpdateInterface() = 0;
-	virtual RailedTransportDockUpdateInterface *getRailedTransportDockUpdateInterface( void ) = 0;
+	virtual RailedTransportDockUpdateInterface *getRailedTransportDockUpdateInterface() = 0;
 	virtual SlowDeathBehaviorInterface* getSlowDeathBehaviorInterface() = 0;
 	virtual SpecialPowerUpdateInterface* getSpecialPowerUpdateInterface() = 0;
 	virtual SlavedUpdateInterface* getSlavedUpdateInterface() = 0;
@@ -174,16 +174,16 @@ public:
   virtual StealthUpdate* getStealth() { return nullptr; }
 	virtual SpyVisionUpdate* getSpyVisionUpdate() { return nullptr; }
 
-	virtual ParkingPlaceBehaviorInterface* getParkingPlaceBehaviorInterface() { return nullptr; }
-	virtual RebuildHoleBehaviorInterface* getRebuildHoleBehaviorInterface() { return nullptr; }
-	virtual BridgeBehaviorInterface* getBridgeBehaviorInterface() { return nullptr; }
-	virtual BridgeTowerBehaviorInterface* getBridgeTowerBehaviorInterface() { return nullptr; }
-	virtual BridgeScaffoldBehaviorInterface* getBridgeScaffoldBehaviorInterface() { return nullptr; }
-	virtual OverchargeBehaviorInterface* getOverchargeBehaviorInterface() { return nullptr; }
-	virtual TransportPassengerInterface* getTransportPassengerInterface() { return nullptr; }
-	virtual CaveInterface* getCaveInterface() { return nullptr; }
-	virtual LandMineInterface* getLandMineInterface() { return nullptr; }
-	virtual DieModuleInterface* getEjectPilotDieInterface() { return nullptr; }
+	virtual ParkingPlaceBehaviorInterface* getParkingPlaceBehaviorInterface() override { return nullptr; }
+	virtual RebuildHoleBehaviorInterface* getRebuildHoleBehaviorInterface() override { return nullptr; }
+	virtual BridgeBehaviorInterface* getBridgeBehaviorInterface() override { return nullptr; }
+	virtual BridgeTowerBehaviorInterface* getBridgeTowerBehaviorInterface() override { return nullptr; }
+	virtual BridgeScaffoldBehaviorInterface* getBridgeScaffoldBehaviorInterface() override { return nullptr; }
+	virtual OverchargeBehaviorInterface* getOverchargeBehaviorInterface() override { return nullptr; }
+	virtual TransportPassengerInterface* getTransportPassengerInterface() override { return nullptr; }
+	virtual CaveInterface* getCaveInterface() override { return nullptr; }
+	virtual LandMineInterface* getLandMineInterface() override { return nullptr; }
+	virtual DieModuleInterface* getEjectPilotDieInterface() override { return nullptr; }
 	// interface acquisition (moved from UpdateModule)
 	virtual ProjectileUpdateInterface* getProjectileUpdateInterface() { return nullptr; }
 	virtual AIUpdateInterface* getAIUpdateInterface() { return nullptr; }
@@ -205,9 +205,9 @@ public:
 protected:
 
 	// snapshot methods
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess( void );
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
 
 };
 inline BehaviorModule::BehaviorModule( Thing *thing, const ModuleData* moduleData ) : ObjectModule( thing, moduleData ) { }

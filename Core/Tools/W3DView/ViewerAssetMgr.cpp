@@ -38,8 +38,8 @@
 #include "StdAfx.h"
 
 #include "ViewerAssetMgr.h"
-#include "texture.h"
-#include "ww3d.h"
+#include "WW3D2/texture.h"
+#include "WW3D2/ww3d.h"
 #include "Utils.h"
 
 
@@ -102,7 +102,6 @@ ViewerAssetMgrClass::Get_Texture (const char * tga_filename, MipCountType mip_le
 void
 ViewerAssetMgrClass::Open_Texture_File_Cache (const char * /*prefix*/)
 {
-	return ;
 }
 
 
@@ -112,7 +111,6 @@ ViewerAssetMgrClass::Open_Texture_File_Cache (const char * /*prefix*/)
 //
 ////////////////////////////////////////////////////////////////////////
 void
-ViewerAssetMgrClass::Close_Texture_File_Cache (void)
+ViewerAssetMgrClass::Close_Texture_File_Cache ()
 {
-	return ;
 }

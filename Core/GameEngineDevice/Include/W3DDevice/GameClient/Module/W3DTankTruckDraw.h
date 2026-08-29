@@ -70,7 +70,7 @@ public:
 	Real m_treadDriveSpeedFraction;	///<fraction of locomotor speed below which treads stop animating.
 
 	W3DTankTruckDrawModuleData();
-	~W3DTankTruckDrawModuleData();
+	virtual ~W3DTankTruckDrawModuleData() override;
 	static void buildFieldParse(MultiIniFieldParse& p);
 };
 
@@ -86,13 +86,13 @@ public:
 	W3DTankTruckDraw( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
-	virtual void setHidden(Bool h);
-	virtual void doDrawModule(const Matrix3D* transformMtx);
-	virtual void setFullyObscuredByShroud(Bool fullyObscured);
-	virtual void reactToGeometryChange() { }
+	virtual void setHidden(Bool h) override;
+	virtual void doDrawModule(const Matrix3D* transformMtx) override;
+	virtual void setFullyObscuredByShroud(Bool fullyObscured) override;
+	virtual void reactToGeometryChange() override { }
 
 protected:
-	virtual void onRenderObjRecreated(void);
+	virtual void onRenderObjRecreated() override;
 
 protected:
 	Bool						m_effectsInitialized;
@@ -141,15 +141,15 @@ protected:
 
 	RenderObjClass *m_prevRenderObj;
 
-	void createTreadEmitters( void ); ///< Create particle effects for treads.
-	void tossTreadEmitters( void ); ///< Destroy particle effects for treads.
+	void createTreadEmitters(); ///< Create particle effects for treads.
+	void tossTreadEmitters(); ///< Destroy particle effects for treads.
 
-	void createWheelEmitters( void ); ///< Create particle effects for wheels.
-	void tossWheelEmitters( void ); ///< Destroy particle effects for wheels.
+	void createWheelEmitters(); ///< Create particle effects for wheels.
+	void tossWheelEmitters(); ///< Destroy particle effects for wheels.
 	void enableWheelEmitters( Bool enable ); ///< Start or stop creating effects from the wheels.
-	void updateBones( void );
+	void updateBones();
 
-	void stopMoveDebris( void ); ///< Stop creating debris from the tank treads.
-	void updateTreadObjects(void); ///< Update pointers to sub-objects like treads.
+	void stopMoveDebris(); ///< Stop creating debris from the tank treads.
+	void updateTreadObjects(); ///< Update pointers to sub-objects like treads.
 	void updateTreadPositions(Real uvDelta); ///< Update uv coordinates on each tread.
 };

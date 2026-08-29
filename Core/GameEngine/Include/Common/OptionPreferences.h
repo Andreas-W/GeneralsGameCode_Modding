@@ -30,6 +30,9 @@
 
 #pragma once
 
+#include "WW3D2/ww3d.h"
+#include "WW3D2/texturefilter.h"
+
 #include "Common/UserPreferences.h"
 
 typedef UnsignedInt CursorCaptureMode;
@@ -42,23 +45,37 @@ class OptionPreferences : public UserPreferences
 {
 public:
 	OptionPreferences();
-	virtual ~OptionPreferences();
+	virtual ~OptionPreferences() override;
+
+	enum AntiAliasingMode CPP_11(: Int)
+	{
+		AntiAliasingMode_OFF = 0,
+		AntiAliasingMode_MSAA_2X,
+		AntiAliasingMode_MSAA_4X,
+		AntiAliasingMode_MSAA_8X,
+		AntiAliasingMode_Count
+	};
 
 	Bool loadFromIniFile();
 
-	UnsignedInt getLANIPAddress(void);
-	UnsignedInt getOnlineIPAddress(void);
+	WW3D::MultiSampleModeEnum getAntiAliasing() const;
+	TextureFilterClass::TextureFilterMode getTextureFilterMode() const;
+	TextureFilterClass::AnisotropicFilterMode getTextureAnisotropyLevel() const;
+	UnsignedInt getLANIPAddress();
+	UnsignedInt getOnlineIPAddress();
 	void setLANIPAddress(AsciiString IP);
 	void setOnlineIPAddress(AsciiString IP);
 	void setLANIPAddress(UnsignedInt IP);
 	void setOnlineIPAddress(UnsignedInt IP);
 	Bool getArchiveReplaysEnabled() const;
-	Bool getAlternateMouseModeEnabled(void);
+	Bool getAlternateMouseModeEnabled();
+	Bool getRightMouseScrollWithAlternateMouseEnabled() const;
 	Bool getRetaliationModeEnabled();
-	Bool getDoubleClickAttackMoveEnabled(void);
-	Real getScrollFactor(void);
-	Bool getDrawScrollAnchor(void);
-	Bool getMoveScrollAnchor(void);
+	Bool getDoubleClickAttackMoveEnabled();
+	Int getJpegQuality() const;
+	Real getScrollFactor();
+	Bool getDrawScrollAnchor();
+	Bool getMoveScrollAnchor();
 	Bool getCursorCaptureEnabledInWindowedGame() const;
 	Bool getCursorCaptureEnabledInWindowedMenu() const;
 	Bool getCursorCaptureEnabledInFullscreenGame() const;
@@ -67,50 +84,51 @@ public:
 	Bool getScreenEdgeScrollEnabledInWindowedApp() const;
 	Bool getScreenEdgeScrollEnabledInFullscreenApp() const;
 	ScreenEdgeScrollMode getScreenEdgeScrollMode() const;
-	Bool getSendDelay(void);
-	Int getFirewallBehavior(void);
-	Short getFirewallPortAllocationDelta(void);
-	UnsignedShort getFirewallPortOverride(void);
-	Bool getFirewallNeedToRefresh(void);
-	Bool usesSystemMapDir(void);
-	AsciiString getPreferred3DProvider(void);
-	AsciiString getSpeakerType(void);
-	Real getSoundVolume(void);
-	Real get3DSoundVolume(void);
-	Real getSpeechVolume(void);
-	Real getMusicVolume(void);
-	Real getMoneyTransactionVolume(void) const;
-	Bool saveCameraInReplays(void);
-	Bool useCameraInReplays(void);
+	Int getFirewallBehavior();
+	Short getFirewallPortAllocationDelta();
+	UnsignedShort getFirewallPortOverride();
+	Bool getFirewallNeedToRefresh();
+	Bool usesSystemMapDir();
+	AsciiString getPreferred3DProvider();
+	AsciiString getSpeakerType();
+	Real getSoundVolume();
+	Real get3DSoundVolume();
+	Real getSpeechVolume();
+	Real getMusicVolume();
+	Real getMoneyTransactionVolume() const;
+	Bool saveCameraInReplays();
+	Bool useCameraInReplays();
 	Bool getPlayerObserverEnabled() const;
-	Int getStaticGameDetail(void);
-	Int getIdealStaticGameDetail(void);
-	Real getGammaValue(void);
-	Int getTextureReduction(void);
+	Int getStaticGameDetail();
+	Int getIdealStaticGameDetail();
+	Real getGammaValue();
+	Int getTextureReduction();
 	void getResolution(Int *xres, Int *yres);
-	Bool get3DShadowsEnabled(void);
-	Bool get2DShadowsEnabled(void);
-	Bool getCloudShadowsEnabled(void);
-	Bool getLightmapEnabled(void);
-	Bool getSmoothWaterEnabled(void);
-	Bool getTreesEnabled(void);
-	Bool getExtraAnimationsDisabled(void);
-	Bool getUseHeatEffects(void);
-	Bool getDynamicLODEnabled(void);
-	Bool getFPSLimitEnabled(void);
-	Bool getBuildingOcclusionEnabled(void);
-	Int getParticleCap(void);
+	Bool get3DShadowsEnabled();
+	Bool get2DShadowsEnabled();
+	Bool getCloudShadowsEnabled();
+	Bool getLightmapEnabled();
+	Bool getSmoothWaterEnabled();
+	Bool getTreesEnabled();
+	Bool getExtraAnimationsDisabled();
+	Bool getUseHeatEffects();
+	Bool getDynamicLODEnabled();
+	Bool getFPSLimitEnabled();
+	Bool getBuildingOcclusionEnabled();
+	Int getParticleCap();
 
-	Int getCampaignDifficulty(void);
+	Int getCampaignDifficulty();
 	void setCampaignDifficulty(Int diff);
 
-	Int getNetworkLatencyFontSize(void);
-	Int getRenderFpsFontSize(void);
-	Int getSystemTimeFontSize(void);
-	Int getGameTimeFontSize(void);
-	Int getPlayerInfoListFontSize(void);
+	Int getNetworkLatencyFontSize();
+	Int getRenderFpsFontSize();
+	Int getSystemTimeFontSize();
+	Int getGameTimeFontSize();
+	Int getPlayerInfoListFontSize();
 
-	Real getResolutionFontAdjustment(void);
+	Real getResolutionFontAdjustment();
 
-	Bool getShowMoneyPerMinute(void) const;
+	Bool getShowMoneyPerMinute() const;
+
+	Real getGameWindowTransitionSpeedMultiplier() const;
 };

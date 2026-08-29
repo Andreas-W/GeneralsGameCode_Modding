@@ -80,12 +80,12 @@ public:
 	static Int getInterfaceMask() { return UpdateModule::getInterfaceMask() | (MODULEINTERFACE_DIE); }
 
 	// BehaviorModule
-	virtual DieModuleInterface* getDie() { return this; }
+	virtual DieModuleInterface* getDie() override { return this; }
 
 	// DieModuleInterface
-	virtual void onDie( const DamageInfo *damageInfo );
+	virtual void onDie( const DamageInfo *damageInfo ) override;
 
-	virtual ProjectileUpdateInterface* getProjectileUpdateInterface() { return this; }
+	virtual ProjectileUpdateInterface* getProjectileUpdateInterface() override { return this; }
 
 	enum MissileStateType
 	{
@@ -109,8 +109,8 @@ public:
 	virtual Object* getTargetObject() { return NULL; }
 	virtual const Coord3D* getTargetPosition();
 
-	virtual UpdateSleepTime update();
-	virtual void onDelete( void );
+	virtual UpdateSleepTime update() override;
+	virtual void onDelete() override;
 
 private:
 
@@ -138,8 +138,8 @@ private:
 
 	const ParticleSystemTemplate* m_exhaustSysTmpl;
 
-	void doLaunch( void );							///< implement LAUNCH state
-	void doAttack( void );							///< implement ATTACK state
+	void doLaunch();							///< implement LAUNCH state
+	void doAttack();							///< implement ATTACK state
 	void detonate();												///< blow it up. (usually only called by MissileCollide)
 
 

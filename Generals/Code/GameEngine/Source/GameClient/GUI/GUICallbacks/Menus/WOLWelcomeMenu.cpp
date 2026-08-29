@@ -217,7 +217,7 @@ static UnsignedByte grabUByte(const char *s)
 	return b;
 }
 
-static void updateNumPlayersOnline(void)
+static void updateNumPlayersOnline()
 {
 	GameWindow *playersOnlineWindow = TheWindowManager->winGetWindowFromId(
 		nullptr, NAMEKEY("WOLWelcomeMenu.wnd:StaticTextNumPlayersOnline") );
@@ -337,7 +337,7 @@ static UnicodeString calcPercent(const OverallStats& stats, Int n, UnicodeString
 	return s;
 }
 
-static void updateOverallStats(void)
+static void updateOverallStats()
 {
 	UnicodeString usa, china, gla;
 	GameWindow *win;
@@ -377,7 +377,7 @@ void HandleOverallStats( const OverallStats& USA, const OverallStats& China, con
 /** Handle player stats */
 //-------------------------------------------------------------------------------------------------
 
-void UpdateLocalPlayerStats(void)
+void UpdateLocalPlayerStats()
 {
 
 	GameWindow *welcomeParent = TheWindowManager->winGetWindowFromId( nullptr, NAMEKEY("WOLWelcomeMenu.wnd:WOLWelcomeMenuParent") );
@@ -390,8 +390,6 @@ void UpdateLocalPlayerStats(void)
 	{
 		PopulatePlayerInfoWindows( "WOLQuickMatchMenu.wnd" );
 	}
-
-	return;
 }
 
 static Bool raiseMessageBoxes = FALSE;

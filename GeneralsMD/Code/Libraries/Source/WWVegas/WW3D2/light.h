@@ -36,9 +36,9 @@
 
 #pragma once
 
-#include "always.h"
-#include "rendobj.h"
-#include "w3derr.h"
+#include "WWLib/always.h"
+#include "WW3D2/rendobj.h"
+#include "WW3D2/w3derr.h"
 
 class ChunkLoadClass;
 class ChunkSaveClass;
@@ -68,30 +68,30 @@ public:
 	LightClass(LightType type = POINT);
 	LightClass(const LightClass & src);
 	LightClass & operator = (const LightClass &);
-	virtual ~LightClass(void);
-	RenderObjClass *		Clone(void) const;
-	virtual int				Class_ID(void) const											{ return CLASSID_LIGHT; }
+	virtual ~LightClass() override;
+	virtual RenderObjClass *		Clone() const override;
+	virtual int				Class_ID() const override { return CLASSID_LIGHT; }
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Rendering
 	// Lights do not "Render" but they are vertex processors.
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void			Render(RenderInfoClass & rinfo)							{ }
-	virtual bool			Is_Vertex_Processor(void)									{ return true; }
+	virtual void			Render(RenderInfoClass & rinfo) override { }
+	virtual bool			Is_Vertex_Processor()									{ return true; }
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - "Scene Graph"
 	// Lights register themselves with the scene as VertexProcessors.
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void			Notify_Added(SceneClass * scene);
-	virtual void			Notify_Removed(SceneClass * scene);
+	virtual void			Notify_Added(SceneClass * scene) override;
+	virtual void			Notify_Removed(SceneClass * scene) override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface - Bounding Volumes
 	// Bounding volume of a light extends to its attenuation radius
 	/////////////////////////////////////////////////////////////////////////////
-	virtual void			Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const;
-   virtual void			Get_Obj_Space_Bounding_Box(AABoxClass & box) const;
+	virtual void			Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const override;
+   virtual void			Get_Obj_Space_Bounding_Box(AABoxClass & box) const override;
 
 	/////////////////////////////////////////////////////////////////////////////
 	// LightClass Interface
@@ -99,7 +99,7 @@ public:
 	LightType				Get_Type() {return (Type);}
 
 	void						Set_Intensity(float inten) { Intensity = inten; }
-	float						Get_Intensity(void) const { return Intensity; }
+	float						Get_Intensity() const { return Intensity; }
 
 	void						Set_Ambient(const Vector3 & color) { Ambient = color; }
 	void						Get_Ambient(Vector3 * set_c) const { if (set_c) { *set_c = Ambient; } }
@@ -115,7 +115,7 @@ public:
 	void						Get_Far_Attenuation_Range(float & fStart, float & fEnd) const	{ fStart = FarAttenStart; fEnd = FarAttenEnd; }
 	void						Set_Near_Attenuation_Range(double nStart, double nEnd)			{ NearAttenStart = nStart; NearAttenEnd = nEnd; }
 	void						Get_Near_Attenuation_Range(double& nStart, double& nEnd)	const	{ nStart = NearAttenStart; nEnd = NearAttenEnd; }
-	float						Get_Attenuation_Range(void) const										{ return FarAttenEnd; }
+	float						Get_Attenuation_Range() const										{ return FarAttenEnd; }
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Control over the light flags
@@ -123,19 +123,19 @@ public:
 	void						Set_Flag(FlagsType flag,bool onoff) { if (onoff) { Flags |= flag; } else { Flags &= ~flag; } }
 	int						Get_Flag(FlagsType flag) const		{ return ((Flags & flag) != 0); }
 	void						Enable_Shadows(bool onoff)				{ CastShadows = onoff; }
-	bool						Are_Shadows_Enabled(void) const		{ return CastShadows; }
-	LightType				Get_Type (void) const					{ return Type; }
+	bool						Are_Shadows_Enabled() const		{ return CastShadows; }
+	LightType				Get_Type () const					{ return Type; }
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Spotlight controls:
 	/////////////////////////////////////////////////////////////////////////////
 	void						Set_Spot_Angle(float a)							{ SpotAngle = a; SpotAngleCos = WWMath::Fast_Cos(a); }
-	float						Get_Spot_Angle(void)	const						{ return SpotAngle; }
-	float						Get_Spot_Angle_Cos(void) const				{ return SpotAngleCos; }
+	float						Get_Spot_Angle()	const						{ return SpotAngle; }
+	float						Get_Spot_Angle_Cos() const				{ return SpotAngleCos; }
 	void						Set_Spot_Direction(const Vector3 & dir)	{ SpotDirection = dir; }
 	void						Get_Spot_Direction(Vector3 & dir) const	{ dir = SpotDirection; }
 	void						Set_Spot_Exponent(float k)						{ SpotExponent = k; }
-	float						Get_Spot_Exponent(void) const					{ return SpotExponent; }
+	float						Get_Spot_Exponent() const					{ return SpotExponent; }
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Save/Load
@@ -146,10 +146,10 @@ public:
 	/////////////////////////////////////////////////////////////////////////////
 	// Persistent object save-load interface
 	/////////////////////////////////////////////////////////////////////////////
-	virtual const PersistFactoryClass &	Get_Factory (void) const;
-	virtual bool								Save (ChunkSaveClass &csave);
-	virtual bool								Load (ChunkLoadClass &cload);
-	//bool isDonut(void) {return Donut; };
+	virtual const PersistFactoryClass &	Get_Factory () const override;
+	virtual bool								Save (ChunkSaveClass &csave) override;
+	virtual bool								Load (ChunkLoadClass &cload) override;
+	//bool isDonut() {return Donut; };
 	//void setDonut(bool donut) { Donut = donut; };
 
 protected:

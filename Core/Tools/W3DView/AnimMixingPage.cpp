@@ -25,11 +25,11 @@
 #include "AdvancedAnimSheet.h"
 #include "AnimMixingPage.h"
 
-#include "rendobj.h"
-#include "htree.h"
-#include "hanim.h"
+#include "WW3D2/rendobj.h"
+#include "WW3D2/htree.h"
+#include "WW3D2/hanim.h"
 #include "Utils.h"
-#include "assetmgr.h"
+#include "WW3D2/assetmgr.h"
 
 #ifdef RTS_DEBUG
 #define new DEBUG_NEW
@@ -84,7 +84,7 @@ BOOL CAnimMixingPage::OnInitDialog()
 }
 
 
-void CAnimMixingPage::FillListCtrl (void)
+void CAnimMixingPage::FillListCtrl ()
 {
 	// Get the current render object and it's HTree. If it doesn't have
 	// an HTree, then it's not animating and we're not interested.

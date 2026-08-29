@@ -30,7 +30,7 @@
  * Functions:                                                                                  *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "Threads.h"
 #include "Utils.h"
 #include <process.h>
@@ -51,9 +51,8 @@ bool							WWAudioThreadsClass::m_IsShuttingDown			= false;
 //	WWAudioThreadsClass
 //
 ///////////////////////////////////////////////////////////////////////////////////////////
-WWAudioThreadsClass::WWAudioThreadsClass (void)
+WWAudioThreadsClass::WWAudioThreadsClass ()
 {
-	return ;
 }
 
 
@@ -62,9 +61,8 @@ WWAudioThreadsClass::WWAudioThreadsClass (void)
 //	~WWAudioThreadsClass
 //
 ///////////////////////////////////////////////////////////////////////////////////////////
-WWAudioThreadsClass::~WWAudioThreadsClass (void)
+WWAudioThreadsClass::~WWAudioThreadsClass ()
 {
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -107,8 +105,6 @@ WWAudioThreadsClass::End_Delayed_Release_Thread (DWORD timeout)
 		m_hDelayedReleaseEvent	= (HANDLE)-1;
 		m_hDelayedReleaseThread	= (HANDLE)-1;
 	}
-
-	return ;
 }
 
 
@@ -155,8 +151,6 @@ WWAudioThreadsClass::Add_Delayed_Release_Object
 			m_ReleaseListHead = info;
 		}
 	}
-
-	return ;
 }
 
 
@@ -166,7 +160,7 @@ WWAudioThreadsClass::Add_Delayed_Release_Object
 //
 ///////////////////////////////////////////////////////////////////////////////////////////
 void
-WWAudioThreadsClass::Flush_Delayed_Release_Objects (void)
+WWAudioThreadsClass::Flush_Delayed_Release_Objects ()
 {
 	CriticalSectionClass::LockClass lock(m_CriticalSection);
 
@@ -187,7 +181,6 @@ WWAudioThreadsClass::Flush_Delayed_Release_Objects (void)
 	}
 
 	m_ReleaseListHead = nullptr;
-	return ;
 }
 
 
@@ -254,7 +247,6 @@ WWAudioThreadsClass::Delayed_Release_Thread_Proc (LPVOID /*param*/)
 	}
 
 	Flush_Delayed_Release_Objects ();
-	return ;
 }
 
 /*
@@ -264,7 +256,7 @@ WWAudioThreadsClass::Delayed_Release_Thread_Proc (LPVOID /*param*/)
 //
 ///////////////////////////////////////////////////////////////////////////////////////////
 bool
-WWAudioThreadsClass::Begin_Modify_List (void)
+WWAudioThreadsClass::Begin_Modify_List ()
 {
 	bool retval = false;
 
@@ -286,7 +278,7 @@ WWAudioThreadsClass::Begin_Modify_List (void)
 //
 ///////////////////////////////////////////////////////////////////////////////////////////
 void
-WWAudioThreadsClass::End_Modify_List (void)
+WWAudioThreadsClass::End_Modify_List ()
 {
 	//
 	//	Release this thread's hold on the mutex object.
@@ -294,8 +286,6 @@ WWAudioThreadsClass::End_Modify_List (void)
 	if (m_ListMutex != nullptr) {
 		::ReleaseMutex (m_ListMutex);
 	}
-
-	return ;
 }
 */
 

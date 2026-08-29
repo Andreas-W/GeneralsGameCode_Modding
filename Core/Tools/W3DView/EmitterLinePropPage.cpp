@@ -22,7 +22,7 @@
 #include "StdAfx.h"
 #include "W3DView.h"
 #include "EmitterLinePropPage.h"
-#include "w3d_file.h"
+#include "WW3D2/w3d_file.h"
 #include "EmitterInstanceList.h"
 #include "Utils.h"
 
@@ -90,7 +90,7 @@ END_MESSAGE_MAP()
 //  Initialize
 //
 void
-EmitterLinePropPageClass::Initialize (void)
+EmitterLinePropPageClass::Initialize ()
 {
 	if (m_pEmitterList != nullptr) {
 
@@ -110,8 +110,6 @@ EmitterLinePropPageClass::Initialize (void)
 		m_UPerSec = uvrate.X;
 		m_VPerSec = uvrate.Y;
 	}
-
-	return ;
 }
 
 BOOL EmitterLinePropPageClass::OnInitDialog()

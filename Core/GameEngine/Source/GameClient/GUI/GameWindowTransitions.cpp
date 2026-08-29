@@ -55,6 +55,8 @@
 #include "GameClient/GameWindowTransitions.h"
 #include "GameClient/GameWindow.h"
 #include "GameClient/GameWindowManager.h"
+#include "Common/FramePacer.h"
+#include "Common/GlobalData.h"
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
@@ -141,7 +143,7 @@ Transition *getTransitionForStyle( Int style )
 	return nullptr;
 }
 
-TransitionWindow::TransitionWindow( void )
+TransitionWindow::TransitionWindow()
 {
 	m_currentFrameDelay = m_frameDelay = 0;
 	m_style = 0;
@@ -151,7 +153,7 @@ TransitionWindow::TransitionWindow( void )
 	m_transition = nullptr;
 }
 
-TransitionWindow::~TransitionWindow( void )
+TransitionWindow::~TransitionWindow()
 {
 	if (m_win)
 		m_win->unlinkTransitionWindow(this);
@@ -162,7 +164,7 @@ TransitionWindow::~TransitionWindow( void )
 	m_transition = nullptr;
 }
 
-Bool TransitionWindow::init( void )
+Bool TransitionWindow::init()
 {
 	m_winID = TheNameKeyGenerator->nameToKey(m_winName);
 	m_win		= TheWindowManager->winGetWindowFromId(nullptr, m_winID);
@@ -191,7 +193,7 @@ void TransitionWindow::update( Int frame )
 		m_transition->update( frame - m_currentFrameDelay);
 }
 
-Bool TransitionWindow::isFinished( void )
+Bool TransitionWindow::isFinished()
 {
 	if(m_transition)
 		return m_transition->isFinished();
@@ -205,13 +207,13 @@ void TransitionWindow::reverse( Int totalFrames )
 		m_transition->reverse();
 }
 
-void TransitionWindow::skip( void )
+void TransitionWindow::skip()
 {
 	if(m_transition)
 		m_transition->skip();
 }
 
-void TransitionWindow::draw( void )
+void TransitionWindow::draw()
 {
 	if(m_transition)
 		m_transition->draw();
@@ -226,7 +228,7 @@ void TransitionWindow::unlinkGameWindow(GameWindow* win)
 	m_win = nullptr;
 }
 
-Int TransitionWindow::getTotalFrames( void )
+Int TransitionWindow::getTotalFrames()
 {
 	if(m_transition)
 	{
@@ -237,13 +239,13 @@ Int TransitionWindow::getTotalFrames( void )
 }
 
 //-----------------------------------------------------------------------------
-TransitionGroup::TransitionGroup( void )
+TransitionGroup::TransitionGroup()
 {
-	m_currentFrame = 0;
+	m_currentFrame = 0.0f;
 	m_fireOnce = FALSE;
 }
 
-TransitionGroup::~TransitionGroup( void )
+TransitionGroup::~TransitionGroup()
 {
 	TransitionWindowList::iterator it = m_transitionWindowList.begin();
 	while (it != m_transitionWindowList.end())
@@ -254,9 +256,9 @@ TransitionGroup::~TransitionGroup( void )
 	}
 }
 
-void TransitionGroup::init( void )
+void TransitionGroup::init()
 {
-	m_currentFrame = 0;
+	m_currentFrame = 0.0f;
 	m_directionMultiplier = 1;
 	TransitionWindowList::iterator it = m_transitionWindowList.begin();
 	while (it != m_transitionWindowList.end())
@@ -268,19 +270,43 @@ void TransitionGroup::init( void )
 
 }
 
-void TransitionGroup::update( void )
+void TransitionGroup::update()
 {
-	m_currentFrame += m_directionMultiplier; // we go forward or backwards depending.
-	TransitionWindowList::iterator it = m_transitionWindowList.begin();
-	while (it != m_transitionWindowList.end())
+	// TheSuperHackers @tweak bobtista GUI transition timing is now decoupled from the render update.
+	// Step every integer frame between the old and new accumulator value so discrete-state-machine
+	// transitions cannot skip a state when the render frame rate dips below the base rate.
+	// TheSuperHackers @feature bobtista 28/06/2026 Scale by the user game window transition speed preference.
+	const Real timeScale = TheFramePacer->getBaseOverUpdateFpsRatio() * TheGlobalData->m_gameWindowTransitionSpeedMultiplier;
+	const Int prevFrame = (Int)m_currentFrame;
+	m_currentFrame += m_directionMultiplier * timeScale;
+	const Int newFrame = (Int)m_currentFrame;
+
+	if( newFrame == prevFrame )
 	{
-		TransitionWindow *tWin = *it;
-		tWin->update(m_currentFrame);
-		it++;
+		return;
+	}
+
+	const Int step = (newFrame > prevFrame) ? 1 : -1;
+	for( Int frame = prevFrame + step; frame != newFrame + step; frame += step )
+	{
+		Bool isFinished = TRUE;
+		TransitionWindowList::iterator it = m_transitionWindowList.begin();
+		while (it != m_transitionWindowList.end())
+		{
+			TransitionWindow *tWin = *it;
+			tWin->update(frame);
+			isFinished &= tWin->isFinished();
+			it++;
+		}
+
+		if( isFinished )
+		{
+			break;
+		}
 	}
 }
 
-Bool TransitionGroup::isFinished( void )
+Bool TransitionGroup::isFinished()
 {
 	TransitionWindowList::iterator it = m_transitionWindowList.begin();
 	while (it != m_transitionWindowList.end())
@@ -294,7 +320,7 @@ Bool TransitionGroup::isFinished( void )
 	return TRUE;
 }
 
-void TransitionGroup::reverse( void )
+void TransitionGroup::reverse()
 {
 	Int totalFrames =0;
 	m_directionMultiplier = -1;
@@ -315,18 +341,18 @@ void TransitionGroup::reverse( void )
 		tWin->reverse(totalFrames);
 		it++;
 	}
-	m_currentFrame = totalFrames;
+	m_currentFrame = (Real)totalFrames;
 //	m_currentFrame ++;
 }
 
-Bool TransitionGroup::isReversed( void )
+Bool TransitionGroup::isReversed()
 {
 	if(m_directionMultiplier < 0)
 		return TRUE;
 	return FALSE;
 }
 
-void TransitionGroup::skip ( void )
+void TransitionGroup::skip ()
 {
 	TransitionWindowList::iterator it = m_transitionWindowList.begin();
 	while (it != m_transitionWindowList.end())
@@ -337,7 +363,7 @@ void TransitionGroup::skip ( void )
 	}
 }
 
-void TransitionGroup::draw ( void )
+void TransitionGroup::draw ()
 {
 	TransitionWindowList::iterator it = m_transitionWindowList.begin();
 	while (it != m_transitionWindowList.end())
@@ -357,7 +383,7 @@ void TransitionGroup::addWindow( TransitionWindow *transWin )
 
 //-----------------------------------------------------------------------------
 
-GameWindowTransitionsHandler::GameWindowTransitionsHandler(void)
+GameWindowTransitionsHandler::GameWindowTransitionsHandler()
 {
 	m_currentGroup = nullptr;
 	m_pendingGroup = nullptr;
@@ -366,7 +392,7 @@ GameWindowTransitionsHandler::GameWindowTransitionsHandler(void)
 
 }
 
-GameWindowTransitionsHandler::~GameWindowTransitionsHandler( void )
+GameWindowTransitionsHandler::~GameWindowTransitionsHandler()
 {
 	m_currentGroup = nullptr;
 	m_pendingGroup = nullptr;
@@ -382,7 +408,7 @@ GameWindowTransitionsHandler::~GameWindowTransitionsHandler( void )
 	}
 }
 
-void GameWindowTransitionsHandler::init(void )
+void GameWindowTransitionsHandler::init()
 {
 	m_currentGroup = nullptr;
 	m_pendingGroup = nullptr;
@@ -390,7 +416,7 @@ void GameWindowTransitionsHandler::init(void )
 	m_secondaryDrawGroup = nullptr;
 }
 
-void GameWindowTransitionsHandler::load(void )
+void GameWindowTransitionsHandler::load()
 {
 	INI ini;
 	// Read from INI all the ControlBarSchemes
@@ -398,7 +424,7 @@ void GameWindowTransitionsHandler::load(void )
 
 }
 
-void GameWindowTransitionsHandler::reset( void )
+void GameWindowTransitionsHandler::reset()
 {
 	m_currentGroup = nullptr;
 	m_pendingGroup = nullptr;
@@ -407,7 +433,7 @@ void GameWindowTransitionsHandler::reset( void )
 
 }
 
-void GameWindowTransitionsHandler::update( void )
+void GameWindowTransitionsHandler::update()
 {
 	if(m_drawGroup != m_currentGroup)
 		m_secondaryDrawGroup = m_drawGroup;
@@ -440,7 +466,7 @@ void GameWindowTransitionsHandler::update( void )
 }
 
 
-void GameWindowTransitionsHandler::draw( void )
+void GameWindowTransitionsHandler::draw()
 {
 //	if( TheGameLogic->getFrame() > 0 )//if( areTransitionsEnabled() ) //KRIS
 	if(m_drawGroup)
@@ -541,7 +567,7 @@ TransitionGroup *GameWindowTransitionsHandler::getNewGroup( AsciiString name )
 	return g;
 }
 
-Bool GameWindowTransitionsHandler::isFinished( void )
+Bool GameWindowTransitionsHandler::isFinished()
 {
 	if(m_currentGroup)
 		return m_currentGroup->isFinished();

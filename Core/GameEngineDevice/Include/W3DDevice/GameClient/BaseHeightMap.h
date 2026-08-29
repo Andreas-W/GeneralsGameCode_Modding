@@ -24,14 +24,14 @@
 
 #pragma once
 
-#include "always.h"
-#include "rendobj.h"
-#include "w3d_file.h"
-#include "dx8vertexbuffer.h"
-#include "dx8indexbuffer.h"
-#include "dx8wrapper.h"
-#include "shader.h"
-#include "vertmaterial.h"
+#include "WWLib/always.h"
+#include "WW3D2/rendobj.h"
+#include "WW3D2/w3d_file.h"
+#include "WW3D2/dx8vertexbuffer.h"
+#include "WW3D2/dx8indexbuffer.h"
+#include "WW3D2/dx8wrapper.h"
+#include "WW3D2/shader.h"
+#include "WW3D2/vertmaterial.h"
 #include "Lib/BaseType.h"
 #include "Common/GameType.h"
 #include "W3DDevice/GameClient/WorldHeightMap.h"
@@ -45,6 +45,7 @@ class W3DWaypointBuffer;
 class W3DTerrainLogic;
 class W3DAssetManager;
 class SimpleSceneClass;
+class W3DScorchInterface;
 class W3DShroud;
 class W3DPropDrawModuleData;
 class W3DPropBuffer;
@@ -69,14 +70,6 @@ class W3DDynamicLight;
 
 #define DO_ROADS 1
 
-#ifdef DO_SCORCH
-typedef struct {
-	Vector3 location;
-	Real		radius;
-	Int			scorchType;
-} TScorch;
-#endif
-
 #define VERTEX_FORMAT VertexFormatXYZDUV2
 #define DX8_VERTEX_FORMAT DX8_FVF_XYZDUV2
 
@@ -91,39 +84,40 @@ class BaseHeightMapRenderObjClass : public RenderObjClass, public DX8_CleanupHoo
 
 public:
 
-	BaseHeightMapRenderObjClass(void);
-	virtual ~BaseHeightMapRenderObjClass(void);
+	BaseHeightMapRenderObjClass();
+	virtual ~BaseHeightMapRenderObjClass() override;
 
 	// DX8_CleanupHook methods
-	virtual void ReleaseResources(void);	///< Release all dx8 resources so the device can be reset.
-	virtual void ReAcquireResources(void);  ///< Reacquire all resources after device reset.
+	virtual void ReleaseResources() override;	///< Release all dx8 resources so the device can be reset.
+	virtual void ReAcquireResources() override;  ///< Reacquire all resources after device reset.
 
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface (W3D methods)
 	/////////////////////////////////////////////////////////////////////////////
-	virtual RenderObjClass *	Clone(void) const;
-	virtual int						Class_ID(void) const;
-	virtual void					Render(RenderInfoClass & rinfo) = 0;
-	virtual bool					Cast_Ray(RayCollisionTestClass & raytest); // This CANNOT be Bool, as it will not inherit properly if you make Bool == Int
-	virtual void					Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const;
-	virtual void					Get_Obj_Space_Bounding_Box(AABoxClass & aabox) const;
+	virtual RenderObjClass *	Clone() const override;
+	virtual int						Class_ID() const override;
+	virtual void					Render(RenderInfoClass & rinfo) override = 0;
+	virtual bool					Cast_Ray(RayCollisionTestClass & raytest) override; // This CANNOT be Bool, as it will not inherit properly if you make Bool == Int
+	virtual void					Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const override;
+	virtual void					Get_Obj_Space_Bounding_Box(AABoxClass & aabox) const override;
 
 
-	virtual void					On_Frame_Update(void);
-	virtual void					Notify_Added(SceneClass * scene);
+	virtual void					On_Frame_Update() override;
+	virtual void					Notify_Added(SceneClass * scene) override;
 
   // Other VIRTUAL methods. [3/20/2003]
 
 	///allocate resources needed to render heightmap
 	virtual int initHeightData(Int width, Int height, WorldHeightMap *pMap, RefRenderObjListIterator *pLightsIterator, Bool updateExtraPassTiles=TRUE);
-	virtual Int freeMapResources(void);	///< free resources used to render heightmap
-	virtual void updateCenter(CameraClass *camera, RefRenderObjListIterator *pLightsIterator);
+	virtual Int freeMapResources();	///< free resources used to render heightmap
+	virtual void updateCenter(CameraClass *camera, const Vector3 *cameraPivot, RefRenderObjListIterator *pLightsIterator);
  	virtual void adjustTerrainLOD(Int adj);
 	virtual void doPartialUpdate(const IRegion2D &partialRange, WorldHeightMap *htMap, RefRenderObjListIterator *pLightsIterator) = 0;
-	virtual void staticLightingChanged(void);
-	virtual void oversizeTerrain(Int tilesToOversize);
-	virtual void reset(void);
+	virtual void staticLightingChanged();
+	virtual void oversizeTerrain(Int tilesToOversize) = 0; ///< Oversize the visible terrain area.
+	virtual void setTerrainDrawSize(Int width, Int height) = 0; ///< Resize the visible terrain area. Always defaults to oversize dimensions when oversize is set.
+	virtual void reset();
 
   void redirectToHeightmap( WorldHeightMap *pMap )
   {
@@ -155,21 +149,22 @@ public:
 	void updateMacroTexture(AsciiString textureName);
 	void doTextures(Bool flag) {m_disableTextures = !flag;};
 	/// Update the diffuse value from static light info for one vertex.
-	void doTheLight(VERTEX_FORMAT *vb, Vector3*light, Vector3*normal, RefRenderObjListIterator *pLightsIterator, UnsignedByte alpha);
+	void doTheLight(VERTEX_FORMAT *vb, const Vector3*light, Vector3*normal, RefRenderObjListIterator *pLightsIterator, UnsignedByte alpha);
 	void addScorch(Vector3 location, Real radius, Scorches type);
+	void addStaticScorch(Vector3 location, Real radius, Scorches type);
 	void addTree(DrawableID id, Coord3D location, Real scale, Real angle,
 								Real randomScaleAmount,  const W3DTreeDrawModuleData *data);
-	void removeAllTrees(void);
+	void removeAllTrees();
 	void removeTree(DrawableID id);
 	Bool updateTreePosition(DrawableID id, Coord3D location, Real angle);
 	void renderTrees(CameraClass * camera); ///< renders the tree buffer.
 
 	void addProp(Int id, Coord3D location, Real angle, Real scale, const AsciiString &modelName);
 	void removeProp(Int id);
-	void removeAllProps(void);
+	void removeAllProps();
 
 	void unitMoved( Object *unit );
-	void notifyShroudChanged(void);
+	void notifyShroudChanged();
 	void removeTreesAndPropsForConstruction(
 		const Coord3D* pos,
 		const GeometryInfo& geom,
@@ -184,16 +179,17 @@ public:
 	void removeTerrainBibDrawable(DrawableID id);
 
 	/// Removes all bibs.
-	void removeAllTerrainBibs(void);
+	void removeAllTerrainBibs();
 	/// Remove all highlighting.
-	void removeTerrainBibHighlighting(void);
+	void removeTerrainBibHighlighting();
 
 	W3DShroud *getShroud()	{return m_shroud;}
 	void updateShorelineTiles(Int minX, Int minY, Int maxX, Int maxY, WorldHeightMap *pMap);	///<figure out which tiles on this map cross water plane
 	void updateShorelineTile(Int X, Int Y, Int Border, WorldHeightMap *pMap);	///<figure out which tiles on this map cross water plane
-	void recordShoreLineSortInfos(void);
+	void recordShoreLineSortInfos();
 	void updateViewImpassableAreas(Bool partial = FALSE, Int minX = 0, Int maxX = 0, Int minY = 0, Int maxY = 0);
-	void clearAllScorches(void);
+	void drawScorches();
+	void clearAllScorches();
 	void setTimeOfDay( TimeOfDay tod );
 	void loadRoadsAndBridges(W3DTerrainLogic *pTerrainLogic, Bool saveGame); ///< Load the roads from the map objects.
 	void worldBuilderUpdateBridgeTowers( W3DAssetManager *assetManager, SimpleSceneClass *scene );							///< for the editor updating of bridge tower visuals
@@ -201,65 +197,44 @@ public:
 
 	virtual Int	getNumExtraBlendTiles(Bool visible) { return 0;}
 	Int getNumShoreLineTiles(Bool visible)	{ return visible?m_numVisibleShoreLineTiles:m_numShoreLineTiles;}
-	void setShoreLineDetail(void);	///<update shoreline tiles in case the feature was toggled by user.
+	void setShoreLineDetail();	///<update shoreline tiles in case the feature was toggled by user.
 	Bool getMaximumVisibleBox(const FrustumClass &frustum,  AABoxClass *box, Bool ignoreMaxHeight);	///<3d extent of visible terrain.
 	Real getHeightMapHeight(Real x, Real y, Coord3D* normal) const;	///<return height and normal at given point
 	Bool isCliffCell(Real x, Real y);	///<return height and normal at given point
-	Real getMinHeight(void) const {return m_minHeight;}	///<return minimum height of entire terrain
-	Real getMaxHeight(void) const {return m_maxHeight;}	///<return maximum height of entire terrain
+	Real getMinHeight() const {return m_minHeight;}	///<return minimum height of entire terrain
+	Real getMaxHeight() const {return m_maxHeight;}	///<return maximum height of entire terrain
 	Real getMaxCellHeight(Real x, Real y) const;	///< returns maximum height of the 4 cell corners.
-	WorldHeightMap *getMap(void) {return m_map;}	///< returns object holding the heightmap samples - need this for fast access.
+	WorldHeightMap *getMap() {return m_map;}	///< returns object holding the heightmap samples - need this for fast access.
 	Bool isClearLineOfSight(const Coord3D& pos, const Coord3D& posOther) const;
 
-	Bool getShowImpassableAreas(void) {return m_showImpassableAreas;}
+	Bool getShowImpassableAreas() {return m_showImpassableAreas;}
 	void setShowImpassableAreas(Bool show) {m_showImpassableAreas = show;}
 
 	Bool showAsVisibleCliff(Int xIndex, Int yIndex) const;
 
 	Bool evaluateAsVisibleCliff(Int xIndex, Int yIndex, Real valuesGreaterThanRad);
 
-	Real getViewImpassableAreaSlope(void) const { return m_curImpassableSlope; }
+	Real getViewImpassableAreaSlope() const { return m_curImpassableSlope; }
 	void setViewImpassableAreaSlope(Real viewSlope) { m_curImpassableSlope = viewSlope; }
 
-	Bool doesNeedFullUpdate(void) {return m_needFullUpdate;}
+	Bool doesNeedFullUpdate() {return m_needFullUpdate;}
 
 
 	virtual int updateBlock(Int x0, Int y0, Int x1, Int y1, WorldHeightMap *pMap, RefRenderObjListIterator *pLightsIterator) = 0;
 
 protected:
+	void scheduleFullUpdate();
+
 	// snapshot methods
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess( void );
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
 
 protected:
 	Int	m_x;	///< dimensions of heightmap
 	Int	m_y;	///< dimensions of heightmap
 
-#ifdef DO_SCORCH
-	enum { MAX_SCORCH_VERTEX=8194,
-					MAX_SCORCH_INDEX=6*8194,
-					MAX_SCORCH_MARKS=500,
-					SCORCH_MARKS_IN_TEXTURE=9,
-					SCORCH_PER_ROW = 3};
-	DX8VertexBufferClass	*m_vertexScorch;	///<Scorch vertex buffer.
-	DX8IndexBufferClass			*m_indexScorch;	///<indices defining a triangles for the scorch drawing.
-	TextureClass *m_scorchTexture;	///<Scorch mark texture
-	Int			m_curNumScorchVertices;	 ///<number of vertices used in m_vertexScorch.
-	Int			m_curNumScorchIndices;	 ///<number of indices used in m_indexScorch.
-	TScorch	m_scorches[MAX_SCORCH_MARKS];
-	Int			m_numScorches;
-
-	Int			m_scorchesInBuffer;		///< how many are in the buffers.  If less than numScorches, we need to update
-
-	// NOTE: This argument (contrary to most of the rest of the engine), is in degrees, not radians.
-	Real		m_curImpassableSlope;
-
-	void updateScorches(void);	 ///<Update m_vertexScorch and m_indexScorch so all scorches will be drawn.
-	void allocateScorchBuffers(void);	 ///<allocate static buffers for drawing scorch marks.
-	void freeScorchBuffers(void);		 ///< frees up scorch buffers.
-	void drawScorches(void);		///< Draws the scorch mark polygons in m_vertexScorch.
-#endif
+	Real m_curImpassableSlope; // NOTE: This argument (contrary to most of the rest of the engine), is in degrees, not radians.
 	WorldHeightMap *m_map;
 	Bool m_useDepthFade;	///<fade terrain lighting under water
 	Bool m_updating;
@@ -292,6 +267,8 @@ protected:
 	W3DRoadBuffer *m_roadBuffer; ///< Class for drawing roads.
 #endif
 	W3DBridgeBuffer *m_bridgeBuffer;
+	W3DScorchInterface *m_scorches;
+	W3DScorchInterface *m_staticScorches;
 	W3DShroud *m_shroud;	///< Class for drawing the shroud over terrain.
 	struct shoreLineTileInfo
 	{	Int m_xy;	//x,y position of tile
@@ -320,7 +297,7 @@ protected:
 	Int m_shoreLineSortInfosXMajor;
 	Int m_shoreLineTileSortMaxCoordinate;	///<keep track of coordinate range along axis used for m_shoreLineSortInfos
 	Int m_shoreLineTileSortMinCoordinate;
-	void initDestAlphaLUT(void);	///<initialize water depth LUT stored in m_destAlphaTexture
+	void initDestAlphaLUT();	///<initialize water depth LUT stored in m_destAlphaTexture
 	void renderShoreLines(CameraClass *pCamera);	///<re-render parts of terrain that need custom blending into water edge
 	void renderShoreLinesSorted(CameraClass *pCamera);	///<optimized version for game usage.
 

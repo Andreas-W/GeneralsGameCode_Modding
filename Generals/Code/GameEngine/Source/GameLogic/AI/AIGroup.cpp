@@ -68,7 +68,7 @@
 /**
  * Constructor
  */
-AIGroup::AIGroup( void )
+AIGroup::AIGroup()
 {
 //	DEBUG_LOG(("***AIGROUP %x is being constructed.", this));
 	m_groundPath = nullptr;
@@ -120,7 +120,7 @@ AIGroup::~AIGroup()
 /**
  * Return this group's unique ID
  */
-UnsignedInt AIGroup::getID( void )
+UnsignedInt AIGroup::getID()
 {
 	return m_id;
 }
@@ -128,7 +128,7 @@ UnsignedInt AIGroup::getID( void )
 /**
  * Return the group IDs for every member in this group
  */
-const VecObjectID& AIGroup::getAllIDs( void ) const
+const VecObjectID& AIGroup::getAllIDs() const
 {
 	m_lastRequestedIDList.clear();
 	for (std::list<Object *>::const_iterator cit = m_memberList.begin(); cit != m_memberList.end(); ++cit)
@@ -146,7 +146,7 @@ const VecObjectID& AIGroup::getAllIDs( void ) const
 /**
  * Return the speed of the group's slowest member
  */
-Real AIGroup::getSpeed( void )
+Real AIGroup::getSpeed()
 {
 	if (m_dirty)
 		recompute();
@@ -211,7 +211,7 @@ Bool AIGroup::remove( Object *obj )
 {
 #if !RETAIL_COMPATIBLE_AIGROUP
 	// Defer deletion until the end of this function.
-	AIGroupPtr refThis = AIGroupPtr::Create_AddRef(this);
+	AIGroupPtr refThis = Create_Add_Ref(this);
 #endif
 
 //	DEBUG_LOG(("***AIGROUP %x is removing Object %x (%s).", this, obj, obj->getTemplate()->getName().str()));
@@ -246,11 +246,11 @@ Bool AIGroup::remove( Object *obj )
 /**
  * Remove all objects from group
  */
-void AIGroup::removeAll( void )
+void AIGroup::removeAll()
 {
 #if !RETAIL_COMPATIBLE_AIGROUP
 	// Defer deletion until the end of this function.
-	AIGroupPtr refThis = AIGroupPtr::Create_AddRef(this);
+	AIGroupPtr refThis = Create_Add_Ref(this);
 #endif
 
 	std::list<Object *> memberList;
@@ -435,7 +435,7 @@ Bool AIGroup::getMinMaxAndCenter( Coord2D *min, Coord2D *max, Coord3D *center )
  * Compute the speed of the team (its slowest member's speed),
  * and find the leader (closest to center of group).
  */
-void AIGroup::recompute( void )
+void AIGroup::recompute()
 {
 	Real closeDist = 999999999.9f;
 	Real dx, dy, dist;
@@ -494,7 +494,7 @@ void AIGroup::recompute( void )
 /**
  * Return the number of objects in the group
  */
-Int AIGroup::getCount( void )
+Int AIGroup::getCount()
 {
 	return m_memberListSize;
 }
@@ -502,7 +502,7 @@ Int AIGroup::getCount( void )
 /**
  * Returns true if the group has no members
  */
-Bool AIGroup::isEmpty( void )
+Bool AIGroup::isEmpty() const
 {
 	return m_memberList.empty();
 }
@@ -690,7 +690,7 @@ static void clampToMap(Coord3D *dest, PlayerType pt)
 	extent.hi.y -= PATHFIND_CELL_SIZE_F;
 	extent.lo.x += PATHFIND_CELL_SIZE_F;
 	extent.lo.y += PATHFIND_CELL_SIZE_F;
-	if (!extent.isInRegionNoZ(dest)) {
+	if (!extent.isInRegionNoZ(*dest)) {
 		// clamp to in region. [8/28/2003]
 		if (dest->x < extent.lo.x) {
 			dest->x = extent.lo.x;
@@ -1558,7 +1558,7 @@ void clampWaypointPosition( Coord3D &position, Int margin )
   mapExtent.lo.x += margin;
   mapExtent.lo.y += margin;
 
-	if ( mapExtent.isInRegionNoZ( &position ) == FALSE )
+	if ( mapExtent.isInRegionNoZ( position ) == FALSE )
   {
     if ( position.x > mapExtent.hi.x )
       position.x = mapExtent.hi.x;
@@ -2213,7 +2213,7 @@ void AIGroup::groupAttackPosition( const Coord3D *pos, Int maxShotsToFire, Comma
 		if( !pos )
 		{
 			//If you specify a nullptr position, it means you are attacking your own location.
-			attackPos.set( (*i)->getPosition() );
+			attackPos.set( *(*i)->getPosition() );
 		}
 
 		//This code allows garrisoned buildings to force attack a ground position
@@ -2762,7 +2762,7 @@ void AIGroup::groupSell( CommandSourceType cmdSource )
 {
 #if !RETAIL_COMPATIBLE_AIGROUP
 	// Defer deletion until the end of this function.
-	AIGroupPtr refThis = AIGroupPtr::Create_AddRef(this);
+	AIGroupPtr refThis = Create_Add_Ref(this);
 #endif
 
 	std::list<Object *>::iterator i;
@@ -2959,7 +2959,7 @@ void AIGroup::setAttitude( AttitudeType tude )
 /**
  * Get the current behavior modifier state
  */
-AttitudeType AIGroup::getAttitude( void ) const
+AttitudeType AIGroup::getAttitude() const
 {
 	return ATTITUDE_PASSIVE;
 }
@@ -3061,7 +3061,7 @@ void AIGroup::queueUpgrade( const UpgradeTemplate *upgrade )
 }
 
 //------------------------------------------------------------------------------------------------------------
-Bool AIGroup::isIdle( void ) const
+Bool AIGroup::isIdle() const
 {
 	Bool isIdle = true;
 	std::list<Object *>::const_iterator i;
@@ -3092,7 +3092,7 @@ Bool AIGroup::isIdle( void ) const
 //------------------------------------------------------------------------------------------------------------
 //Definition of busy -- when explicitly in the busy state. Moving or attacking is not considered busy!
 //------------------------------------------------------------------------------------------------------------
-Bool AIGroup::isBusy( void ) const
+Bool AIGroup::isBusy() const
 {
 	Bool isBusy = true;
 	std::list<Object *>::const_iterator i;
@@ -3126,7 +3126,7 @@ Bool AIGroup::isBusy( void ) const
 //------------------------------------------------------------------------------------------------------------
 // return true iff all group members are dead
 //------------------------------------------------------------------------------------------------------------
-Bool AIGroup::isGroupAiDead( void ) const
+Bool AIGroup::isGroupAiDead() const
 {
 	Bool isDead = true;
 	std::list<Object *>::const_iterator i;
@@ -3266,7 +3266,7 @@ void AIGroup::xfer( Xfer *xfer )
 }
 
 //-----------------------------------------------------------------------------
-void AIGroup::loadPostProcess( void )
+void AIGroup::loadPostProcess()
 {
 
 }

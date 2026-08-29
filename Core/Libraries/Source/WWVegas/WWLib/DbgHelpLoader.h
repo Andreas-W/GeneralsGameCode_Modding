@@ -20,11 +20,11 @@
 
 #include "always.h"
 
-#include <win.h>
+#include "win.h"
 #include <imagehlp.h> // Must be included after Windows.h
 #include <set>
 #ifdef RTS_ENABLE_CRASHDUMP
-#include <DbgHelpLoader_minidump.h>
+#include "DbgHelpLoader_minidump.h"
 #endif
 
 #include "mutex.h"
@@ -206,7 +206,7 @@ private:
 	MiniDumpWriteDump_t m_miniDumpWriteDump;
 #endif
 
-	typedef std::set<HANDLE, std::less<HANDLE>, stl::system_allocator<HANDLE> > Processes;
+	typedef std::set<HANDLE, std::less<HANDLE>, stl::system_allocator<HANDLE>/**/> Processes;
 
 	Processes m_initializedProcesses;
 	HMODULE m_dllModule;

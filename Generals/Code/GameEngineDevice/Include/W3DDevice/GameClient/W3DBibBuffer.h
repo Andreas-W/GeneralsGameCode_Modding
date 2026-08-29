@@ -47,13 +47,13 @@
 //-----------------------------------------------------------------------------
 //           Includes
 //-----------------------------------------------------------------------------
-#include "always.h"
-#include "rendobj.h"
-#include "w3d_file.h"
-#include "dx8vertexbuffer.h"
-#include "dx8indexbuffer.h"
-#include "shader.h"
-#include "vertmaterial.h"
+#include "WWLib/always.h"
+#include "WW3D2/rendobj.h"
+#include "WW3D2/w3d_file.h"
+#include "WW3D2/dx8vertexbuffer.h"
+#include "WW3D2/dx8indexbuffer.h"
+#include "WW3D2/shader.h"
+#include "WW3D2/vertmaterial.h"
 #include "Lib/BaseType.h"
 #include "Common/GameType.h"
 #include "Common/AsciiString.h"
@@ -86,8 +86,8 @@ class W3DBibBuffer
 friend class BaseHeightMapRenderObjClass;
 public:
 
-	W3DBibBuffer(void);
-	~W3DBibBuffer(void);
+	W3DBibBuffer();
+	~W3DBibBuffer();
 	/// Add a bib at location.  Name is the w3d model name.
 	void addBib(Vector3 corners[4], ObjectID id, Bool highlight);
 	void addBibDrawable(Vector3 corners[4], DrawableID id, Bool highlight);
@@ -95,9 +95,9 @@ public:
 	void removeBib(ObjectID id);
 	void removeBibDrawable(DrawableID id);
 	/// Empties the bib buffer.
-	void clearAllBibs(void);
+	void clearAllBibs();
 	/// Removes highlighting.
-	void removeHighlighting(void);
+	void removeHighlighting();
 	/// Draws the bibs.
 	void renderBibs();
 	/// Called when the view changes, and sort key needs to be recalculated.
@@ -124,7 +124,7 @@ protected:
 	Bool		m_initialized;		///< True if the subsystem initialized.
 	Bool		m_isTerrainPass;  ///< True if the terrain was drawn in this W3D scene render pass.
 
-	void loadBibsInVertexAndIndexBuffers(void); ///< Fills the index and vertex buffers for drawing.
-	void allocateBibBuffers(void);							 ///< Allocates the buffers.
-	void freeBibBuffers(void);									 ///< Frees the index and vertex buffers.
+	void loadBibsInVertexAndIndexBuffers(); ///< Fills the index and vertex buffers for drawing.
+	void allocateBibBuffers();							 ///< Allocates the buffers.
+	void freeBibBuffers();									 ///< Frees the index and vertex buffers.
 };

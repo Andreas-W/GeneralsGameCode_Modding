@@ -55,7 +55,7 @@ CrateCollideModuleData::CrateCollideModuleData()
 	m_isBuildingPickup = FALSE;
 	m_isHumanOnlyPickup = FALSE;
 	m_isAllowPickAboveTerrain = FALSE;
-	m_allowMultiPickup = FALSE;  // (PRESERVE_RETAIL_BEHAVIOR != 0);
+	m_allowMultiPickup = (RETAIL_COMPATIBLE_CRC != 0 || PRESERVE_MULTI_CRATE_PICKUP != 0);
 	m_executeFX = nullptr;
 	m_pickupScience = SCIENCE_INVALID;
 	m_executionAnimationTemplate = AsciiString::TheEmptyString;
@@ -98,7 +98,7 @@ CrateCollide::CrateCollide( Thing *thing, const ModuleData* moduleData ) : Colli
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-CrateCollide::~CrateCollide( void )
+CrateCollide::~CrateCollide()
 {
 
 }
@@ -277,7 +277,7 @@ void CrateCollide::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void CrateCollide::loadPostProcess( void )
+void CrateCollide::loadPostProcess()
 {
 
 	// extend base class

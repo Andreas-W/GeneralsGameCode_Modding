@@ -36,7 +36,7 @@ set(GUIEDIT_SRC
 )
 
 add_executable(z_guiedit WIN32)
-set_target_properties(z_guiedit PROPERTIES OUTPUT_NAME guiedit)
+set_target_properties(z_guiedit PROPERTIES OUTPUT_NAME "guiedit${RTS_BUILD_OUTPUT_SUFFIX}")
 
 target_sources(z_guiedit PRIVATE ${GUIEDIT_SRC})
 
@@ -47,8 +47,6 @@ target_include_directories(z_guiedit PRIVATE
 
 target_link_libraries(z_guiedit PRIVATE
     comctl32
-    core_debug
-    core_profile
     d3d8lib
     imm32
     stlport

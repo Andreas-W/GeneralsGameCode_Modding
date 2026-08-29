@@ -23,43 +23,43 @@
 
 #include "W3DView.h"
 #include "W3DViewDoc.h"
-#include "ffactory.h"
+#include "WWLib/ffactory.h"
 #include "Globals.h"
 #include "ViewerAssetMgr.h"
 #include "Globals.h"
-#include "rendobj.h"
+#include "WW3D2/rendobj.h"
 #include "GraphicView.h"
 #include "DataTreeView.h"
 #include "MainFrm.h"
-#include "distlod.h"
-#include "light.h"
-#include "camera.h"
-#include "w3d_file.h"
-#include "WWFILE.h"
-#include "bmp2d.h"
-#include "part_emt.h"
-#include "part_ldr.h"
+#include "WW3D2/distlod.h"
+#include "WW3D2/light.h"
+#include "WW3D2/camera.h"
+#include "WW3D2/w3d_file.h"
+#include "WWLib/WWFILE.h"
+#include "WW3D2/bmp2d.h"
+#include "WW3D2/part_emt.h"
+#include "WW3D2/part_ldr.h"
 #include "Utils.h"
-#include "w3derr.h"
-#include "chunkio.h"
+#include "WW3D2/w3derr.h"
+#include "WWLib/chunkio.h"
 #include "AssetInfo.h"
-#include "meshmdl.h"
-#include "agg_def.h"
-#include "hlod.h"
+#include "WW3D2/meshmdl.h"
+#include "WW3D2/agg_def.h"
+#include "WW3D2/hlod.h"
 #include "RestrictedFileDialog.h"
 #include "ViewerScene.h"
-#include "INI.h"
-#include "ww3d.h"
+#include "WWLib/INI.h"
+#include "WW3D2/ww3d.h"
 #include "EmitterInstanceList.h"
-#include "mesh.h"
+#include "WW3D2/mesh.h"
 #include "ScreenCursor.h"
-#include "sphereobj.h"
-#include "ringobj.h"
-#include "textfile.h"
-#include "hmorphanim.h"
+#include "WW3D2/sphereobj.h"
+#include "WW3D2/ringobj.h"
+#include "WWLib/textfile.h"
+#include "WW3D2/hmorphanim.h"
 #include "mmsystem.h"
-#include "soundrobj.h"
-#include "dazzle.h"
+#include "WW3D2/soundrobj.h"
+#include "WW3D2/dazzle.h"
 
 
 #ifdef RTS_DEBUG
@@ -88,7 +88,7 @@ END_MESSAGE_MAP()
 //
 //  CW3DViewDoc
 //
-CW3DViewDoc::CW3DViewDoc (void)
+CW3DViewDoc::CW3DViewDoc ()
     : m_pCScene (nullptr),
       m_pC2DScene (nullptr),
 		m_pCursorScene (nullptr),
@@ -119,7 +119,6 @@ CW3DViewDoc::CW3DViewDoc (void)
 	// Read the camera animation settings from the registry
 	m_bAnimateCamera = ((BOOL)theApp.GetProfileInt ("Config", "AnimateCamera", 0)) == TRUE;
 	m_bAutoCameraReset = ((BOOL)theApp.GetProfileInt ("Config", "ResetCamera", 1)) == TRUE;
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////
@@ -127,11 +126,9 @@ CW3DViewDoc::CW3DViewDoc (void)
 //  ~CW3DViewDoc
 //
 ///////////////////////////////////////////////////////////////
-CW3DViewDoc::~CW3DViewDoc (void)
+CW3DViewDoc::~CW3DViewDoc ()
 {
     CleanupResources ();
-	 REF_PTR_RELEASE (m_pCursor);
-    return ;
 }
 
 
@@ -141,113 +138,68 @@ CW3DViewDoc::~CW3DViewDoc (void)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::CleanupResources (void)
+CW3DViewDoc::CleanupResources ()
 {
-    if (m_pC2DScene)
+    if (m_pCBackgroundBMP)
     {
-		  if (m_pCBackgroundBMP)
-        {
-            // Remove the background BMP from the scene
-				m_pCBackgroundBMP->Remove ();
-        }
-
-        // Release the 2D scene we allocated to display background BMPs
-        m_pC2DScene->Release_Ref ();
-        m_pC2DScene = nullptr;
+        // Remove the background BMP from the scene
+        m_pCBackgroundBMP->Remove ();
     }
 
-    if (m_pCBackObjectScene)
-    {
-        if (m_pCBackgroundObject)
-        {
-            // Remove the background BMP from the scene
-				m_pCBackgroundObject->Remove ();
-        }
+    // Release the 2D scene we allocated to display background BMPs
+    m_pC2DScene.Clear ();
 
-        // Release the scene we allocated to display background objects
-        m_pCBackObjectScene->Release_Ref ();
-        m_pCBackObjectScene = nullptr;
+    if (m_pCBackgroundObject)
+    {
+        // Remove the background BMP from the scene
+        m_pCBackgroundObject->Remove ();
     }
+
+    // Release the scene we allocated to display background objects
+    m_pCBackObjectScene.Clear ();
 
 	if (m_pCursor != nullptr) {
 		m_pCursor->Remove ();
 	}
-	REF_PTR_RELEASE (m_pCursorScene);
+	m_pCursorScene.Clear();
 
     if (m_pCScene)
     {
         if (m_pCRenderObj)
         {
             // Remove the currently displayed object from the scene
-				Remove_Object_From_Scene (m_pCRenderObj);
+				Remove_Object_From_Scene (m_pCRenderObj.Peek());
         }
 
         if (m_pCSceneLight)
         {
             // Remove the light from the scene
-				Remove_Object_From_Scene (m_pCSceneLight);
+				Remove_Object_From_Scene (m_pCSceneLight.Peek());
         }
 
 		  // Get rid of the lined up objects.
 		  m_pCScene->Clear_Lineup();
 
         // Release the scene object we allocated earlier
-        m_pCScene->Release_Ref ();
-        m_pCScene = nullptr;
+        m_pCScene.Clear ();
     }
 
 	 // Was there a dazzle layer?
 	 delete m_pDazzleLayer;
 	 m_pDazzleLayer = nullptr;
 
-    // Was there a valid scene object?
-    if (m_pCBackObjectScene)
-    {
-        // Free the scene object
-        m_pCBackObjectScene->Release_Ref ();
-        m_pCBackObjectScene = nullptr;
-    }
+    // Free the camera objects
+    m_pC2DCamera.Clear ();
+    m_pCBackObjectCamera.Clear ();
 
-    // Was there a valid 2D camera?
-    if (m_pC2DCamera)
-    {
-        // Free the camera object
-        m_pC2DCamera->Release_Ref ();
-        m_pC2DCamera = nullptr;
-    }
+    // Free the background BMP and scene light
+    m_pCBackgroundBMP.Clear ();
+    m_pCSceneLight.Clear ();
 
-    // Was there a valid background camera?
-    if (m_pCBackObjectCamera)
-    {
-        // Free the camera object
-        m_pCBackObjectCamera->Release_Ref ();
-        m_pCBackObjectCamera = nullptr;
-    }
-
-    // Was there a valid background BMP?
-    if (m_pCBackgroundBMP)
-    {
-        m_pCBackgroundBMP->Release_Ref ();
-        m_pCBackgroundBMP = nullptr;
-    }
-
-    // Was there a valid scene light?
-    if (m_pCSceneLight)
-    {
-        m_pCSceneLight->Release_Ref ();
-        m_pCSceneLight = nullptr;
-    }
-
-    // Was there a valid display object?
-    if (m_pCRenderObj)
-    {
-        // Free the currently displayed object
-			SAFE_DELETE (m_pCAnimCombo);
-			REF_PTR_RELEASE (m_pCAnimation);
-			REF_PTR_RELEASE (m_pCRenderObj);
-    }
-
-    return ;
+    // Free the currently displayed object
+    SAFE_DELETE (m_pCAnimCombo);
+    m_pCAnimation.Clear ();
+    m_pCRenderObj.Clear ();
 }
 
 ///////////////////////////////////////////////////////////////
@@ -256,7 +208,7 @@ CW3DViewDoc::CleanupResources (void)
 //
 ///////////////////////////////////////////////////////////////
 BOOL
-CW3DViewDoc::OnNewDocument (void)
+CW3DViewDoc::OnNewDocument ()
 {
 	if (!CDocument::OnNewDocument())
 		return FALSE;
@@ -268,7 +220,7 @@ CW3DViewDoc::OnNewDocument (void)
     if (m_pCScene && m_pCRenderObj)
     {
         // Remove the currently displayed object from the scene
-		  Remove_Object_From_Scene (m_pCRenderObj);
+		  Remove_Object_From_Scene (m_pCRenderObj.Peek());
     }
 
 	 if (m_pCScene)
@@ -280,13 +232,10 @@ CW3DViewDoc::OnNewDocument (void)
 		 m_pCScene->Set_Fog_Color(m_backgroundColor);
 	 }
 
-    if (m_pCRenderObj)
-    {
-			// Free the currently displayed object
-			SAFE_DELETE (m_pCAnimCombo);
-			REF_PTR_RELEASE (m_pCAnimation);
-			REF_PTR_RELEASE (m_pCRenderObj);
-    }
+	// Free the currently displayed object
+	SAFE_DELETE (m_pCAnimCombo);
+	m_pCAnimation.Clear();
+	m_pCRenderObj.Clear();
 
     CDataTreeView *pCDataTreeView = GetDataTreeView ();
     if (pCDataTreeView)
@@ -324,8 +273,6 @@ CW3DViewDoc::Serialize(CArchive& ar)
 	{
 		// TODO: add loading code here
 	}
-
-	return ;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -350,7 +297,7 @@ void CW3DViewDoc::Dump(CDumpContext& dc) const
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::InitScene (void)
+CW3DViewDoc::InitScene ()
 {
 	if (m_pCScene == nullptr) {
 
@@ -360,7 +307,7 @@ CW3DViewDoc::InitScene (void)
 		//
 		ParticleEmitterClass::Set_Default_Remove_On_Complete (false);
 
-		m_pCScene = new ViewerSceneClass;
+		m_pCScene.Assign_No_Add_Ref (new ViewerSceneClass);
 		ASSERT (m_pCScene);
 		if (m_pCScene != nullptr) {
 
@@ -371,7 +318,7 @@ CW3DViewDoc::InitScene (void)
 			m_pCScene->Set_Fog_Color(GetBackgroundColor());
 
 			// Create a new scene light
-			m_pCSceneLight = new LightClass;
+			m_pCSceneLight.Assign_No_Add_Ref (new LightClass);
 			ASSERT (m_pCSceneLight);
 
 			if (m_pCSceneLight != nullptr) {
@@ -387,23 +334,23 @@ CW3DViewDoc::InitScene (void)
 				m_pCSceneLight->Set_Specular (Vector3(1, 1, 1));
 
 				// Add this light to the scene
-				m_pCScene->Add_Render_Object (m_pCSceneLight);
+				m_pCScene->Add_Render_Object (m_pCSceneLight.Peek());
 			}
 		}
 
 		// Instantiate a new 2D scene
-		m_pC2DScene = new SimpleSceneClass;
+		m_pC2DScene.Assign_No_Add_Ref (new SimpleSceneClass);
 		ASSERT (m_pC2DScene);
 
 		// Instantiate a new 2D cursor scene
-		m_pCursorScene = new SimpleSceneClass;
-		ASSERT (m_pCursorScene);
+		m_pCursorScene.Assign_No_Add_Ref (new SimpleSceneClass);
+		ASSERT (m_pCursorScene != nullptr);
 
 		Create_Cursor ();
-		m_pCursorScene->Add_Render_Object (m_pCursor);
+		m_pCursorScene->Add_Render_Object (m_pCursor.Peek());
 
 
-		m_pCBackObjectScene = new SimpleSceneClass;
+		m_pCBackObjectScene.Assign_No_Add_Ref (new SimpleSceneClass);
 
 		// Were we successful in instantiating the scene object?
 		ASSERT (m_pCBackObjectScene);
@@ -416,7 +363,7 @@ CW3DViewDoc::InitScene (void)
 
 		// Create a new instance of the camera class to use
 		// when rendering the background object
-		m_pCBackObjectCamera = new CameraClass ();
+		m_pCBackObjectCamera.Assign_No_Add_Ref (new CameraClass ());
 
 		// Were we successful in creating the new instance?
 		ASSERT (m_pCBackObjectCamera);
@@ -430,7 +377,7 @@ CW3DViewDoc::InitScene (void)
 
 		// Create a new instance of the camera class to use
 		// when rendering the background BMP
-		m_pC2DCamera = new CameraClass ();
+		m_pC2DCamera.Assign_No_Add_Ref (new CameraClass ());
 
 		// Were we successful in creating the new instance?
 		ASSERT (m_pC2DCamera);
@@ -462,7 +409,6 @@ CW3DViewDoc::InitScene (void)
 
 	Load_Camera_Settings ();
 	m_IsInitialized = true;
-	return ;
 }
 
 
@@ -569,8 +515,6 @@ CW3DViewDoc::LoadAssetsFromFile (LPCTSTR lpszPathName)
 	if (current_view != nullptr) {
 		current_view->Allow_Update (true);
 	}
-
-	return ;
 }
 
 
@@ -580,13 +524,12 @@ CW3DViewDoc::LoadAssetsFromFile (LPCTSTR lpszPathName)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Reload_Displayed_Object (void)
+CW3DViewDoc::Reload_Displayed_Object ()
 {
 	GetDataTreeView ()->Display_Asset ();
 	//SAFE_ADD_REF (m_pCRenderObj);
 	//DisplayObject (m_pCRenderObj, false, false);
 	//SAFE_RELEASE_REF (m_pCRenderObj);
-	return ;
 }
 
 
@@ -610,14 +553,13 @@ CW3DViewDoc::Display_Emitter
 
 		// Lose the animation
 		SAFE_DELETE (m_pCAnimCombo);
-		REF_PTR_RELEASE (m_pCAnimation);
+		m_pCAnimation.Clear();
 
 			if (m_pCRenderObj != nullptr) {
 
 				// Remove this object from the scene
-				Remove_Object_From_Scene (m_pCRenderObj);
-				m_pCRenderObj->Release_Ref ();
-				m_pCRenderObj = nullptr;
+				Remove_Object_From_Scene (m_pCRenderObj.Peek());
+				m_pCRenderObj.Clear();
 			}
 			m_pCScene->Clear_Lineup();
 
@@ -626,8 +568,8 @@ CW3DViewDoc::Display_Emitter
 
 			// Add the emitter to the scene
 			pemitter->Set_Transform (Matrix3D (1));
-			REF_PTR_SET (m_pCRenderObj, pemitter);
-			m_pCScene->Add_Render_Object (m_pCRenderObj);
+			m_pCRenderObj.Assign_Add_Ref (pemitter);
+			m_pCScene->Add_Render_Object (m_pCRenderObj.Peek());
 			pemitter->Start ();
 
 			CGraphicView *pCGraphicView = GetGraphicView ();
@@ -643,8 +585,6 @@ CW3DViewDoc::Display_Emitter
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -669,16 +609,15 @@ CW3DViewDoc::DisplayObject
     {
         // Lose the animation
 		  SAFE_DELETE (m_pCAnimCombo);
-		  REF_PTR_RELEASE (m_pCAnimation);
+		  m_pCAnimation.Clear();
 
         // Do we have an old object to remove from the scene?
 		  if (add_ghost == false) {
 			  if (m_pCRenderObj)
 			  {
 					// Remove this object from the scene
-					Remove_Object_From_Scene (m_pCRenderObj);
-					m_pCRenderObj->Release_Ref ();
-					m_pCRenderObj = nullptr;
+					Remove_Object_From_Scene (m_pCRenderObj.Peek());
+					m_pCRenderObj.Clear();
 			  }
 		  }
 		  m_pCScene->Clear_Lineup();
@@ -689,21 +628,20 @@ CW3DViewDoc::DisplayObject
             // Reset the animation for this object
             pCModel->Set_Animation ();
 
-            m_pCRenderObj = pCModel;
-            m_pCRenderObj->Add_Ref ();
+            m_pCRenderObj.Assign_Add_Ref (pCModel);
             m_pCRenderObj->Set_Transform (Matrix3D (1));
 
             // Add this object to the scene
 				if (m_pCRenderObj->Class_ID () == RenderObjClass::CLASSID_BITMAP2D) {
-					m_pC2DScene->Add_Render_Object (m_pCRenderObj);
+					m_pC2DScene->Add_Render_Object (m_pCRenderObj.Peek());
 				} else {
-					m_pCScene->Add_Render_Object (m_pCRenderObj);
+					m_pCScene->Add_Render_Object (m_pCRenderObj.Peek());
 				}
 
 				// Reset the current lod to be the lowest possible LOD...
 				if ((m_pCScene->Are_LODs_Switching ()) &&
 					 (m_pCRenderObj->Class_ID () == RenderObjClass::CLASSID_HLOD)) {
-					((HLodClass *)m_pCRenderObj)->Set_LOD_Level (0);
+					((HLodClass *)m_pCRenderObj.Peek())->Set_LOD_Level (0);
 				}
 
             CGraphicView *pCGraphicView = GetGraphicView ();
@@ -757,8 +695,6 @@ CW3DViewDoc::DisplayObject
             }
 		  }
     }
-
-    return ;
 }
 
 
@@ -768,7 +704,7 @@ CW3DViewDoc::DisplayObject
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::ResetAnimation (void)
+CW3DViewDoc::ResetAnimation ()
 {
 	if (m_pCAnimation != nullptr) {
 
@@ -788,8 +724,6 @@ CW3DViewDoc::ResetAnimation (void)
 																					m_pCAnimation->Get_Num_Frames () - 1,
 																					frame_rate * anim_speed);
 	}
-
-	return ;
 }
 
 
@@ -836,13 +770,11 @@ CW3DViewDoc::StepAnimation (int iFrameInc)
 
 			m_pCRenderObj->Set_Animation (m_pCAnimCombo);
 		} else {
-			m_pCRenderObj->Set_Animation (m_pCAnimation, m_CurrentFrame);
+			m_pCRenderObj->Set_Animation (m_pCAnimation.Peek(), m_CurrentFrame);
 		}
 
 		Update_Camera ();
 	}
-
-	return ;
 }
 
 
@@ -874,9 +806,8 @@ CW3DViewDoc::PlayAnimation
 
         // Get an instance of the animation object
 		  SAFE_DELETE (m_pCAnimCombo);
-		  REF_PTR_RELEASE (m_pCAnimation);
-        m_pCAnimation = WW3DAssetManager::Get_Instance()->Get_HAnim (pszAnimationName);
-        ASSERT (m_pCAnimation);
+        m_pCAnimation.Assign_No_Add_Ref (WW3DAssetManager::Get_Instance()->Get_HAnim (pszAnimationName));
+        ASSERT (m_pCAnimation != nullptr);
 
         // Reset the frame counter
         m_CurrentFrame = 0;
@@ -885,7 +816,7 @@ CW3DViewDoc::PlayAnimation
         if (m_pCRenderObj)
         {
             // Update the animation frame
-            m_pCRenderObj->Set_Animation (m_pCAnimation, 0);
+            m_pCRenderObj->Set_Animation (m_pCAnimation.Peek(), 0);
 
             CGraphicView *pCGraphicView = GetGraphicView ();
             if (pCGraphicView)
@@ -906,8 +837,6 @@ CW3DViewDoc::PlayAnimation
 		  Update_Camera ();
 		  Play_Animation_Sound ();
     }
-
-    return ;
 }
 
 
@@ -917,7 +846,7 @@ CW3DViewDoc::PlayAnimation
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Play_Animation_Sound (void)
+CW3DViewDoc::Play_Animation_Sound ()
 {
 	if (m_pCAnimation != nullptr) {
 	  CString animation_name = m_pCAnimation->Get_Name ();
@@ -933,8 +862,6 @@ CW3DViewDoc::Play_Animation_Sound (void)
 		  ::PlaySound (sound_filename, nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
 		}
 	}
-
-	return ;
 }
 
 
@@ -966,10 +893,9 @@ CW3DViewDoc::PlayAnimation
 
         // Get an instance of the animation object
 		  SAFE_DELETE (m_pCAnimCombo);
-		  REF_PTR_RELEASE (m_pCAnimation);
 		  m_pCAnimCombo = pCAnimCombo;
-		  m_pCAnimation = m_pCAnimCombo->Get_Motion(0);	// ref added by get_motion
-        ASSERT (m_pCAnimation);
+		  m_pCAnimation.Assign_No_Add_Ref (m_pCAnimCombo->Get_Motion(0));	// ref added by get_motion
+        ASSERT (m_pCAnimation != nullptr);
 
 		  // It will be assumed that every animation in the m_pCAnimCombo
 		  // has the same number of frames and has the same framerate as
@@ -1005,8 +931,6 @@ CW3DViewDoc::PlayAnimation
 		  Update_Camera ();
 		  Play_Animation_Sound ();
     }
-
-    return ;
 }
 
 
@@ -1048,13 +972,13 @@ Get_Camera_Transform (RenderObjClass *render_obj, Matrix3D &tm)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Update_Camera (void)
+CW3DViewDoc::Update_Camera ()
 {
 	// Should we update the camera's position as well?
 	if (m_bAnimateCamera && m_pCRenderObj != nullptr) {
 
 		Matrix3D transform (1);
-		if (Get_Camera_Transform (m_pCRenderObj, transform)) {
+		if (Get_Camera_Transform (m_pCRenderObj.Peek(), transform)) {
 
 			// Convert the bone's transform into a camera transform
 			//Matrix3D	transform = m_pCRenderObj->Get_Bone_Transform (index);
@@ -1071,8 +995,6 @@ CW3DViewDoc::Update_Camera (void)
 			pcamera->Set_Transform (new_transform);
 		}
 	}
-
-	return ;
 }
 
 
@@ -1118,15 +1040,13 @@ CW3DViewDoc::UpdateFrame (float relativeTimeSlice)
 
 			m_pCRenderObj->Set_Animation (m_pCAnimCombo);
 		} else if (m_bAnimBlend) {
-			m_pCRenderObj->Set_Animation (m_pCAnimation, m_CurrentFrame);
+			m_pCRenderObj->Set_Animation (m_pCAnimation.Peek(), m_CurrentFrame);
 		} else {
-			m_pCRenderObj->Set_Animation (m_pCAnimation, (int)m_CurrentFrame);
+			m_pCRenderObj->Set_Animation (m_pCAnimation.Peek(), (int)m_CurrentFrame);
 		}
 
 		Update_Camera ();
 	}
-
-	return ;
 }
 
 
@@ -1136,7 +1056,7 @@ CW3DViewDoc::UpdateFrame (float relativeTimeSlice)
 //
 ///////////////////////////////////////////////////////////////
 CDataTreeView *
-CW3DViewDoc::GetDataTreeView (void)
+CW3DViewDoc::GetDataTreeView ()
 {
     CDataTreeView *pCDataTreeView = nullptr;
 
@@ -1159,7 +1079,7 @@ CW3DViewDoc::GetDataTreeView (void)
 //
 ///////////////////////////////////////////////////////////////
 CGraphicView *
-CW3DViewDoc::GetGraphicView (void)
+CW3DViewDoc::GetGraphicView ()
 {
     CGraphicView *pCGrephicView = nullptr;
 
@@ -1284,8 +1204,7 @@ CW3DViewDoc::SetBackgroundBMP (LPCTSTR pszBackgroundBMP)
             // Remove the background BMP from the scene
             // and release its pointer
 				m_pCBackgroundBMP->Remove ();
-            m_pCBackgroundBMP->Release_Ref ();
-            m_pCBackgroundBMP = nullptr;
+            m_pCBackgroundBMP.Clear ();
         }
 
         // Is this a new background BMP?
@@ -1293,22 +1212,20 @@ CW3DViewDoc::SetBackgroundBMP (LPCTSTR pszBackgroundBMP)
             (m_stringBackgroundBMP.CompareNoCase (pszBackgroundBMP) != 0))
         {
 				// Create a new instance of the BMP object to use
-            m_pCBackgroundBMP = new Bitmap2DObjClass (pszBackgroundBMP, 0.5F, 0.5F, TRUE, FALSE);
+            m_pCBackgroundBMP.Assign_No_Add_Ref (new Bitmap2DObjClass (pszBackgroundBMP, 0.5F, 0.5F, TRUE, FALSE));
 
             // Were we successful in creating the bitmap object?
             ASSERT (m_pCBackgroundBMP);
             if (m_pCBackgroundBMP)
             {
                 // Add the object to the scene
-					 m_pC2DScene->Add_Render_Object (m_pCBackgroundBMP);
+					 m_pC2DScene->Add_Render_Object (m_pCBackgroundBMP.Peek());
             }
         }
 
         // Remember what our current background BMP is
         m_stringBackgroundBMP = pszBackgroundBMP;
     }
-
-    return ;
 }
 
 
@@ -1725,7 +1642,7 @@ CW3DViewDoc::SaveSettings
 //
 ///////////////////////////////////////////////////////////////
 bool
-CW3DViewDoc::Save_Selected_LOD (void)
+CW3DViewDoc::Save_Selected_LOD ()
 {
 	// Assume failure
 	bool retval = false;
@@ -1826,14 +1743,13 @@ CW3DViewDoc::SetBackgroundObject (LPCTSTR pszBackgroundObjectName)
 				m_pCBackgroundObject->Remove ();
 
             // Free the object
-            m_pCBackgroundObject->Release_Ref ();
-            m_pCBackgroundObject = nullptr;
+            m_pCBackgroundObject.Clear ();
         }
 
         if (pszBackgroundObjectName)
         {
             // Create a new instance of the render object to use as the background
-            m_pCBackgroundObject = WW3DAssetManager::Get_Instance()->Create_Render_Obj (pszBackgroundObjectName);
+            m_pCBackgroundObject.Assign_No_Add_Ref (WW3DAssetManager::Get_Instance()->Create_Render_Obj (pszBackgroundObjectName));
 
             ASSERT (m_pCBackgroundObject);
             if (m_pCBackgroundObject)
@@ -1857,15 +1773,13 @@ CW3DViewDoc::SetBackgroundObject (LPCTSTR pszBackgroundObjectName)
                 m_pCBackObjectCamera->Set_Clip_Planes (1, cameraDepth);
 
                 // Add the background object to the scene
-					 m_pCBackObjectScene->Add_Render_Object (m_pCBackgroundObject);
+					 m_pCBackObjectScene->Add_Render_Object (m_pCBackgroundObject.Peek());
             }
         }
 
         // Remember this for later...
         m_stringBackgroundObject = pszBackgroundObjectName;
     }
-
-    return ;
 }
 
 
@@ -1879,7 +1793,7 @@ CW3DViewDoc::Remove_Object_From_Scene (RenderObjClass *prender_obj)
 {
 	// If the render object is null, then remove the current render object
 	if (prender_obj == nullptr) {
-		prender_obj = m_pCRenderObj;
+		prender_obj = m_pCRenderObj.Peek();
 	}
 
 	// Recursively remove objects from the scene (to make sure we get all particle buffers)
@@ -1906,8 +1820,6 @@ CW3DViewDoc::Remove_Object_From_Scene (RenderObjClass *prender_obj)
 	if (m_pCScene != nullptr) {
 		prender_obj->Remove ();
 	}
-
-	return ;
 }
 
 
@@ -1917,7 +1829,7 @@ CW3DViewDoc::Remove_Object_From_Scene (RenderObjClass *prender_obj)
 //
 ///////////////////////////////////////////////////////////////
 bool
-CW3DViewDoc::Save_Selected_Primitive (void)
+CW3DViewDoc::Save_Selected_Primitive ()
 {
 	// Assume failure
 	bool retval = false;
@@ -2053,7 +1965,7 @@ CW3DViewDoc::Save_Current_Ring (const CString &filename)
 //
 ///////////////////////////////////////////////////////////////
 bool
-CW3DViewDoc::Save_Selected_Emitter (void)
+CW3DViewDoc::Save_Selected_Emitter ()
 {
 	// Assume failure
 	bool retval = false;
@@ -2136,7 +2048,7 @@ CW3DViewDoc::Save_Current_Emitter (const CString &filename)
 //
 ///////////////////////////////////////////////////////////////
 bool
-CW3DViewDoc::Save_Selected_Sound_Object (void)
+CW3DViewDoc::Save_Selected_Sound_Object ()
 {
 	bool retval = false;
 
@@ -2238,7 +2150,7 @@ CW3DViewDoc::Save_Current_Sound_Object (const CString &filename)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Auto_Assign_Bones (void)
+CW3DViewDoc::Auto_Assign_Bones ()
 {
 	if (m_pCRenderObj != nullptr) {
 		bool bupdate_prototype = false;
@@ -2263,8 +2175,6 @@ CW3DViewDoc::Auto_Assign_Bones (void)
 			Update_Aggregate_Prototype (*m_pCRenderObj);
 		}
 	}
-
-	return ;
 }
 
 
@@ -2274,7 +2184,7 @@ CW3DViewDoc::Auto_Assign_Bones (void)
 //
 ///////////////////////////////////////////////////////////////
 bool
-CW3DViewDoc::Save_Selected_Aggregate (void)
+CW3DViewDoc::Save_Selected_Aggregate ()
 {
 	// Assume failure
 	bool retval = false;
@@ -2365,7 +2275,6 @@ CW3DViewDoc::Update_Aggregate_Prototype (RenderObjClass &render_obj)
 	// Add this prototype to the asset manager
 	WW3DAssetManager::Get_Instance ()->Remove_Prototype (pdefinition->Get_Name ());
 	WW3DAssetManager::Get_Instance ()->Add_Prototype (pprototype);
-	return ;
 }
 
 
@@ -2384,7 +2293,6 @@ CW3DViewDoc::Update_LOD_Prototype (HLodClass &hlod)
 	// Add this prototype to the asset manager
 	WW3DAssetManager::Get_Instance ()->Remove_Prototype (pdefinition->Get_Name ());
 	WW3DAssetManager::Get_Instance ()->Add_Prototype (pprototype);
-	return ;
 }
 
 
@@ -2402,8 +2310,6 @@ CW3DViewDoc::Animate_Camera (bool banimate)
 	if (m_bAnimateCamera == false) {
 		::AfxGetMainWnd ()->SendMessage (WM_COMMAND, MAKEWPARAM (IDM_CAMERA_RESET, 0));
 	}
-
-	return ;
 }
 
 
@@ -2413,7 +2319,7 @@ CW3DViewDoc::Animate_Camera (bool banimate)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Make_Movie (void)
+CW3DViewDoc::Make_Movie ()
 {
 	// Hide the mouse cursor when we're making a movie.
 	bool restore_cursor = Is_Cursor_Shown();
@@ -2443,7 +2349,7 @@ CW3DViewDoc::Make_Movie (void)
 			m_pCRenderObj->Set_Animation (m_pCAnimCombo);
 		}
 		else
-			m_pCRenderObj->Set_Animation (m_pCAnimation, (int)0);
+			m_pCRenderObj->Set_Animation (m_pCAnimation.Peek(), (int)0);
 		graphic_view->RepaintView (FALSE);
 
 		// Begin our movie
@@ -2465,7 +2371,7 @@ CW3DViewDoc::Make_Movie (void)
 				m_pCRenderObj->Set_Animation (m_pCAnimCombo);
 			}
 			else
-				m_pCRenderObj->Set_Animation (m_pCAnimation, frame);
+				m_pCRenderObj->Set_Animation (m_pCAnimation.Peek(), frame);
 
 			// Should we be updating the camera?
 			if (m_bAnimateCamera) {
@@ -2503,8 +2409,6 @@ CW3DViewDoc::Make_Movie (void)
 
 	// Restore the mouse cursor to its previous visibility state.
 	Show_Cursor(restore_cursor);
-
-	return ;
 }
 
 
@@ -2525,7 +2429,7 @@ CW3DViewDoc::Build_Emitter_List
 	// If the render object is null, then start from the current render object
 	//
 	if (render_obj == nullptr) {
-		render_obj = m_pCRenderObj;
+		render_obj = m_pCRenderObj.Peek();
 	}
 
 	//
@@ -2548,8 +2452,6 @@ CW3DViewDoc::Build_Emitter_List
 
 		emitter_list->Add_Emitter ((ParticleEmitterClass *)render_obj);
 	}
-
-	return ;
 }
 
 
@@ -2566,7 +2468,6 @@ CW3DViewDoc::Show_Cursor (bool onoff)
 	}
 
 	m_pCursor->Set_Hidden (!onoff);
-	return ;
 }
 
 
@@ -2576,7 +2477,7 @@ CW3DViewDoc::Show_Cursor (bool onoff)
 //
 ///////////////////////////////////////////////////////////////
 bool
-CW3DViewDoc::Is_Cursor_Shown (void) const
+CW3DViewDoc::Is_Cursor_Shown () const
 {
 	return m_pCursor != nullptr && m_pCursor->Is_Not_Hidden_At_All ();
 }
@@ -2591,7 +2492,6 @@ void
 CW3DViewDoc::Set_Cursor (LPCTSTR resource_name)
 {
 	m_pCursor->Set_Texture (::Load_RC_Texture (resource_name));
-	return ;
 }
 
 
@@ -2601,15 +2501,13 @@ CW3DViewDoc::Set_Cursor (LPCTSTR resource_name)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Create_Cursor (void)
+CW3DViewDoc::Create_Cursor ()
 {
 	if (m_pCursor == nullptr) {
-		m_pCursor = new ScreenCursorClass;
+		m_pCursor.Assign_No_Add_Ref (new ScreenCursorClass);
 		m_pCursor->Set_Window (GetGraphicView ()->m_hWnd);
 		m_pCursor->Set_Texture (::Load_RC_Texture ("cursor.tga"));
 	}
-
-	return ;
 }
 
 
@@ -2627,7 +2525,7 @@ CW3DViewDoc::Count_Particles (RenderObjClass *render_obj)
 	// If the render object is null, then start from the current render object
 	//
 	if (render_obj == nullptr) {
-		render_obj = m_pCRenderObj;
+		render_obj = m_pCRenderObj.Peek();
 	}
 
 	//
@@ -2667,11 +2565,10 @@ CW3DViewDoc::Count_Particles (RenderObjClass *render_obj)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Update_Particle_Count (void)
+CW3DViewDoc::Update_Particle_Count ()
 {
 	int particles = Count_Particles ();
 	((CMainFrame *)::AfxGetMainWnd ())->Update_Particle_Count (particles);
-	return ;
 }
 
 
@@ -2687,7 +2584,7 @@ CW3DViewDoc::Switch_LOD (int increment, RenderObjClass *render_obj)
 	// If the render object is null, then start from the current render object
 	//
 	if (render_obj == nullptr) {
-		render_obj = m_pCRenderObj;
+		render_obj = m_pCRenderObj.Peek();
 	}
 
 	//
@@ -2710,8 +2607,6 @@ CW3DViewDoc::Switch_LOD (int increment, RenderObjClass *render_obj)
 			((HLodClass *)render_obj)->Set_LOD_Level (current_lod + increment);
 		}
 	}
-
-	return ;
 }
 
 
@@ -2727,7 +2622,7 @@ CW3DViewDoc::Toggle_Alternate_Materials(RenderObjClass * render_obj)
 	// If the render object is null, start from the current render object
 	//
 	if (render_obj == nullptr) {
-		render_obj = m_pCRenderObj;
+		render_obj = m_pCRenderObj.Peek();
 	}
 
 	if (render_obj != nullptr) {
@@ -2748,8 +2643,6 @@ CW3DViewDoc::Toggle_Alternate_Materials(RenderObjClass * render_obj)
 			Toggle_Alternate_Materials(sub_obj);
 		}
 	}
-
-	return;
 }
 
 
@@ -2862,8 +2755,6 @@ CW3DViewDoc::Copy_Assets_To_Dir (LPCTSTR directory)
 		message.Format ("Unable to find file for asset: %s.", asset_name);
 		::MessageBox (::AfxGetMainWnd ()->m_hWnd, message, "File Not Found", MB_ICONEXCLAMATION | MB_OK);
 	}
-
-	return ;
 }
 
 
@@ -2887,8 +2778,6 @@ CW3DViewDoc::Set_Texture_Path1 (LPCTSTR path)
 		m_TexturePath1 = path;
 		theApp.WriteProfileString ("Config", "TexturePath1", m_TexturePath1);
 	}
-
-	return ;
 }
 
 
@@ -2911,8 +2800,6 @@ CW3DViewDoc::Set_Texture_Path2 (LPCTSTR path)
 		m_TexturePath2 = path;
 		theApp.WriteProfileString ("Config", "TexturePath2", m_TexturePath2);
 	}
-
-	return ;
 }
 
 
@@ -2973,8 +2860,6 @@ CW3DViewDoc::Import_Facial_Animation (const CString &heirarchy_name, const CStri
 		REF_PTR_RELEASE (new_anim);
 		SAFE_DELETE (anim_desc_file);
 	}
-
-	return ;
 }
 
 
@@ -2984,7 +2869,7 @@ CW3DViewDoc::Import_Facial_Animation (const CString &heirarchy_name, const CStri
 //
 ///////////////////////////////////////////////////////////////
 const HTreeClass *
-CW3DViewDoc::Get_Current_HTree (void) const
+CW3DViewDoc::Get_Current_HTree () const
 {
 	const HTreeClass *htree = nullptr;
 
@@ -3002,7 +2887,7 @@ CW3DViewDoc::Get_Current_HTree (void) const
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Save_Camera_Settings (void)
+CW3DViewDoc::Save_Camera_Settings ()
 {
 	theApp.WriteProfileInt ("Config", "UseManualFOV", m_ManualFOV);
 	theApp.WriteProfileInt ("Config", "UseManualClipPlanes", m_ManualClipPlanes);
@@ -3032,8 +2917,6 @@ CW3DViewDoc::Save_Camera_Settings (void)
 		theApp.WriteProfileString ("Config", "znear", znear_string);
 		theApp.WriteProfileString ("Config", "zfar", zfar_string);
 	}
-
-	return ;
 }
 
 
@@ -3043,7 +2926,7 @@ CW3DViewDoc::Save_Camera_Settings (void)
 //
 ///////////////////////////////////////////////////////////////
 void
-CW3DViewDoc::Load_Camera_Settings (void)
+CW3DViewDoc::Load_Camera_Settings ()
 {
 	m_ManualFOV				= (theApp.GetProfileInt ("Config", "UseManualFOV", 0) == TRUE);
 	m_ManualClipPlanes	= (theApp.GetProfileInt ("Config", "UseManualClipPlanes", 0) == TRUE);
@@ -3087,8 +2970,6 @@ CW3DViewDoc::Load_Camera_Settings (void)
 			}
 		}
 	}
-
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////

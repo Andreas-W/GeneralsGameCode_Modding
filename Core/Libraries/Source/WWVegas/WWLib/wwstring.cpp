@@ -35,7 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "wwstring.h"
-#include "wwmemlog.h"
+#include "WWDebug/wwmemlog.h"
 #include "mutex.h"
 
 
@@ -152,8 +152,6 @@ StringClass::Resize (int new_len)
 		//
 		Set_Buffer_And_Allocated_Length (new_buffer, new_len);
 	}
-
-	return ;
 }
 
 
@@ -181,7 +179,6 @@ StringClass::Uninitialised_Grow (int new_len)
 	// Whenever this function is called, clear the cached length
 	//
 	Store_Length (0);
-	return ;
 }
 
 
@@ -191,7 +188,7 @@ StringClass::Uninitialised_Grow (int new_len)
 //
 ///////////////////////////////////////////////////////////////////
 void
-StringClass::Free_String (void)
+StringClass::Free_String ()
 {
 	if (m_Buffer != m_EmptyString) {
 
@@ -225,8 +222,6 @@ StringClass::Free_String (void)
 		//
 		m_Buffer = m_EmptyString;
 	}
-
-	return ;
 }
 
 
@@ -304,7 +299,7 @@ StringClass::Format (const TCHAR *format, ...)
 //
 ///////////////////////////////////////////////////////////////////
 void
-StringClass::Release_Resources (void)
+StringClass::Release_Resources ()
 {
 	Free_String();
 }

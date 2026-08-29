@@ -90,7 +90,7 @@ SpawnBehavior::SpawnBehavior( Thing *thing, const ModuleData* moduleData )
 }
 
 //-------------------------------------------------------------------------------------------------
-SpawnBehavior::~SpawnBehavior( void )
+SpawnBehavior::~SpawnBehavior()
 {
 	m_replacementTimes.clear();
 }
@@ -188,7 +188,7 @@ void SpawnBehavior::onDie( const DamageInfo *damageInfo )
 }
 
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime SpawnBehavior::update( void )
+UpdateSleepTime SpawnBehavior::update()
 {
 /// @todo srj use SLEEPY_UPDATE here
 
@@ -468,7 +468,7 @@ class OrphanData
 
 public:
 
-	OrphanData( void );
+	OrphanData();
 
 	const ThingTemplate *m_matchTemplate;
 	Object *m_source;
@@ -480,7 +480,7 @@ public:
 #define BIG_DISTANCE 99999999.9f
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-OrphanData::OrphanData( void )
+OrphanData::OrphanData()
 {
 
 	m_matchTemplate = nullptr;
@@ -516,7 +516,7 @@ static void findClosestOrphan( Object *obj, void *userData )
 }
 
 // ------------------------------------------------------------------------------------------------
-Object *SpawnBehavior::reclaimOrphanSpawn( void )
+Object *SpawnBehavior::reclaimOrphanSpawn()
 {
 	Player *player = getObject()->getControllingPlayer();
 	const SpawnBehaviorModuleData *md = getSpawnBehaviorModuleData();
@@ -808,7 +808,7 @@ Bool SpawnBehavior::shouldTryToSpawn()
 //* as an average position of all the spawn.
 //********************************************************************
 
-void SpawnBehavior::computeAggregateStates(void)
+void SpawnBehavior::computeAggregateStates()
 {
 	if ( ! m_aggregateHealth ) // sanity
 		return;
@@ -870,7 +870,7 @@ void SpawnBehavior::computeAggregateStates(void)
 
 			spawnWeaponBonus = currentSpawn->getWeaponBonusCondition();
 
-			avgSpawnPos.add(currentSpawn->getPosition());
+			avgSpawnPos.add(*currentSpawn->getPosition());
 
 			BodyModuleInterface *body = currentSpawn->getBodyModule();
 			acrHealth    += body->getHealth();
@@ -942,7 +942,7 @@ void SpawnBehavior::computeAggregateStates(void)
 	// HEALTH BOX POSITION *****************************
 	// pick a centered, average spot to draw the health box
 	avgSpawnPos.scale(1.0f / spawnCount);
-	avgSpawnPos.sub(obj->getPosition());
+	avgSpawnPos.sub(*obj->getPosition());
 	obj->setHealthBoxOffset(avgSpawnPos);
 
 
@@ -1069,7 +1069,7 @@ void SpawnBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void SpawnBehavior::loadPostProcess( void )
+void SpawnBehavior::loadPostProcess()
 {
 
 	// extend base class

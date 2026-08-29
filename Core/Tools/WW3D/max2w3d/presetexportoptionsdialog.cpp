@@ -64,7 +64,6 @@ PresetExportOptionsDialogClass::PresetExportOptionsDialogClass (Interface *maxin
 	CurrentPane (-1)
 {
 	::memset (PaneWnds, 0, sizeof (PaneWnds));
-	return ;
 }
 
 
@@ -73,9 +72,8 @@ PresetExportOptionsDialogClass::PresetExportOptionsDialogClass (Interface *maxin
 //	~PresetExportOptionsDialogClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////
-PresetExportOptionsDialogClass::~PresetExportOptionsDialogClass (void)
+PresetExportOptionsDialogClass::~PresetExportOptionsDialogClass ()
 {
-	return ;
 }
 
 
@@ -85,7 +83,7 @@ PresetExportOptionsDialogClass::~PresetExportOptionsDialogClass (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 int
-PresetExportOptionsDialogClass::Do_Modal (void)
+PresetExportOptionsDialogClass::Do_Modal ()
 {
 	int retval = ::DialogBoxParam (AppInstance, MAKEINTRESOURCE (IDD_W3D_PRESET_EXPORT_OPTIONS),
 													ParentWnd, Real_Message_Proc, (LPARAM)this);
@@ -501,8 +499,6 @@ PresetExportOptionsDialogClass::Show_Settings_Pane (int pane_id)
 		}
 		CurrentPane = pane_id;
 	}
-
-	return ;
 }
 
 
@@ -512,7 +508,7 @@ PresetExportOptionsDialogClass::Show_Settings_Pane (int pane_id)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-PresetExportOptionsDialogClass::Create_Settings_Panes (void)
+PresetExportOptionsDialogClass::Create_Settings_Panes ()
 {
 	PaneWnds[PANE_HLOD] = ::CreateDialogParam (AppInstance, MAKEINTRESOURCE (IDD_EXPORT_PANE_HLOD),
 										Wnd, Settings_Pane_Message_Proc, (LPARAM)this);
@@ -564,8 +560,6 @@ PresetExportOptionsDialogClass::Create_Settings_Panes (void)
 								group_rect.top + (height / 2) - ((rect.bottom - rect.top) / 2),
 								0, 0, SWP_NOSIZE);
 	}
-
-	return ;
 }
 
 
@@ -575,7 +569,7 @@ PresetExportOptionsDialogClass::Create_Settings_Panes (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-PresetExportOptionsDialogClass::Destroy_Settings_Panes (void)
+PresetExportOptionsDialogClass::Destroy_Settings_Panes ()
 {
 	//
 	//	Loop over all the panes and destroy them
@@ -584,8 +578,6 @@ PresetExportOptionsDialogClass::Destroy_Settings_Panes (void)
 		::DestroyWindow (PaneWnds[index]);
 		PaneWnds[index] = nullptr;
 	}
-
-	return ;
 }
 
 
@@ -595,7 +587,7 @@ PresetExportOptionsDialogClass::Destroy_Settings_Panes (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-PresetExportOptionsDialogClass::Determine_Preset_Type (void)
+PresetExportOptionsDialogClass::Determine_Preset_Type ()
 {
 	//
 	//	Examine the current options and try to determine which
@@ -652,8 +644,6 @@ PresetExportOptionsDialogClass::Determine_Preset_Type (void)
 		Show_Settings_Pane (PANE_ANIM_HLOD);
 		SendDlgItemMessage (Wnd, IDC_ANIM_HLOD_RADIO, BM_SETCHECK, (WPARAM)TRUE, 0L);
 	}
-
-	return ;
 }
 
 
@@ -663,7 +653,7 @@ PresetExportOptionsDialogClass::Determine_Preset_Type (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-PresetExportOptionsDialogClass::Initialize_Controls (void)
+PresetExportOptionsDialogClass::Initialize_Controls ()
 {
 	//
 	//	Check the review log file button if necessary
@@ -711,8 +701,6 @@ PresetExportOptionsDialogClass::Initialize_Controls (void)
 			::SetProp (::GetDlgItem (pane_wnd, IDC_RANGE_HIGH_SPIN), "ISpinnerControl", (HANDLE)high_spin);
 		}
 	}
-
-	return ;
 }
 
 
@@ -722,7 +710,7 @@ PresetExportOptionsDialogClass::Initialize_Controls (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-PresetExportOptionsDialogClass::Update_Controls (void)
+PresetExportOptionsDialogClass::Update_Controls ()
 {
 	//
 	//	Loop over all the panes and update any of the controls therein
@@ -800,8 +788,6 @@ PresetExportOptionsDialogClass::Update_Controls (void)
 			high_spin->SetValue (Options->EndFrame, FALSE);
 		}
 	}
-
-	return ;
 }
 
 
@@ -811,7 +797,7 @@ PresetExportOptionsDialogClass::Update_Controls (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////
 void
-PresetExportOptionsDialogClass::Save_Settings (void)
+PresetExportOptionsDialogClass::Save_Settings ()
 {
 	//
 	//	Force settings that certain preset types need
@@ -908,7 +894,5 @@ PresetExportOptionsDialogClass::Save_Settings (void)
 	if (::memcmp (Options, &OrigOptions, sizeof (OrigOptions)) != 0) {
 		SetSaveRequiredFlag (true);
 	}
-
-	return ;
 }
 

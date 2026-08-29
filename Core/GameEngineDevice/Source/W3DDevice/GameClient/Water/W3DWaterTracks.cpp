@@ -55,12 +55,12 @@
 #include "Common/UnicodeString.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
-#include "texture.h"
-#include "colmath.h"
-#include "coltest.h"
-#include "rinfo.h"
-#include "camera.h"
-#include "assetmgr.h"
+#include "WW3D2/texture.h"
+#include "WWMath/colmath.h"
+#include "WW3D2/coltest.h"
+#include "WW3D2/rinfo.h"
+#include "WW3D2/camera.h"
+#include "WW3D2/assetmgr.h"
 #include "WW3D2/dx8wrapper.h"
 
 //number of vertex pages allocated - allows double buffering of vertex updates.
@@ -119,7 +119,7 @@ waveInfo waveTypeInfo[WaveTypeMax]=
 //=============================================================================
 /** Destructor. Releases w3d assets. */
 //=============================================================================
-WaterTracksObj::~WaterTracksObj(void)
+WaterTracksObj::~WaterTracksObj()
 {
 	freeWaterTracksResources();
 }
@@ -129,7 +129,7 @@ WaterTracksObj::~WaterTracksObj(void)
 //=============================================================================
 /** Constructor. Just nulls out some variables. */
 //=============================================================================
-WaterTracksObj::WaterTracksObj(void)
+WaterTracksObj::WaterTracksObj()
 {
 	m_stageZeroTexture=nullptr;
 	m_bound=false;
@@ -161,7 +161,7 @@ void WaterTracksObj::Get_Obj_Space_Bounding_Box(AABoxClass & box) const
 //=============================================================================
 /** Free any W3D resources associated with this object */
 //=============================================================================
-Int WaterTracksObj::freeWaterTracksResources(void)
+Int WaterTracksObj::freeWaterTracksResources()
 {
 	REF_PTR_RELEASE(m_stageZeroTexture);
 	return 0;
@@ -615,7 +615,7 @@ WaterTracksRenderSystem::WaterTracksRenderSystem()
 //=============================================================================
 /** Destructor.  Free all pre-allocated track laying render objects*/
 //=============================================================================
-WaterTracksRenderSystem::~WaterTracksRenderSystem( void )
+WaterTracksRenderSystem::~WaterTracksRenderSystem()
 {
 
 	// free all data
@@ -630,7 +630,7 @@ WaterTracksRenderSystem::~WaterTracksRenderSystem( void )
 //=============================================================================
 /** (Re)allocates all W3D assets after a reset.. */
 //=============================================================================
-void WaterTracksRenderSystem::ReAcquireResources(void)
+void WaterTracksRenderSystem::ReAcquireResources()
 {
 	Int i,j,k;
 //	const Int numModules=16;	///@todo: Get a value out of gdf
@@ -680,7 +680,7 @@ void WaterTracksRenderSystem::ReAcquireResources(void)
 //=============================================================================
 /** (Re)allocates all W3D assets after a reset.. */
 //=============================================================================
-void WaterTracksRenderSystem::ReleaseResources(void)
+void WaterTracksRenderSystem::ReleaseResources()
 {
 	REF_PTR_RELEASE(m_indexBuffer);
 	REF_PTR_RELEASE(m_vertexBuffer);
@@ -693,7 +693,7 @@ void WaterTracksRenderSystem::ReleaseResources(void)
 //=============================================================================
 /**  initialize the system, allocate all the render objects we will need */
 //=============================================================================
-void WaterTracksRenderSystem::init(void)
+void WaterTracksRenderSystem::init()
 {
 	const Int numModules=2000;	///@todo: Get a value out of gdf
 	Int i;
@@ -746,7 +746,7 @@ void WaterTracksRenderSystem::init(void)
 
 }
 
-void WaterTracksRenderSystem::reset(void)
+void WaterTracksRenderSystem::reset()
 {
 	WaterTracksObj *nextMod,*mod;
 
@@ -772,7 +772,7 @@ void WaterTracksRenderSystem::reset(void)
 //=============================================================================
 /** Shutdown and free all memory for this system */
 //=============================================================================
-void WaterTracksRenderSystem::shutdown( void )
+void WaterTracksRenderSystem::shutdown()
 {
 	WaterTracksObj *nextMod,*mod;
 
@@ -838,8 +838,8 @@ void WaterTracksRenderSystem::update()
 }
 
 
-void TestWaterUpdate(void);
-void setFPMode( void );
+void TestWaterUpdate();
+void setFPMode();
 
 //=============================================================================
 // WaterTracksRenderSystem::flush
@@ -951,22 +951,20 @@ WaterTracksObj *WaterTracksRenderSystem::findTrack(Vector2 &start, Vector2 &end,
 	}
 	return nullptr;
 }
-void WaterTracksRenderSystem::saveTracks(void)
+void WaterTracksRenderSystem::saveTracks()
 {
 
 	if (!TheTerrainLogic)
 		return;
 
 	AsciiString fileName=TheTerrainLogic->getSourceFilename();
-	char path[256];
-
-	strlcpy(path, fileName.str(), ARRAY_SIZE(path));
-	strlcat(path, ".wak", ARRAY_SIZE(path));
+	FileSystem::removeExtension(fileName);
+	fileName.concat(".wak");
 
 	WaterTracksObj *umod;
 	Int trackCount=0;
 
-	FILE *fp=fopen(path,"wb");
+	FILE *fp=fopen(fileName.str(), "wb");
 
 	if (fp)
 	{
@@ -987,19 +985,17 @@ void WaterTracksRenderSystem::saveTracks(void)
 	}
 }
 
-void WaterTracksRenderSystem::loadTracks(void)
+void WaterTracksRenderSystem::loadTracks()
 {
 
 	if (!TheTerrainLogic)
 		return;
 
 	AsciiString fileName=TheTerrainLogic->getSourceFilename();
-	char path[256];
+	FileSystem::removeExtension(fileName);
+	fileName.concat(".wak");
 
-	strlcpy(path, fileName.str(), ARRAY_SIZE(path));
-	strlcat(path, ".wak", ARRAY_SIZE(path));
-
-	File *file = TheFileSystem->openFile(path, File::READ | File::BINARY);
+	File *file = TheFileSystem->openFile(fileName.str(), File::READ | File::BINARY);
 	WaterTracksObj *umod;
 	Int trackCount=0;
 	Int flipU=0;
@@ -1083,7 +1079,7 @@ extern HWND ApplicationHWnd;
 //TODO: Fix editor so it actually draws the wave segment instead of line while editing
 //Could freeze all the water while editing?  Or keep setting elapsed time on current segment.
 //Have to make it so seamless merge of segments at final position.
-void TestWaterUpdate(void)
+void TestWaterUpdate()
 {
 	static Int doInit=1;
 	static WaterTracksObj *track=nullptr,*track2=nullptr;
@@ -1166,49 +1162,53 @@ void TestWaterUpdate(void)
 				{
 					if (!haveStart)
 					{	mouseAnchor=screenPoint;
-						TheTacticalView->screenToTerrain( (ICoord2D *)&screenPoint, &terrainPointStart);
-						haveStart=1;
-						UnicodeString string;
-						string.format(L"Added Start");
-						TheInGameUI->message(string);
+						if (TheTacticalView->screenToTerrain( (ICoord2D *)&screenPoint, &terrainPointStart))
+						{
+							haveStart=1;
+							UnicodeString string;
+							string.format(L"Added Start");
+							TheInGameUI->message(string);
+						}
 					}
 					else
 					{
 						endPoint=screenPoint;
-						TheTacticalView->screenToTerrain( (ICoord2D *)&screenPoint, &terrainPointEnd);
-						haveEnd=1;
-						//Have enough info to add a wave now
-						track=TheWaterTracksRenderSystem->bindTrack(currentWaveType);
-						if (track)
-						{//	track->init(1.5f*MAP_XY_FACTOR,Vector2(terrainPointStart.x,terrainPointStart.y),Vector2(terrainPointEnd.x,terrainPointEnd.y),"wave256.tga");
-							//Generate valid input for the 2 points
-							Vector2 startPoint(terrainPointStart.x,terrainPointStart.y);
-							Vector2 endPoint(terrainPointEnd.x,terrainPointEnd.y);
-							Vector2 midPoint = endPoint - startPoint;
-							Vector2 m_perpDir = midPoint;
-							m_perpDir.Rotate(1.57079632679f);	//get vector perpendicular to wave motion.
-							m_perpDir.Normalize();
-							midPoint = startPoint + (midPoint)*0.5f;
-							Vector2 dirMidPoint = midPoint + m_perpDir;
+						if (TheTacticalView->screenToTerrain( (ICoord2D *)&screenPoint, &terrainPointEnd))
+						{
+							haveEnd=1;
+							//Have enough info to add a wave now
+							track=TheWaterTracksRenderSystem->bindTrack(currentWaveType);
+							if (track)
+							{//	track->init(1.5f*MAP_XY_FACTOR,Vector2(terrainPointStart.x,terrainPointStart.y),Vector2(terrainPointEnd.x,terrainPointEnd.y),"wave256.tga");
+								//Generate valid input for the 2 points
+								Vector2 startPoint(terrainPointStart.x,terrainPointStart.y);
+								Vector2 endPoint(terrainPointEnd.x,terrainPointEnd.y);
+								Vector2 midPoint = endPoint - startPoint;
+								Vector2 m_perpDir = midPoint;
+								m_perpDir.Rotate(1.57079632679f);	//get vector perpendicular to wave motion.
+								m_perpDir.Normalize();
+								midPoint = startPoint + (midPoint)*0.5f;
+								Vector2 dirMidPoint = midPoint + m_perpDir;
 
-							track->init(waveTypeInfo[currentWaveType].m_finalHeight,waveTypeInfo[currentWaveType].m_finalWidth,Vector2(midPoint.X,midPoint.Y),Vector2(dirMidPoint.X,dirMidPoint.Y),waveTypeInfo[currentWaveType].m_textureName,0);
+								track->init(waveTypeInfo[currentWaveType].m_finalHeight,waveTypeInfo[currentWaveType].m_finalWidth,Vector2(midPoint.X,midPoint.Y),Vector2(dirMidPoint.X,dirMidPoint.Y),waveTypeInfo[currentWaveType].m_textureName,0);
 
-							if (waveTypeInfo[currentWaveType].m_secondWaveTimeOffset)
-							{
-								//Add a second track slightly behind this one
-								track2=TheWaterTracksRenderSystem->bindTrack(currentWaveType);
-								if (track2)
+								if (waveTypeInfo[currentWaveType].m_secondWaveTimeOffset)
 								{
-									track2->init(waveTypeInfo[currentWaveType].m_finalHeight,waveTypeInfo[currentWaveType].m_finalWidth,Vector2(midPoint.X,midPoint.Y),Vector2(dirMidPoint.X,dirMidPoint.Y),waveTypeInfo[currentWaveType].m_textureName,waveTypeInfo[currentWaveType].m_secondWaveTimeOffset);
+									//Add a second track slightly behind this one
+									track2=TheWaterTracksRenderSystem->bindTrack(currentWaveType);
+									if (track2)
+									{
+										track2->init(waveTypeInfo[currentWaveType].m_finalHeight,waveTypeInfo[currentWaveType].m_finalWidth,Vector2(midPoint.X,midPoint.Y),Vector2(dirMidPoint.X,dirMidPoint.Y),waveTypeInfo[currentWaveType].m_textureName,waveTypeInfo[currentWaveType].m_secondWaveTimeOffset);
+									}
 								}
-							}
 
-							UnicodeString string;
-							string.format(L"Added End");
-							TheInGameUI->message(string);
+								UnicodeString string;
+								string.format(L"Added End");
+								TheInGameUI->message(string);
+							}
+							haveStart=0;	//reset for next segment
+							haveEnd=0;
 						}
-						haveStart=0;	//reset for next segment
-						haveEnd=0;
 					}
 					addPointReset=0;
 				}
@@ -1289,21 +1289,23 @@ void TestWaterUpdate(void)
 //			View *tacticalView = TheDisplay->getFirstView();
 //			tacticalView->worldToScreen( &m_moveHint[i].pos, &pos );
 
-			TheTacticalView->screenToTerrain( (ICoord2D *)&screenPoint, &terrainPointEnd);
-			//Check if point is within correct distance of start
-			Real xdiff=terrainPointEnd.x - terrainPointStart.x;
-			Real ydiff=terrainPointEnd.y - terrainPointStart.y;
-			if (sqrt (xdiff * xdiff + ydiff * ydiff) <= waveTypeInfo[currentWaveType].m_finalWidth)
-			{	TheDisplay->drawLine(mouseAnchor.x, mouseAnchor.y, screenPoint.x, screenPoint.y,1,0xffccccff);
-				DX8Wrapper::Invalidate_Cached_Render_States();
-				ShaderClass::Invalidate();
-			}
-
-			pauseWaves=TRUE;
+			if (TheTacticalView->screenToTerrain( (ICoord2D *)&screenPoint, &terrainPointEnd))
+			{
+				//Check if point is within correct distance of start
+				Real xdiff=terrainPointEnd.x - terrainPointStart.x;
+				Real ydiff=terrainPointEnd.y - terrainPointStart.y;
+				if (sqrt (xdiff * xdiff + ydiff * ydiff) <= waveTypeInfo[currentWaveType].m_finalWidth)
+				{	TheDisplay->drawLine(mouseAnchor.x, mouseAnchor.y, screenPoint.x, screenPoint.y,1,0xffccccff);
+					DX8Wrapper::Invalidate_Cached_Render_States();
+					ShaderClass::Invalidate();
+				}
 
 //			char buffer[64];
 //			sprintf(buffer,"\n%d,%d,%d,%d",mouseAnchor.x, mouseAnchor.y, screenPoint.x, screenPoint.y);
 //			OutputDebugString (buffer);
+			}
+
+			pauseWaves=TRUE;
 		}
 	}
 }

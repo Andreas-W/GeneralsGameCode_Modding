@@ -86,7 +86,7 @@ public:
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-BodyParticleSystem::~BodyParticleSystem( void )
+BodyParticleSystem::~BodyParticleSystem()
 {
 
 }
@@ -185,13 +185,13 @@ ActiveBody::ActiveBody( Thing *thing, const ModuleData* moduleData ) :
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-ActiveBody::~ActiveBody( void )
+ActiveBody::~ActiveBody()
 {
 }
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void ActiveBody::onDelete( void )
+void ActiveBody::onDelete()
 {
 
 	// delete all particle systems
@@ -890,7 +890,7 @@ void ActiveBody::attemptHealing( DamageInfo *damageInfo )
 		//(object pointer loses scope as soon as atteptdamage's caller ends)
 		m_lastDamageInfo = *damageInfo;
 		m_lastDamageCleared = false;
-#if PRESERVE_RETAIL_BEHAVIOR
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_STRUCTURE_STEALTH_DURING_REPAIR
 		m_lastDamageTimestamp = TheGameLogic->getFrame();
 #endif
 		m_lastHealingTimestamp = TheGameLogic->getFrame();
@@ -1132,7 +1132,7 @@ void ActiveBody::createParticleSystems( const AsciiString &boneBaseName,
 // ------------------------------------------------------------------------------------------------
 /** Delete all the body particle systems */
 // ------------------------------------------------------------------------------------------------
-void ActiveBody::deleteAllParticleSystems( void )
+void ActiveBody::deleteAllParticleSystems()
 {
 	BodyParticleSystem *nextBodySystem;
 	ParticleSystem *particleSystem;
@@ -1161,7 +1161,7 @@ void ActiveBody::deleteAllParticleSystems( void )
 // ------------------------------------------------------------------------------------------------
 /* 	This function is called on state changes only.  Body Type or Aflameness. */
 // ------------------------------------------------------------------------------------------------
-void ActiveBody::updateBodyParticleSystems( void )
+void ActiveBody::updateBodyParticleSystems()
 {
 	static const ParticleSystemTemplate *fireSmallTemplate   = TheParticleSystemManager->findTemplate( TheGlobalData->m_autoFireParticleSmallSystem );
 	static const ParticleSystemTemplate *fireMediumTemplate  = TheParticleSystemManager->findTemplate( TheGlobalData->m_autoFireParticleMediumSystem );
@@ -1891,7 +1891,7 @@ void ActiveBody::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void ActiveBody::loadPostProcess( void )
+void ActiveBody::loadPostProcess()
 {
 
 	// extend base class

@@ -28,15 +28,15 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "Lib/BaseType.h"
-#include "camera.h"
-#include "simplevec.h"
-#include "dx8wrapper.h"
+#include "WW3D2/camera.h"
+#include "WWLib/simplevec.h"
+#include "WW3D2/dx8wrapper.h"
 #include "Common/MapObject.h"
 #include "Common/PerfTimer.h"
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DPoly.h"
 #include "W3DDevice/GameClient/W3DShaderManager.h"
-#include "assetmgr.h"
+#include "WW3D2/assetmgr.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
 #include "WW3D2/textureloader.h"
 #include "Common/GlobalData.h"
@@ -68,7 +68,7 @@
 #define DEFAULT_VISIBLE_TERRAIN 96	//assumed size of visible terrain cells.
 
 //-----------------------------------------------------------------------------
-W3DShroud::W3DShroud(void)
+W3DShroud::W3DShroud()
 {
 	m_finalFogData=nullptr;
 	m_currentFogData=nullptr;
@@ -89,7 +89,7 @@ W3DShroud::W3DShroud(void)
 }
 
 //-----------------------------------------------------------------------------
-W3DShroud::~W3DShroud(void)
+W3DShroud::~W3DShroud()
 {
 	ReleaseResources();
 
@@ -120,18 +120,23 @@ void W3DShroud::init(WorldHeightMap *pMap, Real worldCellSizeX, Real worldCellSi
 	//Precompute a bounding box for entire shroud layer
 	if (pMap)
 	{
-		m_numCellsX = REAL_TO_INT_CEIL((Real)(pMap->getXExtent() - 1 - pMap->getBorderSize()*2)*MAP_XY_FACTOR/m_cellWidth);
-		m_numCellsY = REAL_TO_INT_CEIL((Real)(pMap->getYExtent() - 1 - pMap->getBorderSize()*2)*MAP_XY_FACTOR/m_cellHeight);
+		m_numCellsX = REAL_TO_INT_CEIL((Real)(pMap->getXExtent() - 1 - pMap->getBorderSizeInline()*2)*MAP_XY_FACTOR/m_cellWidth);
+		m_numCellsY = REAL_TO_INT_CEIL((Real)(pMap->getYExtent() - 1 - pMap->getBorderSizeInline()*2)*MAP_XY_FACTOR/m_cellHeight);
 
 		//Maximum visible cells will depend on maximum drawable terrain size plus 1 for partial cells (since
 		//shroud cells are larger than terrain cells).
 		dstTextureWidth=m_numMaxVisibleCellsX=REAL_TO_INT_FLOOR((Real)(pMap->getDrawWidth()-1)*MAP_XY_FACTOR/m_cellWidth)+1;
 		dstTextureHeight=m_numMaxVisibleCellsY=REAL_TO_INT_FLOOR((Real)(pMap->getDrawHeight()-1)*MAP_XY_FACTOR/m_cellHeight)+1;
+
+		dstTextureWidth = m_numCellsX;
+		dstTextureHeight = m_numCellsY;
+
 		dstTextureWidth += 2;	//enlarge by 2 pixels so we can have a border color all the way around.
 		unsigned int depth = 1;
 		dstTextureHeight += 2;	//enlarge by 2 pixels so we can have border color all the way around.
 		TextureLoader::Validate_Texture_Size((unsigned int &)dstTextureWidth,(unsigned int &)dstTextureHeight, depth);
 	}
+
 
 	UnsignedInt srcWidth,srcHeight;
 
@@ -215,17 +220,17 @@ void W3DShroud::reset()
 
 //-----------------------------------------------------------------------------
 ///Release any resources that can't survive a D3D device reset.
-void W3DShroud::ReleaseResources(void)
+void W3DShroud::ReleaseResources()
 {
 	REF_PTR_RELEASE (m_pDstTexture);
 }
 
 //-----------------------------------------------------------------------------
 ///Restore resources that are lost on D3D device reset.
-Bool W3DShroud::ReAcquireResources(void)
+Bool W3DShroud::ReAcquireResources()
 {
 		if (!m_dstTextureWidth)
-			return TRUE;	//nothing to reaquire since shroud was never initialized with valid data
+			return TRUE;	//nothing to reacquire since shroud was never initialized with valid data
 
 		DEBUG_ASSERTCRASH( m_pDstTexture == nullptr, ("ReAcquire of existing shroud texture"));
 
@@ -259,7 +264,7 @@ W3DShroudLevel W3DShroud::getShroudLevel(Int x, Int y)
 {
 	DEBUG_ASSERTCRASH( m_pSrcTexture != nullptr, ("Reading empty shroud"));
 
-	if (x < m_numCellsX && y < m_numCellsY)
+	if (x >= 0 && y >= 0 && x < m_numCellsX && y < m_numCellsY)
 	{
 		UnsignedShort pixel=*(UnsignedShort *)((Byte *)m_srcTextureData + x*2 + y*m_srcTexturePitch);
 
@@ -613,14 +618,23 @@ void W3DShroud::render(CameraClass *cam)
 
 
 	WorldHeightMap *hm=TheTerrainRenderObject->getMap();
-	Int visStartX=REAL_TO_INT_FLOOR((Real)(hm->getDrawOrgX()-hm->getBorderSize())*MAP_XY_FACTOR/m_cellWidth);	//start of rendered heightmap rectangle
+	Int visStartX=REAL_TO_INT_FLOOR((Real)(hm->getDrawOrgX()-hm->getBorderSizeInline())*MAP_XY_FACTOR/m_cellWidth);	//start of rendered heightmap rectangle
 	if (visStartX < 0)
 		visStartX = 0;	//no shroud is applied in border area so it always starts at > 0
-	Int visStartY=REAL_TO_INT_FLOOR((Real)(hm->getDrawOrgY()-hm->getBorderSize())*MAP_XY_FACTOR/m_cellHeight);
+	Int visStartY=REAL_TO_INT_FLOOR((Real)(hm->getDrawOrgY()-hm->getBorderSizeInline())*MAP_XY_FACTOR/m_cellHeight);
 	if (visStartY < 0)
 		visStartY = 0;	//no shroud is applied in border area so it always starts at > 0
+
+	// Do it all [3/11/2003]
+	visStartX = 0;
+	visStartY = 0;
+
 	Int visEndX=visStartX+REAL_TO_INT_FLOOR((Real)(hm->getDrawWidth()-1)*MAP_XY_FACTOR/m_cellWidth)+1;	//size of rendered heightmap rectangle
 	Int visEndY=visStartY+REAL_TO_INT_FLOOR((Real)(hm->getDrawHeight()-1)*MAP_XY_FACTOR/m_cellHeight)+1;
+
+	// Do it all [3/11/2003]
+	visEndX = m_numCellsX;
+	visEndY = m_numCellsY;
 
 	if (visEndX > m_numCellsX)
 	{
@@ -768,7 +782,7 @@ void W3DShroud::setShroudFilter(Bool enable)
 
 //-----------------------------------------------------------------------------
 ///Set render states required to draw shroud pass.
-void W3DShroudMaterialPassClass::Install_Materials(void) const
+void W3DShroudMaterialPassClass::Install_Materials() const
 {
 	if (TheTerrainRenderObject->getShroud())
 	{
@@ -779,21 +793,21 @@ void W3DShroudMaterialPassClass::Install_Materials(void) const
 
 //-----------------------------------------------------------------------------
 ///Restore render states that W3D doesn't know about.
-void W3DShroudMaterialPassClass::UnInstall_Materials(void) const
+void W3DShroudMaterialPassClass::UnInstall_Materials() const
 {
 	W3DShaderManager::resetShader(W3DShaderManager::ST_SHROUD_TEXTURE);
 }
 
 //-----------------------------------------------------------------------------
 ///Set render states required to draw shroud pass.
-void W3DMaskMaterialPassClass::Install_Materials(void) const
+void W3DMaskMaterialPassClass::Install_Materials() const
 {
 	W3DShaderManager::setShader(W3DShaderManager::ST_MASK_TEXTURE, 0);
 }
 
 //-----------------------------------------------------------------------------
 ///Restore render states that W3D doesn't know about.
-void W3DMaskMaterialPassClass::UnInstall_Materials(void) const
+void W3DMaskMaterialPassClass::UnInstall_Materials() const
 {
 	if (m_allowUninstall)
 		W3DShaderManager::resetShader(W3DShaderManager::ST_MASK_TEXTURE);

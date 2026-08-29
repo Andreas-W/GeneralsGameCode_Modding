@@ -57,7 +57,7 @@ BridgeTowerBehavior::BridgeTowerBehavior( Thing *thing, const ModuleData *module
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-BridgeTowerBehavior::~BridgeTowerBehavior( void )
+BridgeTowerBehavior::~BridgeTowerBehavior()
 {
 
 }
@@ -76,7 +76,7 @@ void BridgeTowerBehavior::setBridge( Object *bridge )
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-ObjectID BridgeTowerBehavior::getBridgeID( void )
+ObjectID BridgeTowerBehavior::getBridgeID()
 {
 
 	return m_bridgeID;
@@ -382,7 +382,7 @@ void BridgeTowerBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void BridgeTowerBehavior::loadPostProcess( void )
+void BridgeTowerBehavior::loadPostProcess()
 {
 
 	// extend base class

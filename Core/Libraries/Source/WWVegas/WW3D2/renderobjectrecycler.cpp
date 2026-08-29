@@ -45,7 +45,7 @@
 #include "rendobj.h"
 #include "assetmgr.h"
 #include "part_emt.h"
-#include "matrix3d.h"
+#include "WWMath/matrix3d.h"
 
 
 /***********************************************************************************************
@@ -60,7 +60,7 @@
  * HISTORY:                                                                                    *
  *   4/25/2001  gth : Created.                                                                 *
  *=============================================================================================*/
-void RenderObjectRecyclerClass::Reset(void)
+void RenderObjectRecyclerClass::Reset()
 {
 	InactiveModels.Reset_List();
 }

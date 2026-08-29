@@ -18,16 +18,16 @@
 
 #pragma once
 
-#include "always.h"
-#include "wwstring.h"
+#include "WWLib/always.h"
+#include "WWLib/wwstring.h"
 
 namespace SaveLoadStatus
 {
 	void Set_Status_Text(const char* text,int id);
 
-	void	Reset_Status_Count( void );
-	void	Inc_Status_Count( void );
-	int	Get_Status_Count( void );
+	void	Reset_Status_Count();
+	void	Inc_Status_Count();
+	int	Get_Status_Count();
 	void Get_Status_Text(StringClass& text, int id);
 };
 

@@ -121,7 +121,7 @@ DeliverPayloadAIUpdate::DeliverPayloadAIUpdate( Thing *thing, const ModuleData* 
 }
 
 //-------------------------------------------------------------------------------------------------
-DeliverPayloadAIUpdate::~DeliverPayloadAIUpdate( void )
+DeliverPayloadAIUpdate::~DeliverPayloadAIUpdate()
 {
 	m_deliveryDecal.clear();
 	deleteInstance(m_deliverPayloadStateMachine);
@@ -154,7 +154,7 @@ Bool DeliverPayloadAIUpdate::isAllowedToRespondToAiCommands(const AICommandParms
 }
 
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime DeliverPayloadAIUpdate::update( void )
+UpdateSleepTime DeliverPayloadAIUpdate::update()
 {
 	m_deliveryDecal.update();
 
@@ -215,9 +215,9 @@ UpdateSleepTime DeliverPayloadAIUpdate::update( void )
 					backwards.scale( 0.33f );
 
 					Coord3D strafePoint = *getTargetPos();
-					strafePoint.sub( &backwards );
+					strafePoint.sub( backwards );
 
-					strafePoint.add( &velocity );
+					strafePoint.add( velocity );
 					strafePoint.z = TheTerrainLogic->getGroundHeight( strafePoint.x, strafePoint.y );
 
 					// lock it just till the weapon is empty or the attack is "done"
@@ -305,8 +305,8 @@ void DeliverPayloadAIUpdate::deliverPayloadViaModuleData( const Coord3D *moveToP
 	//****************************************************
 
 	DeliverPayloadData dpData;
-	dpData.m_dropOffset.set( &data->m_dropOffset );
-	dpData.m_dropVariance.set( &data->m_dropVariance );
+	dpData.m_dropOffset.set( data->m_dropOffset );
+	dpData.m_dropVariance.set( data->m_dropVariance );
 	dpData.m_distToTarget						= data->m_maxDistanceToTarget;
 	dpData.m_maxAttempts						= data->m_maxNumberAttempts;
 	dpData.m_dropDelay							= data->m_dropDelay;
@@ -383,7 +383,7 @@ Bool DeliverPayloadAIUpdate::isOffMap() const
 	Region3D mapRegion;
 	TheTerrainLogic->getExtentIncludingBorder( &mapRegion );
 
-	if (!mapRegion.isInRegionNoZ( getObject()->getPosition() ))
+	if (!mapRegion.isInRegionNoZ( *getObject()->getPosition() ))
 		return true;
 
 	return false;
@@ -482,7 +482,7 @@ void DeliverPayloadAIUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void DeliverPayloadAIUpdate::loadPostProcess( void )
+void DeliverPayloadAIUpdate::loadPostProcess()
 {
  // extend base class
 	AIUpdateInterface::loadPostProcess();
@@ -540,7 +540,7 @@ void DeliverPayloadStateMachine::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void DeliverPayloadStateMachine::loadPostProcess( void )
+void DeliverPayloadStateMachine::loadPostProcess()
 {
 	StateMachine::loadPostProcess();
 }
@@ -634,7 +634,7 @@ void DeliveringState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void DeliveringState::loadPostProcess( void )
+void DeliveringState::loadPostProcess()
 {
 }
 
@@ -810,7 +810,7 @@ StateReturnType DeliveringState::update() // Kick a dude out every so often
 
 							Coord3D backPosition = *owner->getPhysics()->getVelocity();
 							backPosition.scale( -1.0f );
-							backPosition.add( payload->getPosition() );
+							backPosition.add( *payload->getPosition() );
 							payload->setPosition( &backPosition );
 						}
 
@@ -912,7 +912,7 @@ void ConsiderNewApproachState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void ConsiderNewApproachState::loadPostProcess( void )
+void ConsiderNewApproachState::loadPostProcess()
 {
 }
 
@@ -1024,7 +1024,7 @@ void RecoverFromOffMapState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void RecoverFromOffMapState::loadPostProcess( void )
+void RecoverFromOffMapState::loadPostProcess()
 {
 }
 

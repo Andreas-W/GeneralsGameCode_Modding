@@ -22,31 +22,31 @@
 #include "StdAfx.h"
 #include "W3DView.h"
 #include "GraphicView.h"
-#include "ww3d.h"
+#include "WW3D2/ww3d.h"
 #include "Globals.h"
 #include "W3DViewDoc.h"
 #include <process.h>
-#include "quat.h"
+#include "WWMath/quat.h"
 #include "MainFrm.h"
 #include "Utils.h"
 #include "mmsystem.h"
-#include "light.h"
+#include "WW3D2/light.h"
 #include "ViewerAssetMgr.h"
-#include "rcfile.h"
-#include "part_emt.h"
-#include "part_buf.h"
-#include "hlod.h"
+#include "WWLib/rcfile.h"
+#include "WW3D2/part_emt.h"
+#include "WW3D2/part_buf.h"
+#include "WW3D2/hlod.h"
 #include "ViewerScene.h"
 #include "ScreenCursor.h"
-#include "mesh.h"
-#include "coltest.h"
-#include "MPU.h"
-#include "dazzle.h"
-#include "SoundScene.h"
-#include "WWAudio.h"
-#include "metalmap.h"
-#include "dx8wrapper.h"
-#include "matrix3.h"
+#include "WW3D2/mesh.h"
+#include "WW3D2/coltest.h"
+#include "WWLib/MPU.h"
+#include "WW3D2/dazzle.h"
+#include "WWAudio/SoundScene.h"
+#include "WWAudio/WWAudio.h"
+#include "WW3D2/metalmap.h"
+#include "WW3D2/dx8wrapper.h"
+#include "WWMath/matrix3.h"
 
 #ifdef RTS_DEBUG
 #define new DEBUG_NEW
@@ -69,9 +69,8 @@ IMPLEMENT_DYNCREATE(CGraphicView, CView)
 //  CGraphicView
 //
 ////////////////////////////////////////////////////////////////////////////
-CGraphicView::CGraphicView (void)
+CGraphicView::CGraphicView ()
     : m_bInitialized (FALSE),
-      m_pCamera (nullptr),
       m_TimerID (0),
       m_bMouseDown (FALSE),
       m_bRMouseDown (FALSE),
@@ -83,7 +82,6 @@ CGraphicView::CGraphicView (void)
       m_objectRotation (NoRotation),
 		m_LightRotation (NoRotation),
 		m_bLightMeshInScene (false),
-		m_pLightMesh (nullptr),
 		m_ParticleCountUpdate (0),
 		m_CameraBonePosX (false),
 		m_UpdateCounter (0),
@@ -93,7 +91,6 @@ CGraphicView::CGraphicView (void)
     // Get the windowed mode from the registry
     CString string_windowed = theApp.GetProfileString ("Config", "Windowed", "1");
 	 m_iWindowed = ::atoi ((LPCTSTR)string_windowed);
-    return ;
 }
 
 
@@ -104,7 +101,6 @@ CGraphicView::CGraphicView (void)
 ////////////////////////////////////////////////////////////////////////////
 CGraphicView::~CGraphicView ()
 {
-	return ;
 }
 
 
@@ -139,8 +135,6 @@ CGraphicView::OnDraw (CDC* pDC)
     if (!pDC->IsPrinting ())
     {
     }
-
-    return ;
 }
 
 
@@ -181,7 +175,7 @@ CGraphicView::OnCreate (LPCREATESTRUCT lpCreateStruct)
 //
 ////////////////////////////////////////////////////////////////////////////
 BOOL
-CGraphicView::InitializeGraphicView (void)
+CGraphicView::InitializeGraphicView ()
 {
 	// Assume failure
 	BOOL bReturn = FALSE;
@@ -216,7 +210,7 @@ CGraphicView::InitializeGraphicView (void)
     if (bReturn && (m_pCamera == nullptr))
     {
         // Instantiate a new camera class
-	    m_pCamera = new CameraClass ();
+	    m_pCamera.Assign_No_Add_Ref (new CameraClass ());
         bReturn = (m_pCamera != nullptr);
 
         // Were we successful in creating a camera?
@@ -234,7 +228,7 @@ CGraphicView::InitializeGraphicView (void)
 		  //
 		  //	Attach the 'listener' to the camera
 		  //
-		  WWAudioClass::Get_Instance ()->Get_Sound_Scene ()->Attach_Listener_To_Obj (m_pCamera);
+		  WWAudioClass::Get_Instance ()->Get_Sound_Scene ()->Attach_Listener_To_Obj (m_pCamera.Peek());
     }
 
 	Reset_FOV ();
@@ -244,7 +238,7 @@ CGraphicView::InitializeGraphicView (void)
 		ResourceFileClass light_mesh_file (nullptr, "Light.w3d");
 		WW3DAssetManager::Get_Instance()->Load_3D_Assets (light_mesh_file);
 
-		m_pLightMesh = WW3DAssetManager::Get_Instance()->Create_Render_Obj ("LIGHT");
+		m_pLightMesh.Assign_No_Add_Ref (WW3DAssetManager::Get_Instance()->Create_Render_Obj ("LIGHT"));
 		ASSERT (m_pLightMesh != nullptr);
 		m_bLightMeshInScene = false;
 	 }
@@ -305,8 +299,6 @@ CGraphicView::OnSize
 		Reset_FOV ();
 		RepaintView ();
 	}
-
-	return ;
 }
 
 
@@ -316,7 +308,7 @@ CGraphicView::OnSize
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::OnDestroy (void)
+CGraphicView::OnDestroy ()
 {
 	// Allow the base class to process this message
 	CView::OnDestroy ();
@@ -329,8 +321,8 @@ CGraphicView::OnDestroy (void)
 	//
 	// Free the camera object
 	//
-	REF_PTR_RELEASE (m_pCamera);
-	REF_PTR_RELEASE (m_pLightMesh);
+	m_pCamera.Clear();
+	m_pLightMesh.Clear();
 
 	// Is there an update thread running?
 	if (m_TimerID == 0) {
@@ -347,7 +339,6 @@ CGraphicView::OnDestroy (void)
 
 	// We are no longer initialized
 	m_bInitialized = FALSE;
-	return ;
 }
 
 
@@ -357,7 +348,7 @@ CGraphicView::OnDestroy (void)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::OnInitialUpdate (void)
+CGraphicView::OnInitialUpdate ()
 {
 	// Allow the base class to process this message
     CView::OnInitialUpdate ();
@@ -369,8 +360,6 @@ CGraphicView::OnInitialUpdate (void)
 		// already done so)
 		doc->InitScene ();
 	}
-
-	return ;
 }
 
 
@@ -398,8 +387,6 @@ Set_Lowest_LOD (RenderObjClass *render_obj)
 			((HLodClass *)render_obj)->Set_LOD_Level (0);
 		}
 	}
-
-	return ;
 }
 
 
@@ -416,8 +403,6 @@ CGraphicView::Allow_Update (bool onoff)
 	} else {
 		m_UpdateCounter ++;
 	}
-
-	return ;
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -533,7 +518,7 @@ CGraphicView::RepaintView
 		// Wait for all previous rendering to complete before starting benchmark.
 		DWORD profile_time = ::Get_CPU_Clock (pt_high);
 
-		WW3D::Render (doc->GetScene (), m_pCamera, FALSE, FALSE);
+		WW3D::Render (doc->GetScene (), m_pCamera.Peek(), FALSE, FALSE);
 
 		// Wait for all rendering to complete before stopping benchmark.
 		DWORD milliseconds = (::Get_CPU_Clock (pt_high) - profile_time) / 1000;
@@ -544,7 +529,7 @@ CGraphicView::RepaintView
 		WW3D::Render (doc->GetCursorScene (), doc->Get2DCamera (), FALSE, FALSE);
 
 		// Render the dazzles
-		doc->Render_Dazzles(m_pCamera);
+		doc->Render_Dazzles(m_pCamera.Peek());
 
 		// Finish out the rendering process
 		WW3D::End_Render ();
@@ -572,7 +557,6 @@ CGraphicView::RepaintView
 	}
 
 	_already_painting = false;
-	return ;
 }
 
 
@@ -582,7 +566,7 @@ CGraphicView::RepaintView
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::UpdateDisplay (void)
+CGraphicView::UpdateDisplay ()
 {
 	// Get the document to display
     CW3DViewDoc* doc = (CW3DViewDoc *)GetDocument();
@@ -603,11 +587,9 @@ CGraphicView::UpdateDisplay (void)
 
 		// Render the current view inside the frame
         WW3D::Begin_Render (TRUE, TRUE, Vector3 (0.2,0.4,0.6));
-		WW3D::Render (doc->GetScene (), m_pCamera, FALSE, FALSE);
+		WW3D::Render (doc->GetScene (), m_pCamera.Peek(), FALSE, FALSE);
 		WW3D::End_Render ();
     } */
-
-    return ;
 }
 
 
@@ -707,8 +689,6 @@ fnTimerCallback
 			::PostMessage (hwnd, WM_USER + 101, 0, 0L);
 		}
 	}
-
-	return ;
 }
 
 
@@ -739,7 +719,6 @@ CGraphicView::OnLButtonDown
 	}
 
 	CView::OnLButtonDown (nFlags, point);
-	return ;
 }
 
 
@@ -777,7 +756,6 @@ CGraphicView::OnLButtonUp
 
 	// Allow the base class to process this message
     CView::OnLButtonUp (nFlags, point);
-    return ;
 }
 
 float minZoomAdjust = 0.0F;
@@ -1097,7 +1075,6 @@ CGraphicView::OnMouseMove
 
 	// Allow the base class to process this message
 	CView::OnMouseMove (nFlags, point);
-	return ;
 }
 
 
@@ -1181,7 +1158,6 @@ CGraphicView::Reset_Camera_To_Display_Emitter (ParticleEmitterClass &emitter)
 
 	// View this sphere
 	Reset_Camera_To_Display_Sphere (sphere);
-	return ;
 }
 
 
@@ -1259,7 +1235,6 @@ CGraphicView::Reset_Camera_To_Display_Sphere (SphereClass &sphere)
 
 	// Record the sphere we are viewing for later
 	m_ViewedSphere = sphere;
-	return ;
 }
 
 
@@ -1304,7 +1279,6 @@ CGraphicView::Reset_Camera_To_Display_Object (RenderObjClass &render_object)
 
 	// Load the settings in the default.dat if its in the local directory.
 	Load_Default_Dat ();
-	return ;
 }
 
 
@@ -1314,7 +1288,7 @@ CGraphicView::Reset_Camera_To_Display_Object (RenderObjClass &render_object)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::Load_Default_Dat (void)
+CGraphicView::Load_Default_Dat ()
 {
 	// Get the directory where this executable was run from
 	TCHAR filename[MAX_PATH];
@@ -1338,8 +1312,6 @@ CGraphicView::Load_Default_Dat (void)
 			pCDoc->LoadSettings (filename);
 		}
 	}
-
-	return ;
 }
 
 
@@ -1368,7 +1340,6 @@ CGraphicView::OnRButtonUp
 
 	// Allow the base class to process this message
 	CView::OnRButtonUp(nFlags, point);
-	return ;
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -1403,7 +1374,6 @@ CGraphicView::OnRButtonDown
 
 	// Allow the base class to process this message
     CView::OnRButtonDown(nFlags, point);
-    return ;
 }
 
 
@@ -1457,8 +1427,6 @@ CGraphicView::SetAnimationState (ANIMATION_STATE animationState)
         // Save the new state
         m_animationState = animationState;
     }
-
-    return ;
 }
 
 
@@ -1546,8 +1514,6 @@ CGraphicView::SetCameraPos (CAMERA_POS cameraPos)
             pCMainWnd->UpdateCameraDistance(m_CameraDistance);
         }
     }
-
-    return ;
 }
 
 
@@ -1565,8 +1531,6 @@ CGraphicView::RotateObject (OBJECT_ROTATION rotation)
         // Save the rotation state
         m_objectRotation = rotation;
     }
-
-    return ;
 }
 
 
@@ -1580,7 +1544,6 @@ CGraphicView::SetAllowedCameraRotation (CAMERA_ROTATION cameraRotation)
 {
     // Store this for later reference
     m_allowedCameraRotation = cameraRotation;
-    return ;
 }
 
 
@@ -1590,7 +1553,7 @@ CGraphicView::SetAllowedCameraRotation (CAMERA_ROTATION cameraRotation)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::ResetObject (void)
+CGraphicView::ResetObject ()
 {
     // Get the current document
     CW3DViewDoc *doc = ::GetCurrentDocument ();
@@ -1606,8 +1569,6 @@ CGraphicView::ResetObject (void)
             pCRenderObj->Set_Transform (Matrix3D(true));
         }
     }
-
-    return ;
 }
 
 
@@ -1620,7 +1581,6 @@ void
 CGraphicView::OnGetMinMaxInfo (MINMAXINFO FAR* lpMMI)
 {
 	CView::OnGetMinMaxInfo (lpMMI);
-	return ;
 }
 
 
@@ -1630,7 +1590,7 @@ CGraphicView::OnGetMinMaxInfo (MINMAXINFO FAR* lpMMI)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::Rotate_Object (void)
+CGraphicView::Rotate_Object ()
 {
 	// Get the document to display
 	CW3DViewDoc *doc = (CW3DViewDoc *)GetDocument();
@@ -1667,8 +1627,6 @@ CGraphicView::Rotate_Object (void)
 		// Set the new transform for the object
 		prender_obj->Set_Transform (transform);
 	}
-
-	return ;
 }
 
 
@@ -1678,7 +1636,7 @@ CGraphicView::Rotate_Object (void)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::Rotate_Light (void)
+CGraphicView::Rotate_Light ()
 {
 	// Get the document to display
 	CW3DViewDoc *doc = (CW3DViewDoc *)GetDocument();
@@ -1733,8 +1691,6 @@ CGraphicView::Rotate_Light (void)
 		m_pLightMesh->Set_Transform (transform);
 		pscene_light->Set_Transform (transform);
 	}
-
-	return ;
 }
 
 
@@ -1751,8 +1707,6 @@ CGraphicView::Set_FOV (double hfov, double vfov, bool force)
 	if (force || (doc->Is_FOV_Manual () == false)) {
 		m_pCamera->Set_View_Plane (hfov, vfov);
 	}
-
-	return ;
 }
 
 
@@ -1762,7 +1716,7 @@ CGraphicView::Set_FOV (double hfov, double vfov, bool force)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-CGraphicView::Reset_FOV (void)
+CGraphicView::Reset_FOV ()
 {
 	int cx = 0;
 	int cy = 0;
@@ -1793,7 +1747,6 @@ CGraphicView::Reset_FOV (void)
 
 	// Reset the field of view
 	Set_FOV (hfov, vfov);
-	return ;
 }
 
 
@@ -1821,8 +1774,6 @@ CGraphicView::Set_Camera_Distance (float dist)
 	if (main_wnd != nullptr) {
 		main_wnd->UpdateCameraDistance (m_CameraDistance);
 	}
-
-	return ;
 }
 
 

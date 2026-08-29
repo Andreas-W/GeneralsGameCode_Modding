@@ -42,6 +42,7 @@
 #include "Common/Xfer.h"
 
 #include "GameClient/TerrainVisual.h"
+#include "GameClient/View.h"
 
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
@@ -987,7 +988,7 @@ Drawable *Bridge::pickBridge(const Vector3 &from, const Vector3 &to, Vector3 *po
 //-------------------------------------------------------------------------------------------------
 /** updateDamageState - Update the damage state. */
 //-------------------------------------------------------------------------------------------------
-void Bridge::updateDamageState( void )
+void Bridge::updateDamageState()
 {
 	m_bridgeInfo.damageStateChanged = false;
 	if (m_bridgeInfo.bridgeObjectID==0) return;
@@ -1114,7 +1115,7 @@ TerrainLogic::~TerrainLogic()
 //-------------------------------------------------------------------------------------------------
 /** Init */
 //-------------------------------------------------------------------------------------------------
-void TerrainLogic::init( void )
+void TerrainLogic::init()
 {
 
 }
@@ -1122,7 +1123,7 @@ void TerrainLogic::init( void )
 //-------------------------------------------------------------------------------------------------
 /** Reset */
 //-------------------------------------------------------------------------------------------------
-void TerrainLogic::reset( void )
+void TerrainLogic::reset()
 {
 
 	deleteWaypoints();
@@ -1135,7 +1136,7 @@ void TerrainLogic::reset( void )
 //-------------------------------------------------------------------------------------------------
 /** Update */
 //-------------------------------------------------------------------------------------------------
-void TerrainLogic::update( void )
+void TerrainLogic::update()
 {
 
 	// bridge damage states have not changed this frame now
@@ -1523,7 +1524,7 @@ void TerrainLogic::addWaypointLink(Int id1, Int id2)
 //-------------------------------------------------------------------------------------------------
 /** Deletes the waypoints list. */
 //-------------------------------------------------------------------------------------------------
-void TerrainLogic::deleteWaypoints(void)
+void TerrainLogic::deleteWaypoints()
 {
 	Waypoint *pNext = nullptr;
 	Waypoint *pWay;
@@ -1611,7 +1612,7 @@ void makeAlignToNormalMatrix( Real angle, const Coord3D& pos, const Coord3D& nor
 	DEBUG_ASSERTCRASH(fabs(x.x*z.x + x.y*z.y + x.z*z.z)<0.0001,("dot is not zero (%f)",fabs(x.x*z.x + x.y*z.y + x.z*z.z)));
 
 	// now computing the y vector is trivial.
-	y.crossProduct( &z, &x, &y );
+	y.crossProduct( z, x, y );
 	y.normalize();
 
 	mtx.Set(  x.x, y.x, z.x, pos.x,
@@ -1654,6 +1655,9 @@ void TerrainLogic::addBridgeToLogic(BridgeInfo *pInfo, Dict *props, AsciiString 
 	PathfindLayerEnum layer = TheAI->pathfinder()->addBridge(pBridge);
 	pBridge->setLayer(layer);
 
+	if (TheTacticalView) {
+		TheTacticalView->onBridgeChanged();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1661,13 +1665,15 @@ void TerrainLogic::addBridgeToLogic(BridgeInfo *pInfo, Dict *props, AsciiString 
 //-------------------------------------------------------------------------------------------------
 void TerrainLogic::addLandmarkBridgeToLogic(Object *bridgeObj)
 {
-
 	Bridge *pBridge = newInstance(Bridge)(bridgeObj);
 	pBridge->setNext(m_bridgeListHead);
 	m_bridgeListHead = pBridge;
 	PathfindLayerEnum layer = TheAI->pathfinder()->addBridge(pBridge);
 	pBridge->setLayer(layer);
 
+	if (TheTacticalView) {
+		TheTacticalView->onBridgeChanged();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1752,7 +1758,7 @@ Bool TerrainLogic::isPurposeOfPath( Waypoint *pWay, AsciiString label )
 PolygonTrigger *TerrainLogic::getTriggerAreaByName( AsciiString name )
 {
 	for (PolygonTrigger* pTrig = PolygonTrigger::getFirstPolygonTrigger(); pTrig; pTrig = pTrig->getNext()) {
-		AsciiString trigName = pTrig->getTriggerName();
+		const AsciiString& trigName = pTrig->getTriggerName();
 		if (name == trigName)
 			return pTrig;
 	}
@@ -1991,7 +1997,7 @@ Bool TerrainLogic::objectInteractsWithBridgeEnd(Object *obj, Int layer) const
 //-------------------------------------------------------------------------------------------------
 /** Updates the damage state of the bridge from the logic. */
 //-------------------------------------------------------------------------------------------------
-void TerrainLogic::updateBridgeDamageStates( void )
+void TerrainLogic::updateBridgeDamageStates()
 {
 	Bridge *pBridge = getFirstBridge();
 	while (pBridge) {
@@ -1999,6 +2005,9 @@ void TerrainLogic::updateBridgeDamageStates( void )
 		pBridge = pBridge->getNext();
 	}
 	m_bridgeDamageStatesChanged = true;
+	if (TheTacticalView) {
+		TheTacticalView->onBridgeChanged();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2142,8 +2151,10 @@ bool TerrainLogic::pickWaterPlane(const Vector3& from, const Vector3& to, const 
 //-------------------------------------------------------------------------------------------------
 /** Deletes the bridges list. */
 //-------------------------------------------------------------------------------------------------
-void TerrainLogic::deleteBridges(void)
+void TerrainLogic::deleteBridges()
 {
+	Bool bridgesChanged = m_bridgeListHead != nullptr;
+
 	Bridge *pNext = nullptr;
 	Bridge *pBridge;
 	// Traverse all waypoints.
@@ -2153,6 +2164,10 @@ void TerrainLogic::deleteBridges(void)
 		deleteInstance(pBridge);
 	}
 	m_bridgeListHead = nullptr;
+
+	if (bridgesChanged && TheTacticalView) {
+		TheTacticalView->onBridgeChanged();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2208,6 +2223,9 @@ void TerrainLogic::deleteBridge( Bridge *bridge )
 	// delete the bridge in question
 	deleteInstance(bridge);
 
+	if (TheTacticalView) {
+		TheTacticalView->onBridgeChanged();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -3350,7 +3368,7 @@ void TerrainLogic::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TerrainLogic::loadPostProcess( void )
+void TerrainLogic::loadPostProcess()
 {
 	Bridge* pBridge = getFirstBridge();
 	Bridge* pNext;

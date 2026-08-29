@@ -57,6 +57,7 @@
 #include "GameClient/GameWindow.h"
 #include "GameClient/Display.h"
 #include "GameClient/ProcessAnimateWindow.h"
+#include "Common/FramePacer.h"
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
@@ -66,12 +67,12 @@
 //-----------------------------------------------------------------------------
 namespace wnd
 {
-AnimateWindow::AnimateWindow( void )
+AnimateWindow::AnimateWindow()
 {
 	m_delay = 0;
 	m_startPos.x = m_startPos.y = 0;
 	m_endPos.x = m_endPos.y = 0;
-	m_curPos.x = m_curPos.y = 0;
+	m_curPos.x = m_curPos.y = 0.0f;
 	m_win = nullptr;
 	m_animType = WIN_ANIMATION_NONE;
 
@@ -82,13 +83,13 @@ AnimateWindow::AnimateWindow( void )
 	m_endTime = 0;
 	m_startTime = 0;
 }
-AnimateWindow::~AnimateWindow( void )
+AnimateWindow::~AnimateWindow()
 {
 	m_win = nullptr;
 }
 
 void AnimateWindow::setAnimData( 	ICoord2D startPos, ICoord2D endPos,
-																	ICoord2D curPos, ICoord2D restPos,
+																	Coord2D curPos, ICoord2D restPos,
 																	Coord2D vel, UnsignedInt startTime,
 																	UnsignedInt endTime )
 
@@ -119,7 +120,7 @@ static void clearWinList(AnimateWindowList &winList)
 	}
 }
 
-AnimateWindowManager::AnimateWindowManager( void )
+AnimateWindowManager::AnimateWindowManager()
 {
 // we don't allocate many of these, so no MemoryPools used
 	m_slideFromRight = NEW ProcessAnimateWindowSlideFromRight;
@@ -135,7 +136,7 @@ AnimateWindowManager::AnimateWindowManager( void )
 	m_reverse = FALSE;
 	m_winMustFinishList.clear();
 }
-AnimateWindowManager::~AnimateWindowManager( void )
+AnimateWindowManager::~AnimateWindowManager()
 {
 	delete m_slideFromRight;
 	delete m_slideFromRightFast;
@@ -147,13 +148,13 @@ AnimateWindowManager::~AnimateWindowManager( void )
 	delete m_slideFromBottomTimed;
 
 	m_slideFromRight = nullptr;
-	resetToRestPosition( );
+	resetToRestPosition();
 	clearWinList(m_winList);
 	clearWinList(m_winMustFinishList);
 }
 
 
-void AnimateWindowManager::init( void )
+void AnimateWindowManager::init()
 {
 	clearWinList(m_winList);
 	clearWinList(m_winMustFinishList);
@@ -161,7 +162,7 @@ void AnimateWindowManager::init( void )
 	m_reverse = FALSE;
 }
 
-void AnimateWindowManager::reset( void )
+void AnimateWindowManager::reset()
 {
 	resetToRestPosition();
 	clearWinList(m_winList);
@@ -170,8 +171,11 @@ void AnimateWindowManager::reset( void )
 	m_reverse = FALSE;
 }
 
-void AnimateWindowManager::update( void )
+// TheSuperHackers @tweak bobtista 04/08/2026 Advances the animations by a fractional base rate frame
+// so that they move fluently on high render frame rates.
+void AnimateWindowManager::update()
 {
+	const Real deltaFrames = TheFramePacer->getBaseOverUpdateFpsRatio();
 
 	ProcessAnimateWindow *processAnim = nullptr;
 
@@ -194,12 +198,12 @@ void AnimateWindowManager::update( void )
 			{
 				if(m_reverse)
 				{
-					if(!processAnim->reverseAnimateWindow(animWin))
+					if(!processAnim->reverseAnimateWindow(animWin, deltaFrames))
 						m_needsUpdate = TRUE;
 				}
 				else
 				{
-					if(!processAnim->updateAnimateWindow(animWin))
+					if(!processAnim->updateAnimateWindow(animWin, deltaFrames))
 						m_needsUpdate = TRUE;
 				}
 			}
@@ -222,12 +226,12 @@ void AnimateWindowManager::update( void )
 		if(m_reverse)
 		{
 			if(processAnim)
-				processAnim->reverseAnimateWindow(animWin);
+				processAnim->reverseAnimateWindow(animWin, deltaFrames);
 		}
 		else
 		{
 			if(processAnim)
-				processAnim->updateAnimateWindow(animWin);
+				processAnim->updateAnimateWindow(animWin, deltaFrames);
 		}
 		it ++;
 	}
@@ -312,7 +316,7 @@ ProcessAnimateWindow *AnimateWindowManager::getProcessAnimate( AnimTypes animTyp
 	}
 }
 
-void AnimateWindowManager::reverseAnimateWindow( void )
+void AnimateWindowManager::reverseAnimateWindow()
 {
 
 	m_reverse = TRUE;
@@ -374,7 +378,7 @@ void AnimateWindowManager::reverseAnimateWindow( void )
 
 }
 
-void AnimateWindowManager::resetToRestPosition( void )
+void AnimateWindowManager::resetToRestPosition()
 {
 
 	m_reverse = TRUE;

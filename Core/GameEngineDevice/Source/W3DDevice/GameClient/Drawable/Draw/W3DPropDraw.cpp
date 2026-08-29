@@ -77,7 +77,7 @@ m_propAdded(false)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-W3DPropDraw::~W3DPropDraw( void )
+W3DPropDraw::~W3DPropDraw()
 {
 }
 
@@ -108,8 +108,6 @@ void W3DPropDraw::reactToTransformChange( const Matrix3D *oldMtx,
 //-------------------------------------------------------------------------------------------------
 void W3DPropDraw::doDrawModule(const Matrix3D* transformMtx)
 {
-
-	return;
 
 }
 
@@ -147,7 +145,7 @@ void W3DPropDraw::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void W3DPropDraw::loadPostProcess( void )
+void W3DPropDraw::loadPostProcess()
 {
 
 	// extend base class

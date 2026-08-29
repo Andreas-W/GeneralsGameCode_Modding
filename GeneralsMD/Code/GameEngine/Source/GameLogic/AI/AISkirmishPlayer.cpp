@@ -107,7 +107,7 @@ AISkirmishPlayer::~AISkirmishPlayer()
 /**
  * Build our base.
  */
-void AISkirmishPlayer::processBaseBuilding( void )
+void AISkirmishPlayer::processBaseBuilding()
 {
 	//
 	// Refresh base buildings. Scan through list, if a building is missing,
@@ -414,7 +414,7 @@ Bool AISkirmishPlayer::selectTeamToReinforce( Int minPriority )
 /**
  * Determine the next team to build.  Return true if one was selected.
  */
-Bool AISkirmishPlayer::selectTeamToBuild( void )
+Bool AISkirmishPlayer::selectTeamToBuild()
 {
 	return AIPlayer::selectTeamToBuild();
 }
@@ -475,7 +475,7 @@ void AISkirmishPlayer::buildSpecificAIBuilding(const AsciiString &thingName)
 /**
 	Gets the player index of my enemy.
 	*/
-Int AISkirmishPlayer::getMyEnemyPlayerIndex(void) {
+Int AISkirmishPlayer::getMyEnemyPlayerIndex() {
 	Int playerNdx;
 	if (m_currentEnemy) {
 		return m_currentEnemy->getPlayerIndex();
@@ -492,7 +492,7 @@ Int AISkirmishPlayer::getMyEnemyPlayerIndex(void) {
 /**
 	Get the AI's enemy.  Recalc if it has been a while (5 seconds.)
 */
-void AISkirmishPlayer::acquireEnemy(void)
+void AISkirmishPlayer::acquireEnemy()
 {
 	Player *bestEnemy = nullptr;
 	Real bestDistanceSqr = HUGE_DIST*HUGE_DIST;
@@ -561,7 +561,7 @@ void AISkirmishPlayer::acquireEnemy(void)
 /**
 	Get the AI's enemy.  Recalc if it has been a while (20 seconds.)
 */
-Player *AISkirmishPlayer::getAiEnemy(void)
+Player *AISkirmishPlayer::getAiEnemy()
 {
 	if (TheGameLogic->getFrame()>=m_frameToCheckEnemy) {
 		m_frameToCheckEnemy = TheGameLogic->getFrame() + 5*LOGICFRAMES_PER_SECOND;
@@ -924,7 +924,7 @@ void AISkirmishPlayer::buildAIShipyard(const AsciiString& thingName)
 /**
  * Train our teams.
  */
-void AISkirmishPlayer::processTeamBuilding( void )
+void AISkirmishPlayer::processTeamBuilding()
 {
 	// select a new team
 	if (selectTeamToBuild()) {
@@ -936,7 +936,7 @@ void AISkirmishPlayer::processTeamBuilding( void )
 /**
  * See if it's time to build another base building.
  */
-void AISkirmishPlayer::doBaseBuilding( void )
+void AISkirmishPlayer::doBaseBuilding()
 {
 	if (m_player->getCanBuildBase()) {
 		// See if we are ready to start trying a structure.
@@ -969,7 +969,7 @@ void AISkirmishPlayer::doBaseBuilding( void )
 /**
  * See if any ready teams have finished moving to the rally point.
  */
-void AISkirmishPlayer::checkReadyTeams( void )
+void AISkirmishPlayer::checkReadyTeams()
 {
 	AIPlayer::checkReadyTeams();
 }
@@ -978,7 +978,7 @@ void AISkirmishPlayer::checkReadyTeams( void )
 /**
  * See if any queued teams have finished building, or have run out of time.
  */
-void AISkirmishPlayer::checkQueuedTeams( void )
+void AISkirmishPlayer::checkQueuedTeams()
 {
 	AIPlayer::checkQueuedTeams();
 }
@@ -987,7 +987,7 @@ void AISkirmishPlayer::checkQueuedTeams( void )
 /**
  * See if it is time to start another ai team building.
  */
-void AISkirmishPlayer::doTeamBuilding( void )
+void AISkirmishPlayer::doTeamBuilding()
 {
 	// See if any teams are expired.
 	if (m_player->getCanBuildUnits()) {
@@ -1021,7 +1021,7 @@ void AISkirmishPlayer::doTeamBuilding( void )
 /**
  * Perform computer-controlled player AI
  */
-void AISkirmishPlayer::update( void )
+void AISkirmishPlayer::update()
 {
 	AIPlayer::update();
 }
@@ -1140,7 +1140,7 @@ void AISkirmishPlayer::adjustBuildList(BuildListInfo *list)
  * Find any things that build stuff & add them to the build list.  Then build any initially built
  * buildings.
  */
-void AISkirmishPlayer::newMap( void )
+void AISkirmishPlayer::newMap()
 {
 
 	/* Get our proper build list. */
@@ -1181,7 +1181,7 @@ void AISkirmishPlayer::newMap( void )
 /**
  * Queues up a dozer.
  */
-void AISkirmishPlayer::queueDozer( void )
+void AISkirmishPlayer::queueDozer()
 {
 	AIPlayer::queueDozer();
 }
@@ -1301,7 +1301,7 @@ void AISkirmishPlayer::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void AISkirmishPlayer::loadPostProcess( void )
+void AISkirmishPlayer::loadPostProcess()
 {
 
 }

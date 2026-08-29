@@ -37,11 +37,11 @@
 
 #pragma once
 
-#include "always.h"
-#include "quat.h"
-#include "w3d_file.h"
-#include "SLIST.h"
-#include "Vector.h"
+#include "WWLib/always.h"
+#include "WWMath/quat.h"
+#include "WW3D2/w3d_file.h"
+#include "WWLib/SLIST.h"
+#include "WWLib/Vector.h"
 #include "hanim.h"
 
 struct NodeCompressedMotionStruct;
@@ -74,32 +74,32 @@ public:
 		LOAD_ERROR
 	};
 
-	HCompressedAnimClass(void);
-	~HCompressedAnimClass(void);
+	HCompressedAnimClass();
+	virtual ~HCompressedAnimClass() override;
 
 	int							Load_W3D(ChunkLoadClass & cload);
 
-	const char *				Get_Name(void) const { return Name; }
-	const char *				Get_HName(void) const { return HierarchyName; }
-	int							Get_Num_Frames(void) { return NumFrames; }
-	float							Get_Frame_Rate() { return FrameRate; }
-	float							Get_Total_Time() { return (float)NumFrames / FrameRate; }
+	virtual const char *				Get_Name() const override { return Name; }
+	virtual const char *				Get_HName() const override { return HierarchyName; }
+	virtual int							Get_Num_Frames() override { return NumFrames; }
+	virtual float							Get_Frame_Rate() override { return FrameRate; }
+	virtual float							Get_Total_Time() override { return (float)NumFrames / FrameRate; }
 	int							Get_Flavor() { return Flavor; }
 
-	void							Get_Translation(Vector3& translation, int pividx,float frame) const;
-	void							Get_Orientation(Quaternion& orientation, int pividx,float frame) const;
-	void							Get_Transform(Matrix3D& transform, int pividx,float frame) const;
-	bool							Get_Visibility(int pividx,float frame);
+	virtual void							Get_Translation(Vector3& translation, int pividx,float frame) const override;
+	virtual void							Get_Orientation(Quaternion& orientation, int pividx,float frame) const override;
+	virtual void							Get_Transform(Matrix3D& transform, int pividx,float frame) const override;
+	virtual bool							Get_Visibility(int pividx,float frame) override;
 
-	bool							Is_Node_Motion_Present(int pividx);
-	int							Get_Num_Pivots(void)	const	{ return NumNodes; }
+	virtual bool							Is_Node_Motion_Present(int pividx) override;
+	virtual int							Get_Num_Pivots()	const override { return NumNodes; }
 
 	// Methods that test the presence of a certain motion channel.
-	bool							Has_X_Translation (int pividx);
-	bool							Has_Y_Translation (int pividx);
-	bool							Has_Z_Translation (int pividx);
-	bool							Has_Rotation (int pividx);
-	bool							Has_Visibility (int pividx);
+	virtual bool							Has_X_Translation (int pividx) override;
+	virtual bool							Has_Y_Translation (int pividx) override;
+	virtual bool							Has_Z_Translation (int pividx) override;
+	virtual bool							Has_Rotation (int pividx) override;
+	virtual bool							Has_Visibility (int pividx) override;
 
 private:
 
@@ -113,7 +113,7 @@ private:
 
 	NodeCompressedMotionStruct *		NodeMotion;
 
-	void Free(void);
+	void Free();
 	bool read_channel(ChunkLoadClass & cload,TimeCodedMotionChannelClass * * newchan);
 	bool read_channel(ChunkLoadClass & cload,AdaptiveDeltaMotionChannelClass * * newchan);
 	void add_channel(TimeCodedMotionChannelClass * newchan);

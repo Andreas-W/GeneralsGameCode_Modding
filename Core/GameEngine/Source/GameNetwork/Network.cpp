@@ -39,7 +39,7 @@
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/udp.h"
 #include "GameNetwork/Transport.h"
-#include "strtok_r.h"
+#include "WWLib/strtok_r.h"
 #include "GameClient/Shell.h"
 #include "Common/CRCDebug.h"
 #include "GameLogic/GameLogic.h"
@@ -53,7 +53,7 @@
 #include "GameClient/MessageBox.h"
 
 
-#if defined(DEBUG_CRC)
+#if defined(DEBUG_CRC) && !RETAIL_COMPATIBLE_NETWORKING
 Int NET_CRC_INTERVAL = 1;
 #else
 Int NET_CRC_INTERVAL = 100;
@@ -104,86 +104,86 @@ public:
 	//---------------------------------------------------------------------------------------
 	// Setup / Teardown functions
 	Network();
-	~Network();
-	void init( void );																				///< Initialize or re-initialize the instance
-	void reset( void );																				///< Reinitialize the network
-	void update( void );																			///< Process command list
-	void liteupdate( void );																	///< Do a lightweight update to send packets and pass messages.
-	Bool deinit( void );																			///< Shutdown connections, release memory
+	virtual ~Network() override;
+	virtual void init() override;																				///< Initialize or re-initialize the instance
+	virtual void reset() override;																				///< Reinitialize the network
+	virtual void update() override;																			///< Process command list
+	virtual void liteupdate() override;																	///< Do a lightweight update to send packets and pass messages.
+	Bool deinit();																			///< Shutdown connections, release memory
 
-	void setLocalAddress(UnsignedInt ip, UnsignedInt port);
-	UnsignedInt getRunAhead(void) { return m_runAhead; }
-	UnsignedInt getFrameRate(void) { return m_frameRate; }
-	UnsignedInt getPacketArrivalCushion(void);								///< Returns the smallest packet arrival cushion since this was last called.
-	Bool isFrameDataReady( void );
-	virtual Bool isStalling();
-	void parseUserList( const GameInfo *game );
-	void startGame(void);																			///< Sets the network game frame counter to -1
+	virtual void setLocalAddress(UnsignedInt ip, UnsignedInt port) override;
+	virtual UnsignedInt getRunAhead() override { return m_runAhead; }
+	virtual UnsignedInt getFrameRate() override { return m_frameRate; }
+	virtual UnsignedInt getPacketArrivalCushion() override;								///< Returns the smallest packet arrival cushion since this was last called.
+	virtual Bool isFrameDataReady() override;
+	virtual Bool isStalling() override;
+	virtual void parseUserList( const GameInfo *game ) override;
+	virtual void startGame() override;																			///< Sets the network game frame counter to -1
 
-	void sendChat(UnicodeString text, Int playerMask);
-	void sendDisconnectChat(UnicodeString text);
+	virtual void sendChat(UnicodeString text, Int playerMask) override;
+	virtual void sendDisconnectChat(UnicodeString text) override;
 
-	void sendFile(AsciiString path, UnsignedByte playerMask, UnsignedShort commandID);
-	UnsignedShort sendFileAnnounce(AsciiString path, UnsignedByte playerMask);
-	Int getFileTransferProgress(Int playerID, AsciiString path);
-	Bool areAllQueuesEmpty(void);
+	virtual void sendFile(AsciiString path, UnsignedByte playerMask, UnsignedShort commandID) override;
+	virtual UnsignedShort sendFileAnnounce(AsciiString path, UnsignedByte playerMask) override;
+	virtual Int getFileTransferProgress(Int playerID, AsciiString path) override;
+	virtual Bool areAllQueuesEmpty() override;
 
-	void quitGame();
-	virtual void selfDestructPlayer(Int index);
+	virtual void quitGame() override;
+	virtual void selfDestructPlayer(Int index) override;
 
 
-	void voteForPlayerDisconnect(Int slot);
-	virtual Bool isPacketRouter( void );
+	virtual void voteForPlayerDisconnect(Int slot) override;
+	virtual Bool isPacketRouter() override;
 
 	// Bandwidth metrics
-	Real getIncomingBytesPerSecond( void );
-	Real getIncomingPacketsPerSecond( void );
-	Real getOutgoingBytesPerSecond( void );
-	Real getOutgoingPacketsPerSecond( void );
-	Real getUnknownBytesPerSecond( void );
-	Real getUnknownPacketsPerSecond( void );
+	virtual Real getIncomingBytesPerSecond() override;
+	virtual Real getIncomingPacketsPerSecond() override;
+	virtual Real getOutgoingBytesPerSecond() override;
+	virtual Real getOutgoingPacketsPerSecond() override;
+	virtual Real getUnknownBytesPerSecond() override;
+	virtual Real getUnknownPacketsPerSecond() override;
 
 	// Multiplayer Load Progress Functions
-	void updateLoadProgress( Int percent );
-	void loadProgressComplete( void );
-	void sendTimeOutGameStart( void );
+	virtual void updateLoadProgress( Int percent ) override;
+	virtual void loadProgressComplete() override;
+	virtual void sendTimeOutGameStart() override;
 
 #if defined(RTS_DEBUG)
 	// Disconnect screen testing
-	virtual void toggleNetworkOn();
+	virtual void toggleNetworkOn() override;
 #endif
 
 	// Exposing some info contained in the Connection Manager
-	UnsignedInt getLocalPlayerID( void );
-	UnicodeString getPlayerName(Int playerNum);
-	Int getNumPlayers(void );
+	virtual UnsignedInt getLocalPlayerID() override;
+	virtual UnicodeString getPlayerName(Int playerNum) override;
+	virtual Int getNumPlayers() override;
 
-	Int getAverageFPS() { return m_conMgr->getAverageFPS(); }
-	Int getSlotAverageFPS(Int slot);
+	virtual Int getAverageFPS() override { return m_conMgr->getAverageFPS(); }
+	virtual Int getSlotAverageFPS(Int slot) override;
 
-	void attachTransport(Transport *transport);
-	void initTransport();
+	virtual void attachTransport(Transport *transport) override;
+	virtual void initTransport() override;
 
-	void setSawCRCMismatch( void );
-	Bool sawCRCMismatch( void ) { return m_sawCRCMismatch; }
-	Bool isPlayerConnected( Int playerID );
+	virtual void setSawCRCMismatch() override;
+	virtual Bool sawCRCMismatch() override { return m_sawCRCMismatch; }
+	virtual Bool isPlayerConnected( Int playerID ) override;
 
-	void notifyOthersOfCurrentFrame();														///< Tells all the other players what frame we are on.
-	void notifyOthersOfNewFrame(UnsignedInt frame);								///< Tells all the other players that we are on a new frame.
+	virtual void notifyOthersOfCurrentFrame() override;														///< Tells all the other players what frame we are on.
+	virtual void notifyOthersOfNewFrame(UnsignedInt frame) override;								///< Tells all the other players that we are on a new frame.
 
-	Int  getExecutionFrame();																			///< Returns the next valid frame for simultaneous command execution.
+	virtual Int  getExecutionFrame() override;																			///< Returns the next valid frame for simultaneous command execution.
 
 	// For disconnect blame assignment
-	UnsignedInt getPingFrame();
-	Int getPingsSent();
-	Int getPingsReceived();
+	virtual UnsignedInt getPingFrame() override;
+	virtual Int getPingsSent() override;
+	virtual Int getPingsReceived() override;
 
 protected:
 	void GetCommandsFromCommandList();														///< Remove commands from TheCommandList and put them on the Network command list.
 	void SendCommandsToConnectionManager();												///< Send the new commands to the ConnectionManager
 	Bool AllCommandsReady(UnsignedInt frame);											///< Do we have all the commands for the given frame?
 	void RelayCommandsToCommandList(UnsignedInt frame);						///< Put the commands for the given frame onto TheCommandList.
-	Bool isTransferCommand(GameMessage *msg);											///< Is this a command that needs to be transfered to the other clients?
+	static Bool isMessageTypeWithinNetworkRange(GameMessage::Type type);
 	Bool processCommand(GameMessage *msg);												///< Whatever needs to be done as a result of this command, do it now.
 	void processFrameSynchronizedNetCommand(NetCommandRef *msg);	///< If there is a network command that needs to be executed at the same frame number on all clients, it happens here.
 	void processRunAheadCommand(NetRunAheadCommandMsg *msg);			///< Do what needs to be done when we get a new run ahead command.
@@ -289,7 +289,7 @@ Network::~Network()
 /**
  * This basically releases all the memory.
  */
-Bool Network::deinit( void )
+Bool Network::deinit()
 {
 	if (m_conMgr)
 	{
@@ -360,11 +360,9 @@ void Network::init()
 #if defined(RTS_DEBUG)
 	m_networkOn = TRUE;
 #endif
-
-	return;
 }
 
-void Network::setSawCRCMismatch( void )
+void Network::setSawCRCMismatch()
 {
 	m_sawCRCMismatch = TRUE;
 
@@ -448,14 +446,8 @@ void Network::attachTransport(Transport *transport) {
 	}
 }
 
-/**
- * Does this command need to be transfered to the other game clients?
- */
-Bool Network::isTransferCommand(GameMessage *msg) {
-	if ((msg != nullptr) && ((msg->getType() > GameMessage::MSG_BEGIN_NETWORK_MESSAGES) && (msg->getType() < GameMessage::MSG_END_NETWORK_MESSAGES))) {
-		return TRUE;
-	}
-	return FALSE;
+Bool Network::isMessageTypeWithinNetworkRange(GameMessage::Type type) {
+	return type > GameMessage::MSG_BEGIN_NETWORK_MESSAGES && type < GameMessage::MSG_END_NETWORK_MESSAGES;
 }
 
 /**
@@ -466,7 +458,7 @@ void Network::GetCommandsFromCommandList() {
 	GameMessage *next = nullptr;
 	while (msg != nullptr) {
 		next = msg->next();
-		if (isTransferCommand(msg)) { // Is this something we should be sending to the other players?
+		if (isMessageTypeWithinNetworkRange(msg->getType())) { // Is this something we should be sending to the other players?
 			if (m_localStatus == NETLOCALSTATUS_INGAME) {
 				m_conMgr->sendLocalGameMessage(msg, getExecutionFrame());
 			}
@@ -588,8 +580,19 @@ void Network::RelayCommandsToCommandList(UnsignedInt frame) {
 	while (msg != nullptr) {
 		NetCommandType cmdType = msg->getCommand()->getNetCommandType();
 		if (cmdType == NETCOMMANDTYPE_GAMECOMMAND) {
-			//DEBUG_LOG(("Network::RelayCommandsToCommandList - appending command %d of type %s to command list on frame %d", msg->getCommand()->getID(), ((NetGameCommandMsg *)msg->getCommand())->constructGameMessage()->getCommandAsString(), TheGameLogic->getFrame()));
-			TheCommandList->appendMessage(((NetGameCommandMsg *)msg->getCommand())->constructGameMessage());
+			NetGameCommandMsg* gmsg = static_cast<NetGameCommandMsg*>(msg->getCommand());
+#if RETAIL_COMPATIBLE_CRC
+			TheCommandList->appendMessage(gmsg->constructGameMessage());
+#else
+			// TheSuperHackers @fix stephanmeesters 14/05/2026 Verify accepted type of incoming game messages
+			if (isMessageTypeWithinNetworkRange(gmsg->getGameMessageType())) {
+				//DEBUG_LOG(("Network::RelayCommandsToCommandList - appending command %d of type %s to command list on frame %d", msg->getCommand()->getID(), gmsg->getCommandAsString(), TheGameLogic->getFrame()));
+				TheCommandList->appendMessage(gmsg->constructGameMessage());
+			} else {
+				DEBUG_LOG(("Network::RelayCommandsToCommandList - rejecting game message from player %d of type %s, which is not a network type.",
+					gmsg->getPlayerID(), GameMessage::getCommandTypeAsString(gmsg->getGameMessageType())));
+			}
+#endif
 		} else {
 			processFrameSynchronizedNetCommand(msg);
 		}
@@ -654,14 +657,12 @@ void Network::processRunAheadCommand(NetRunAheadCommandMsg *msg) {
 
 void Network::processDestroyPlayerCommand(NetDestroyPlayerCommandMsg *msg)
 {
-	UnsignedInt playerIndex = msg->getPlayerIndex();
-	DEBUG_ASSERTCRASH(playerIndex < MAX_SLOTS, ("Bad player index"));
-	if (playerIndex >= MAX_SLOTS)
+	UnsignedInt slotIndex = msg->getPlayerIndex();
+	DEBUG_ASSERTCRASH(slotIndex < MAX_SLOTS, ("Bad slot index"));
+	if (slotIndex >= MAX_SLOTS)
 		return;
 
-	AsciiString playerName;
-	playerName.format("player%d", playerIndex);
-	Player *pPlayer = ThePlayerList->findPlayerWithNameKey(NAMEKEY(playerName));
+	Player *pPlayer = ThePlayerList->getPlayerFromSlotIndex(slotIndex);
 	if (pPlayer)
 	{
 		GameMessage *msg = newInstance(GameMessage)(GameMessage::MSG_SELF_DESTRUCT);
@@ -682,7 +683,7 @@ void Network::processDestroyPlayerCommand(NetDestroyPlayerCommandMsg *msg)
 /**
  * Service queues, process message stream, etc
  */
-void Network::update( void )
+void Network::update()
 {
 //
 // 1. Take Commands off TheCommandList, hand them off to the ConnectionManager.
@@ -823,7 +824,7 @@ Bool Network::isStalling()
 /**
  * returns the number of incoming bytes per second averaged over the last 30 sec.
  */
-Real Network::getIncomingBytesPerSecond( void )
+Real Network::getIncomingBytesPerSecond()
 {
 	if (m_conMgr)
 		return m_conMgr->getIncomingBytesPerSecond();
@@ -834,7 +835,7 @@ Real Network::getIncomingBytesPerSecond( void )
 /**
  * returns the number of incoming packets per second averaged over the last 30 sec.
  */
-Real Network::getIncomingPacketsPerSecond( void )
+Real Network::getIncomingPacketsPerSecond()
 {
 	if (m_conMgr)
 		return m_conMgr->getIncomingPacketsPerSecond();
@@ -845,7 +846,7 @@ Real Network::getIncomingPacketsPerSecond( void )
 /**
  * returns the number of outgoing bytes per second averaged over the last 30 sec.
  */
-Real Network::getOutgoingBytesPerSecond( void )
+Real Network::getOutgoingBytesPerSecond()
 {
 	if (m_conMgr)
 		return m_conMgr->getOutgoingBytesPerSecond();
@@ -856,7 +857,7 @@ Real Network::getOutgoingBytesPerSecond( void )
 /**
  * returns the number of outgoing packets per second averaged over the last 30 sec.
  */
-Real Network::getOutgoingPacketsPerSecond( void )
+Real Network::getOutgoingPacketsPerSecond()
 {
 	if (m_conMgr)
 		return m_conMgr->getOutgoingPacketsPerSecond();
@@ -867,7 +868,7 @@ Real Network::getOutgoingPacketsPerSecond( void )
 /**
  * returns the number of bytes received per second that are not from a generals client averaged over 30 sec.
  */
-Real Network::getUnknownBytesPerSecond( void )
+Real Network::getUnknownBytesPerSecond()
 {
 	if (m_conMgr)
 		return m_conMgr->getUnknownBytesPerSecond();
@@ -878,7 +879,7 @@ Real Network::getUnknownBytesPerSecond( void )
 /**
  * returns the number of packets received per second that are not from a generals client averaged over 30 sec.
  */
-Real Network::getUnknownPacketsPerSecond( void )
+Real Network::getUnknownPacketsPerSecond()
 {
 	if (m_conMgr)
 		return m_conMgr->getUnknownPacketsPerSecond();
@@ -889,7 +890,7 @@ Real Network::getUnknownPacketsPerSecond( void )
 /**
  * returns the smallest packet arrival cushion since this was last called.
  */
-UnsignedInt Network::getPacketArrivalCushion( void )
+UnsignedInt Network::getPacketArrivalCushion()
 {
 	if (m_conMgr)
 		return m_conMgr->getPacketArrivalCushion();
@@ -929,7 +930,7 @@ Int Network::getFileTransferProgress(Int playerID, AsciiString path)
 	return m_conMgr->getFileTransferProgress(playerID, path);
 }
 
-Bool Network::areAllQueuesEmpty(void)
+Bool Network::areAllQueuesEmpty()
 {
 	return m_conMgr->canILeave();
 }
@@ -959,7 +960,7 @@ void Network::selfDestructPlayer(Int index)
 }
 
 
-Bool Network::isPacketRouter( void )
+Bool Network::isPacketRouter()
 {
 	return m_conMgr && m_conMgr->isPacketRouter();
 }
@@ -980,14 +981,14 @@ void Network::updateLoadProgress( Int percent )
 	}
 }
 
-void Network::loadProgressComplete( void )
+void Network::loadProgressComplete()
 {
 	if (m_conMgr != nullptr) {
 		m_conMgr->loadProgressComplete();
 	}
 }
 
-void Network::sendTimeOutGameStart( void )
+void Network::sendTimeOutGameStart()
 {
 	if (m_conMgr != nullptr) {
 		m_conMgr->sendTimeOutGameStart();

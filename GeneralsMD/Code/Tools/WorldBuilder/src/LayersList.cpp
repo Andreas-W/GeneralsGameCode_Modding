@@ -182,7 +182,7 @@ LayersList::~LayersList()
 	delete mTree;
 }
 
-void LayersList::resetLayers(void)
+void LayersList::resetLayers()
 {
 	// @todo Default needs to be a localizable string
 	Layer defaultLayer;
@@ -416,7 +416,7 @@ Bool LayersList::isLayerHidden(IN AsciiString layerToTest)
 	return (!layerIt->show);
 }
 
-void LayersList::updateUIFromList(void)
+void LayersList::updateUIFromList()
 {
 	if (!m_performUpdates) {
 		return;
@@ -447,7 +447,7 @@ void LayersList::updateUIFromList(void)
 		}
 
 		for (ListPolygonTriggerPtrIt triggerIt = layersIt->polygonTriggersInLayer.begin(); triggerIt != layersIt->polygonTriggersInLayer.end(); ++triggerIt) {
-			AsciiString uniqueID = (*triggerIt)->getTriggerName();
+			const AsciiString& uniqueID = (*triggerIt)->getTriggerName();
 			pTree->InsertItem(uniqueID.str(), iconToShow, iconToShow, thisBranch);
 		}
 	}
@@ -609,7 +609,7 @@ void LayersList::addPolygonTriggerToLayer(IN PolygonTrigger *triggerToAdd, IN Li
 	// only update this object.
 	HTREEITEM hItem = findTreeLayerNamed(layerToAddTo->layerName);
 	if (hItem) {
-		AsciiString triggerName = triggerToAdd->getTriggerName();
+		const AsciiString& triggerName = triggerToAdd->getTriggerName();
 		int iconToShow = (layerToAddTo->show ? 0 : 1);
 		mTree->InsertItem(triggerName.str(), iconToShow, iconToShow, hItem);
 	}
@@ -691,7 +691,7 @@ void LayersList::removePolygonTriggerFromLayer(IN PolygonTrigger *triggerToRemov
 	// only remove this object
 	HTREEITEM layer = findTreeLayerNamed(layerToRemoveFrom->layerName);
 	if (layer) {
-		AsciiString triggerUID = (*triggerBeingRemove)->getTriggerName();
+		const AsciiString& triggerUID = (*triggerBeingRemove)->getTriggerName();
 		HTREEITEM itemToDelete = findTreeObjectNamed(triggerUID.str(), layer);
 		if (itemToDelete) {
 			mTree->DeleteItem(itemToDelete);
@@ -785,7 +785,6 @@ void LayersList::OnBeginEditLabel(NMHDR *pNotifyStruct, LRESULT* pResult)
 
 	mCurrentlyEditingLabel = AsciiString(str);
 	(*pResult) = 0;
-	return;
 }
 
 void LayersList::OnEndEditLabel(NMHDR *pNotifyStruct, LRESULT* pResult)
@@ -815,8 +814,6 @@ void LayersList::OnEndEditLabel(NMHDR *pNotifyStruct, LRESULT* pResult)
 	pTree->SetItemText(ptvdi->item.hItem, layerIt->layerName.str());
 
 	mCurrentlyEditingLabel = AsciiString::TheEmptyString;
-
-	return;
 }
 
 
@@ -1185,7 +1182,7 @@ void LayersList::OnMergeViewSelection(UINT commandID)
 
 
 //WST 11/23/2002
-void LayersList::unselectAllMapObjects(void)
+void LayersList::unselectAllMapObjects()
 {
 	MapObject *mapObject = MapObject::getFirstMapObject();
 	while (mapObject) {
@@ -1194,7 +1191,7 @@ void LayersList::unselectAllMapObjects(void)
 	}
 }
 
-void LayersList::unselectAllPolygonTriggers(void)
+void LayersList::unselectAllPolygonTriggers()
 {
 	PolygonTrigger *trigger = PolygonTrigger::getFirstPolygonTrigger();
 	while (trigger) {
@@ -1230,7 +1227,7 @@ Bool LayersList::findAndSelectPolygonTrigger(AsciiString selectedItemAsciiString
 	PolygonTrigger *trigger = PolygonTrigger::getFirstPolygonTrigger();
 
 	while (trigger) {
-		AsciiString triggerName = trigger->getTriggerName();
+		const AsciiString& triggerName = trigger->getTriggerName();
 
 		if (triggerName.compareNoCase(selectedItemAsciiString) == 0) {
 			// Found it... select this object
@@ -1310,7 +1307,7 @@ PolygonTrigger* LayersList::findPolygonTriggerByUID(AsciiString triggerIDToFind)
 	PolygonTrigger *trigger = PolygonTrigger::getFirstPolygonTrigger();
 
 	while (trigger) {
-		AsciiString triggerName = trigger->getTriggerName();
+		const AsciiString& triggerName = trigger->getTriggerName();
 
 		if (triggerName.compareNoCase(triggerIDToFind) == 0) {
 			return (trigger);
@@ -1343,4 +1340,4 @@ std::string LayersList::TheDefaultNewLayerName = "New Layer";
 std::string LayersList::ThePolygonTriggerLayerName = "Default Trigger Layer";
 std::string LayersList::TheActiveLayerName;
 const std::string LayersList::TheUnmutableDefaultLayerName = "Default Object Layer";
-extern LayersList *TheLayersList = nullptr;
+LayersList *TheLayersList = nullptr;

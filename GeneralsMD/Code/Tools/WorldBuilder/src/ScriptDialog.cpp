@@ -247,17 +247,17 @@ void ScriptDialog::OnSelchangedScriptTree(NMHDR* pNMHDR, LRESULT* pResult)
 /* The purpose of these two functions is to allow
 the inner class CSDTreeCtrl the ability to check
 what Script and ScriptGroup belong to the cursor location */
-Script *ScriptDialog::friend_getCurScript(void)
+Script *ScriptDialog::friend_getCurScript()
 {
 	return getCurScript();
 }
 
-ScriptGroup *ScriptDialog::friend_getCurGroup(void)
+ScriptGroup *ScriptDialog::friend_getCurGroup()
 {
 	return getCurGroup();
 }
 
-Script *ScriptDialog::getCurScript(void)
+Script *ScriptDialog::getCurScript()
 {
 	if (m_curSelection.m_objType == ListType::SCRIPT_IN_PLAYER_TYPE || m_curSelection.m_objType == ListType::SCRIPT_IN_GROUP_TYPE) {
 		ScriptList *pSL = m_sides.getSideInfo(m_curSelection.m_playerIndex)->getScriptList();
@@ -286,7 +286,7 @@ Script *ScriptDialog::getCurScript(void)
 	return nullptr;
 }
 
-ScriptGroup *ScriptDialog::getCurGroup(void)
+ScriptGroup *ScriptDialog::getCurGroup()
 {
 	ScriptList *pSL = m_sides.getSideInfo(m_curSelection.m_playerIndex)->getScriptList();
 	if (m_curSelection.m_objType == ListType::PLAYER_TYPE) {
@@ -474,7 +474,7 @@ void ScriptDialog::patchScriptParametersForGC(Script *pScript)
 }
 
 /*Checks all script parameters for obsolete values (example: mission disk using GC_ templates)*/
-void ScriptDialog::checkParametersForGC(void)
+void ScriptDialog::checkParametersForGC()
 {
 	SidesList *sidesListP = TheSidesList;
 	Int i;
@@ -610,8 +610,6 @@ void ScriptDialog::setIconGroup(HTREEITEM item)
 
 	if (getCurGroup()->hasWarnings())
 		pTree->SetItemState(item, INDEXTOSTATEIMAGEMASK(3), TVIS_STATEIMAGEMASK);
-
-	return;
 }
 
 void ScriptDialog::setIconScript(HTREEITEM item)
@@ -626,8 +624,6 @@ void ScriptDialog::setIconScript(HTREEITEM item)
 
 	if (getCurScript()->hasWarnings())
 		pTree->SetItemState(item, INDEXTOSTATEIMAGEMASK(4), TVIS_STATEIMAGEMASK);
-
-	return;
 }
 
 Bool ScriptDialog::updateIcons(HTREEITEM hItem)
@@ -1121,7 +1117,7 @@ protected:
 	CFile *m_file;
 public:
 	LocalMFCFileOutputStream(CFile *pFile):m_file(pFile) {};
-	virtual Int write(const void *pData, Int numBytes) {
+	virtual Int write(const void *pData, Int numBytes) override {
 		Int numBytesWritten = 0;
 		try {
 			m_file->Write(pData, numBytes);
@@ -1588,6 +1584,9 @@ void ScriptDialog::OnLoad()
 					msg += m_readPlayerNames[i].str();
 					msg += ", discarding scripts for this player.";
 					::AfxMessageBox(msg);
+
+					deleteInstance(scripts[i]);
+					scripts[i] = nullptr;
 					continue;
 				}
 			}
@@ -1595,8 +1594,8 @@ void ScriptDialog::OnLoad()
 				curSide = 0;
 				::AfxMessageBox("Imported scripts came from more players than exist in this map.  Additional scripts moved to Neutral player.");
 			}
-			ScriptList *pSL = m_sides.getSideInfo(curSide)->getScriptList();
 
+			ScriptList *pSL = m_sides.getSideInfo(curSide)->getScriptList();
 			if (pSL) {
 				Script *pScr;
 				Script *pNextScr;
@@ -1620,8 +1619,10 @@ void ScriptDialog::OnLoad()
 															copied into the current scripts. */
 				scripts[i] = nullptr;
 				//reloadPlayer(curSide, pSL);
+			} else {
+				deleteInstance(scripts[i]);
+				scripts[i] = nullptr;
 			}
-
 		}
 
 		for (i = 0; i < m_sides.getNumSides(); i++) {

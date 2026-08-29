@@ -95,12 +95,14 @@ public:
 	GrantStealthBehavior( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
-	virtual UpdateSleepTime update();
+	virtual UpdateSleepTime update() override;
 
 
 private:
 
 	void grantStealthToObject( Object *obj );
+	void createEmitters();
+
 	ParticleSystemID m_radiusParticleSystemID;
   Real m_currentScanRadius;
 };

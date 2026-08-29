@@ -21,7 +21,7 @@
 #pragma once
 
 #include "GameClient/Smudge.h"
-#include "sharebuf.h"
+#include "WWLib/sharebuf.h"
 
 class SmudgeGroupClass;	//forward reference.
 class Vector3;
@@ -32,21 +32,21 @@ class DX8IndexBufferClass;
 
 //#define USE_COPY_RECTS	1	//this was the old method that didn't render to texture. Just copied backbuffer into texture. Slow on Nvidia.
 
-class W3DSmudgeManager : public SmudgeManager
+class W3DSmudgeManager final : public SmudgeManager
 {
 public:
-	W3DSmudgeManager( void );
-	virtual ~W3DSmudgeManager();
+	W3DSmudgeManager();
+	virtual ~W3DSmudgeManager() override;
 
-	virtual void init(void);
-	virtual void reset (void);
+	virtual void init() override;
+	virtual void reset () override;
 
 	void render (RenderInfoClass &rinfo);
-	void ReleaseResources(void);
-	void ReAcquireResources(void);
+	virtual void ReleaseResources() override;
+	virtual void ReAcquireResources() override;
 
 private:
-	Bool testHardwareSupport(void);		///<test if video card supports the effect.
+	Bool testHardwareSupport();		///<test if video card supports the effect.
 
 	enum { MAX_POINTS_PER_GROUP = 512 };
 
@@ -55,9 +55,7 @@ private:
 	ShareBufferClass<unsigned int> *m_RGBABuffer;		///< array of particle color and alpha
 	ShareBufferClass<float> *m_sizeBuffer;			///< array of particle sizes
 
-#ifdef USE_COPY_RECTS
 	TextureClass *m_backgroundTexture;
-#endif
 	DX8IndexBufferClass	*m_indexBuffer;
 	Int m_backBufferWidth;
 	Int m_backBufferHeight;

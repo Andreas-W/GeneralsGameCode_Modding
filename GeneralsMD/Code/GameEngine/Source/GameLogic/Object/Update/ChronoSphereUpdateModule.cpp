@@ -133,11 +133,11 @@ Bool ChronoSphereUpdateModule::initiateIntentToDoSpecialPower(const SpecialPower
 
 	if( targetPos )
 	{
-		m_sourceLocation.set( targetPos );
+		m_sourceLocation.set( *targetPos );
 	}
 	else if( targetObj )
 	{
-		m_sourceLocation.set( targetObj->getPosition() );
+		m_sourceLocation.set( *targetObj->getPosition() );
 	}
 
 	m_active = TRUE;
@@ -157,8 +157,8 @@ void ChronoSphereUpdateModule::setSpecialPowerMultiLocations( const std::vector<
 	if( locs.size() < 2 )
 		return;
 
-	m_sourceLocation.set( &locs[0] );
-	m_destLocation.set( &locs[1] );
+	m_sourceLocation.set(locs[0] );
+	m_destLocation.set(locs[1] );
 
 	DEBUG_LOG(( "ChronoSphereUpdateModule: destination selected at (%.1f, %.1f, %.1f)",
 		m_destLocation.x, m_destLocation.y, m_destLocation.z ));

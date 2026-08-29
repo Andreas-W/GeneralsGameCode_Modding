@@ -208,6 +208,18 @@ void TunnelContain::onSelling()
 }
 
 //-------------------------------------------------------------------------------------------------
+// TheSuperHackers @info A whole network shares one passenger list, so a passenger is contained by
+// the endpoint it entered and not by the one that was ordered to unload.
+Bool TunnelContain::isContained( const Object *obj ) const
+{
+	if (OpenContain::isContained(obj))
+		return TRUE;
+
+	const ContainedItemsList *items = getContainedItemsList();
+	return items != nullptr && std::find(items->begin(), items->end(), obj) != items->end();
+}
+
+//-------------------------------------------------------------------------------------------------
 Bool TunnelContain::isValidContainerFor(const Object* obj, Bool checkCapacity) const
 {
 	Player *owningPlayer = getObject()->getControllingPlayer();
@@ -238,7 +250,7 @@ UnsignedInt TunnelContain::getHeroUnitsContained() const
 	return 0;
 }
 
-Int TunnelContain::getContainMax( void ) const
+Int TunnelContain::getContainMax() const
 {
 	Player *owningPlayer = getObject()->getControllingPlayer();
 	if( owningPlayer && owningPlayer->getTunnelSystem() )
@@ -258,7 +270,7 @@ const ContainedItemsList* TunnelContain::getContainedItemsList() const
 	return nullptr;
 }
 
-UnsignedInt TunnelContain::getFullTimeForHeal(void) const
+UnsignedInt TunnelContain::getFullTimeForHeal() const
 {
 	const TunnelContainModuleData* modData = getTunnelContainModuleData();
 	return modData->m_framesForFullHeal;
@@ -344,7 +356,7 @@ void TunnelContain::onDie( const DamageInfo * damageInfo )
 }
 
 //-------------------------------------------------------------------------------------------------
-void TunnelContain::onDelete( void )
+void TunnelContain::onDelete()
 {
 	// Being sold is a straight up delete.  no death
 
@@ -363,12 +375,12 @@ void TunnelContain::onDelete( void )
 }
 
 //-------------------------------------------------------------------------------------------------
-void TunnelContain::onCreate( void )
+void TunnelContain::onCreate()
 {
 }
 
 //-------------------------------------------------------------------------------------------------
-void TunnelContain::onBuildComplete( void )
+void TunnelContain::onBuildComplete()
 {
 	if( ! shouldDoOnBuildComplete() )
 		return;
@@ -423,7 +435,7 @@ void TunnelContain::orderAllPassengersToExit( CommandSourceType commandSource )
 // ------------------------------------------------------------------------------------------------
 /** Per frame update */
 // ------------------------------------------------------------------------------------------------
-UpdateSleepTime TunnelContain::update( void )
+UpdateSleepTime TunnelContain::update()
 {
 	// extending functionality to heal the units within the tunnel system
 	OpenContain::update();
@@ -437,7 +449,7 @@ UpdateSleepTime TunnelContain::update( void )
 	if (controllingPlayer)
 	{
 		TunnelTracker *tunnelSystem = controllingPlayer->getTunnelSystem();
-#if PRESERVE_RETAIL_BEHAVIOR || RETAIL_COMPATIBLE_CRC
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_TUNNEL_HEAL_STACKING
 		if (tunnelSystem)
 		{
 			const TunnelContainModuleData* modData = getTunnelContainModuleData();
@@ -506,7 +518,7 @@ void TunnelContain::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TunnelContain::loadPostProcess( void )
+void TunnelContain::loadPostProcess()
 {
 
 	// extend base class

@@ -135,7 +135,7 @@ void RiderChangeContainModuleData::buildFieldParse(MultiIniFieldParse& p)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-Int RiderChangeContain::getContainMax( void ) const
+Int RiderChangeContain::getContainMax() const
 {
 	if (getRiderChangeContainModuleData())
 		return getRiderChangeContainModuleData()->m_slotCapacity;
@@ -157,7 +157,7 @@ RiderChangeContain::RiderChangeContain( Thing *thing, const ModuleData *moduleDa
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-RiderChangeContain::~RiderChangeContain( void )
+RiderChangeContain::~RiderChangeContain()
 {
 
 }
@@ -347,7 +347,7 @@ void RiderChangeContain::onRemoving( Object *rider )
 		if( containDraw && riderDraw )
 		{
 			//Create the selection message for the rider if it's ours and SELECTED!
-			if( bike->getControllingPlayer() == ThePlayerList->getLocalPlayer() && containDraw->isSelected() )
+			if( bike->isLocallyControlled() && containDraw->isSelected() )
 			{
 				GameMessage *teamMsg = TheMessageStream->appendMessage( GameMessage::MSG_CREATE_SELECTED_GROUP );
 				teamMsg->appendBooleanArgument( FALSE );// not creating new team so pass false
@@ -510,7 +510,7 @@ void RiderChangeContain::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void RiderChangeContain::loadPostProcess( void )
+void RiderChangeContain::loadPostProcess()
 {
 
 	// extend base class

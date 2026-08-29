@@ -36,13 +36,13 @@
 
 
 #include "twiddler.h"
-#include "RANDOM.h"
+#include "WWLib/RANDOM.h"
 #include "saveloadids.h"
 #include "simpledefinitionfactory.h"
 #include "persistfactory.h"
-#include "win.h"
-#include "wwhack.h"
-#include "systimer.h"
+#include "WWLib/win.h"
+#include "WWDebug/wwhack.h"
+#include "WWLib/systimer.h"
 
 
 DECLARE_FORCE_LINK( Twiddler )
@@ -77,12 +77,11 @@ SimplePersistFactoryClass<TwiddlerClass, CHUNKID_TWIDDLER>						_TwiddlerPersist
 //	TwiddlerClass
 //
 //////////////////////////////////////////////////////////////////////////////////
-TwiddlerClass::TwiddlerClass (void)
+TwiddlerClass::TwiddlerClass ()
 	:	m_IndirectClassID (0)
 
 {
 	CLASSID_DEFIDLIST_PARAM (TwiddlerClass, m_DefinitionList, 0, m_IndirectClassID, "Preset List");
-	return ;
 }
 
 
@@ -91,9 +90,8 @@ TwiddlerClass::TwiddlerClass (void)
 //	~TwiddlerClass
 //
 //////////////////////////////////////////////////////////////////////////////////
-TwiddlerClass::~TwiddlerClass (void)
+TwiddlerClass::~TwiddlerClass ()
 {
-	return ;
 }
 
 
@@ -103,7 +101,7 @@ TwiddlerClass::~TwiddlerClass (void)
 //
 //////////////////////////////////////////////////////////////////////////////////
 DefinitionClass *
-TwiddlerClass::Twiddle (void) const
+TwiddlerClass::Twiddle () const
 {
 	DefinitionClass *definition = nullptr;
 
@@ -132,7 +130,7 @@ TwiddlerClass::Twiddle (void) const
 //
 //////////////////////////////////////////////////////////////////////////////////
 PersistClass *
-TwiddlerClass::Create (void) const
+TwiddlerClass::Create () const
 {
 	PersistClass *retval = nullptr;
 
@@ -159,7 +157,7 @@ TwiddlerClass::Create (void) const
 //
 //////////////////////////////////////////////////////////////////////////////////
 const PersistFactoryClass &
-TwiddlerClass::Get_Factory (void) const
+TwiddlerClass::Get_Factory () const
 {
 	return _TwiddlerPersistFactory;
 }

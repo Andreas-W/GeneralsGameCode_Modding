@@ -116,10 +116,10 @@ public:
 	virtual const Coord3D* getTargetPosition();
 	virtual bool projectileShouldCollideWithWater() const override;
 
-	virtual Bool processCollision(PhysicsBehavior *physics, Object *other); ///< Returns true if the physics collide should apply the force.  Normally not.  jba.
+	virtual Bool processCollision(PhysicsBehavior *physics, Object *other) override; ///< Returns true if the physics collide should apply the force.  Normally not.  jba.
 
-	virtual UpdateSleepTime update();
-	virtual void onDelete( void );
+	virtual UpdateSleepTime update() override;
+	virtual void onDelete() override;
 
 	virtual void switchToState(MissileStateType s);
 

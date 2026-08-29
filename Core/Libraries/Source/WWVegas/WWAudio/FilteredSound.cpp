@@ -39,7 +39,7 @@
 #include "WWAudio.h"
 #include "SoundScene.h"
 #include "SoundChunkIDs.h"
-#include "persistfactory.h"
+#include "WWSaveLoad/persistfactory.h"
 #include "soundhandle.h"
 
 
@@ -56,10 +56,9 @@ SimplePersistFactoryClass<FilteredSoundClass, CHUNKID_FILTERED_SOUND> _FilteredS
 //	FilteredSoundClass
 //
 /////////////////////////////////////////////////////////////////////////////////
-FilteredSoundClass::FilteredSoundClass (void)
+FilteredSoundClass::FilteredSoundClass ()
 	:	m_hFilter ((HPROVIDER)INVALID_MILES_HANDLE)
 {
-	return ;
 }
 
 
@@ -73,7 +72,6 @@ FilteredSoundClass::FilteredSoundClass (const FilteredSoundClass &src)
 		SoundPseudo3DClass (src)
 {
 	(*this) = src;
-	return ;
 }
 
 
@@ -82,9 +80,8 @@ FilteredSoundClass::FilteredSoundClass (const FilteredSoundClass &src)
 //	~FilteredSoundClass
 //
 /////////////////////////////////////////////////////////////////////////////////
-FilteredSoundClass::~FilteredSoundClass (void)
+FilteredSoundClass::~FilteredSoundClass ()
 {
-	return ;
 }
 
 
@@ -108,7 +105,7 @@ FilteredSoundClass::operator= (const FilteredSoundClass &src)
 //
 /////////////////////////////////////////////////////////////////////////////////
 void
-FilteredSoundClass::Initialize_Miles_Handle (void)
+FilteredSoundClass::Initialize_Miles_Handle ()
 {
 	SoundPseudo3DClass::Initialize_Miles_Handle ();
 	m_hFilter = WWAudioClass::Get_Instance ()->Get_Reverb_Filter ();
@@ -140,7 +137,6 @@ FilteredSoundClass::Initialize_Miles_Handle (void)
 	}
 
 	Update_Volume ();
-	return ;
 }
 
 
@@ -150,7 +146,7 @@ FilteredSoundClass::Initialize_Miles_Handle (void)
 //
 /////////////////////////////////////////////////////////////////////////////////
 void
-FilteredSoundClass::Update_Volume (void)
+FilteredSoundClass::Update_Volume ()
 {
 	if (m_SoundHandle != nullptr) {
 
@@ -166,8 +162,6 @@ FilteredSoundClass::Update_Volume (void)
 			Update_Pseudo_Volume (distance);
 		}
 	}
-
-	return ;
 }
 
 
@@ -177,7 +171,7 @@ FilteredSoundClass::Update_Volume (void)
 //
 /////////////////////////////////////////////////////////////////////////////////
 const PersistFactoryClass &
-FilteredSoundClass::Get_Factory (void) const
+FilteredSoundClass::Get_Factory () const
 {
 	return _FilteredSoundPersistFactory;
 }

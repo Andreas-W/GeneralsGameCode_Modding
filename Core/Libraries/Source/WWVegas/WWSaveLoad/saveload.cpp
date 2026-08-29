@@ -39,15 +39,15 @@
 #include "saveloadsubsystem.h"
 #include "persist.h"
 #include "persistfactory.h"
-#include "chunkio.h"
-#include "wwdebug.h"
+#include "WWLib/chunkio.h"
+#include "WWDebug/wwdebug.h"
 #include "saveloadstatus.h"
-#include "wwhack.h"
-#include "wwprofile.h"
+#include "WWDebug/wwhack.h"
+#include "WWDebug/wwprofile.h"
 
 #pragma warning(disable:4201) // warning C4201: nonstandard extension used : nameless struct/union
 #include <windows.h>
-#include "systimer.h"
+#include "WWLib/systimer.h"
 
 
 SaveLoadSubSystemClass *		SaveLoadSystemClass::SubSystemListHead = nullptr;
@@ -116,7 +116,7 @@ bool SaveLoadSystemClass::Load (ChunkLoadClass &cload,bool auto_post_load)
 		}                                               \
 	}                                                  \
 
-bool SaveLoadSystemClass::Post_Load_Processing (void(*network_callback)(void))
+bool SaveLoadSystemClass::Post_Load_Processing (void(*network_callback)())
 {
 	unsigned long time = TIMEGETTIME();
 
@@ -300,8 +300,7 @@ void SaveLoadSystemClass::Unlink_Factory(PersistFactoryClass * fact)
 	fact->NextFactory = nullptr;
 }
 
-void Force_Link_WWSaveLoad (void)
+void Force_Link_WWSaveLoad ()
 {
 	FORCE_LINK( Twiddler );
-	return ;
 }

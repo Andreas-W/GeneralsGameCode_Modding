@@ -31,12 +31,12 @@
 #include "Common/StackDump.h"
 #include "Common/Debug.h"
 
-#include "DbgHelpLoader.h"
+#include "WWLib/DbgHelpLoader.h"
 
 //*****************************************************************************
 //	Prototypes
 //*****************************************************************************
-BOOL InitSymbolInfo(void);
+BOOL InitSymbolInfo();
 void MakeStackTrace(DWORD myeip,DWORD myesp,DWORD myebp, int skipFrames, void (*callback)(const char*));
 void GetFunctionDetails(void *pointer, char*name, char*filename, unsigned int* linenumber, unsigned int* address);
 void WriteStackLine(void*address, void (*callback)(const char*));

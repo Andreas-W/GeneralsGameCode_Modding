@@ -87,7 +87,8 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT": "$<$<CONFIG:Release,Debug,RelWithDebInfo>:Embedded>",
                 "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets"
             }
         },
         {
@@ -113,7 +114,8 @@
             "inherits": "win32",
             "displayName": "Windows 32bit Profile",
             "cacheVariables": {
-                "RTS_BUILD_OPTION_PROFILE": "ON"
+                "RTS_BUILD_OPTION_PROFILE": "ON",
+                "RTS_BUILD_OPTION_PROFILE_TRACY": "ON"
             }
         },
         {

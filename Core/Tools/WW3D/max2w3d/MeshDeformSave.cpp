@@ -100,8 +100,6 @@ MeshDeformSaveClass::Initialize
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -138,8 +136,6 @@ MeshDeformSaveClass::Initialize
 			m_DeformSets.Add (save_set);
 		}
 	}
-
-	return ;
 }
 
 
@@ -149,7 +145,7 @@ MeshDeformSaveClass::Initialize
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformSaveClass::Reset (void)
+MeshDeformSaveClass::Reset ()
 {
 	//
 	//	Delete all the damage sets
@@ -159,7 +155,6 @@ MeshDeformSaveClass::Reset (void)
 	}
 
 	m_DeformSets.Delete_All ();
-	return ;
 }
 
 
@@ -366,8 +361,6 @@ MeshDeformSaveClass::Re_Index (MeshBuilderClass &builder)
 			set_save->Replace_Deform_Data (keyframe_index, temp_list);
 		}
 	}
-
-	return ;
 }*/
 
 
@@ -377,7 +370,7 @@ MeshDeformSaveClass::Re_Index (MeshBuilderClass &builder)
 //
 ///////////////////////////////////////////////////////////////////////////
 bool
-MeshDeformSaveClass::Does_Deformer_Modify_DCG (void)
+MeshDeformSaveClass::Does_Deformer_Modify_DCG ()
 {
 	bool retval = false;
 

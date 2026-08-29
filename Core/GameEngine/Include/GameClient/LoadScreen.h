@@ -54,12 +54,12 @@ class WindowVideoManager;
 class LoadScreen
 {
 public:
-	LoadScreen( void );
-	virtual ~LoadScreen( void );
+	LoadScreen();
+	virtual ~LoadScreen();
 
 	virtual void init( GameInfo *game ) = 0;		///< Init the loadscreen
-	virtual void reset( void ) = 0;		///< Reset the system
-	virtual void update( void ) = 0;  ///< Update the state of the slider bars
+	virtual void reset() = 0;		///< Reset the system
+	virtual void update() = 0;  ///< Update the state of the slider bars
 	virtual void update( Int percent ); ///< Update the state of the slider bars
 	virtual void processProgress(Int playerId, Int percentage) = 0;
 	virtual void setProgressRange( Int min, Int max ) = 0;
@@ -77,22 +77,22 @@ private:
 class SinglePlayerLoadScreen : public LoadScreen
 {
 public:
-	SinglePlayerLoadScreen( void );
-	virtual ~SinglePlayerLoadScreen( void );
+	SinglePlayerLoadScreen();
+	virtual ~SinglePlayerLoadScreen() override;
 
-	virtual void init( GameInfo *game );		///< Init the loadscreen
-	virtual void reset( void );		///< Reset the system
-	virtual void update( void )
+	virtual void init( GameInfo *game ) override;		///< Init the loadscreen
+	virtual void reset() override;		///< Reset the system
+	virtual void update() override
 	{
 		DEBUG_CRASH(("Call update(Int) instead.  This update isn't supported"));
 	};
-	virtual void update(Int percent);		 ///< Update the state of the progress bar
-	virtual void processProgress(Int playerId, Int percentage)
+	virtual void update(Int percent) override;		 ///< Update the state of the progress bar
+	virtual void processProgress(Int playerId, Int percentage) override
 	{
 		DEBUG_CRASH(("We Got to a single player load screen throw the Network..."));
 	}
 
-	virtual void setProgressRange( Int min, Int max );
+	virtual void setProgressRange( Int min, Int max ) override;
 
 private:
 	GameWindow *m_progressBar;				///< Pointer to the Progress Bar on the window
@@ -127,22 +127,22 @@ private:
 class ChallengeLoadScreen : public LoadScreen
 {
 public:
-	ChallengeLoadScreen( void );
-	virtual ~ChallengeLoadScreen( void );
+	ChallengeLoadScreen();
+	virtual ~ChallengeLoadScreen() override;
 
-	virtual void init( GameInfo *game );		///< Init the loadscreen
-	virtual void reset( void );		///< Reset the system
-	virtual void update( void )
+	virtual void init( GameInfo *game ) override;		///< Init the loadscreen
+	virtual void reset() override;		///< Reset the system
+	virtual void update() override
 	{
 		DEBUG_CRASH(("Call update(Int) instead.  This update isn't supported"));
 	};
-	virtual void update(Int percent);		 ///< Update the state of the progress bar
-	virtual void processProgress(Int playerId, Int percentage)
+	virtual void update(Int percent) override;		 ///< Update the state of the progress bar
+	virtual void processProgress(Int playerId, Int percentage) override
 	{
 		DEBUG_CRASH(("We Got to a single player load screen throw the Network..."));
 	}
 
-	virtual void setProgressRange( Int min, Int max );
+	virtual void setProgressRange( Int min, Int max ) override;
 
 private:
 	GameWindow *m_progressBar;				///< Pointer to the Progress Bar on the window
@@ -199,21 +199,21 @@ private:
 class ShellGameLoadScreen : public LoadScreen
 {
 public:
-	ShellGameLoadScreen( void );
-	virtual ~ShellGameLoadScreen( void );
+	ShellGameLoadScreen();
+	virtual ~ShellGameLoadScreen() override;
 
-	virtual void init( GameInfo *game );		///< Init the loadscreen
-	virtual void reset( void );		///< Reset the system
-	virtual void update( void )
+	virtual void init( GameInfo *game ) override;		///< Init the loadscreen
+	virtual void reset() override;		///< Reset the system
+	virtual void update() override
 	{
 		DEBUG_CRASH(("Call update(Int) instead.  This update isn't supported"));
 	};
-	virtual void update(Int percent);		 ///< Update the state of the progress bar
-	virtual void processProgress(Int playerId, Int percentage)
+	virtual void update(Int percent) override;		 ///< Update the state of the progress bar
+	virtual void processProgress(Int playerId, Int percentage) override
 	{
 		DEBUG_CRASH(("We Got to a single player load screen throw the Network..."));
 	}
-	virtual void setProgressRange( Int min, Int max ) { }
+	virtual void setProgressRange( Int min, Int max ) override { }
 
 private:
 	GameWindow *m_progressBar	;				///< Pointer to the Progress Bar on the window
@@ -227,18 +227,18 @@ private:
 class MultiPlayerLoadScreen : public LoadScreen
 {
 public:
-	MultiPlayerLoadScreen( void );
-	virtual ~MultiPlayerLoadScreen( void );
+	MultiPlayerLoadScreen();
+	virtual ~MultiPlayerLoadScreen() override;
 
-	virtual void init( GameInfo *game );		///< Init the loadscreen
-	virtual void reset( void );		///< Reset the system
-	virtual void update( void )
+	virtual void init( GameInfo *game ) override;		///< Init the loadscreen
+	virtual void reset() override;		///< Reset the system
+	virtual void update() override
 	{
 		DEBUG_CRASH(("Call update(Int) instead.  This update isn't supported"));
 	};
-	virtual void update(Int percent);		 ///< Update the state of the progress bar
-	void processProgress(Int playerId, Int percentage);
-	virtual void setProgressRange( Int min, Int max ) { }
+	virtual void update(Int percent) override;		 ///< Update the state of the progress bar
+	virtual void processProgress(Int playerId, Int percentage) override;
+	virtual void setProgressRange( Int min, Int max ) override { }
 private:
 	GameWindow *m_progressBars[MAX_SLOTS];	///< pointer array to all the progress bars on the window
 	GameWindow *m_playerNames[MAX_SLOTS];		///< pointer array to all the static text player names on the window
@@ -258,18 +258,18 @@ private:
 class GameSpyLoadScreen : public LoadScreen
 {
 public:
-	GameSpyLoadScreen( void );
-	virtual ~GameSpyLoadScreen( void );
+	GameSpyLoadScreen();
+	virtual ~GameSpyLoadScreen() override;
 
-	virtual void init( GameInfo *game );		///< Init the loadscreen
-	virtual void reset( void );		///< Reset the system
-	virtual void update( void )
+	virtual void init( GameInfo *game ) override;		///< Init the loadscreen
+	virtual void reset() override;		///< Reset the system
+	virtual void update() override
 	{
 		DEBUG_CRASH(("Call update(Int) instead.  This update isn't supported"));
 	};
-	virtual void update(Int percent);		 ///< Update the state of the progress bar
-	void processProgress(Int playerId, Int percentage);
-	virtual void setProgressRange( Int min, Int max ) { }
+	virtual void update(Int percent) override;		 ///< Update the state of the progress bar
+	virtual void processProgress(Int playerId, Int percentage) override;
+	virtual void setProgressRange( Int min, Int max ) override { }
 private:
 	GameWindow *m_progressBars[MAX_SLOTS];	///< pointer array to all the progress bars on the window
 	GameWindow *m_playerNames[MAX_SLOTS];		///< pointer array to all the static text player names on the window
@@ -296,22 +296,22 @@ private:
 class MapTransferLoadScreen : public LoadScreen
 {
 public:
-	MapTransferLoadScreen( void );
-	virtual ~MapTransferLoadScreen( void );
+	MapTransferLoadScreen();
+	virtual ~MapTransferLoadScreen() override;
 
-	virtual void init( GameInfo *game );		///< Init the loadscreen
-	virtual void reset( void );							///< Reset the system
-	virtual void update( void )
+	virtual void init( GameInfo *game ) override;		///< Init the loadscreen
+	virtual void reset() override;							///< Reset the system
+	virtual void update() override
 	{
 		DEBUG_CRASH(("Call update(Int) instead.  This update isn't supported"));
 	};
-	virtual void update(Int percent);				///< Update the state of the progress bar
-	virtual void processProgress(Int playerId, Int percentage)
+	virtual void update(Int percent) override;				///< Update the state of the progress bar
+	virtual void processProgress(Int playerId, Int percentage) override
 	{
 		DEBUG_CRASH(("Call processProgress(Int, Int, AsciiString) instead."));
 	}
 	void processProgress(Int playerId, Int percentage, AsciiString stateStr);
-	virtual void setProgressRange( Int min, Int max ) { }
+	virtual void setProgressRange( Int min, Int max ) override { }
 	void processTimeout(Int secondsLeft);
 	void setCurrentFilename(AsciiString filename);
 private:

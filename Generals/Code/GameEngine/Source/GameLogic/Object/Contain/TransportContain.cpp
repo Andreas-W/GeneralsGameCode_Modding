@@ -115,7 +115,7 @@ void TransportContainModuleData::buildFieldParse(MultiIniFieldParse& p)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-Int TransportContain::getContainMax( void ) const
+Int TransportContain::getContainMax() const
 {
 	if (getTransportContainModuleData())
 		return getTransportContainModuleData()->m_slotCapacity;
@@ -135,7 +135,7 @@ TransportContain::TransportContain( Thing *thing, const ModuleData *moduleData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-TransportContain::~TransportContain( void )
+TransportContain::~TransportContain()
 {
 
 }
@@ -362,8 +362,19 @@ UpdateSleepTime TransportContain::update()
 {
 	const TransportContainModuleData *moduleData = getTransportContainModuleData();
 
-	if( m_payloadCreated == FALSE )
+	if (m_payloadCreated == FALSE)
+	{
+#if RETAIL_COMPATIBLE_CRC
 		createPayload();
+#else
+		// TheSuperHackers @bugfix Caball009 25/05/2026 Don't create payload
+		// for destroyed object to avoid leaving the payload in an invalid state.
+		if (!getObject()->isDestroyed())
+		{
+			createPayload();
+		}
+#endif
+	}
 
 	if( moduleData && moduleData->m_healthRegen )
 	{
@@ -456,6 +467,15 @@ Bool TransportContain::isSpecificRiderFreeToExit(Object* specificObject)
 	if (ai && ai->getAiFreeToExit(specificObject) != FREE_TO_EXIT)
 		return FALSE;
 
+#if !RETAIL_COMPATIBLE_CRC
+	// TheSuperHackers @bugfix Stubbjax/bobtista 01/08/2026 If our container is itself contained,
+	// then we are not free to exit.
+	if (me->isContained())
+	{
+		return FALSE;
+	}
+#endif
+
   // I can always kick people out if I am in the air, I know what I'm doing
   if (me->isUsingAirborneLocomotor())
    	return TRUE;
@@ -503,7 +523,13 @@ void TransportContain::onCapture( Player *oldOwner, Player *newOwner )
 		else
 		{
 			//Use standard
+#if RETAIL_COMPATIBLE_CRC
 			orderAllPassengersToExit( CMD_FROM_AI );
+#else
+			// TheSuperHackers @bugfix Stubbjax 20/11/2025 Only eject passengers if the new owner is not allied with the old owner.
+			if (oldOwner->getRelationship(newOwner->getDefaultTeam()) != ALLIES)
+				orderAllPassengersToExit(CMD_FROM_AI);
+#endif
 		}
 	}
 }
@@ -549,7 +575,7 @@ void TransportContain::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void TransportContain::loadPostProcess( void )
+void TransportContain::loadPostProcess()
 {
 
 	// extend base class

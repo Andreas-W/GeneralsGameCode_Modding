@@ -126,8 +126,6 @@ WideStringClass::Get_String (int length, bool is_temp)
 			Set_Buffer_And_Allocated_Length (Allocate_Buffer (length), length);
 		}
 	}
-
-	return ;
 }
 
 
@@ -154,8 +152,6 @@ WideStringClass::Resize (int new_len)
 		//
 		Set_Buffer_And_Allocated_Length (new_buffer, new_len);
 	}
-
-	return ;
 }
 
 
@@ -181,7 +177,6 @@ WideStringClass::Uninitialised_Grow (int new_len)
 	// Whenever this function is called, clear the cached length
 	//
 	Store_Length (0);
-	return ;
 }
 
 
@@ -191,7 +186,7 @@ WideStringClass::Uninitialised_Grow (int new_len)
 //
 ///////////////////////////////////////////////////////////////////
 void
-WideStringClass::Free_String (void)
+WideStringClass::Free_String ()
 {
 	if (m_Buffer != m_EmptyString) {
 
@@ -232,8 +227,6 @@ WideStringClass::Free_String (void)
 		//
 		m_Buffer = m_EmptyString;
 	}
-
-	return ;
 }
 
 
@@ -309,9 +302,8 @@ WideStringClass::Format (const WCHAR *format, ...)
 //
 ///////////////////////////////////////////////////////////////////
 void
-WideStringClass::Release_Resources (void)
+WideStringClass::Release_Resources ()
 {
-	return ;
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -344,7 +336,7 @@ bool WideStringClass::Convert_From (const char *text)
 ///////////////////////////////////////////////////////////////////
 // Test if a Unicode string is within the ANSI range. (0 - 255)
 ///////////////////////////////////////////////////////////////////
-bool WideStringClass::Is_ANSI(void)
+bool WideStringClass::Is_ANSI()
 	{
 	if (m_Buffer) {
 		for (int index = 0; m_Buffer[index] != 0; index++) {

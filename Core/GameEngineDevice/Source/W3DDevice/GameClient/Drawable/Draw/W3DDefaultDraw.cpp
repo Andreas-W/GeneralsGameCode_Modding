@@ -101,7 +101,7 @@ void W3DDefaultDraw::reactToTransformChange( const Matrix3D *oldMtx,
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-W3DDefaultDraw::~W3DDefaultDraw(void)
+W3DDefaultDraw::~W3DDefaultDraw()
 {
 #ifdef LOAD_TEST_ASSETS
 	if (TheW3DShadowManager && m_shadow)
@@ -156,8 +156,6 @@ void W3DDefaultDraw::doDrawModule(const Matrix3D* transformMtx)
 		}
 	}
 #endif
-
-	return;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -192,7 +190,7 @@ void W3DDefaultDraw::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void W3DDefaultDraw::loadPostProcess( void )
+void W3DDefaultDraw::loadPostProcess()
 {
 
 	// extend base class

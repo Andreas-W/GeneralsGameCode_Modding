@@ -41,7 +41,7 @@
 #include "meshdam.h"
 #include "w3d_file.h"
 #include "w3derr.h"
-#include "chunkio.h"
+#include "WWLib/chunkio.h"
 //#include <sr.hpp>
 
 
@@ -57,7 +57,7 @@
  * HISTORY:                                                                                    *
  *   10/28/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
-DamageClass::DamageClass(void):
+DamageClass::DamageClass():
 	DamageIndex(0),
 	NumMaterials(0),
 	NumVerts(0),
@@ -80,7 +80,7 @@ DamageClass::DamageClass(void):
  * HISTORY:                                                                                    *
  *   10/28/1997 GH  : Created.                                                                 *
  *=============================================================================================*/
-DamageClass::~DamageClass(void)
+DamageClass::~DamageClass()
 {
 	delete [] Verts;
 	Verts = nullptr;

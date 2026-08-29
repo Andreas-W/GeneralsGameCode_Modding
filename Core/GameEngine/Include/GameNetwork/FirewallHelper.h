@@ -143,11 +143,7 @@ class FirewallHelperClass {
 			*/
 			FIREWALL_TYPE_SMART_MANGLING = 4,
 
-			/*
-			** This is a firewall that exhibits the bug as seen in the Netgear firewalls. A previously good
-			** source port mapping will change in response to unsolicited traffic from a known IP.
-			*/
-			FIREWALL_TYPE_NETGEAR_BUG = 8,
+			FIREWALL_TYPE_UNUSED = 8,
 
 			/*
 			** This firewall has a simple absolute offset port allocation scheme.
@@ -172,21 +168,21 @@ class FirewallHelperClass {
 
 
 
-		FirewallHelperClass(void);
-		virtual ~FirewallHelperClass(void);
-		Bool detectFirewall(void);
-		UnsignedShort getRawFirewallBehavior(void) {return((UnsignedShort)m_behavior);}
-		Short getSourcePortAllocationDelta(void);
+		FirewallHelperClass();
+		virtual ~FirewallHelperClass();
+		Bool detectFirewall();
+		UnsignedShort getRawFirewallBehavior() {return((UnsignedShort)m_behavior);}
+		Short getSourcePortAllocationDelta();
 		Int getFirewallHardness(FirewallBehaviorType behavior);
 		Int getFirewallRetries(FirewallBehaviorType behavior);
 		void setSourcePortPoolStart(Int port) {m_sourcePortPool = port;};
-		Int getSourcePortPool(void) {return(m_sourcePortPool);};
-		void readFirewallBehavior(void);
-		void reset(void);
-		Bool behaviorDetectionUpdate(void);
+		Int getSourcePortPool() {return(m_sourcePortPool);};
+		void readFirewallBehavior();
+		void reset();
+		Bool behaviorDetectionUpdate();
 
-		FirewallBehaviorType getFirewallBehavior(void);
-		void writeFirewallBehavior(void);
+		FirewallBehaviorType getFirewallBehavior();
+		void writeFirewallBehavior();
 
 		void flagNeedToRefresh(Bool flag);
 
@@ -198,20 +194,20 @@ class FirewallHelperClass {
 		void closeAllSpareSockets();
 		UnsignedShort getNextTemporarySourcePort(Int skip);
 
-		Bool detectionBeginUpdate(void);
-		Bool detectionTest1Update(void);
-		Bool detectionTest2Update(void);
-		Bool detectionTest3Update(void);
-		Bool detectionTest3WaitForResponsesUpdate(void);
-		Bool detectionTest4Stage1Update(void);
-		Bool detectionTest4Stage2Update(void);
-		Bool detectionTest5Update(void);
+		Bool detectionBeginUpdate();
+		Bool detectionTest1Update();
+		Bool detectionTest2Update();
+		Bool detectionTest3Update();
+		Bool detectionTest3WaitForResponsesUpdate();
+		Bool detectionTest4Stage1Update();
+		Bool detectionTest4Stage2Update();
+		Bool detectionTest5Update();
 
 
 		/*
 		** Behavior query functions.
 		*/
-		Bool isNAT(void) {
+		Bool isNAT() {
 			if (m_behavior == FIREWALL_TYPE_UNKNOWN || (m_behavior & FIREWALL_TYPE_SIMPLE) != 0) {
 				return(FALSE);
 			}
@@ -225,27 +221,13 @@ class FirewallHelperClass {
 			return(TRUE);
 		};
 
-		Bool isNetgear(FirewallBehaviorType behavior) {
-			if ((behavior & FIREWALL_TYPE_NETGEAR_BUG) != 0) {
-				return(TRUE);
-			}
-			return(FALSE);
-		};
-
-		Bool isNetgear(void) {
-			if ((m_behavior & FIREWALL_TYPE_NETGEAR_BUG) != 0) {
-				return(TRUE);
-			}
-			return(FALSE);
-		};
-
 
 
 	private:
 
 		Int getNATPortAllocationScheme(Int numPorts, UnsignedShort *originalPorts, UnsignedShort *mangledPorts, Bool &relativeDelta, Bool &looksGood);
 		void detectFirewallBehavior(/*Bool &canRecord*/);
-		Bool getReferencePort(void);
+		Bool getReferencePort();
 
 		SpareSocketStruct * findSpareSocketByPort(UnsignedShort port);
 		ManglerMessage * findEmptyMessage();

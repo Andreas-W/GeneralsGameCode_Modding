@@ -32,6 +32,9 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "WW3D2/ww3d.h"
+#include "WW3D2/texturefilter.h"
+
 #include "Common/GlobalData.h"
 
 #define DEFINE_TERRAIN_LOD_NAMES
@@ -54,6 +57,7 @@
 #include "GameLogic/Module/BodyModule.h"
 
 #include "GameClient/Color.h"
+#include "GameClient/Display.h"
 #include "GameClient/TerrainVisual.h"
 
 #include "GameNetwork/FirewallHelper.h"
@@ -182,7 +186,9 @@ GlobalData* GlobalData::m_theOriginal = nullptr;
 	{ "ViewportHeightScale", INI::parseReal, nullptr, offsetof( GlobalData, m_viewportHeightScale ) },
 	{ "CameraPitch",								INI::parseReal,				nullptr,			offsetof( GlobalData, m_cameraPitch ) },
 	{ "CameraYaw",									INI::parseReal,				nullptr,			offsetof( GlobalData, m_cameraYaw ) },
+#if PRESERVE_RETAIL_SCRIPTED_CAMERA
 	{ "CameraHeight",								INI::parseReal,				nullptr,			offsetof( GlobalData, m_cameraHeight ) },
+#endif
 	{ "MaxCameraHeight",						INI::parseReal,				nullptr,			offsetof( GlobalData, m_maxCameraHeight ) },
 	{ "MinCameraHeight",						INI::parseReal,				nullptr,			offsetof( GlobalData, m_minCameraHeight ) },
 	{ "TerrainHeightAtEdgeOfMap",					INI::parseReal,				nullptr,			offsetof( GlobalData, m_terrainHeightAtEdgeOfMap ) },
@@ -443,7 +449,7 @@ GlobalData* GlobalData::m_theOriginal = nullptr;
 	{	"CameraAudibleRadius",				INI::parseReal,				nullptr,			offsetof( GlobalData, m_cameraAudibleRadius ) },
 	{ "GroupMoveClickToGatherAreaFactor", INI::parseReal,	nullptr,			offsetof( GlobalData, m_groupMoveClickToGatherFactor ) },
 
-#if !PRESERVE_RETAIL_BEHAVIOR
+#if ALLOW_MONEY_PER_MINUTE_FOR_PLAYER
 	{ "AllowMoneyPerMinuteForPlayer",	INI::parseBool,			nullptr,			offsetof( GlobalData, m_allowMoneyPerMinuteForPlayer ) },
 #endif
 
@@ -645,6 +651,7 @@ GlobalData::GlobalData()
 	m_enableDynamicLOD = TRUE;
 	m_enableStaticLOD = TRUE;
 	m_rightMouseAlwaysScrolls = FALSE;
+	m_jpegQuality = DEFAULT_JPEG_QUALITY;
 	m_useWaterPlane = FALSE;
 	m_useCloudPlane = FALSE;
 	m_downwindAngle = ( -0.785f );//Northeast!
@@ -838,7 +845,9 @@ GlobalData::GlobalData()
 
 	m_cameraPitch = 0.0f;
 	m_cameraYaw = 0.0f;
+#if PRESERVE_RETAIL_SCRIPTED_CAMERA
 	m_cameraHeight = 0.0f;
+#endif
 	m_minCameraHeight = 100.0f;
 	m_maxCameraHeight = 300.0f;
 	m_terrainHeightAtEdgeOfMap = 0.0f;
@@ -923,12 +932,13 @@ GlobalData::GlobalData()
 
 	m_standardPublicBones.clear();
 
-	m_antiAliasBoxValue = 0;
+	m_antiAliasLevel = WW3D::MultiSampleModeEnum::MULTISAMPLE_MODE_NONE;
+	m_textureFilteringMode = TextureFilterClass::TextureFilterMode::TEXTURE_FILTER_BILINEAR;
+	m_textureAnisotropyLevel = TextureFilterClass::AnisotropicFilterMode::TEXTURE_FILTER_ANISOTROPIC_2X;
 
 //	m_languageFilterPref = false;
 	m_languageFilterPref = true;
 	m_firewallBehavior = FirewallHelperClass::FIREWALL_TYPE_UNKNOWN;
-	m_firewallSendDelay = FALSE;
 	m_firewallPortOverride = 0;
 	m_firewallPortAllocationDelta = 0;
 	m_loadScreenDemo = FALSE;
@@ -946,6 +956,8 @@ GlobalData::GlobalData()
 
 	m_showMoneyPerMinute = FALSE;
 	m_allowMoneyPerMinuteForPlayer = FALSE;
+
+	m_gameWindowTransitionSpeedMultiplier = 1.0f;
 
 	m_debugShowGraphicalFramerate = FALSE;
 
@@ -996,8 +1008,6 @@ GlobalData::GlobalData()
 	m_shellMapOn =TRUE;
 	m_playIntro = TRUE;
 	m_playSizzle = TRUE;
-	m_afterIntro = FALSE;
-	m_allowExitOutOfMovies = FALSE;
 	m_loadScreenRender = FALSE;
 
 	m_keyboardDefaultScrollFactor = m_keyboardScrollFactor = 0.5f;
@@ -1029,7 +1039,15 @@ GlobalData::GlobalData()
 
 	m_keyboardCameraRotateSpeed = 0.1f;
 
+	m_useAlternateMouse = FALSE;
+#if RTS_GENERALS
+	// disable mouse scrolling in alternate mouse mode, per Harvard 7/15/03
+	m_useRightMouseScrollWithAlternateMouse = FALSE;
+#else
+	m_useRightMouseScrollWithAlternateMouse = TRUE;
+#endif
 	m_clientRetaliationModeEnabled = TRUE; //On by default.
+	m_doubleClickAttackMove = FALSE;
 
 }
 
@@ -1041,7 +1059,7 @@ AsciiString GlobalData::getPath_UserData() const
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-GlobalData::~GlobalData( void )
+GlobalData::~GlobalData()
 {
 	DEBUG_ASSERTCRASH( TheWritableGlobalData->m_next == nullptr, ("~GlobalData: theOriginal is not original") );
 
@@ -1079,31 +1097,31 @@ Bool GlobalData::setTimeOfDay( TimeOfDay tod )
 	* initial values of the newly created instance will be a copy of the current
 	* data (or the most recently created override) */
 //-------------------------------------------------------------------------------------------------
-GlobalData *GlobalData::newOverride( void )
+GlobalData *GlobalData::newOverride()
 {
 	// TheSuperHackers @info This copy is not implemented in VS6 builds
-	GlobalData *override = NEW GlobalData;
+	GlobalData *overrideData = NEW GlobalData;
 
 	// copy the data from the latest override (TheWritableGlobalData) to the newly created instance
 	DEBUG_ASSERTCRASH( TheWritableGlobalData, ("GlobalData::newOverride() - no existing data") );
-	*override = *TheWritableGlobalData;
+	*overrideData = *TheWritableGlobalData;
 
 	//
 	// link the override to the previously created one, the link order is important here
 	// for the reset function, if you change the way things are linked
 	// for overrides make sure you update the reset function
 	//
-	override->m_next = TheWritableGlobalData;
+	overrideData->m_next = TheWritableGlobalData;
 
 	// set this new instance as the 'most current override' where we will access all data from
-	TheWritableGlobalData = override;
+	TheWritableGlobalData = overrideData;
 
-	return override;
+	return overrideData;
 
 }
 
 //-------------------------------------------------------------------------------------------------
-void GlobalData::init( void )
+void GlobalData::init()
 {
 	m_exeCRC = generateExeCRC();
 }
@@ -1112,7 +1130,7 @@ void GlobalData::init( void )
 /** Reset, remove any override data instances and return to just the initial one
 	*/
 //-------------------------------------------------------------------------------------------------
-void GlobalData::reset( void )
+void GlobalData::reset()
 {
 	DEBUG_ASSERTCRASH(this == TheWritableGlobalData, ("calling reset on wrong GlobalData"));
 
@@ -1172,28 +1190,20 @@ void GlobalData::parseGameDataDefinition( INI* ini )
 	ini->initFromINI( TheWritableGlobalData, s_GlobalDataFieldParseTable );
 
 	TheWritableGlobalData->m_userDataDir.clear();
-
-	char temp[_MAX_PATH];
-	if (::SHGetSpecialFolderPath(nullptr, temp, CSIDL_PERSONAL, true))
-	{
-		if (temp[strlen(temp)-1] != '\\')
-			strcat(temp, "\\");
-		strcat(temp, TheWritableGlobalData->m_userDataLeafName.str());
-		strcat(temp, "\\");
-		CreateDirectory(temp, nullptr);
-		TheWritableGlobalData->m_userDataDir = temp;
-	}
+	TheWritableGlobalData->m_userDataDir = BuildUserDataPathFromIni();
+	CreateDirectory(TheWritableGlobalData->m_userDataDir.str(), nullptr);
 
 	// override INI values with user preferences
 	OptionPreferences optionPref;
 	TheWritableGlobalData->m_useAlternateMouse = optionPref.getAlternateMouseModeEnabled();
+	TheWritableGlobalData->m_useRightMouseScrollWithAlternateMouse = optionPref.getRightMouseScrollWithAlternateMouseEnabled();
 	TheWritableGlobalData->m_clientRetaliationModeEnabled = optionPref.getRetaliationModeEnabled();
 	TheWritableGlobalData->m_doubleClickAttackMove = optionPref.getDoubleClickAttackMoveEnabled();
+	TheWritableGlobalData->m_jpegQuality = optionPref.getJpegQuality();
 	TheWritableGlobalData->m_keyboardScrollFactor = optionPref.getScrollFactor();
 	TheWritableGlobalData->m_drawScrollAnchor = optionPref.getDrawScrollAnchor();
 	TheWritableGlobalData->m_moveScrollAnchor = optionPref.getMoveScrollAnchor();
 	TheWritableGlobalData->m_defaultIP = optionPref.getLANIPAddress();
-	TheWritableGlobalData->m_firewallSendDelay = optionPref.getSendDelay();
 	TheWritableGlobalData->m_firewallBehavior = optionPref.getFirewallBehavior();
 	TheWritableGlobalData->m_firewallPortAllocationDelta = optionPref.getFirewallPortAllocationDelta();
 	TheWritableGlobalData->m_firewallPortOverride = optionPref.getFirewallPortOverride();
@@ -1208,6 +1218,11 @@ void GlobalData::parseGameDataDefinition( INI* ini )
 	TheWritableGlobalData->m_gameTimeFontSize = optionPref.getGameTimeFontSize();
 	TheWritableGlobalData->m_playerInfoListFontSize = optionPref.getPlayerInfoListFontSize();
 	TheWritableGlobalData->m_showMoneyPerMinute = optionPref.getShowMoneyPerMinute();
+	TheWritableGlobalData->m_gameWindowTransitionSpeedMultiplier = optionPref.getGameWindowTransitionSpeedMultiplier();
+
+	TheWritableGlobalData->m_antiAliasLevel = optionPref.getAntiAliasing();
+	TheWritableGlobalData->m_textureFilteringMode = optionPref.getTextureFilterMode();
+	TheWritableGlobalData->m_textureAnisotropyLevel = optionPref.getTextureAnisotropyLevel();
 
 	Int val=optionPref.getGammaValue();
 	//generate a value between 0.6 and 2.0.
@@ -1312,4 +1327,55 @@ UnsignedInt GlobalData::generateExeCRC()
 	DEBUG_LOG(("EXE+Version(%d.%d)+SCB CRC is 0x%8.8X", version >> 16, version & 0xffff, exeCRC.get()));
 
 	return exeCRC.get();
+}
+
+AsciiString GlobalData::BuildUserDataPathFromIni()
+{
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
+	// VC6 lacks FOLDERID_Documents and KF_FLAG_DEFAULT
+	const GUID FOLDERID_Documents = { 0xFDD39AD0, 0x238F, 0x46AF, 0xAD, 0xB4, 0x6C, 0x85, 0x48, 0x03, 0x69, 0xC7 };
+	const DWORD KF_FLAG_DEFAULT = 0;
+#endif
+
+	typedef HRESULT(WINAPI* PFN_SHGetKnownFolderPath)(const GUID& rfid, DWORD dwFlags, HANDLE hToken, PWSTR* ppszPath);
+
+	AsciiString myDocumentsDirectory;
+	HMODULE shell32module = GetModuleHandleA("shell32.dll");
+	PFN_SHGetKnownFolderPath pSHGetKnownFolderPath = nullptr;
+
+	// TheSuperHackers @bugfix Mauller 20/03/2026 Fix the handling of folder redirection
+	// OneDrive and Group Policy folder redirection is better supported by SHGetKnownFolderPath()
+	// SHGetKnownFolderPath() is only supported in windows Vista onwards so we check for it being available
+	if (shell32module) {
+		pSHGetKnownFolderPath = (PFN_SHGetKnownFolderPath)GetProcAddress(shell32module, "SHGetKnownFolderPath");
+	}
+
+	if (pSHGetKnownFolderPath) {
+		PWSTR pszPath = nullptr;
+		HRESULT hr = pSHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &pszPath);
+
+		if (SUCCEEDED(hr) && pszPath) {
+			myDocumentsDirectory.translate(pszPath);
+			CoTaskMemFree(pszPath);
+		}
+	}
+	else {
+		char temp[_MAX_PATH + 1];
+		if (SHGetSpecialFolderPath(nullptr, temp, CSIDL_PERSONAL, true)) {
+			myDocumentsDirectory = temp;
+		}
+	}
+
+	if (!myDocumentsDirectory.isEmpty()) {
+		// Now build the full path string
+		if (!myDocumentsDirectory.endsWith("\\"))
+			myDocumentsDirectory.concat('\\');
+
+		myDocumentsDirectory.concat(TheWritableGlobalData->m_userDataLeafName.str());
+
+		if (!myDocumentsDirectory.endsWith("\\"))
+			myDocumentsDirectory.concat('\\');
+	}
+
+	return myDocumentsDirectory;
 }

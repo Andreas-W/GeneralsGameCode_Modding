@@ -126,13 +126,13 @@ public:
 	// virtual destructor prototype provided by memory pool declaration
 
 
-  virtual StealthUpdate* getStealth() { return this; }
+  virtual StealthUpdate* getStealth() override { return this; }
 
 
-	virtual UpdateSleepTime update();
+	virtual UpdateSleepTime update() override;
 
 	//Still gets called, even if held -ML
-	virtual DisabledMaskType getDisabledTypesToProcess() const { return MAKE_DISABLED_MASK( DISABLED_HELD ); }
+	virtual DisabledMaskType getDisabledTypesToProcess() const override { return MAKE_DISABLED_MASK( DISABLED_HELD ); }
 
 	// ??? ugh
 	Bool isDisguised() const { return m_disguiseAsTemplate != nullptr; }
@@ -150,7 +150,7 @@ public:
 	Bool allowedToStealth( Object *stealthOwner ) const;
   void receiveGrant( Bool active = TRUE, UnsignedInt frames = 0 );
 
-  Bool isGrantedBySpecialPower( void ) { return getStealthUpdateModuleData()->m_grantedBySpecialPower; }
+  Bool isGrantedBySpecialPower() { return getStealthUpdateModuleData()->m_grantedBySpecialPower; }
 	Bool isTemporaryGrant() { return m_framesGranted > 0; }
 
 	inline void setStealthLevelOverride(UnsignedInt stealthLevel) { m_stealthLevelOverride = stealthLevel; }
@@ -160,7 +160,7 @@ protected:
 	StealthLookType calcStealthedStatusForPlayer(const Object* obj, const Player* player);
 	Bool canDisguise() const { return getStealthUpdateModuleData()->m_teamDisguised; }
 	Real getRevealDistanceFromTarget() const { return getStealthUpdateModuleData()->m_revealDistanceFromTarget; }
-	void hintDetectableWhileUnstealthed( void ) ;
+	void hintDetectableWhileUnstealthed() ;
 
 	void changeVisualDisguise();
 

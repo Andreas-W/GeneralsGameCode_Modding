@@ -225,7 +225,7 @@ void BattlePlanBonusBehavior::upgradeImplementation(void)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void BattlePlanBonusBehavior::applyBonus(const BattlePlanBonuses* bonus, bool checkIsValid /* = True*/)
+void BattlePlanBonusBehavior::applyBonus(const BattlePlanBonusesData* bonus, bool checkIsValid /* = True*/)
 {
 	//DEBUG_LOG(("---\n"));
 	//DEBUG_LOG(("### BattlePlanBonusBehavior(%s)::applyBonus", KEYNAME(getModuleTagNameKey()).str()));

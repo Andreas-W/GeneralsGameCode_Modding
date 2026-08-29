@@ -94,7 +94,7 @@ ArmorUpgrade::ArmorUpgrade( Thing *thing, const ModuleData* moduleData ) : Upgra
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-ArmorUpgrade::~ArmorUpgrade( void )
+ArmorUpgrade::~ArmorUpgrade()
 {
 }
 
@@ -115,7 +115,7 @@ Bool ArmorUpgrade::attemptUpgrade(UpgradeMaskType keyMask)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void ArmorUpgrade::upgradeImplementation( )
+void ArmorUpgrade::upgradeImplementation()
 {
 	// Very simple; just need to flag the Object as having the player upgrade, and the WeaponSet chooser
 	// will do the work of picking the right one from ini.  This comment is as long as the code.
@@ -188,7 +188,7 @@ void ArmorUpgrade::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void ArmorUpgrade::loadPostProcess( void )
+void ArmorUpgrade::loadPostProcess()
 {
 
 	// extend base class

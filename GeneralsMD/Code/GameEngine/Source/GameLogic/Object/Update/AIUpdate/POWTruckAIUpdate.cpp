@@ -52,7 +52,7 @@
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-POWTruckAIUpdateModuleData::POWTruckAIUpdateModuleData( void )
+POWTruckAIUpdateModuleData::POWTruckAIUpdateModuleData()
 {
 
 	m_boredTimeInFrames = 0;
@@ -97,14 +97,14 @@ POWTruckAIUpdate::POWTruckAIUpdate( Thing *thing, const ModuleData *moduleData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-POWTruckAIUpdate::~POWTruckAIUpdate( void )
+POWTruckAIUpdate::~POWTruckAIUpdate()
 {
 
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void POWTruckAIUpdate::onDelete( void )
+void POWTruckAIUpdate::onDelete()
 {
 
 }
@@ -166,7 +166,7 @@ void POWTruckAIUpdate::aiDoCommand( const AICommandParms *parms )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime POWTruckAIUpdate::update( void )
+UpdateSleepTime POWTruckAIUpdate::update()
 {
 	// Suspend POW collection tasks while disabled; only the locomotor runs.
 	if (isAiSuspendedByDisable())
@@ -351,7 +351,7 @@ void POWTruckAIUpdate::privateReturnPrisoners( Object *prison, CommandSourceType
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void POWTruckAIUpdate::updateWaiting( void )
+void POWTruckAIUpdate::updateWaiting()
 {
 
 	// if we're manual control ... do nothing
@@ -384,7 +384,7 @@ void POWTruckAIUpdate::updateWaiting( void )
 static const UnsignedInt FIND_DELAY = LOGICFRAMES_PER_SECOND * 1;
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void POWTruckAIUpdate::updateFindTarget( void )
+void POWTruckAIUpdate::updateFindTarget()
 {
 
 	// we never find targets when in manual ai mode
@@ -441,7 +441,7 @@ void POWTruckAIUpdate::updateFindTarget( void )
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void POWTruckAIUpdate::updateCollectingTarget( void )
+void POWTruckAIUpdate::updateCollectingTarget()
 {
 
 	// validate our target is still OK to collect
@@ -533,7 +533,7 @@ static void putContainedInPrison( Object *obj, void *userData )
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void POWTruckAIUpdate::updateReturnPrisoners( void )
+void POWTruckAIUpdate::updateReturnPrisoners()
 {
 	Object *us = getObject();
 	AIUpdateInterface *ai = us->getAIUpdateInterface();
@@ -571,7 +571,7 @@ Bool POWTruckAIUpdate::validateTarget( const Object *target )
 // ------------------------------------------------------------------------------------------------
 /** Initiate a return prisoners contained in us to prison */
 // ------------------------------------------------------------------------------------------------
-void POWTruckAIUpdate::doReturnPrisoners( void )
+void POWTruckAIUpdate::doReturnPrisoners()
 {
 
 	// find the closest prison
@@ -632,7 +632,7 @@ void POWTruckAIUpdate::doReturnToPrison( Object *prison )
 // ------------------------------------------------------------------------------------------------
 /** Find the best prison for us to use given our current position */
 // ------------------------------------------------------------------------------------------------
-Object *POWTruckAIUpdate::findBestPrison( void )
+Object *POWTruckAIUpdate::findBestPrison()
 {
 
 	ObjectID prisonID = getObject()->getProducerID();
@@ -649,7 +649,7 @@ Object *POWTruckAIUpdate::findBestPrison( void )
 // ------------------------------------------------------------------------------------------------
 /** Find the best prisoner for us to go pick up given our current situation */
 // ------------------------------------------------------------------------------------------------
-Object *POWTruckAIUpdate::findBestTarget( void )
+Object *POWTruckAIUpdate::findBestTarget()
 {
 	const Object *us = getObject();
 	Player *player = us->getControllingPlayer();
@@ -911,7 +911,7 @@ void POWTruckAIUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void POWTruckAIUpdate::loadPostProcess( void )
+void POWTruckAIUpdate::loadPostProcess()
 {
  // extend base class
 	AIUpdateInterface::loadPostProcess();

@@ -36,12 +36,12 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "parameter.h"
-#include "vector2.h"
-#include "vector3.h"
-#include "matrix3d.h"
-#include "rect.h"
+#include "WWMath/vector2.h"
+#include "WWMath/vector3.h"
+#include "WWMath/matrix3d.h"
+#include "WWMath/rect.h"
 #include <float.h>
 
 
@@ -63,17 +63,17 @@ public:
 	//////////////////////////////////////////////////////////////////////////////
 	//	Public operators
 	//////////////////////////////////////////////////////////////////////////////
-	bool				operator== (const ParameterClass &src);
+	virtual bool				operator== (const ParameterClass &src) override;
 
 	///////////////////////////////////////////////////////////////////////
 	//	Public methods
 	///////////////////////////////////////////////////////////////////////
-	const T &		Get_Value (void) const;
+	const T &		Get_Value () const;
 	void				Set_Value (const T &new_value);
 
 	// From Parameter class
-	ParameterClass::Type	Get_Type (void) const;
-	void						Copy_Value (const ParameterClass &src);
+	virtual ParameterClass::Type	Get_Type () const override;
+	virtual void						Copy_Value (const ParameterClass &src) override;
 
 private:
 
@@ -93,7 +93,6 @@ SimpleParameterClass<T, type>::SimpleParameterClass (void *data, const char *nam
 {
 	Set_Name (name);
 	m_Data = (T *)data;
-	return ;
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -114,7 +113,7 @@ SimpleParameterClass<T, type>::operator== (const ParameterClass &src)
 //	Get_Value
 //////////////////////////////////////////////////////////////////////////////////
 template <class T, ParameterClass::Type type> inline const T &
-SimpleParameterClass<T, type>::Get_Value (void) const
+SimpleParameterClass<T, type>::Get_Value () const
 {
 	return (*m_Data);
 }
@@ -127,14 +126,13 @@ SimpleParameterClass<T, type>::Set_Value (const T &new_value)
 {
 	(*m_Data) = new_value;
 	Set_Modified ();
-	return ;
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 //	Get_Type
 //////////////////////////////////////////////////////////////////////////////////
 template <class T, ParameterClass::Type type> inline ParameterClass::Type
-SimpleParameterClass<T, type>::Get_Type (void) const
+SimpleParameterClass<T, type>::Get_Type () const
 {
 	return type;
 }
@@ -150,7 +148,6 @@ SimpleParameterClass<T, type>::Copy_Value (const ParameterClass &src)
 	}
 
 	ParameterClass::Copy_Value (src);
-	return ;
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -188,8 +185,8 @@ public:
 	//	Public methods
 	///////////////////////////////////////////////////////////////////////
 	void				Set_Range (const T &min, const T &max)	{ m_Min = min; m_Max = max; }
-	const T &		Get_Min (void) const							{ return m_Min; }
-	const T &		Get_Max (void) const							{ return m_Max; }
+	const T &		Get_Min () const							{ return m_Min; }
+	const T &		Get_Max () const							{ return m_Max; }
 
 private:
 

@@ -31,7 +31,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-static void drawFramerateBar(void);
+static void drawFramerateBar();
 
 // SYSTEM INCLUDES ////////////////////////////////////////////////////////////
 #include <numeric>
@@ -71,6 +71,7 @@ static void drawFramerateBar(void);
 #include "W3DDevice/GameClient/W3DGameClient.h"
 #include "W3DDevice/GameClient/W3DFileSystem.h"
 #include "W3DDevice/GameClient/W3DDynamicLight.h"
+#include "W3DDevice/GameClient/W3DProfilerFrameCapture.h"
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/WorldHeightMap.h"
 #include "W3DDevice/GameClient/W3DScene.h"
@@ -80,6 +81,7 @@ static void drawFramerateBar(void);
 #include "W3DDevice/GameClient/W3DShaderManager.h"
 #include "W3DDevice/GameClient/W3DDebugDisplay.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
+#include "W3DDevice/GameClient/W3DScreenshot.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
 #include "WWMath/wwmath.h"
 #include "WWLib/registry.h"
@@ -99,7 +101,7 @@ static void drawFramerateBar(void);
 #include "WW3D2/meshmatdesc.h"
 #include "WW3D2/meshmdl.h"
 #include "WW3D2/rddesc.h"
-#include "TARGA.h"
+#include "WWLib/TARGA.h"
 
 #include "GameLogic/ScriptEngine.h"		// For TheScriptEngine - jkmcd
 #include "GameLogic/GameLogic.h"
@@ -167,7 +169,7 @@ StatDumpClass::~StatDumpClass()
 	}
 }
 
-static const char *getCurrentTimeString(void)
+static const char *getCurrentTimeString()
 {
 	time_t aclock;
 	time(&aclock);
@@ -404,6 +406,14 @@ W3DDisplay::W3DDisplay()
 	for (i = 0; i < DisplayStringCount; i++)
 		m_displayStrings[i] = nullptr;
 
+	m_batchTexture = nullptr;
+	m_batchMode = DRAW_IMAGE_ALPHA;
+	m_batchGrayscale = FALSE;
+	m_batchNeedsInit = FALSE;
+
+#ifdef PROFILER_ENABLED
+	m_profilerFrameCapture = NEW W3DProfilerFrameCapture();
+#endif
 }
 
 // W3DDisplay::~W3DDisplay ====================================================
@@ -411,6 +421,10 @@ W3DDisplay::W3DDisplay()
 //=============================================================================
 W3DDisplay::~W3DDisplay()
 {
+#ifdef PROFILER_ENABLED
+	delete m_profilerFrameCapture;
+	m_profilerFrameCapture = nullptr;
+#endif
 
 	// get rid of the debug display
 	delete m_debugDisplay;
@@ -475,7 +489,7 @@ inline Bool isResolutionSupported(const ResolutionDescClass &res)
 }
 
 /*Return number of screen modes supported by the current device*/
-Int W3DDisplay::getDisplayModeCount(void)
+Int W3DDisplay::getDisplayModeCount()
 {
 	const RenderDeviceDescClass &devDesc=WW3D::Get_Render_Device_Desc(0);
 	const DynamicVectorClass <ResolutionDescClass> &resolutions=devDesc.Enumerate_Resolutions();
@@ -541,6 +555,11 @@ void W3DDisplay::setGamma(Real gamma, Real bright, Real contrast, Bool calibrate
 //=============================================================================
 Bool W3DDisplay::setDisplayMode( UnsignedInt xres, UnsignedInt yres, UnsignedInt bitdepth, Bool windowed )
 {
+	const UnsignedInt oldWidth = getWidth();
+	const UnsignedInt oldHeight = getHeight();
+	const UnsignedInt oldBitDepth = getBitDepth();
+	const Bool oldWindowed = getWindowed();
+
 	if (WW3D_ERROR_OK == WW3D::Set_Device_Resolution(xres,yres,bitdepth,windowed,true))
 	{
 		Render2DClass::Set_Screen_Resolution(RectClass(0, 0, xres, yres));
@@ -549,9 +568,9 @@ Bool W3DDisplay::setDisplayMode( UnsignedInt xres, UnsignedInt yres, UnsignedInt
 	}
 
 	//set back to the original mode.
-	WW3D::Set_Device_Resolution(getWidth(),getHeight(),getBitDepth(),getWindowed(), true);
-	Render2DClass::Set_Screen_Resolution(RectClass(0, 0, getWidth(),getHeight()));
-	Display::setDisplayMode(getWidth(),getHeight(),getBitDepth(), getWindowed());
+	WW3D::Set_Device_Resolution(oldWidth, oldHeight, oldBitDepth, oldWindowed, true);
+	Render2DClass::Set_Screen_Resolution(RectClass(0, 0, oldWidth, oldHeight));
+	Display::setDisplayMode(oldWidth, oldHeight, oldBitDepth, oldWindowed);
 	return FALSE;	//did not change to a new mode.
 }
 
@@ -584,10 +603,111 @@ void W3DDisplay::setHeight( UnsignedInt height )
 
 }
 
+void W3DDisplay::onBeginBatch()
+{
+	m_batchTexture = nullptr;
+	m_batchMode = DRAW_IMAGE_ALPHA;
+	m_batchGrayscale = FALSE;
+	m_batchNeedsInit = TRUE;
+
+	if (m_2DRender)
+	{
+		m_2DRender->Reset();
+	}
+}
+
+void W3DDisplay::onEndBatch()
+{
+	REF_PTR_RELEASE(m_batchTexture);
+}
+
+void W3DDisplay::onFlush()
+{
+	if (m_2DRender && !m_batchNeedsInit)
+	{
+		m_2DRender->Render();
+		m_2DRender->Reset();
+		m_batchNeedsInit = TRUE;
+	}
+}
+
+void W3DDisplay::setup2DRenderState(TextureClass *tex, DrawImageMode mode, Bool grayscale)
+{
+	if (m_isBatching)
+	{
+		if (!m_batchNeedsInit && m_batchTexture == tex && m_batchMode == mode && m_batchGrayscale == grayscale)
+		{
+			return;
+		}
+
+		onFlush();
+
+		if (tex != m_batchTexture)
+		{
+			if (tex)
+			{
+				tex->Add_Ref();
+			}
+			if (m_batchTexture)
+			{
+				m_batchTexture->Release_Ref();
+			}
+
+			m_batchTexture = tex;
+		}
+
+		m_batchMode = mode;
+		m_batchGrayscale = grayscale;
+		m_batchNeedsInit = FALSE;
+	}
+	else if (m_2DRender)
+	{
+		m_2DRender->Reset();
+	}
+
+	if (m_2DRender)
+	{
+		if (tex)
+		{
+			m_2DRender->Enable_Texturing(TRUE);
+			m_2DRender->Set_Texture(tex);
+		}
+		else
+		{
+			m_2DRender->Enable_Texturing(FALSE);
+		}
+
+		switch (mode)
+		{
+			default:
+			case DRAW_IMAGE_ALPHA:
+				m_2DRender->Enable_Additive(FALSE);
+				m_2DRender->Enable_Alpha(TRUE);
+				m_2DRender->Enable_Grayscale(grayscale);
+				break;
+			case DRAW_IMAGE_GRAYSCALE:
+				m_2DRender->Enable_Additive(FALSE);
+				m_2DRender->Enable_Alpha(TRUE);
+				m_2DRender->Enable_Grayscale(TRUE);
+				break;
+			case DRAW_IMAGE_ADDITIVE:
+				m_2DRender->Enable_Additive(TRUE);
+				m_2DRender->Enable_Alpha(FALSE);
+				m_2DRender->Enable_Grayscale(grayscale);
+				break;
+			case DRAW_IMAGE_SOLID:
+				m_2DRender->Enable_Additive(FALSE);
+				m_2DRender->Enable_Alpha(FALSE);
+				m_2DRender->Enable_Grayscale(grayscale);
+				break;
+		}
+	}
+}
+
 // W3DDisplay::initAssets =====================================================
 /** */
 //=============================================================================
-void W3DDisplay::initAssets( void )
+void W3DDisplay::initAssets()
 {
 
 }
@@ -595,7 +715,7 @@ void W3DDisplay::initAssets( void )
 // W3DDisplay::init3DScene ====================================================
 /** */
 //=============================================================================
-void W3DDisplay::init3DScene( void )
+void W3DDisplay::init3DScene()
 {
 
 }
@@ -604,7 +724,7 @@ void W3DDisplay::init3DScene( void )
 /** This is the 2D scene, you can use it to draw on a 2D plane over the
 	* 3D background */
 //=============================================================================
-void W3DDisplay::init2DScene( void )
+void W3DDisplay::init2DScene()
 {
 
 }
@@ -613,7 +733,7 @@ void W3DDisplay::init2DScene( void )
 /** Initialize or re-initialize the W3D display system.  Here we need to
   * create our window, and get our 3D hardware setup and online */
 //=============================================================================
-void W3DDisplay::init( void )
+void W3DDisplay::init()
 {
 
 	//
@@ -706,7 +826,6 @@ void W3DDisplay::init( void )
 		WW3D::Enable_Static_Sort_Lists(true);
 		WW3D::Set_Thumbnail_Enabled(false);
 		WW3D::Set_Screen_UV_Bias( TRUE );  ///< this makes text look good :)
-		WW3D::Set_Texture_Bitdepth(32);
 
 		setWindowed( TheGlobalData->m_windowed );
 
@@ -761,6 +880,9 @@ void W3DDisplay::init( void )
 			}
 			}
 
+			// TheSuperHackers @feature Mauller 13/03/2026 Add native MSAA support, must be set before creating render device
+			WW3D::Set_MSAA_Mode((WW3D::MultiSampleModeEnum)TheWritableGlobalData->m_antiAliasLevel);
+
 			renderDeviceError = WW3D::Set_Render_Device(
 				0,
 				getWidth(),
@@ -768,6 +890,16 @@ void W3DDisplay::init( void )
 				getBitDepth(),
 				getWindowed(),
 				true );
+
+			// TheSuperHackers @info Update the MSAA mode that was set as some GPU's may not support certain levels
+			// Texture filtering must also be updated after render device initialization
+			if (renderDeviceError == WW3D_ERROR_OK) {
+				TheWritableGlobalData->m_antiAliasLevel = (UnsignedInt)WW3D::Get_MSAA_Mode();
+				WW3D::Set_Texture_Filter(TheWritableGlobalData->m_textureFilteringMode);
+				TheWritableGlobalData->m_textureFilteringMode = WW3D::Get_Texture_Filter();
+				WW3D::Set_Anisotropy_Level(TheWritableGlobalData->m_textureAnisotropyLevel);
+				TheWritableGlobalData->m_textureAnisotropyLevel = WW3D::Get_Anisotropy_Level();
+			}
 
 			++attempt;
 		}
@@ -781,6 +913,7 @@ void W3DDisplay::init( void )
 			DEBUG_CRASH( ("Unable to set render device") );
 			return;
 		}
+		WW3D::Set_Texture_Bitdepth(getBitDepth());
 
 		//Check if level was never set and default to setting most suitable for system.
 		if (TheGameLODManager->getStaticLODLevel() == STATIC_GAME_LOD_UNKNOWN)
@@ -844,7 +977,7 @@ void W3DDisplay::init( void )
 /** Reset the W3D display system.  Here we need to
   * remove the objects from the previous map. */
 //=============================================================================
-void W3DDisplay::reset( void )
+void W3DDisplay::reset()
 {
 
 	Display::reset();
@@ -877,7 +1010,7 @@ void W3DDisplay::reset( void )
 
 const UnsignedInt START_CUMU_FRAME = LOGICFRAMES_PER_SECOND / 2;	// skip first half-sec
 
-void W3DDisplay::updateAverageFPS(void)
+void W3DDisplay::updateAverageFPS()
 {
 	constexpr const Int FPS_HISTORY_SIZE = 30;
 
@@ -921,7 +1054,7 @@ ICoord2D TheMousePos;
 // W3DDisplay::gatherDebugStats ===================================================
 /** Compute and display debug stats on screen */
 //=============================================================================
-void W3DDisplay::gatherDebugStats( void )
+void W3DDisplay::gatherDebugStats()
 {
 	static UnsignedInt s_framesRenderedSinceLastUpdate = 0;
 	static Int64 s_lastUpdateTime64 = 0;
@@ -1219,8 +1352,7 @@ void W3DDisplay::gatherDebugStats( void )
 		m_displayStrings[TerrainStats]->setText( unibuffer );
 
 		// misc debug info
-		Coord3D camPos;
-		TheTacticalView->getPosition(&camPos);
+		Coord3D camPos = TheTacticalView->getPosition();
 		Real zoom = TheTacticalView->getZoom();
 		Real pitch = TheTacticalView->getPitch();
 		Real FXPitch = TheTacticalView->getFXPitch();
@@ -1322,9 +1454,16 @@ void W3DDisplay::gatherDebugStats( void )
 		//display the x and y mouse coordinates
 		const MouseIO *mouseIO = TheMouse->getMouseStatus();
 		Coord3D worldPos;
-		TheTacticalView->screenToTerrain(&mouseIO->pos, &worldPos);
-		unibuffer.format( L"Mouse position: screen: (%d, %d), world: (%g, %g, %g)", mouseIO->pos.x, mouseIO->pos.y,
-			worldPos.x, worldPos.y, worldPos.z);
+		if( TheTacticalView->screenToTerrain(&mouseIO->pos, &worldPos) )
+		{
+			unibuffer.format( L"Mouse position: screen: (%d, %d), world: (%g, %g, %g)",
+				mouseIO->pos.x, mouseIO->pos.y, worldPos.x, worldPos.y, worldPos.z);
+		}
+		else
+		{
+			unibuffer.format( L"Mouse position: screen: (%d, %d), world: none",
+				mouseIO->pos.x, mouseIO->pos.y);
+		}
 		m_displayStrings[MousePosition]->setText( unibuffer );
 
 		//display the number of particles in the world and being displayed on screen
@@ -1473,7 +1612,7 @@ void W3DDisplay::gatherDebugStats( void )
 // W3DDisplay::drawDebugStats =================================================
 /** Draw debug statistics */
 //=============================================================================
-void W3DDisplay::drawDebugStats( void )
+void W3DDisplay::drawDebugStats()
 {
 	Int	x = 3;
 	Int	y = 30;
@@ -1503,7 +1642,7 @@ void W3DDisplay::drawDebugStats( void )
 // W3DDisplay::drawFPSStats =================================================
 /** Draw the FPS on the screen */
 //=============================================================================
-void W3DDisplay::drawFPSStats( void )
+void W3DDisplay::drawFPSStats()
 {
 	Int	x = 3;
 	Int	y = 20;
@@ -1528,7 +1667,7 @@ void StatDebugDisplay( DebugDisplayInterface *, void *, FILE *fp )
 // W3DDisplay::drawCurrentDebugDisplay =================================================
 /** Draw current debug display */
 //=============================================================================
-void W3DDisplay::drawCurrentDebugDisplay( void )
+void W3DDisplay::drawCurrentDebugDisplay()
 {
 	if (m_debugDisplayCallback == StatDebugDisplay)
 	{
@@ -1547,7 +1686,7 @@ void W3DDisplay::drawCurrentDebugDisplay( void )
 // W3DDisplay::calculateTerrainLOD =================================================
 /** Calculates an adequately speedy terrain Level Of Detail. */
 //=============================================================================
-void W3DDisplay::calculateTerrainLOD( void )
+void W3DDisplay::calculateTerrainLOD()
 {
 	const Int NUM_SAMPLES=20;
 	const Int NUM_TO_DISCARD=5;
@@ -1575,8 +1714,7 @@ void W3DDisplay::calculateTerrainLOD( void )
 			default: curLOD = TERRAIN_LOD_DISABLE; break;
 			case TERRAIN_LOD_AUTOMATIC: curLOD = TERRAIN_LOD_MAX; break;
 			case TERRAIN_LOD_MAX: curLOD = TERRAIN_LOD_NO_WATER; break;
-			case TERRAIN_LOD_HALF_CLOUDS: curLOD = TERRAIN_LOD_DISABLE; break;
-			case TERRAIN_LOD_NO_WATER: curLOD = TERRAIN_LOD_HALF_CLOUDS; break;
+			case TERRAIN_LOD_NO_WATER: curLOD = TERRAIN_LOD_DISABLE; break;
 		}
 		if (curLOD == TERRAIN_LOD_DISABLE) {
 			break;
@@ -1654,7 +1792,7 @@ void W3DDisplay::step()
 /** Draw the entire W3D Display */
 //=============================================================================
 //DECLARE_PERF_TIMER(W3DDisplay_draw)
-void W3DDisplay::draw( void )
+void W3DDisplay::draw()
 {
 	//USE_PERF_TIMER(W3DDisplay_draw)
 
@@ -1665,6 +1803,9 @@ void W3DDisplay::draw( void )
 
 	if (TheGlobalData->m_headless)
 		return;
+
+	// TheSuperHackers @feature bobtista 10/07/2026 Show messages for screenshots finished by the screenshot thread.
+	W3D_UpdateScreenshotMessages();
 
 	updateAverageFPS();
 	if (TheGlobalData->m_enableDynamicLOD && TheGameLogic->getShowDynamicLOD())
@@ -1859,7 +2000,7 @@ AGAIN:
 				// draw the user interface
 				TheInGameUI->DRAW();
 
-				// end of video example code
+				TheGameClient->DRAW();
 
 				// draw the mouse
 				if( TheMouse )
@@ -1870,14 +2011,7 @@ AGAIN:
 					// TheSuperHackers @bugfix Mauller 20/07/2025 scale videos based on screen size so they are shown in their original aspect
 					drawScaledVideoBuffer( m_videoBuffer, m_videoStream );
 				}
-				if( m_copyrightDisplayString )
-				{
-					Int x, y, dX, dY;
-					m_copyrightDisplayString->getSize(&dX, &dY);
-					x = (getWidth() / 2) - (dX /2);
-					y = getHeight()  - dY - 20 ;
-					m_copyrightDisplayString->draw(x, y, GameMakeColor(0,0,0,255), GameMakeColor(0,0,0,0),0,0);
-				}
+
 				// render letter box before debug display so debug info isn't hidden
 				renderLetterBox(now);
 
@@ -1934,6 +2068,13 @@ AGAIN:
 #ifdef PERF_TIMERS
 				TheGraphDraw->render();
 				TheGraphDraw->clear();
+#endif
+
+#ifdef PROFILER_ENABLED
+				if (m_profilerFrameCapture && !TheGlobalData->m_headless)
+				{
+					m_profilerFrameCapture->Capture(getWidth(), getHeight());
+				}
 #endif
 				// render is all done!
 				WW3D::End_Render();
@@ -2015,7 +2156,7 @@ void W3DDisplay::renderLetterBox(UnsignedInt currentTime)
 		}
 }
 
-Bool W3DDisplay::isLetterBoxFading(void)
+Bool W3DDisplay::isLetterBoxFading()
 {
 	if (m_letterBoxEnabled && m_letterBoxFadeLevel != 1.0f)
 		return TRUE;
@@ -2025,7 +2166,7 @@ Bool W3DDisplay::isLetterBoxFading(void)
 }
 
 //WST 10/2/2002 added query function.  JSC Integrated 5/20/03
-Bool W3DDisplay::isLetterBoxed(void)
+Bool W3DDisplay::isLetterBoxed()
 {
 	return (m_letterBoxEnabled);
 }
@@ -2061,7 +2202,7 @@ void W3DDisplay::createLightPulse( const Coord3D *pos, const RGBColor *color,
 	theDynamicLight->Set_Flag(LightClass::FAR_ATTENUATION,true);
 }
 
-void W3DDisplay::toggleLetterBox(void)
+void W3DDisplay::toggleLetterBox()
 {
 	m_letterBoxEnabled = !m_letterBoxEnabled;
 	m_letterBoxFadeStartTime = timeGetTime();
@@ -2145,14 +2286,15 @@ void W3DDisplay::drawLine( Int startX, Int startY,
 													 Real lineWidth,
 													 UnsignedInt lineColor )
 {
+	setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
-	/// @todo we need to consider the efficiency of the 2D renderer
-	m_2DRender->Reset();
-	m_2DRender->Enable_Texturing( FALSE );
 	m_2DRender->Add_Line( Vector2( startX, startY ), Vector2( endX, endY ),
 												lineWidth, lineColor );
-	m_2DRender->Render();
 
+	if (!m_isBatching)
+	{
+		m_2DRender->Render();
+	}
 }
 
 // W3DDisplay::drawLine =======================================================
@@ -2163,13 +2305,15 @@ void W3DDisplay::drawLine( Int startX, Int startY,
 													 Real lineWidth,
 													 UnsignedInt lineColor1,UnsignedInt lineColor2 )
 {
+	setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
-	/// @todo we need to consider the efficiency of the 2D renderer
-	m_2DRender->Reset();
-	m_2DRender->Enable_Texturing( FALSE );
 	m_2DRender->Add_Line( Vector2( startX, startY ), Vector2( endX, endY ),
 												lineWidth, lineColor1, lineColor2 );
-	m_2DRender->Render();
+
+	if (!m_isBatching)
+	{
+		m_2DRender->Render();
+	}
 
 }
 
@@ -2212,16 +2356,16 @@ void W3DDisplay::drawOpenRect( Int startX, Int startY, Int width, Int height,
 	}
 	else
 	{
-		/// @todo we need to consider the efficiency of the 2D renderer
-		m_2DRender->Reset();
-		m_2DRender->Enable_Texturing( FALSE );
+		setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
 		m_2DRender->Add_Outline( RectClass( startX, startY,
 																				startX + width, startY + height ),
 														 lineWidth, lineColor );
 
-		// render it now!
-		m_2DRender->Render();
+		if (!m_isBatching)
+		{
+			m_2DRender->Render();
+		}
 	}
 
 }
@@ -2231,17 +2375,16 @@ void W3DDisplay::drawOpenRect( Int startX, Int startY, Int width, Int height,
 void W3DDisplay::drawFillRect( Int startX, Int startY, Int width, Int height,
 															 UnsignedInt color )
 {
+	setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
-	/// @todo we need to consider the efficiency of the 2D renderer
-	m_2DRender->Reset();
-	m_2DRender->Enable_Texturing( FALSE );
 	m_2DRender->Add_Rect( RectClass( startX, startY,
 																	 startX + width, startY + height ),
 												0, 0, color );
 
-	// render it now!
-	m_2DRender->Render();
-
+	if (!m_isBatching)
+	{
+		m_2DRender->Render();
+	}
 }
 
 void W3DDisplay::drawRectClock(Int startX, Int startY, Int width, Int height, Int percent, UnsignedInt color)
@@ -2250,8 +2393,7 @@ void W3DDisplay::drawRectClock(Int startX, Int startY, Int width, Int height, In
 	if(percent < 1 || percent > 100)
 		return;
 
-	m_2DRender->Reset();
-	m_2DRender->Enable_Texturing( FALSE );
+	setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
 // The rectangles are numberd as follows
 //(x,y)	|---------|
@@ -2396,9 +2538,10 @@ void W3DDisplay::drawRectClock(Int startX, Int startY, Int width, Int height, In
 		}
 	}
 
-	// render it now!
-	m_2DRender->Render();
-
+	if (!m_isBatching)
+	{
+		m_2DRender->Render();
+	}
 }
 
 
@@ -2414,8 +2557,7 @@ void W3DDisplay::drawRemainingRectClock(Int startX, Int startY, Int width, Int h
 	if( percent < 0 || percent > 99 )
 		return;
 
-	m_2DRender->Reset();
-	m_2DRender->Enable_Texturing( FALSE );
+	setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
 // The rectangles are numbered as follows
 //(x,y)	|---------|
@@ -2575,8 +2717,10 @@ void W3DDisplay::drawRemainingRectClock(Int startX, Int startY, Int width, Int h
 		}
 	}
 
-	// render it now!
-	m_2DRender->Render();
+	if (!m_isBatching)
+	{
+		m_2DRender->Render();
+	}
 }
 
 
@@ -2592,6 +2736,17 @@ void W3DDisplay::drawImage( const Image *image, Int startX, Int startY,
 	if( image == nullptr )
 		return;
 
+	if (m_isClippedEnabled)
+	{
+		if (endX <= m_clipRegion.lo.x ||
+			endY <= m_clipRegion.lo.y ||
+			startX >= m_clipRegion.hi.x ||
+			startY >= m_clipRegion.hi.y)
+		{
+			return;	//nothing to render
+		}
+	}
+
 	// !!
 	// Remember to update the GUIEditDisplay::drawImage when you make
 	// changes to this, it technically uses W3D code to render itself,
@@ -2600,52 +2755,22 @@ void W3DDisplay::drawImage( const Image *image, Int startX, Int startY,
 
 	const Region2D *uv = image->getUV();
 
-	m_2DRender->Reset();
-	m_2DRender->Enable_Texturing( TRUE );
-
-	Bool doAlphaReset=FALSE;
-
-	///@todo: Why are we alpha blending all images?  Reduces our fillrate. -MW
-	switch (mode)
-	{
-		case DRAW_IMAGE_ALPHA:	//nothing to do since alpha is the default state
-			break;
-		case DRAW_IMAGE_GRAYSCALE:
-			m_2DRender->Enable_Grayscale(true);
-			break;
-		case DRAW_IMAGE_ADDITIVE:
-			m_2DRender->Enable_Additive(true);
-			doAlphaReset = TRUE;
-			break;
-		case DRAW_IMAGE_SOLID:
-			m_2DRender->Enable_Additive(false);
-			m_2DRender->Enable_Alpha(false);
-			doAlphaReset = TRUE;
-			break;
-		default:
-			break;
-	}
-
-	// if we have raw texture data we will use it, otherwise we are referencing filenames
-	if( BitIsSet( image->getStatus(), IMAGE_STATUS_RAW_TEXTURE ) )
-		m_2DRender->Set_Texture( (TextureClass *)(image->getRawTextureData()) );
+	TextureClass *tex = nullptr;
+	if (BitIsSet(image->getStatus(), IMAGE_STATUS_RAW_TEXTURE))
+		tex = (TextureClass *)(image->getRawTextureData());
 	else
-		m_2DRender->Set_Texture( image->getFilename().str() );
+		tex = WW3DAssetManager::Get_Instance()->Get_Texture(image->getFilename().str(), MIP_LEVELS_1);
+
+	Bool grayscale = (mode == DRAW_IMAGE_GRAYSCALE);
+	setup2DRenderState(tex, mode, grayscale);
 
 	RectClass screen_rect(startX,startY,endX,endY);
 	RectClass uv_rect(uv->lo.x,uv->lo.y,uv->hi.x,uv->hi.y);
 
 	if (m_isClippedEnabled)
 	{	//need to clip this quad to clip rectangle
-
-		//
-		//	Check for completely clipped
-		//
-		if (	endX <= m_clipRegion.lo.x ||
-				endY <= m_clipRegion.lo.y)
+		if (screen_rect.Left < m_clipRegion.lo.x || screen_rect.Right > m_clipRegion.hi.x || screen_rect.Top < m_clipRegion.lo.y || screen_rect.Bottom > m_clipRegion.hi.y)
 		{
-			return;	//nothing to render
-		} else {
 			RectClass clipped_rect;
 			RectClass clipped_uv_rect;
 
@@ -2745,12 +2870,20 @@ void W3DDisplay::drawImage( const Image *image, Int startX, Int startY,
 
 	}
 
-	m_2DRender->Render();
+	if (!m_isBatching)
+	{
+		m_2DRender->Render();
+		m_2DRender->Enable_Grayscale(false);
+		if (mode == DRAW_IMAGE_ADDITIVE || mode == DRAW_IMAGE_SOLID)
+		{
+			m_2DRender->Enable_Alpha(true);
+		}
+	}
 
-	//reset to default states for next time this method is called.
-	m_2DRender->Enable_Grayscale(false);	//never leave it in this mode
-	if (doAlphaReset)
-		m_2DRender->Enable_Alpha(true);
+	if (tex != nullptr && !BitIsSet(image->getStatus(), IMAGE_STATUS_RAW_TEXTURE))
+	{
+		tex->Release_Ref();
+	}
 
 }
 
@@ -2758,7 +2891,7 @@ void W3DDisplay::drawImage( const Image *image, Int startX, Int startY,
 // W3DDisplay::createVideoBuffer
 //============================================================================
 
-VideoBuffer*	W3DDisplay::createVideoBuffer( void )
+VideoBuffer*	W3DDisplay::createVideoBuffer()
 {
 	VideoBuffer::Type format = VideoBuffer::TYPE_UNKNOWN;
 
@@ -2852,12 +2985,15 @@ void W3DDisplay::drawVideoBuffer( VideoBuffer *buffer, Int startX, Int startY, I
 {
 	W3DVideoBuffer *vbuffer = (W3DVideoBuffer*) buffer;
 
-	m_2DRender->Reset();
-	m_2DRender->Enable_Texturing( TRUE );
-	m_2DRender->Set_Texture( vbuffer->texture() );
+	setup2DRenderState(vbuffer->texture(), DRAW_IMAGE_ALPHA, FALSE);
+
 	m_2DRender->Add_Quad( RectClass( startX, startY, endX, endY ),
 												vbuffer->Rect( 0, 0, 1, 1) );
-	m_2DRender->Render();
+	
+	if (!m_isBatching)
+	{
+		m_2DRender->Render();
+	}
 
 }
 
@@ -2913,225 +3049,15 @@ void W3DDisplay::setShroudLevel( Int x, Int y, CellShroudStatus setting )
 	}
 }
 
-//=============================================================================
-///Utility function to dump data into a .BMP file
-static void CreateBMPFile(LPTSTR pszFile, char *image, Int width, Int height)
-{
-	HANDLE hf;                  // file handle
-	BITMAPFILEHEADER hdr;       // bitmap file-header
-	PBITMAPINFOHEADER pbih;     // bitmap info-header
-	LPBYTE lpBits;              // memory pointer
-	DWORD dwTotal;              // total count of bytes
-	DWORD cb;                   // incremental count of bytes
-	BYTE *hp;                   // byte pointer
-	DWORD dwTmp;
-
-	PBITMAPINFO pbmi;
-
-	pbmi = (PBITMAPINFO) LocalAlloc(LPTR,sizeof(BITMAPINFOHEADER));
-	if (pbmi == nullptr)
-		return;
-
-	pbmi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	pbmi->bmiHeader.biWidth = width;
-	pbmi->bmiHeader.biHeight = height;
-	pbmi->bmiHeader.biPlanes = 1;
-	pbmi->bmiHeader.biBitCount = 24;
-	pbmi->bmiHeader.biCompression = BI_RGB;
-	pbmi->bmiHeader.biSizeImage = (pbmi->bmiHeader.biWidth + 7) /8 * pbmi->bmiHeader.biHeight * 24;
-	pbmi->bmiHeader.biClrImportant = 0;
-
-	pbih = (PBITMAPINFOHEADER) pbmi;
-	lpBits = (LPBYTE) image;
-
-	// Create the .BMP file.
-	hf = CreateFile(pszFile,
-		GENERIC_READ | GENERIC_WRITE,
-		(DWORD) 0,
-		nullptr,
-		CREATE_ALWAYS,
-		FILE_ATTRIBUTE_NORMAL,
-		(HANDLE) nullptr);
-
-	if (hf != INVALID_HANDLE_VALUE)
-	{
-		hdr.bfType = 0x4d42;        // 0x42 = "B" 0x4d = "M"
-		// Compute the size of the entire file.
-		hdr.bfSize = (DWORD) (sizeof(BITMAPFILEHEADER) +
-									pbih->biSize + pbih->biClrUsed
-									* sizeof(RGBQUAD) + pbih->biSizeImage);
-		hdr.bfReserved1 = 0;
-		hdr.bfReserved2 = 0;
-
-		// Compute the offset to the array of color indices.
-		hdr.bfOffBits = (DWORD) sizeof(BITMAPFILEHEADER) +
-										pbih->biSize + pbih->biClrUsed
-										* sizeof (RGBQUAD);
-
-		// Copy the BITMAPFILEHEADER into the .BMP file.
-		if (WriteFile(hf, (LPVOID) &hdr, sizeof(BITMAPFILEHEADER),
-				(LPDWORD) &dwTmp,  nullptr))
-		{
-			// Copy the BITMAPINFOHEADER and RGBQUAD array into the file.
-			if (WriteFile(hf, (LPVOID) pbih, sizeof(BITMAPINFOHEADER) + pbih->biClrUsed * sizeof (RGBQUAD),(LPDWORD) &dwTmp, nullptr))
-			{
-				// Copy the array of color indices into the .BMP file.
-				dwTotal = cb = pbih->biSizeImage;
-				hp = lpBits;
-				WriteFile(hf, (LPSTR) hp, (int) cb, (LPDWORD) &dwTmp, nullptr);
-			}
-		}
-
-		// Close the .BMP file.
-		CloseHandle(hf);
-	}
-
-	// Free memory.
-	LocalFree( (HLOCAL) pbmi);
-}
-
-///Save Screen Capture to a file
-void W3DDisplay::takeScreenShot(void)
-{
-	char leafname[256];
-	char pathname[1024];
-
-	static int frame_number = 1;
-
-	Bool done = false;
-	while (!done) {
-#ifdef CAPTURE_TO_TARGA
-		sprintf( leafname, "%s%.3d.tga", "sshot", frame_number++);
-#else
-		sprintf( leafname, "%s%.3d.bmp", "sshot", frame_number++);
-#endif
-		strlcpy(pathname, TheGlobalData->getPath_UserData().str(), ARRAY_SIZE(pathname));
-		strlcat(pathname, leafname, ARRAY_SIZE(pathname));
-		if (_access( pathname, 0 ) == -1)
-			done = true;
-	}
-
-	// TheSuperHackers @bugfix xezon 21/05/2025 Get the back buffer and create a copy of the surface.
-	// Originally this code took the front buffer and tried to lock it. This does not work when the
-	// render view clips outside the desktop boundaries. It crashed the game.
-	SurfaceClass* surface = DX8Wrapper::_Get_DX8_Back_Buffer();
-
-	SurfaceClass::SurfaceDescription surfaceDesc;
-	surface->Get_Description(surfaceDesc);
-
-	SurfaceClass* surfaceCopy = NEW_REF(SurfaceClass, (DX8Wrapper::_Create_DX8_Surface(surfaceDesc.Width, surfaceDesc.Height, surfaceDesc.Format)));
-	DX8Wrapper::_Copy_DX8_Rects(surface->Peek_D3D_Surface(), nullptr, 0, surfaceCopy->Peek_D3D_Surface(), nullptr);
-
-	surface->Release_Ref();
-	surface = nullptr;
-
-	struct Rect
-	{
-		int Pitch;
-		void* pBits;
-	} lrect;
-
-	lrect.pBits = surfaceCopy->Lock(&lrect.Pitch);
-	if (lrect.pBits == nullptr)
-	{
-		surfaceCopy->Release_Ref();
-		return;
-	}
-
-	unsigned int x,y,index,index2,width,height;
-
-	width = surfaceDesc.Width;
-	height = surfaceDesc.Height;
-
-	char *image=NEW char[3*width*height];
-#ifdef CAPTURE_TO_TARGA
-	//bytes are mixed in targa files, not rgb order.
-	for (y=0; y<height; y++)
-	{
-		for (x=0; x<width; x++)
-		{
-			// index for image
-			index=3*(x+y*width);
-			// index for fb
-			index2=y*lrect.Pitch+4*x;
-
-			image[index]=*((char *) lrect.pBits + index2+2);
-			image[index+1]=*((char *) lrect.pBits + index2+1);
-			image[index+2]=*((char *) lrect.pBits + index2+0);
-		}
-	}
-
-	surfaceCopy->Unlock();
-	surfaceCopy->Release_Ref();
-	surfaceCopy = nullptr;
-
-	Targa targ;
-	memset(&targ.Header,0,sizeof(targ.Header));
-	targ.Header.Width=width;
-	targ.Header.Height=height;
-	targ.Header.PixelDepth=24;
-	targ.Header.ImageType=TGA_TRUECOLOR;
-	targ.SetImage(image);
-	targ.YFlip();
-
-	targ.Save(pathname,TGAF_IMAGE,false);
-#else	//capturing to bmp file
-	//bmp is same byte order
-	for (y=0; y<height; y++)
-	{
-		for (x=0; x<width; x++)
-		{
-			// index for image
-			index=3*(x+y*width);
-			// index for fb
-			index2=y*lrect.Pitch+4*x;
-
-			image[index]=*((char *) lrect.pBits + index2+0);
-			image[index+1]=*((char *) lrect.pBits + index2+1);
-			image[index+2]=*((char *) lrect.pBits + index2+2);
-		}
-	}
-
-	surfaceCopy->Unlock();
-	surfaceCopy->Release_Ref();
-	surfaceCopy = nullptr;
-
-	//Flip the image
-	char *ptr,*ptr1;
-	char  v,v1;
-
-	for (y = 0; y < (height >> 1); y++)
-	{
-		/* Compute address of lines to exchange. */
-		ptr = (image + ((width * y) * 3));
-		ptr1 = (image + ((width * (height - 1)) * 3));
-		ptr1 -= ((width * y) * 3);
-
-		/* Exchange all the pixels on this scan line. */
-		for (x = 0; x < (width * 3); x++)
-			{
-			v = *ptr;
-			v1 = *ptr1;
-			*ptr = v1;
-			*ptr1 = v;
-			ptr++;
-			ptr1++;
-			}
-	}
-	CreateBMPFile(pathname, image, width, height);
-#endif
-
-	delete [] image;
-
-	UnicodeString ufileName;
-	ufileName.translate(leafname);
-	TheInGameUI->message(TheGameText->fetch("GUI:ScreenCapture"), ufileName.str());
-}
-
 /** Start/Stop capturing an AVI movie*/
-void W3DDisplay::toggleMovieCapture(void)
+void W3DDisplay::toggleMovieCapture()
 {
 	WW3D::Toggle_Movie_Capture("Movie",30);
+}
+
+void W3DDisplay::takeScreenShot(ScreenshotFormat format, Int jpegQuality)
+{
+	W3D_TakeCompressedScreenshot(format, jpegQuality);
 }
 
 
@@ -3327,7 +3253,7 @@ void W3DDisplay::dumpAssetUsage(const char* mapname)
 #endif
 
 //-------------------------------------------------------------------------------------------------
-static void drawFramerateBar(void)
+static void drawFramerateBar()
 {
 	static DWORD prevTime = timeGetTime();
 	DWORD now = timeGetTime();

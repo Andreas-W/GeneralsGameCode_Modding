@@ -79,11 +79,8 @@ public:
 };
 
 template <class T>
-class DLNodeClass : public W3DMPO
+class DLNodeClass
 {
-	// nope, this is an ABC
-	//W3DMPO_GLUE(DLNodeClass)
-
 	friend DLListClass<T>;
 	DLNodeClass<T>* succ;
 	DLNodeClass<T>* pred;

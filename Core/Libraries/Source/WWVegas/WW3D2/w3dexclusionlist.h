@@ -37,10 +37,10 @@
 
 #pragma once
 
-#include "always.h"
-#include "Vector.h"
-#include "wwstring.h"
-#include "hashtemplate.h"
+#include "WWLib/always.h"
+#include "WWLib/Vector.h"
+#include "WWLib/wwstring.h"
+#include "WWLib/hashtemplate.h"
 
 class PrototypeClass;
 class HTreeClass;
@@ -59,7 +59,7 @@ class W3DExclusionListClass
 {
 public:
 	W3DExclusionListClass(const DynamicVectorClass<StringClass> & names);
-	~W3DExclusionListClass(void);
+	~W3DExclusionListClass();
 
 	bool	Is_Excluded(PrototypeClass * proto) const;
 	bool	Is_Excluded(HTreeClass * htree) const;

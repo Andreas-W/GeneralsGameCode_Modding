@@ -87,8 +87,8 @@ public:
 	// virtual destructor provided by memory pool object
 
 	// UpdateModuleInterface
-	virtual UpdateSleepTime update();
-	virtual ProjectileUpdateInterface* getProjectileUpdateInterface() { return this; }
+	virtual UpdateSleepTime update() override;
+	virtual ProjectileUpdateInterface* getProjectileUpdateInterface() override { return this; }
 
 	// ProjectileUpdateInterface
 	virtual void projectileLaunchAtObjectOrPosition(const Object *victim, const Coord3D* victimPos, const Object *launcher, WeaponSlotType wslot, Int specificBarrelToUse, const WeaponTemplate* detWeap, const ParticleSystemTemplate* exhaustSysOverride);

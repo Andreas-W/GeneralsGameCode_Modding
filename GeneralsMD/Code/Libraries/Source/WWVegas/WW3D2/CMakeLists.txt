@@ -43,27 +43,27 @@ set(WW3D2_SRC
     #distlod.cpp
     #distlod.h
     #dllist.h
-    dx8caps.cpp
-    dx8caps.h
-    dx8fvf.cpp
-    dx8fvf.h
-    dx8indexbuffer.cpp
-    dx8indexbuffer.h
+#    dx8caps.cpp
+#    dx8caps.h
+#    dx8fvf.cpp
+#    dx8fvf.h
+#    dx8indexbuffer.cpp
+#    dx8indexbuffer.h
     #dx8list.h
     #dx8polygonrenderer.cpp
     #dx8polygonrenderer.h
-    dx8renderer.cpp
-    dx8renderer.h
-    dx8rendererdebugger.cpp
-    dx8rendererdebugger.h
+#    dx8renderer.cpp
+#    dx8renderer.h
+#    dx8rendererdebugger.cpp
+#    dx8rendererdebugger.h
     #dx8texman.cpp
     #dx8texman.h
-    dx8vertexbuffer.cpp
-    dx8vertexbuffer.h
+#    dx8vertexbuffer.cpp
+#    dx8vertexbuffer.h
     #dx8webbrowser.cpp
     #dx8webbrowser.h
-    dx8wrapper.cpp
-    dx8wrapper.h
+#    dx8wrapper.cpp
+#    dx8wrapper.h
     #dynamesh.cpp
     #dynamesh.h
     #font3d.cpp
@@ -178,11 +178,11 @@ set(WW3D2_SRC
     shader.h
     #shattersystem.cpp
     #shattersystem.h
-    shdlib.h
+#    shdlib.h
     #snappts.cpp
     #snapPts.h
-    sortingrenderer.cpp
-    sortingrenderer.h
+#    sortingrenderer.cpp
+#    sortingrenderer.h
     #soundlibrarybridge.h
     #soundrobj.cpp
     #soundrobj.h
@@ -225,8 +225,8 @@ set(WW3D2_SRC
     #w3derr.h
     #w3dexclusionlist.cpp
     #w3dexclusionlist.h
-    ww3d.cpp
-    ww3d.h
+#    ww3d.cpp
+#    ww3d.h
     #ww3dformat.cpp
     #ww3dformat.h
     #ww3dids.h
@@ -238,18 +238,22 @@ set_target_properties(z_ww3d2 PROPERTIES OUTPUT_NAME ww3d2)
 
 target_sources(z_ww3d2 PRIVATE ${WW3D2_SRC})
 
+target_include_directories(z_ww3d2 PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
 target_compile_definitions(z_ww3d2 PRIVATE
     $<$<BOOL:${IS_VS6_BUILD}>:WINVER=0x0500>
 )
 
 target_precompile_headers(z_ww3d2 PRIVATE
     [["Utility/CppMacros.h"]] # Must be first, to be removed when abandoning VC6
-    dx8wrapper.h
-    [["always.h"]]
-    [["STLUtils.h"]]
-    [["win.h"]]
-    [["WWCommon.h"]]
-    [["wwstring.h"]]
+    [["dx8wrapper.h"]]
+    [["WWLib/always.h"]]
+    [["WWLib/STLUtils.h"]]
+    [["WWLib/win.h"]]
+    [["WWLib/WWCommon.h"]]
+    [["WWLib/wwstring.h"]]
     <windows.h>
 )
 

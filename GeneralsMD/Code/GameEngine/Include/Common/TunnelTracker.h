@@ -60,7 +60,7 @@ public:
 	static void destroyObject( Object *obj, void *userData ); ///< Callback for Iterate Contained system
 	static void healObject( Object *obj, void *frames ); ///< Callback for Iterate Contained system
 
-#if PRESERVE_RETAIL_BEHAVIOR || RETAIL_COMPATIBLE_CRC
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_TUNNEL_HEAL_STACKING
 	void healObjects(Real frames);	///< heal all objects within the tunnel
 #else
 	void healObjects();	///< heal all objects within the tunnel
@@ -70,14 +70,14 @@ public:
 
 	const std::list< ObjectID > *getContainerList() const {return &m_tunnelIDs;}
 
-	Object *getCurNemesis(void);
+	Object *getCurNemesis();
 	void updateNemesis(const Object *target);
 
 protected:
 
-	virtual void crc( Xfer *xfer );
-	virtual void xfer( Xfer *xfer );
-	virtual void loadPostProcess( void );
+	virtual void crc( Xfer *xfer ) override;
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
 
 private:
 	void updateFullHealTime();

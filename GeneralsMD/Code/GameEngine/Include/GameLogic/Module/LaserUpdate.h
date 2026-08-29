@@ -132,7 +132,7 @@ public:
 
 	void updateContinuousLaser(const Object* parent, const Object* target, const Coord3D* startPos, const Coord3D* endPos);
 
-	virtual void clientUpdate();
+	virtual void clientUpdate() override;
 
 protected:
 

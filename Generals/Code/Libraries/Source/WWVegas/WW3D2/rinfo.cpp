@@ -64,7 +64,7 @@ RenderInfoClass::RenderInfoClass(CameraClass & cam) :
 	OverrideFlag[OverrideFlagLevel]=RINFO_OVERRIDE_DEFAULT;
 }
 
-RenderInfoClass::~RenderInfoClass(void)
+RenderInfoClass::~RenderInfoClass()
 {
 }
 
@@ -78,7 +78,7 @@ void RenderInfoClass::Push_Material_Pass(MaterialPassClass * matpass)
 	AdditionalMaterialPassArray[AdditionalMaterialPassCount++]=matpass;
 }
 
-void RenderInfoClass::Pop_Material_Pass(void)
+void RenderInfoClass::Pop_Material_Pass()
 {
 	// remove from the end of the array
 	WWASSERT(AdditionalMaterialPassCount>0);
@@ -89,7 +89,7 @@ void RenderInfoClass::Pop_Material_Pass(void)
 	}
 }
 
-int RenderInfoClass::Additional_Pass_Count(void)
+int RenderInfoClass::Additional_Pass_Count()
 {
 	return AdditionalMaterialPassCount;
 }
@@ -107,13 +107,13 @@ void RenderInfoClass::Push_Override_Flags(RINFO_OVERRIDE_FLAGS flg)
 	OverrideFlag[OverrideFlagLevel]=flg;
 }
 
-void RenderInfoClass::Pop_Override_Flags(void)
+void RenderInfoClass::Pop_Override_Flags()
 {
 	WWASSERT(OverrideFlagLevel>0);
 	OverrideFlagLevel--;
 }
 
-RenderInfoClass::RINFO_OVERRIDE_FLAGS & RenderInfoClass::Current_Override_Flags(void)
+RenderInfoClass::RINFO_OVERRIDE_FLAGS & RenderInfoClass::Current_Override_Flags()
 {
 	return OverrideFlag[OverrideFlagLevel];
 }
@@ -134,7 +134,7 @@ SpecialRenderInfoClass::SpecialRenderInfoClass(CameraClass & cam,int render_type
 {
 }
 
-SpecialRenderInfoClass::~SpecialRenderInfoClass(void)
+SpecialRenderInfoClass::~SpecialRenderInfoClass()
 {
 }
 

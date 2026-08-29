@@ -41,9 +41,9 @@ class WorldHeightMap;
 ***************************************************************************/
 class TerrainTextureClass : public TextureClass
 {
-	W3DMPO_GLUE(TerrainTextureClass)
+	W3DMPO_CODE(TerrainTextureClass)
 protected:
-	virtual void Apply(unsigned int stage);
+	virtual void Apply(unsigned int stage) override;
 
 public:
 		/// Create texture for a height map.
@@ -52,7 +52,7 @@ public:
 		/// Create texture for a height map.
 		TerrainTextureClass(int height, int width);
 
-		// just use default destructor. ~TerrainTextureClass(void);
+		// just use default destructor. ~TerrainTextureClass();
 public:
 	int update(WorldHeightMap *htMap); ///< Sets the pixels, and returns the actual height of the texture.
 	Bool updateFlat(WorldHeightMap *htMap, Int xCell, Int yCell, Int cellWidth, Int pixelsPerCell); ///< Sets the pixels.
@@ -62,14 +62,14 @@ public:
 
 class AlphaTerrainTextureClass : public TextureClass
 {
-	W3DMPO_GLUE(AlphaTerrainTextureClass)
+	W3DMPO_CODE(AlphaTerrainTextureClass)
 protected:
-		virtual void Apply(unsigned int stage);
+		virtual void Apply(unsigned int stage) override;
 public:
 		// Create texture for a height map.
 		AlphaTerrainTextureClass(TextureClass *pBaseTex );
 
-		// just use default destructor. ~TerrainTextureClass(void);
+		// just use default destructor. ~TerrainTextureClass();
 
 };
 
@@ -78,16 +78,16 @@ public:
 ***************************************************************************/
 class AlphaEdgeTextureClass : public TextureClass
 {
-	W3DMPO_GLUE(AlphaEdgeTextureClass)
+	W3DMPO_CODE(AlphaEdgeTextureClass)
 protected:
-	virtual void Apply(unsigned int stage);
+	virtual void Apply(unsigned int stage) override;
 	int update256(WorldHeightMap *htMap);///< Sets the pixels, and returns the actual height of the texture.
 
 public:
 		/// Create texture for a height map.
 		AlphaEdgeTextureClass(int height, MipCountType mipLevelCount = MIP_LEVELS_3 );
 
-		// just use default destructor. ~TerrainTextureClass(void);
+		// just use default destructor. ~TerrainTextureClass();
 public:
 	int update(WorldHeightMap *htMap); ///< Sets the pixels, and returns the actual height of the texture.
 
@@ -95,9 +95,9 @@ public:
 
 class LightMapTerrainTextureClass : public TextureClass
 {
-	W3DMPO_GLUE(LightMapTerrainTextureClass)
+	W3DMPO_CODE(LightMapTerrainTextureClass)
 protected:
-		virtual void Apply(unsigned int stage);
+		virtual void Apply(unsigned int stage) override;
 
 public:
 		// Create texture from a height map.
@@ -108,22 +108,22 @@ public:
 
 class ScorchTextureClass : public TextureClass
 {
-	W3DMPO_GLUE(ScorchTextureClass)
+	W3DMPO_CODE(ScorchTextureClass)
 protected:
-		virtual void Apply(unsigned int stage);
+		virtual void Apply(unsigned int stage) override;
 
 public:
 		// Create texture.
 		ScorchTextureClass( MipCountType mipLevelCount = MIP_LEVELS_3 );
 
-		// just use default destructor. ~ScorchTextureClass(void);
+		// just use default destructor. ~ScorchTextureClass();
 };
 
 class CloudMapTerrainTextureClass : public TextureClass
 {
-	W3DMPO_GLUE(CloudMapTerrainTextureClass)
+	W3DMPO_CODE(CloudMapTerrainTextureClass)
 protected:
-		virtual void Apply(unsigned int stage);
+		virtual void Apply(unsigned int stage) override;
 
 protected:
 		float m_xSlidePerSecond ;	 ///< How far the clouds move per second.
@@ -137,7 +137,7 @@ public:
 		// Create texture from a height map.
 		CloudMapTerrainTextureClass( MipCountType mipLevelCount = MIP_LEVELS_ALL );
 
-		// just use default destructor. ~TerrainTextureClass(void);
+		// just use default destructor. ~TerrainTextureClass();
 
-		void restore(void);
+		void restore();
 };

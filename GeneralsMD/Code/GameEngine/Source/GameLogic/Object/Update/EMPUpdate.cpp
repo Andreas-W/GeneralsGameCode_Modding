@@ -119,14 +119,14 @@ EMPUpdate::EMPUpdate( Thing *thing, const ModuleData* moduleData ) : UpdateModul
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-EMPUpdate::~EMPUpdate( void )
+EMPUpdate::~EMPUpdate()
 {
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 
-UpdateSleepTime EMPUpdate::update( void )
+UpdateSleepTime EMPUpdate::update()
 {
 /// @todo srj use SLEEPY_UPDATE here
 
@@ -166,7 +166,7 @@ UpdateSleepTime EMPUpdate::update( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void EMPUpdate::doDisableAttack( void )
+void EMPUpdate::doDisableAttack()
 {
 	Object *object = getObject();
 	const EMPUpdateModuleData *data = getEMPUpdateModuleData();
@@ -304,14 +304,24 @@ void EMPUpdate::doDisableAttack( void )
 
 					for (UnsignedInt e = 0 ; e < emitterCount; ++e)
 					{
+#if RETAIL_COMPATIBLE_CRC
+						// TheSuperHackers @fix The particle system is now decoupled from the logic crc
+						// and the side effects on the logic random seed values are preserved for retail compatibility.
+						{
+							Coord3D offs = {0,0,0};
+							curVictim->getGeometryInfo().makeRandomOffsetWithinFootprint( offs, LogicRandomValueClass() );
+							GameLogicRandomValue(3, victimHeight);
+							GameLogicRandomValue(1, 100);
+						}
+#endif
 
 						ParticleSystem *sys = TheParticleSystemManager->createParticleSystem(tmp);
 
 						if (sys)
 						{
 							Coord3D offs = {0,0,0};
-							curVictim->getGeometryInfo().makeRandomOffsetWithinFootprint( offs );
-							offs.z = GameLogicRandomValue(3, victimHeight);
+							curVictim->getGeometryInfo().makeRandomOffsetWithinFootprint( offs, ClientRandomValueClass() );
+							offs.z = GameClientRandomValue(3, victimHeight);
 
 							//This puts all the sparks within a quadrahemicycloid (rectangular dome) volume
 							//The same shape as a four cornered camping dome tent, for those with less Greek
@@ -328,7 +338,7 @@ void EMPUpdate::doDisableAttack( void )
 							sys->attachToObject(curVictim);
 							sys->setPosition( &offs );
 							sys->setSystemLifetime(MAX(0, data->m_disabledDuration - 30));
-							sys->setInitialDelay(GameLogicRandomValue(1,100));
+							sys->setInitialDelay(GameClientRandomValue(1,100));
 						}
 					}
 				}
@@ -345,9 +355,9 @@ void EMPUpdate::doDisableAttack( void )
 		{
 			//Victim position
 			Coord3D coord;
-			coord.set( intendedVictim->getPosition() );
+			coord.set( *intendedVictim->getPosition() );
 			//Subtract this object (distance from missile to victim's previous position)
-			coord.sub( pos );
+			coord.sub( *pos );
 
 			Real lengthSqr = coord.lengthSqr();
 			if( lengthSqr <= radius * 2.0f || lengthSqr <= 40.0f * 40.0f )
@@ -385,7 +395,7 @@ void EMPUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void EMPUpdate::loadPostProcess( void )
+void EMPUpdate::loadPostProcess()
 {
 
 }
@@ -434,14 +444,14 @@ LeafletDropBehavior::LeafletDropBehavior( Thing *thing, const ModuleData* module
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-LeafletDropBehavior::~LeafletDropBehavior( void )
+LeafletDropBehavior::~LeafletDropBehavior()
 {
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 
-UpdateSleepTime LeafletDropBehavior::update( void )
+UpdateSleepTime LeafletDropBehavior::update()
 {
 
   if ( ! m_fxFired )
@@ -449,12 +459,11 @@ UpdateSleepTime LeafletDropBehavior::update( void )
     // start shoveling out those leaflets, boys.
 	  const LeafletDropBehaviorModuleData *data = getLeafletDropBehaviorModuleData();
 	  const ParticleSystemTemplate *tmp = data->m_leafletFXParticleSystem;
-	  if (tmp)
+	  ParticleSystem *sys = TheParticleSystemManager->createParticleSystem(tmp);
+	  if (sys)
 	  {
-		  ParticleSystem *sys = TheParticleSystemManager->createParticleSystem(tmp);
-		  if (sys)
-			  sys->attachToObject(getObject());
-    }
+		  sys->attachToObject(getObject());
+	  }
 
     m_fxFired = TRUE; // hey, at least we tried.
   }
@@ -483,7 +492,7 @@ void LeafletDropBehavior::onDie( const DamageInfo *damageInfo )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void LeafletDropBehavior::doDisableAttack( void )
+void LeafletDropBehavior::doDisableAttack()
 {
 	Object *object = getObject();
 	const LeafletDropBehaviorModuleData *data = getLeafletDropBehaviorModuleData();
@@ -553,7 +562,7 @@ void LeafletDropBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void LeafletDropBehavior::loadPostProcess( void )
+void LeafletDropBehavior::loadPostProcess()
 {
 
 }

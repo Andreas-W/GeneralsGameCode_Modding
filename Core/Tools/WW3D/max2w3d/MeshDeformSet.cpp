@@ -55,14 +55,13 @@ const int MAX_DEFORM_KEY_FRAMES			= 10;
 //	~MeshDeformSetClass
 //
 ///////////////////////////////////////////////////////////////////////////
-MeshDeformSetClass::~MeshDeformSetClass (void)
+MeshDeformSetClass::~MeshDeformSetClass ()
 {
 	SAFE_DELETE (m_pMesh);
 	SAFE_DELETE (m_pVertexArray);
 	SAFE_DELETE (m_pVertexOPStartArray);
 	SAFE_DELETE (m_pVertexColors);
 	Free_Key_Frames ();
-	return ;
 }
 
 
@@ -77,8 +76,6 @@ MeshDeformSetClass::Set_Current_Key_Frame (int index)
 	if (index >= -1 && index < MAX_DEFORM_KEY_FRAMES) {
 		m_CurrentKeyFrame = index;
 	}
-
-	return ;
 }
 
 
@@ -108,7 +105,6 @@ MeshDeformSetClass::Set_Vertex_Position
 	//
 	affected_verts.Set (index, 1);
 	m_SetMembers.Set (index, 1);
-	return ;
 }
 
 
@@ -139,7 +135,6 @@ MeshDeformSetClass::Set_Vertex_Color
 	//
 	affected_colors.Set (index, 1);
 	m_SetMembers.Set (index, 1);
-	return ;
 }
 
 
@@ -149,7 +144,7 @@ MeshDeformSetClass::Set_Vertex_Color
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformSetClass::Update_Set_Members (void)
+MeshDeformSetClass::Update_Set_Members ()
 {
 	//
 	//	Examine each keyframe
@@ -168,8 +163,6 @@ MeshDeformSetClass::Update_Set_Members (void)
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -224,8 +217,6 @@ MeshDeformSetClass::Collapse_Keyframe_Data (int keyframe)
 			m_SetMembers.Set (info.index, 1);
 		}
 	}
-
-	return ;
 }
 
 
@@ -250,7 +241,6 @@ MeshDeformSetClass::Reset_Key_Frame_Verts (int keyframe)
 	//	Regenerate the list of set members
 	//
 	Update_Set_Members ();
-	return ;
 }
 
 
@@ -275,7 +265,6 @@ MeshDeformSetClass::Reset_Key_Frame_Colors (int keyframe)
 	//	Regenerate the list of set members
 	//
 	Update_Set_Members ();
-	return ;
 }
 
 
@@ -285,7 +274,7 @@ MeshDeformSetClass::Reset_Key_Frame_Colors (int keyframe)
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformSetClass::Update_Current_Data (void)
+MeshDeformSetClass::Update_Current_Data ()
 {
 	DEFORM_LIST &vertices		= m_KeyFrames[m_CurrentKeyFrame]->vertices;
 	DEFORM_LIST &colors			= m_KeyFrames[m_CurrentKeyFrame]->colors;
@@ -360,8 +349,6 @@ MeshDeformSetClass::Update_Current_Data (void)
 	for (index = 0; index < m_KeyFrames.Count (); index ++) {
 		//Collapse_Keyframe_Data (index);
 	}
-
-	return ;
 }
 
 
@@ -420,8 +407,6 @@ MeshDeformSetClass::Update_Key_Frame (int key_frame)
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -431,7 +416,7 @@ MeshDeformSetClass::Update_Key_Frame (int key_frame)
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformSetClass::Init_Key_Frames (void)
+MeshDeformSetClass::Init_Key_Frames ()
 {
 	//
 	// For now, add all the key frames upfront
@@ -440,8 +425,6 @@ MeshDeformSetClass::Init_Key_Frames (void)
 		KEY_FRAME *key_frame = new KEY_FRAME;
 		m_KeyFrames.Add (key_frame);
 	}
-
-	return ;
 }
 
 
@@ -451,7 +434,7 @@ MeshDeformSetClass::Init_Key_Frames (void)
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformSetClass::Free_Key_Frames (void)
+MeshDeformSetClass::Free_Key_Frames ()
 {
 	//
 	// Loop through and free all the key frames
@@ -462,7 +445,6 @@ MeshDeformSetClass::Free_Key_Frames (void)
 	}
 
 	m_KeyFrames.Delete_All ();
-	return ;
 }
 
 
@@ -489,8 +471,6 @@ MeshDeformSetClass::Copy_Vertex_Array (Mesh &mesh)
 	for (int index = 0; index < mesh.numCVerts; index ++) {
 		m_pVertexColors[index] = mesh.vertCol[index];
 	}
-
-	return ;
 }
 
 
@@ -545,8 +525,6 @@ MeshDeformSetClass::Resize_Vertex_Array (int count, int color_count)
 		m_VertexColorCount = color_count;
 		m_pVertexColors = color_array;
 	}
-
-	return ;
 }
 
 
@@ -561,7 +539,6 @@ MeshDeformSetClass::Set_State (float state)
 	m_State = state;
 	int key_frame = (m_State * MAX_DEFORM_KEY_FRAMES) + 0.5F;
 	Set_Current_Key_Frame ((key_frame >= 0) ? (key_frame - 1) : -1);
-	return ;
 }
 
 
@@ -619,8 +596,6 @@ MeshDeformSetClass::Determine_Interpolation_Indicies
 			state = ((value - ((float)from)) / (float)(to-from));
 		}
 	}*/
-
-	return ;
 }
 
 
@@ -717,8 +692,6 @@ MeshDeformSetClass::Apply_Position_Changes
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -801,8 +774,6 @@ MeshDeformSetClass::Apply_Color_Changes
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -883,8 +854,6 @@ MeshDeformSetClass::Apply_Color_Changes
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -1037,8 +1006,6 @@ MeshDeformSetClass::Update_Mesh (TriObject &tri_obj)
 		m_pMesh = new Mesh (tri_obj.mesh);
 		tri_obj.mesh.DeepCopy (m_pMesh, GEOM_CHANNEL | SELECT_CHANNEL | SUBSEL_TYPE_CHANNEL | VERTCOLOR_CHANNEL);
 	}
-
-	return ;
 }
 
 
@@ -1109,8 +1076,6 @@ MeshDeformSetClass::Update_Members (DEFORM_CHANNELS flags)
 	//r (int index = m_CurrentKeyFrame; index < MAX_DEFORM_KEY_FRAMES; index ++) {
 		Update_Key_Frame (m_CurrentKeyFrame);
 	//
-
-	return ;
 }
 
 
@@ -1120,7 +1085,7 @@ MeshDeformSetClass::Update_Members (DEFORM_CHANNELS flags)
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformSetClass::Select_Members (void)
+MeshDeformSetClass::Select_Members ()
 {
 	//
 	// Loop through and select the necessary verts
@@ -1128,8 +1093,6 @@ MeshDeformSetClass::Select_Members (void)
 	for (int vert = 0; vert < m_pMesh->numVerts; vert ++) {
 		m_pMesh->vertSel.Set (vert, m_SetMembers[vert]);
 	}
-
-	return ;
 }
 
 
@@ -1139,7 +1102,7 @@ MeshDeformSetClass::Select_Members (void)
 //
 ///////////////////////////////////////////////////////////////////////////
 void
-MeshDeformSetClass::Restore_Members (void)
+MeshDeformSetClass::Restore_Members ()
 {
 /*
 	//
@@ -1191,7 +1154,6 @@ MeshDeformSetClass::Restore_Members (void)
 	}
 
 */
-	return ;
 }
 
 
@@ -1201,7 +1163,7 @@ MeshDeformSetClass::Restore_Members (void)
 //
 ///////////////////////////////////////////////////////////////////////////
 bool
-MeshDeformSetClass::Is_Empty (void) const
+MeshDeformSetClass::Is_Empty () const
 {
 	bool is_empty = true;
 
@@ -1306,7 +1268,6 @@ MeshDeformSetClass::Save
 	}
 
 	m_State = old_state;
-	return ;
 }
 
 

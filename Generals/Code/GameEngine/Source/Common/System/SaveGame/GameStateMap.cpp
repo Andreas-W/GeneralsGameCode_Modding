@@ -48,14 +48,14 @@ GameStateMap *TheGameStateMap = nullptr;
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-GameStateMap::GameStateMap( void )
+GameStateMap::GameStateMap()
 {
 
 }
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-GameStateMap::~GameStateMap( void )
+GameStateMap::~GameStateMap()
 {
 
 	//
@@ -101,6 +101,8 @@ static void embedPristineMap( AsciiString map, Xfer *xfer )
 	// copy the file to the buffer
 	if( file->read( buffer, fileSize ) != fileSize )
 	{
+
+		delete[] buffer;
 
 		DEBUG_CRASH(( "embedPristineMap - Error reading from file '%s'", map.str() ));
 		throw SC_INVALID_DATA;
@@ -159,6 +161,8 @@ static void embedInUseMap( AsciiString map, Xfer *xfer )
 	if( fread( buffer, 1, fileSize, fp ) != fileSize )
 	{
 
+		delete[] buffer;
+
 		DEBUG_CRASH(( "embedInUseMap - Error reading from file '%s'", map.str() ));
 		throw SC_INVALID_DATA;
 
@@ -213,6 +217,8 @@ static void extractAndSaveMap( AsciiString mapToSave, Xfer *xfer )
 	// write contents of buffer to new file
 	if( fwrite( buffer, 1, dataSize, fp ) != dataSize )
 	{
+
+		delete[] buffer;
 
 		DEBUG_CRASH(( "extractAndSaveMap - Error writing to file '%s'", mapToSave.str() ));
 		throw SC_INVALID_DATA;
@@ -435,7 +441,7 @@ void GameStateMap::xfer( Xfer *xfer )
 	* their own file so that those map files could be loaded as a part of the load game
 	* process */
 // ------------------------------------------------------------------------------------------------
-void GameStateMap::clearScratchPadMaps( void )
+void GameStateMap::clearScratchPadMaps()
 {
 
 	// remember the current directory

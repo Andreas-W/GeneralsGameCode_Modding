@@ -36,10 +36,10 @@
 
 #pragma once
 
-#include "always.h"
-#include "Vector.h"
+#include "WWLib/always.h"
+#include "WWLib/Vector.h"
 #include "parameter.h"
-#include "wwdebug.h"
+#include "WWDebug/wwdebug.h"
 
 //////////////////////////////////////////////////////////////////////////////////
 //
@@ -55,7 +55,7 @@ public:
 	/////////////////////////////////////////////////////////////////////
 	// Public constructurs/destructors
 	/////////////////////////////////////////////////////////////////////
-	~ParameterListClass (void);
+	virtual ~ParameterListClass () override;
 
 	/////////////////////////////////////////////////////////////////////
 	// Public methods
@@ -68,7 +68,7 @@ protected:
 	/////////////////////////////////////////////////////////////////////
 	// Protected methods
 	/////////////////////////////////////////////////////////////////////
-	void			Free_Parameters (void);
+	void			Free_Parameters ();
 
 private:
 
@@ -83,10 +83,9 @@ private:
 // ~ParameterListClass
 /////////////////////////////////////////////////////////////////////
 inline
-ParameterListClass::~ParameterListClass (void)
+ParameterListClass::~ParameterListClass ()
 {
 	Free_Parameters ();
-	return ;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -107,8 +106,6 @@ ParameterListClass::Add (void *data, const char *param_name, ParameterClass::Typ
 	if (new_param != nullptr) {
 		DynamicVectorClass<ParameterClass *>::Add (new_param);
 	}
-
-	return ;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -123,15 +120,13 @@ ParameterListClass::Add (ParameterClass *new_param)
 	if (new_param != nullptr) {
 		DynamicVectorClass<ParameterClass *>::Add (new_param);
 	}
-
-	return ;
 }
 
 /////////////////////////////////////////////////////////////////////
 // Free_Parameters
 /////////////////////////////////////////////////////////////////////
 inline void
-ParameterListClass::Free_Parameters (void)
+ParameterListClass::Free_Parameters ()
 {
 	for (int index = 0; index < Count (); index ++) {
 		ParameterClass *param = Vector[index];
@@ -144,5 +139,4 @@ ParameterListClass::Free_Parameters (void)
 
 	Delete_All();
 //	m_Parameters.Delete_All ();
-	return ;
 }

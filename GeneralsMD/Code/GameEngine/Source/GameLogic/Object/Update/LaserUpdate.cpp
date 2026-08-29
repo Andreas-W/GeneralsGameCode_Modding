@@ -123,7 +123,7 @@ LaserUpdate::LaserUpdate( Thing *thing, const ModuleData* moduleData ) : ClientU
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-LaserUpdate::~LaserUpdate( void )
+LaserUpdate::~LaserUpdate()
 {
 
 	if( m_particleSystemID )
@@ -148,8 +148,8 @@ void LaserUpdate::updateStartPos()
 	// Avoid teleporting units having their laser dragged with them
 	if (parentDrawable->isKindOf(KINDOF_TELEPORTER) && !(oldStartPos.x == 0 && oldStartPos.y == 0 && oldStartPos.z == 0)) {
 		Coord3D diff;
-		diff.set(parentDrawable->getPosition());
-		diff.sub(&oldStartPos);
+		diff.set(*parentDrawable->getPosition());
+		diff.sub(oldStartPos);
 		Real MAX_TELEPORT_DISTSQR = 400.0; // 20.0 distance
 		if (diff.lengthSqr() > MAX_TELEPORT_DISTSQR)
 			return;
@@ -167,7 +167,7 @@ void LaserUpdate::updateStartPos()
 			//      create a nasty assert.
 			//TheGameClient->destroyDrawable( getDrawable() );
 
-			m_startPos.set( parentDrawable->getPosition() );
+			m_startPos.set( *parentDrawable->getPosition() );
 			DEBUG_CRASH( ("LaserUpdate::updateStartPos() -- Drawable %s is expecting to find a bone %s but can't. Defaulting to position of drawable.",
 				parentDrawable->getTemplate()->getName().str(), m_parentBoneName.str() ) );
 
@@ -243,7 +243,7 @@ void LaserUpdate::updateEndPos()
 //-------------------------------------------------------------------------------------------------
 /** The update callback. */
 //-------------------------------------------------------------------------------------------------
-void LaserUpdate::clientUpdate( void )
+void LaserUpdate::clientUpdate()
 {
 	updateStartPos();
 	updateEndPos();
@@ -453,15 +453,12 @@ void LaserUpdate::initLaser( const Object *parent, const Object *target, const C
 			if( data->m_particleSystemName.isNotEmpty() )
 			{
 				const ParticleSystemTemplate *tmp = TheParticleSystemManager->findTemplate( data->m_particleSystemName );
-				if( tmp )
+				system = TheParticleSystemManager->createParticleSystem( tmp );
+				if( system )
 				{
-					system = TheParticleSystemManager->createParticleSystem( tmp );
-					if( system )
-					{
-						m_particleSystemID = system->getSystemID();
-						if (data->m_useHouseColor) {
-							system->tintColorsAllFrames(m_hexColor);
-						}
+					m_particleSystemID = system->getSystemID();
+					if (data->m_useHouseColor) {
+						system->tintColorsAllFrames(m_hexColor);
 					}
 				}
 			}
@@ -470,15 +467,12 @@ void LaserUpdate::initLaser( const Object *parent, const Object *target, const C
 			if( data->m_targetParticleSystemName.isNotEmpty() )
 			{
 				const ParticleSystemTemplate *tmp = TheParticleSystemManager->findTemplate( data->m_targetParticleSystemName );
-				if( tmp )
+				system = TheParticleSystemManager->createParticleSystem( tmp );
+				if( system )
 				{
-					system = TheParticleSystemManager->createParticleSystem( tmp );
-					if( system )
-					{
-						m_targetParticleSystemID = system->getSystemID();
-						if (data->m_useHouseColor) {
-							system->tintColorsAllFrames(m_hexColor);
-						}
+					m_targetParticleSystemID = system->getSystemID();
+					if (data->m_useHouseColor) {
+						system->tintColorsAllFrames(m_hexColor);
 					}
 				}
 			}
@@ -512,8 +506,8 @@ void LaserUpdate::initLaser( const Object *parent, const Object *target, const C
 	Coord3D posToUse;
 	if( parent == nullptr )
 	{
-		posToUse.set( startPos );
-		posToUse.add( endPos );
+		posToUse.set( *startPos );
+		posToUse.add( *endPos );
 		posToUse.scale( 0.5 );
 	}
 	else
@@ -631,8 +625,8 @@ void LaserUpdate::updateContinuousLaser(const Object* parent, const Object* targ
 	Coord3D posToUse;
 	if (parent == NULL)
 	{
-		posToUse.set(startPos);
-		posToUse.add(endPos);
+		posToUse.set(*startPos);
+		posToUse.add(*endPos);
 		posToUse.scale(0.5);
 	}
 	else
@@ -790,7 +784,7 @@ void LaserUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void LaserUpdate::loadPostProcess( void )
+void LaserUpdate::loadPostProcess()
 {
 
 	// extend base class

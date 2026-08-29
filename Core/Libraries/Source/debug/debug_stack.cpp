@@ -30,7 +30,7 @@
 #include "debug.h"
 #include "debug_stack.h"
 #include <windows.h>
-#include "stringex.h"
+#include "WWLib/stringex.h"
 #include <imagehlp.h>
 
 // Definitions to allow run-time linking to the dbghelp.dll functions.
@@ -64,7 +64,7 @@ static HMODULE g_dbghelp;
 // local flag that is true if we're using an old dbghelp.dll version
 static bool g_oldDbghelp;
 
-static void InitDbghelp(void)
+static void InitDbghelp()
 {
   // already called?
   if (g_dbghelp)
@@ -315,7 +315,7 @@ Debug& operator<<(Debug &dbg, const DebugStackwalk::Signature &sig)
 
 //////////////////////////////////////////////////////////////////////////////
 
-DebugStackwalk::DebugStackwalk(void)
+DebugStackwalk::DebugStackwalk()
 {
   // it doesn't harm to do this here
   InitDbghelp();
@@ -325,12 +325,12 @@ DebugStackwalk::~DebugStackwalk()
 {
 }
 
-void *DebugStackwalk::GetDbghelpHandle(void)
+void *DebugStackwalk::GetDbghelpHandle()
 {
   return g_dbghelp;
 }
 
-bool DebugStackwalk::IsOldDbghelp(void)
+bool DebugStackwalk::IsOldDbghelp()
 {
   return g_oldDbghelp;
 }

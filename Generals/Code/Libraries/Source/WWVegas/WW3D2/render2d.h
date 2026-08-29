@@ -36,14 +36,14 @@
 
 #pragma once
 
-#include "always.h"
-#include "simplevec.h"
-#include "vector2.h"
+#include "WWLib/always.h"
+#include "WWLib/simplevec.h"
+#include "WWMath/vector2.h"
 
 #include "shader.h"
-#include "widestring.h"
-#include "rect.h"
-#include "bittype.h"
+#include "WWLib/widestring.h"
+#include "WWMath/rect.h"
+#include "WWLib/bittype.h"
 
 class	Font3DInstanceClass;
 class TextureClass;
@@ -90,28 +90,28 @@ class	Vector4;
 /*
 ** Render2DClass
 */
-class Render2DClass : public W3DMPO
+class Render2DClass
 {
-	W3DMPO_GLUE(Render2DClass)
+	W3DMPO_CODE(Render2DClass)
 public:
 	Render2DClass( TextureClass* tex = nullptr );
-	virtual ~Render2DClass(void);
+	virtual ~Render2DClass();
 
-	virtual	void	Reset(void);
-	void	Render(void);
+	virtual	void	Reset();
+	void	Render();
 
 	void	Set_Coordinate_Range( const RectClass & range );
 
 	void	Set_Texture(TextureClass* tex);
-	TextureClass * Peek_Texture( void )			{ return Texture; }
+	TextureClass * Peek_Texture()			{ return Texture; }
 	void	Set_Texture( const char * filename );
 	void	Enable_Additive(bool b);
 	void	Enable_Alpha(bool b);
 	void	Enable_Grayscale(bool b);///<added for generals to draw disabled button states - MW
 	void  Enable_Texturing(bool b);
 
-	ShaderClass *			Get_Shader( void ) { return &Shader; }
-	static ShaderClass	Get_Default_Shader( void );
+	ShaderClass *			Get_Shader() { return &Shader; }
+	static ShaderClass	Get_Default_Shader();
 
 	// Add Quad
 	void	Add_Quad( const Vector2 & v0, const Vector2 & v1, const Vector2 & v2, const Vector2 & v3, const RectClass & uv, unsigned long color = 0xFFFFFFFF  );
@@ -146,11 +146,11 @@ public:
 	void	Move( const Vector2 & a );
 
 	// Color access
-	SimpleDynVecClass<unsigned long> &	Get_Color_Array (void)	{ return Colors; }
+	SimpleDynVecClass<unsigned long> &	Get_Color_Array ()	{ return Colors; }
 
 	// statics to access the Screen Resolution in Pixels
 	static void	Set_Screen_Resolution( const RectClass & screen )	{ ScreenResolution = screen; }
-	static const RectClass & Get_Screen_Resolution( void )			{ return ScreenResolution; }
+	static const RectClass & Get_Screen_Resolution()			{ return ScreenResolution; }
 
 protected:
 	Vector2										CoordinateScale;
@@ -171,7 +171,7 @@ protected:
 	Vector2 Convert_Vert( const Vector2 & v );
 	void	  Convert_Vert( Vector2 & vert_out, const Vector2 & vert_in );
 	void	  Convert_Vert( Vector2 & vert_out, float x_in, float y_in );
-	void	  Update_Bias( void );
+	void	  Update_Bias();
 
 	void	Internal_Add_Quad_Vertices( const Vector2 & v0, const Vector2 & v1, const Vector2 & v2, const Vector2 & v3 );
 	void	Internal_Add_Quad_Vertices( const RectClass & screen );
@@ -189,11 +189,11 @@ protected:
 class Render2DTextClass : public Render2DClass {
 public:
 	Render2DTextClass(Font3DInstanceClass *font=nullptr);
-	~Render2DTextClass();
+	virtual ~Render2DTextClass() override;
 
-	virtual	void	Reset(void);
+	virtual	void	Reset() override;
 
-	Font3DInstanceClass *	Peek_Font( void )				{ return Font; }
+	Font3DInstanceClass *	Peek_Font()				{ return Font; }
 	void	Set_Font( Font3DInstanceClass *font );
 
 	void	Set_Location( const Vector2 & loc )				{ Location = loc; Cursor = loc; }
@@ -201,7 +201,7 @@ public:
 
 	// Clipping support
 	void	Set_Clipping_Rect( const RectClass &rect )	{ ClipRect = rect; IsClippedEnabled = true; }
-	bool	Is_Clipping_Enabled( void ) const				{ return IsClippedEnabled; }
+	bool	Is_Clipping_Enabled() const				{ return IsClippedEnabled; }
 	void	Enable_Clipping( bool onoff )						{ IsClippedEnabled = onoff; }
 
 	void	Draw_Text( const char * text, unsigned long color = 0xFFFFFFFF );
@@ -209,9 +209,9 @@ public:
 
 	void	Draw_Block( const RectClass & screen, unsigned long color = 0xFFFFFFFF );
 
-	const RectClass & Get_Draw_Extents( void )			{ return DrawExtents; }
-	const RectClass & Get_Total_Extents( void )			{ return TotalExtents; }
-	const Vector2 & Get_Cursor( void )						{ return Cursor; }
+	const RectClass & Get_Draw_Extents()			{ return DrawExtents; }
+	const RectClass & Get_Total_Extents()			{ return TotalExtents; }
+	const Vector2 & Get_Cursor()						{ return Cursor; }
 
 	Vector2	Get_Text_Extents( const WCHAR * text );
 

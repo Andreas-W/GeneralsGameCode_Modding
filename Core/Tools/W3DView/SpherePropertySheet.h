@@ -95,11 +95,11 @@ protected:
 	//////////////////////////////////////////////////////////////////////
 	//	Protected methods
 	//////////////////////////////////////////////////////////////////////
-	void							Initialize (void);
-	SphereRenderObjClass *	Create_Object (void);
-	void							Update_Object (void);
-	void							Add_Object_To_Viewer (void);
-	void							Create_New_Object (void);
+	void							Initialize ();
+	SphereRenderObjClass *	Create_Object ();
+	void							Update_Object ();
+	void							Add_Object_To_Viewer ();
+	void							Create_New_Object ();
 
 private:
 
@@ -109,7 +109,7 @@ private:
 	SphereGeneralPropPageClass		m_GeneralPage;
 	SphereColorPropPageClass		m_ColorPage;
 	SphereSizePropPageClass			m_ScalePage;
-	SphereRenderObjClass *			m_RenderObj;
+	RefCountPtr<SphereRenderObjClass>			m_RenderObj;
 	CString								m_LastSavedName;
 };
 

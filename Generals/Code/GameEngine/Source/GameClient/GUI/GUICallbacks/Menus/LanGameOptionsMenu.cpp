@@ -107,7 +107,7 @@ static NameKeyType textEntryChatID = NAMEKEY_INVALID;
 static NameKeyType textEntryMapDisplayID = NAMEKEY_INVALID;
 static NameKeyType buttonBackID = NAMEKEY_INVALID;
 static NameKeyType buttonStartID = NAMEKEY_INVALID;
-static NameKeyType buttonEmoteID = NAMEKEY_INVALID;
+static NameKeyType buttonChatID = NAMEKEY_INVALID;
 static NameKeyType buttonSelectMapID = NAMEKEY_INVALID;
 static NameKeyType windowMapID = NAMEKEY_INVALID;
 // Window Pointers ------------------------------------------------------------------------
@@ -115,7 +115,7 @@ static GameWindow *parentLanGameOptions = nullptr;
 static GameWindow *buttonBack = nullptr;
 static GameWindow *buttonStart = nullptr;
 static GameWindow *buttonSelectMap = nullptr;
-static GameWindow *buttonEmote = nullptr;
+static GameWindow *buttonChat = nullptr;
 static GameWindow *textEntryChat = nullptr;
 static GameWindow *textEntryMapDisplay = nullptr;
 static GameWindow *windowMap = nullptr;
@@ -174,7 +174,7 @@ static Int getFirstSelectablePlayer(const GameInfo *game)
 
 void updateMapStartSpots( GameInfo *myGame, GameWindow *buttonMapStartPositions[], Bool onLoadScreen = FALSE );
 void positionStartSpots( GameInfo *myGame, GameWindow *buttonMapStartPositions[], GameWindow *mapWindow);
-void LanPositionStartSpots( void )
+void LanPositionStartSpots()
 {
 
 	positionStartSpots( TheLAN->GetMyGame(), buttonMapStartPosition, windowMap);
@@ -211,7 +211,7 @@ static void playerTooltip(GameWindow *window,
 	setLANPlayerTooltip(player);
 }
 
-void StartPressed(void)
+void StartPressed()
 {
 	LANGameInfo *myGame = TheLAN->GetMyGame();
 
@@ -592,7 +592,7 @@ static void handleTeamSelection(int index)
 	}
 }
 
-void lanUpdateSlotList( void )
+void lanUpdateSlotList()
 {
 	if(!AreSlotListUpdatesEnabled() || s_isIniting)
 		return;
@@ -605,7 +605,7 @@ void lanUpdateSlotList( void )
 //-------------------------------------------------------------------------------------------------
 /** Initialize the Gadgets Options Menu */
 //-------------------------------------------------------------------------------------------------
-void InitLanGameGadgets( void )
+void InitLanGameGadgets()
 {
 	//Initialize the gadget IDs
 	parentLanGameOptionsID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:LanGameOptionsMenuParent" );
@@ -614,15 +614,15 @@ void InitLanGameGadgets( void )
 	textEntryChatID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:TextEntryChat" );
 	textEntryMapDisplayID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:TextEntryMapDisplay" );
 	listboxChatWindowLanGameID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ListboxChatWindowLanGame" );
-	buttonEmoteID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ButtonEmote" );
+	buttonChatID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ButtonEmote" ); // TODO Rename ButtonEmote to ButtonChat in .wnd file
 	buttonSelectMapID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ButtonSelectMap" );
 	windowMapID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:MapWindow" );
 
 	// Initialize the pointers to our gadgets
 	parentLanGameOptions = TheWindowManager->winGetWindowFromId( nullptr, parentLanGameOptionsID );
 	DEBUG_ASSERTCRASH(parentLanGameOptions, ("Could not find the parentLanGameOptions"));
-	buttonEmote = TheWindowManager->winGetWindowFromId( parentLanGameOptions,buttonEmoteID  );
-	DEBUG_ASSERTCRASH(buttonEmote, ("Could not find the buttonEmote"));
+	buttonChat = TheWindowManager->winGetWindowFromId( parentLanGameOptions,buttonChatID  );
+	DEBUG_ASSERTCRASH(buttonChat, ("Could not find the buttonChat"));
 	buttonSelectMap = TheWindowManager->winGetWindowFromId( parentLanGameOptions,buttonSelectMapID  );
 	DEBUG_ASSERTCRASH(buttonSelectMap, ("Could not find the buttonSelectMap"));
 	buttonStart = TheWindowManager->winGetWindowFromId( parentLanGameOptions,buttonStartID  );
@@ -714,10 +714,10 @@ void InitLanGameGadgets( void )
 
 }
 
-void DeinitLanGameGadgets( void )
+void DeinitLanGameGadgets()
 {
 	parentLanGameOptions = nullptr;
-	buttonEmote = nullptr;
+	buttonChat = nullptr;
 	buttonSelectMap = nullptr;
 	buttonStart = nullptr;
 	buttonBack = nullptr;
@@ -856,7 +856,7 @@ void LanGameOptionsMenuInit( WindowLayout *layout, void *userData )
 //-------------------------------------------------------------------------------------------------
 /** Update options on screen */
 //-------------------------------------------------------------------------------------------------
-void updateGameOptions( void )
+void updateGameOptions()
 {
 	LANGameInfo *theGame = TheLAN->GetMyGame();
 	UnicodeString mapDisplayName;
@@ -1132,7 +1132,7 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
 					//TheShell->pop();
 
 				}
-				else if ( controlID == buttonEmoteID )
+				else if ( controlID == buttonChatID )
 				{
 					// read the user's input
 					txtInput.set(GadgetTextEntryGetText( textEntryChat ));
@@ -1142,7 +1142,9 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
 					txtInput.trim();
 					// Echo the user's input to the chat window
 					if (!txtInput.isEmpty())
-						TheLAN->RequestChat(txtInput, LANAPIInterface::LANCHAT_EMOTE);
+					{
+						TheLAN->RequestPlayerChat(txtInput);
+					}
 				}
 				else if ( controlID == buttonSelectMapID )
 				{
@@ -1274,7 +1276,9 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
 					txtInput.trim();
 					// Echo the user's input to the chat window
 					if (!txtInput.isEmpty())
-						TheLAN->RequestChat(txtInput, LANAPIInterface::LANCHAT_NORMAL);
+					{
+						TheLAN->RequestPlayerChat(txtInput);
+					}
 
 				}
 				break;

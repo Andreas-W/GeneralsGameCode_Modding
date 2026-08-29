@@ -39,9 +39,9 @@
 
 #pragma once
 
-#include "simplevec.h"
-#include "Vector.h"
-#include "hashtemplate.h"
+#include "WWLib/simplevec.h"
+#include "WWLib/Vector.h"
+#include "WWLib/hashtemplate.h"
 
 
 //////////////////////////////////////////////////////////////////////
@@ -69,7 +69,7 @@ public:
 	//	Initialization and shutdown
 	//
 	static void		Initialize (const char *ini_filename = nullptr);
-	static void		Shutdown (void);
+	static void		Shutdown ();
 
 	//
 	//	Sound playback

@@ -37,17 +37,17 @@
 
 #include "AudibleSound.h"
 #include "WWAudio.h"
-#include "wwdebug.h"
+#include "WWDebug/wwdebug.h"
 #include "SoundBuffer.h"
 #include "Utils.h"
 #include "SoundScene.h"
 #include "FilteredSound.h"
 #include "Threads.h"
 #include "SoundChunkIDs.h"
-#include "simpledefinitionfactory.h"
-#include "persistfactory.h"
+#include "WWSaveLoad/simpledefinitionfactory.h"
+#include "WWSaveLoad/persistfactory.h"
 #include "LogicalSound.h"
-#include "definitionclassids.h"
+#include "WWSaveLoad/definitionclassids.h"
 #include "soundstreamhandle.h"
 #include "sound2dhandle.h"
 
@@ -135,7 +135,7 @@ namespace AUDIBLE_SOUND_DEF_SAVELOAD
 //	AudibleSoundClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
-AudibleSoundClass::AudibleSoundClass (void)
+AudibleSoundClass::AudibleSoundClass ()
 	:	m_Priority (0.5F),
 		m_RuntimePriority (0),
 		m_SoundHandle (nullptr),
@@ -161,7 +161,6 @@ AudibleSoundClass::AudibleSoundClass (void)
 		m_StartOffset (0),
 		m_PitchFactor (1.0F)
 {
-	return ;
 }
 
 
@@ -196,7 +195,6 @@ AudibleSoundClass::AudibleSoundClass (const AudibleSoundClass &src)
 		m_PitchFactor (1.0F)
 {
 	(*this) = src;
-	return ;
 }
 
 
@@ -205,7 +203,7 @@ AudibleSoundClass::AudibleSoundClass (const AudibleSoundClass &src)
 //	~AudibleSoundClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
-AudibleSoundClass::~AudibleSoundClass (void)
+AudibleSoundClass::~AudibleSoundClass ()
 {
 	m_State = STATE_STOPPED;
 	Free_Conversion ();
@@ -221,7 +219,6 @@ AudibleSoundClass::~AudibleSoundClass (void)
 	}
 
 	Free_Miles_Handle ();
-	return ;
 }
 
 
@@ -293,8 +290,6 @@ AudibleSoundClass::Set_Buffer (SoundBufferClass *buffer)
 	if (resume) {
 		Play ();
 	}
-
-	return ;
 }
 
 
@@ -304,7 +299,7 @@ AudibleSoundClass::Set_Buffer (SoundBufferClass *buffer)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 SoundBufferClass *
-AudibleSoundClass::Get_Buffer (void) const
+AudibleSoundClass::Get_Buffer () const
 {
 	if (m_Buffer) {
 		m_Buffer->Add_Ref ();
@@ -320,7 +315,7 @@ AudibleSoundClass::Get_Buffer (void) const
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 SoundBufferClass *
-AudibleSoundClass::Peek_Buffer (void) const
+AudibleSoundClass::Peek_Buffer () const
 {
 	return m_Buffer;
 }
@@ -397,7 +392,7 @@ AudibleSoundClass::Play (bool alloc_handle)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 bool
-AudibleSoundClass::Pause (void)
+AudibleSoundClass::Pause ()
 {
 	MMSLockClass lock;
 
@@ -427,7 +422,7 @@ AudibleSoundClass::Pause (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 bool
-AudibleSoundClass::Resume (void)
+AudibleSoundClass::Resume ()
 {
 	MMSLockClass lock;
 
@@ -522,8 +517,6 @@ AudibleSoundClass::Seek (unsigned long milliseconds)
 			m_SoundHandle->Set_Sample_MS_Position (m_CurrentPosition);
 		}
 	}
-
-	return ;
 }
 
 
@@ -564,8 +557,6 @@ AudibleSoundClass::Set_Miles_Handle (MILES_HANDLE handle)
 		//
 		Initialize_Miles_Handle ();
 	}
-
-	return ;
 }
 
 
@@ -575,7 +566,7 @@ AudibleSoundClass::Set_Miles_Handle (MILES_HANDLE handle)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::Initialize_Miles_Handle (void)
+AudibleSoundClass::Initialize_Miles_Handle ()
 {
 	MMSLockClass lock;
 
@@ -639,8 +630,6 @@ AudibleSoundClass::Initialize_Miles_Handle (void)
 		//
 		m_SoundHandle->Set_Sample_User_Data (INFO_OBJECT_PTR, (void *)this);
 	}
-
-	return ;
 }
 
 
@@ -650,7 +639,7 @@ AudibleSoundClass::Initialize_Miles_Handle (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::Free_Miles_Handle (void)
+AudibleSoundClass::Free_Miles_Handle ()
 {
 	MMSLockClass lock;
 
@@ -674,8 +663,6 @@ AudibleSoundClass::Free_Miles_Handle (void)
 		delete m_SoundHandle;
 		m_SoundHandle = nullptr;
 	}
-
-	return ;
 }
 
 
@@ -685,7 +672,7 @@ AudibleSoundClass::Free_Miles_Handle (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 float
-AudibleSoundClass::Get_Pan (void)
+AudibleSoundClass::Get_Pan ()
 {
 	MMSLockClass lock;
 
@@ -722,8 +709,6 @@ AudibleSoundClass::Set_Pan (float pan)
 	if (m_SoundHandle != nullptr) {
 		m_SoundHandle->Set_Sample_Pan (int(m_Pan * 127.0F));
 	}
-
-	return ;
 }
 
 
@@ -755,8 +740,6 @@ AudibleSoundClass::Set_Pitch_Factor (float factor)
 			m_SoundHandle->Set_Sample_Playback_Rate (new_rate);
 		}
 	}
-
-	return ;
 }
 
 
@@ -766,7 +749,7 @@ AudibleSoundClass::Set_Pitch_Factor (float factor)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 int
-AudibleSoundClass::Get_Playback_Rate (void)
+AudibleSoundClass::Get_Playback_Rate ()
 {
 	MMSLockClass lock;
 	int retval = 0;
@@ -794,8 +777,6 @@ AudibleSoundClass::Set_Playback_Rate (int rate_in_hz)
 	if (m_SoundHandle != nullptr) {
 		m_SoundHandle->Set_Sample_Playback_Rate (rate_in_hz);
 	}
-
-	return ;
 }
 
 
@@ -805,7 +786,7 @@ AudibleSoundClass::Set_Playback_Rate (int rate_in_hz)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 float
-AudibleSoundClass::Get_Volume (void)
+AudibleSoundClass::Get_Volume ()
 {
 	MMSLockClass lock;
 
@@ -841,8 +822,6 @@ AudibleSoundClass::Set_Volume (float volume)
 		float real_volume = Determine_Real_Volume ();
 		m_SoundHandle->Set_Sample_Volume (int(real_volume * 127.0F));
 	}
-
-	return ;
 }
 
 
@@ -852,7 +831,7 @@ AudibleSoundClass::Set_Volume (float volume)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 int
-AudibleSoundClass::Get_Loops_Left (void) const
+AudibleSoundClass::Get_Loops_Left () const
 {
 	return m_LoopsLeft;
 }
@@ -875,8 +854,6 @@ AudibleSoundClass::Set_Loop_Count (int count)
 	if (m_SoundHandle != nullptr) {
 		m_SoundHandle->Set_Sample_Loop_Count (m_LoopCount);
 	}
-
-	return ;
 }
 
 
@@ -893,7 +870,6 @@ AudibleSoundClass::Set_Priority (float priority)
 	// Cache the normalized priority
 	m_Priority = min (priority, 1.0F);
 	m_Priority = max (m_Priority, 0.0F);
-	return ;
 }
 
 
@@ -936,7 +912,7 @@ AudibleSoundClass::On_Frame_Update (unsigned int milliseconds)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::Update_Play_Position (void)
+AudibleSoundClass::Update_Play_Position ()
 {
 	// Determine the current offset from the beginning of the sound buffer.
 	unsigned long play_time = ::GetTickCount () - m_Timestamp;
@@ -957,8 +933,6 @@ AudibleSoundClass::Update_Play_Position (void)
 		// Trigger the 'end loop' event
 		On_Loop_End ();
 	}
-
-	return ;
 }
 
 
@@ -968,7 +942,7 @@ AudibleSoundClass::Update_Play_Position (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::Allocate_Miles_Handle (void)
+AudibleSoundClass::Allocate_Miles_Handle ()
 {
 	//
 	// If we need to, get a play-handle from the audio system
@@ -976,8 +950,6 @@ AudibleSoundClass::Allocate_Miles_Handle (void)
 	if (m_SoundHandle == nullptr) {
 		Set_Miles_Handle ((MILES_HANDLE)WWAudioClass::Get_Instance ()->Get_2D_Sample (*this));
 	}
-
-	return ;
 }
 
 
@@ -987,7 +959,7 @@ AudibleSoundClass::Allocate_Miles_Handle (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::On_Loop_End (void)
+AudibleSoundClass::On_Loop_End ()
 {
 	// Determine if the sound is actually finished or still looping
 	if ((m_LoopCount != INFINITE_LOOPS) && (m_LoopsLeft < 1)) {
@@ -1004,8 +976,6 @@ AudibleSoundClass::On_Loop_End (void)
 	} else {
 		Restart_Loop ();
 	}
-
-	return ;
 }
 
 
@@ -1015,7 +985,7 @@ AudibleSoundClass::On_Loop_End (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 float
-AudibleSoundClass::Determine_Real_Volume (void) const
+AudibleSoundClass::Determine_Real_Volume () const
 {
 	float volume = m_Volume;
 
@@ -1037,7 +1007,7 @@ AudibleSoundClass::Determine_Real_Volume (void) const
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 LPCTSTR
-AudibleSoundClass::Get_Filename (void) const
+AudibleSoundClass::Get_Filename () const
 {
 	LPCTSTR filename = nullptr;
 	if (m_Buffer != nullptr) {
@@ -1073,8 +1043,6 @@ AudibleSoundClass::Cull_Sound (bool culled)
 			Allocate_Miles_Handle ();
 		}
 	}
-
-	return ;
 }
 
 
@@ -1090,7 +1058,6 @@ AudibleSoundClass::Set_Transform (const Matrix3D &transform)
 	m_PrevTransform	= m_Transform;
 	m_Transform			= transform;
 	Set_Dirty ();
-	return ;
 }
 
 
@@ -1105,7 +1072,6 @@ AudibleSoundClass::Set_Position (const Vector3 &position)
 	// Update our internal transform
 	m_Transform.Set_Translation (position);
 	Set_Dirty ();
-	return ;
 }
 
 
@@ -1126,8 +1092,6 @@ AudibleSoundClass::Add_To_Scene (bool start_playing)
 		m_Scene = scene;
 		scene->Add_Static_Sound (this, start_playing);
 	}
-
-	return ;
 }
 
 
@@ -1137,7 +1101,7 @@ AudibleSoundClass::Add_To_Scene (bool start_playing)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::Remove_From_Scene (void)
+AudibleSoundClass::Remove_From_Scene ()
 {
 	if (m_Scene != nullptr) {
 
@@ -1148,8 +1112,6 @@ AudibleSoundClass::Remove_From_Scene (void)
 		m_Scene = nullptr;
 		m_PhysWrapper = nullptr;
 	}
-
-	return ;
 }
 
 
@@ -1163,7 +1125,6 @@ AudibleSoundClass::Set_DropOff_Radius (float radius)
 {
 	m_DropOffRadius = radius;
 	Set_Dirty ();
-	return ;
 }
 
 
@@ -1196,8 +1157,6 @@ AudibleSoundClass::Re_Sync (AudibleSoundClass &src)
 	if (m_State != STATE_PLAYING) {
 		Free_Miles_Handle ();
 	}
-
-	return ;
 }
 
 
@@ -1207,7 +1166,7 @@ AudibleSoundClass::Re_Sync (AudibleSoundClass &src)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::Free_Conversion (void)
+AudibleSoundClass::Free_Conversion ()
 {
 	if (m_pConvertedFormat != nullptr) {
 		m_pConvertedFormat->Stop ();
@@ -1220,8 +1179,6 @@ AudibleSoundClass::Free_Conversion (void)
 	if ((m_IsCulled == false) && (m_State == STATE_PLAYING)) {
 		Allocate_Miles_Handle ();
 	}
-
-	return ;
 }
 
 
@@ -1231,7 +1188,7 @@ AudibleSoundClass::Free_Conversion (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-AudibleSoundClass::Convert_To_Filtered (void)
+AudibleSoundClass::Convert_To_Filtered ()
 {
 	if (m_pConvertedFormat == nullptr) {
 
@@ -1260,8 +1217,6 @@ AudibleSoundClass::Convert_To_Filtered (void)
 
 		Free_Miles_Handle ();
 	}
-
-	return ;
 }
 
 
@@ -1271,7 +1226,7 @@ AudibleSoundClass::Convert_To_Filtered (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 AudibleSoundClass *
-AudibleSoundClass::As_Converted_Format (void)
+AudibleSoundClass::As_Converted_Format ()
 {
 	if (m_pConvertedFormat == nullptr) {
 		Convert_To_Filtered ();
@@ -1287,7 +1242,7 @@ AudibleSoundClass::As_Converted_Format (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 const PersistFactoryClass &
-AudibleSoundClass::Get_Factory (void) const
+AudibleSoundClass::Get_Factory () const
 {
 	return _AudibleSoundPersistFactory;
 }
@@ -1304,7 +1259,7 @@ AudibleSoundClass::Get_Factory (void) const
 //	AudibleSoundDefinitionClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
-AudibleSoundDefinitionClass::AudibleSoundDefinitionClass (void)
+AudibleSoundDefinitionClass::AudibleSoundDefinitionClass ()
 	:	m_Priority (0.5F),
 		m_Volume (1.0F),
 		m_Pan (0.5F),
@@ -1360,12 +1315,10 @@ AudibleSoundDefinitionClass::AudibleSoundDefinitionClass (void)
 #endif
 
 	NAMED_EDITABLE_PARAM (AudibleSoundDefinitionClass, ParameterClass::TYPE_COLOR, m_AttenuationSphereColor, "Sphere Color");
-
-	return ;
 }
 
 // SKB: Put here because of conficts with CLASSID_???? with other projects.
-uint32 AudibleSoundDefinitionClass::Get_Class_ID (void) const
+uint32 AudibleSoundDefinitionClass::Get_Class_ID () const
 {
 	return CLASSID_SOUND;
 }
@@ -1413,8 +1366,6 @@ AudibleSoundDefinitionClass::Initialize_From_Sound (AudibleSoundClass *sound)
 			m_MaxVolRadius = sound_3d->Get_Max_Vol_Radius ();
 		}
 	}
-
-	return ;
 }
 
 
@@ -1424,7 +1375,7 @@ AudibleSoundDefinitionClass::Initialize_From_Sound (AudibleSoundClass *sound)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 const PersistFactoryClass &
-AudibleSoundDefinitionClass::Get_Factory (void) const
+AudibleSoundDefinitionClass::Get_Factory () const
 {
 	return _AudibleSoundDefPersistFactory;
 }
@@ -1569,7 +1520,7 @@ AudibleSoundDefinitionClass::Load_Variables (ChunkLoadClass &cload)
 //
 //////////////////////////////////////////////////////////////////////////////////
 PersistClass *
-AudibleSoundDefinitionClass::Create (void) const
+AudibleSoundDefinitionClass::Create () const
 {
 	return Create_Sound (CLASSID_3D);
 }
@@ -1635,7 +1586,7 @@ AudibleSoundDefinitionClass::Create_Sound (int classid_hint) const
 //
 //////////////////////////////////////////////////////////////////////////////////
 LogicalSoundClass *
-AudibleSoundDefinitionClass::Create_Logical (void)
+AudibleSoundDefinitionClass::Create_Logical ()
 {
 	LogicalSoundClass *logical_sound = nullptr;
 

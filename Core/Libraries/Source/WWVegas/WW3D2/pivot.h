@@ -37,11 +37,11 @@
 
 #pragma once
 
-#include "always.h"
-#include "vector3.h"
-#include "matrix3d.h"
-#include "quat.h"
-#include "w3d_file.h"
+#include "WWLib/always.h"
+#include "WWMath/vector3.h"
+#include "WWMath/matrix3d.h"
+#include "WWMath/quat.h"
+#include "WW3D2/w3d_file.h"
 
 
 /*
@@ -59,18 +59,18 @@ struct PivotClass
 {
 public:
 
-	PivotClass(void);
+	PivotClass();
 	PivotClass(const PivotClass& that);
 	PivotClass& operator=(const PivotClass& that);
 
-	~PivotClass(void)
+	~PivotClass()
 	{
 #ifdef LAZY_CAP_MTX_ALLOC
 		delete CapTransformPtr;
 #endif
 	}
 
-	void Capture_Update(void);
+	void Capture_Update();
 	bool Is_Captured() const
 	{
 #ifdef LAZY_CAP_MTX_ALLOC

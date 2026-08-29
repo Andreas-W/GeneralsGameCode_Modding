@@ -18,9 +18,9 @@
 
 #pragma once
 
-#include "wwstring.h"
+#include "WWLib/wwstring.h"
 #include "resource.h"
-#include "soundrobj.h"
+#include "WW3D2/soundrobj.h"
 
 /////////////////////////////////////////////////////////////////////
 //	Forward declarations
@@ -37,7 +37,7 @@ class SoundEditDialogClass : public CDialog
 {
 public:
 	SoundEditDialogClass (CWnd *parent);
-	virtual ~SoundEditDialogClass (void);
+	virtual ~SoundEditDialogClass ();
 
 // Form Data
 public:
@@ -63,8 +63,8 @@ public:
 // Implementation
 protected:
 #ifdef RTS_DEBUG
-	virtual void AssertValid() const;
-	virtual void Dump(CDumpContext& dc) const;
+	virtual void AssertValid() const override;
+	virtual void Dump(CDumpContext& dc) const override;
 #endif
 
 	// Generated message map functions
@@ -85,15 +85,15 @@ public:
 	//	Public methods
 	///////////////////////////////////////////////////////
 	void							Set_Sound (SoundRenderObjClass *sound)	{ REF_PTR_SET (SoundRObj, sound); }
-	SoundRenderObjClass *	Get_Sound (void) const						{ if (SoundRObj != nullptr) SoundRObj->Add_Ref (); return SoundRObj; }
+	SoundRenderObjClass *	Get_Sound () const						{ if (SoundRObj != nullptr) SoundRObj->Add_Ref (); return SoundRObj; }
 
 protected:
 
 	///////////////////////////////////////////////////////
 	//	Protected methods
 	///////////////////////////////////////////////////////
-	void							Update_Enable_State (void);
-	AudibleSoundClass *		Create_Sound_Object (void);
+	void							Update_Enable_State ();
+	AudibleSoundClass *		Create_Sound_Object ();
 
 private:
 

@@ -130,11 +130,11 @@
 #include "assetmgr.h"
 #include "hmdldef.h"
 #include "w3derr.h"
-#include "chunkio.h"
+#include "WWLib/chunkio.h"
 #include "predlod.h"
 #include "rinfo.h"
-#include <win.h>
-#include "sphere.h"
+#include <WWLib/win.h>
+#include "WWMath/sphere.h"
 #include "boxrobj.h"
 
 
@@ -153,7 +153,7 @@ HLodLoaderClass			_HLodLoader;
 class ProxyRecordClass
 {
 public:
-	ProxyRecordClass(void) : BoneIndex(0)
+	ProxyRecordClass() : BoneIndex(0)
 	{
 		memset(Name,0,sizeof(Name));
 	}
@@ -167,8 +167,8 @@ public:
 		strlcpy(Name,w3d_data.Name,sizeof(Name));
 	}
 
-	int					Get_Bone_Index(void)		{ return BoneIndex; }
-	const char *		Get_Name(void)				{ return Name; }
+	int					Get_Bone_Index()		{ return BoneIndex; }
+	const char *		Get_Name()				{ return Name; }
 
 protected:
 
@@ -182,9 +182,9 @@ protected:
 ** This is a ref-counted list of proxy objects.  It is generated whenever an HLODdef contains
 ** proxies.  Each instantiated HLOD simply add-refs a pointer to the single list.
 */
-class ProxyArrayClass : public W3DMPO, public VectorClass<ProxyRecordClass>, public RefCountClass
+class ProxyArrayClass : public VectorClass<ProxyRecordClass>, public RefCountClass
 {
-	W3DMPO_GLUE(ProxyArrayClass)
+	W3DMPO_CODE(ProxyArrayClass)
 public:
 	ProxyArrayClass(int size) : VectorClass<ProxyRecordClass>(size)
 	{
@@ -247,7 +247,7 @@ PrototypeClass *HLodLoaderClass::Load_W3D( ChunkLoadClass &cload )
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-RenderObjClass * HLodPrototypeClass::Create(void)
+RenderObjClass * HLodPrototypeClass::Create()
 {
 	HLodClass * hlod = NEW_REF( HLodClass , ( *Definition ) );
 	return hlod;
@@ -269,7 +269,7 @@ RenderObjClass * HLodPrototypeClass::Create(void)
  *                                                                                             *
  * HISTORY:                                                                                    *
  *=============================================================================================*/
-HLodDefClass::HLodDefClass(void) :
+HLodDefClass::HLodDefClass() :
 	Name(nullptr),
 	HierarchyTreeName(nullptr),
 	LodCount(0),
@@ -299,7 +299,6 @@ HLodDefClass::HLodDefClass(HLodClass &src_lod) :
 	ProxyArray(nullptr)
 {
 	Initialize (src_lod);
-	return ;
 }
 
 
@@ -315,10 +314,9 @@ HLodDefClass::HLodDefClass(HLodClass &src_lod) :
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-HLodDefClass::~HLodDefClass(void)
+HLodDefClass::~HLodDefClass()
 {
 	Free ();
-	return ;
 }
 
 
@@ -334,7 +332,7 @@ HLodDefClass::~HLodDefClass(void)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodDefClass::Free(void)
+void HLodDefClass::Free()
 {
 	::free(Name);
 	Name = nullptr;
@@ -347,8 +345,6 @@ void HLodDefClass::Free(void)
 	LodCount = 0;
 
 	REF_PTR_RELEASE(ProxyArray);
-
-	return ;
 }
 
 
@@ -412,8 +408,6 @@ void HLodDefClass::Initialize(HLodClass &src_lod)
 			Lod[index].BoneIndex = bone_indicies;
 		}
 	}
-
-	return;
 }
 
 
@@ -720,7 +714,7 @@ bool HLodDefClass::read_proxy_array(ChunkLoadClass & cload)
  *                                                                                             *
  * HISTORY:                                                                                    *
  *=============================================================================================*/
-HLodDefClass::SubObjectArrayClass::SubObjectArrayClass(void) :
+HLodDefClass::SubObjectArrayClass::SubObjectArrayClass() :
 	MaxScreenSize(NO_MAX_SCREEN_SIZE),
 	ModelCount(0),
 	ModelName(nullptr),
@@ -741,7 +735,7 @@ HLodDefClass::SubObjectArrayClass::SubObjectArrayClass(void) :
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-HLodDefClass::SubObjectArrayClass::~SubObjectArrayClass(void)
+HLodDefClass::SubObjectArrayClass::~SubObjectArrayClass()
 {
 	Reset();
 }
@@ -759,7 +753,7 @@ HLodDefClass::SubObjectArrayClass::~SubObjectArrayClass(void)
  * HISTORY:                                                                                    *
  *   10/25/2000 gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodDefClass::SubObjectArrayClass::Reset(void)
+void HLodDefClass::SubObjectArrayClass::Reset()
 {
 	MaxScreenSize = NO_MAX_SCREEN_SIZE;
 
@@ -912,7 +906,7 @@ bool HLodDefClass::SubObjectArrayClass::Save_W3D(ChunkSaveClass &csave)
  *                                                                                             *
  * HISTORY:                                                                                    *
  *=============================================================================================*/
-HLodClass::HLodClass(void) :
+HLodClass::HLodClass() :
 	Animatable3DObjClass(nullptr),
 	LodCount(0),
 	CurLod(0),
@@ -1147,7 +1141,6 @@ HLodClass::HLodClass(const HLodDefClass & def) :
 
 	Update_Sub_Object_Bits();
 	Update_Obj_Space_Bounding_Volumes();
-	return ;
 }
 
 
@@ -1219,7 +1212,6 @@ HLodClass::HLodClass(const HModelDefClass & def) :
 
 	Update_Sub_Object_Bits();
 	Update_Obj_Space_Bounding_Volumes();
-	return ;
 }
 
 
@@ -1323,7 +1315,7 @@ HLodClass & HLodClass::operator = (const HLodClass & that)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-HLodClass::~HLodClass(void)
+HLodClass::~HLodClass()
 {
 	Free();
 }
@@ -1341,7 +1333,7 @@ HLodClass::~HLodClass(void)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodClass::Free(void)
+void HLodClass::Free()
 {
 	int lod,model;
 
@@ -1397,7 +1389,7 @@ void HLodClass::Free(void)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-RenderObjClass * HLodClass::Clone(void) const
+RenderObjClass * HLodClass::Clone() const
 {
 	return W3DNEW HLodClass(*this);
 }
@@ -1490,7 +1482,7 @@ void HLodClass::Get_Obj_Space_Bounding_Sphere(SphereClass & sphere) const
  * HISTORY:                                                                                    *
  *   4/13/00    pds : Created.                                                                 *
  *=============================================================================================*/
-const SphereClass &HLodClass::Get_Bounding_Sphere(void) const
+const SphereClass &HLodClass::Get_Bounding_Sphere() const
 {
 	if (BoundingBoxIndex >= 0) {
 		//
@@ -1528,7 +1520,7 @@ const SphereClass &HLodClass::Get_Bounding_Sphere(void) const
  * HISTORY:                                                                                    *
  *   4/13/00    pds : Created.                                                                 *
  *=============================================================================================*/
-const AABoxClass &HLodClass::Get_Bounding_Box(void) const
+const AABoxClass &HLodClass::Get_Bounding_Box() const
 {
 	if (BoundingBoxIndex >= 0) {
 
@@ -1585,8 +1577,6 @@ void HLodClass::Set_Max_Screen_Size(int lod_index, float size)
 		// Ensure lod is no less than minimum allowed
 		if (CurLod < minlod) Set_LOD_Level(minlod);
 	}
-
-	return ;
 }
 
 
@@ -1632,7 +1622,7 @@ float HLodClass::Get_Max_Screen_Size(int lod_index) const
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int HLodClass::Get_Lod_Count(void) const
+int HLodClass::Get_Lod_Count() const
 {
 	return LodCount;
 }
@@ -1804,7 +1794,7 @@ int HLodClass::Get_Lod_Model_Bone(int lod_index, int model_index) const
  * HISTORY:                                                                                    *
  *   8/23/00    NH : Created.                                                                  *
  *=============================================================================================*/
-int HLodClass::Get_Additional_Model_Count(void) const
+int HLodClass::Get_Additional_Model_Count() const
 {
 	return AdditionalModels.Count();
 }
@@ -1918,7 +1908,7 @@ int HLodClass::Get_Additional_Model_Bone (int model_index) const
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-bool HLodClass::Is_NULL_Lod_Included(void) const
+bool HLodClass::Is_NULL_Lod_Included() const
 {
 	bool included = false;
 
@@ -2020,8 +2010,6 @@ void HLodClass::Include_NULL_Lod(bool include)
 
 	// Ensure lod is no less than minimum allowed
 	if (CurLod < minlod) Set_LOD_Level(minlod);
-
-	return ;
 }
 
 
@@ -2037,7 +2025,7 @@ void HLodClass::Include_NULL_Lod(bool include)
  * HISTORY:                                                                                    *
  *   10/27/2000 gth : Created.                                                                 *
  *=============================================================================================*/
-int HLodClass::Get_Proxy_Count(void) const
+int HLodClass::Get_Proxy_Count() const
 {
 	if (ProxyArray != nullptr) {
 		return ProxyArray->Length();
@@ -2100,7 +2088,7 @@ bool HLodClass::Get_Proxy (int index, ProxyClass &proxy) const
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int HLodClass::Get_Num_Polys(void) const
+int HLodClass::Get_Num_Polys() const
 {
 	int polycount = 0;
 	int i;
@@ -2304,7 +2292,7 @@ void HLodClass::Notify_Removed(SceneClass * scene)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int HLodClass::Get_Num_Sub_Objects(void) const
+int HLodClass::Get_Num_Sub_Objects() const
 {
 	int count = 0;
 	for (int lod=0; lod<LodCount;lod++) {
@@ -2591,7 +2579,7 @@ int HLodClass::Add_Sub_Object_To_Bone(RenderObjClass * subobj,int boneindex)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodClass::Set_Animation(void)
+void HLodClass::Set_Animation()
 {
 	Animatable3DObjClass::Set_Animation();
 	Set_Sub_Object_Transforms_Dirty(true);
@@ -2928,7 +2916,7 @@ void HLodClass::Prepare_LOD(CameraClass &camera)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodClass::Recalculate_Static_LOD_Factors(void)
+void HLodClass::Recalculate_Static_LOD_Factors()
 {
 	/*
 	** Calculate NonPixelCost, PixelCostPerArea, BenefitFactor for all LOD
@@ -2974,7 +2962,7 @@ void HLodClass::Recalculate_Static_LOD_Factors(void)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodClass::Increment_LOD(void)
+void HLodClass::Increment_LOD()
 {
 	if (CurLod >= (LodCount-1)) return;
 
@@ -3008,7 +2996,7 @@ void HLodClass::Increment_LOD(void)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodClass::Decrement_LOD(void)
+void HLodClass::Decrement_LOD()
 {
 	if (CurLod < 1) return;
 
@@ -3042,7 +3030,7 @@ void HLodClass::Decrement_LOD(void)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-float HLodClass::Get_Cost(void) const
+float HLodClass::Get_Cost() const
 {
 	return(Cost[CurLod]);
 }
@@ -3060,7 +3048,7 @@ float HLodClass::Get_Cost(void) const
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-float HLodClass::Get_Value(void) const
+float HLodClass::Get_Value() const
 {
 	return(Value[CurLod]);
 }
@@ -3078,7 +3066,7 @@ float HLodClass::Get_Value(void) const
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-float HLodClass::Get_Post_Increment_Value(void) const
+float HLodClass::Get_Post_Increment_Value() const
 {
 	return(Value[CurLod + 1]);
 }
@@ -3134,7 +3122,7 @@ void HLodClass::Set_LOD_Level(int lod)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int HLodClass::Get_LOD_Level(void) const
+int HLodClass::Get_LOD_Level() const
 {
 	return CurLod;
 }
@@ -3152,7 +3140,7 @@ int HLodClass::Get_LOD_Level(void) const
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int HLodClass::Get_LOD_Count(void) const
+int HLodClass::Get_LOD_Count() const
 {
 	return LodCount;
 }
@@ -3219,7 +3207,7 @@ int HLodClass::Calculate_Cost_Value_Arrays(float screen_area, float *values, flo
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-RenderObjClass * HLodClass::Get_Current_LOD(void)
+RenderObjClass * HLodClass::Get_Current_LOD()
 {
 	int count = Get_Lod_Model_Count(CurLod);
 
@@ -3312,7 +3300,7 @@ void HLodClass::Scale(float scale)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-int HLodClass::Get_Num_Snap_Points(void)
+int HLodClass::Get_Num_Snap_Points()
 {
 	if (SnapPoints) {
 		return SnapPoints->Count();
@@ -3357,7 +3345,7 @@ void HLodClass::Get_Snap_Point(int index,Vector3 * set)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodClass::Update_Sub_Object_Transforms(void)
+void HLodClass::Update_Sub_Object_Transforms()
 {
 	/*
 	** Update the animation transforms, recurse up to the
@@ -3408,7 +3396,7 @@ void HLodClass::Update_Sub_Object_Transforms(void)
  * HISTORY:                                                                                    *
  *   1/26/00    gth : Created.                                                                 *
  *=============================================================================================*/
-void HLodClass::Update_Obj_Space_Bounding_Volumes(void)
+void HLodClass::Update_Obj_Space_Bounding_Volumes()
 {
 	//
 	//	Do we still have a valid bounding box index?
@@ -3658,6 +3646,5 @@ void HLodClass::Set_Hidden(int onoff)
 	}
 
 	Animatable3DObjClass::Set_Hidden(onoff);
-	return ;
 }
 

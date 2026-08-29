@@ -41,8 +41,8 @@
 #include "SoundScene.h"
 #include "Utils.h"
 #include "SoundChunkIDs.h"
-#include "persistfactory.h"
-#include "chunkio.h"
+#include "WWSaveLoad/persistfactory.h"
+#include "WWLib/chunkio.h"
 #include "sound3dhandle.h"
 
 
@@ -77,7 +77,7 @@ enum
 //	Sound3DClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
-Sound3DClass::Sound3DClass (void)
+Sound3DClass::Sound3DClass ()
 	: m_bAutoCalcVel (true),
 	  m_CurrentVelocity (0, 0, 0),
 	  m_MaxVolRadius (0),
@@ -85,7 +85,6 @@ Sound3DClass::Sound3DClass (void)
 	  m_IsStatic (false),
 	  m_IsTransformInitted (false)
 {
-	return ;
 }
 
 
@@ -104,7 +103,6 @@ Sound3DClass::Sound3DClass (const Sound3DClass &src)
 	  AudibleSoundClass (src)
 {
 	(*this) = src;
-	return ;
 }
 
 
@@ -113,10 +111,9 @@ Sound3DClass::Sound3DClass (const Sound3DClass &src)
 //	~Sound3DClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
-Sound3DClass::~Sound3DClass (void)
+Sound3DClass::~Sound3DClass ()
 {
  	Free_Miles_Handle ();
-	return ;
 }
 
 
@@ -248,7 +245,6 @@ Sound3DClass::Set_Transform (const Matrix3D &transform)
 	}
 
 	Update_Miles_Transform ();
-	return ;
 }
 
 
@@ -269,8 +265,6 @@ Sound3DClass::Set_Listener_Transform (const Matrix3D &tm)
 
 		Update_Miles_Transform ();
 	}
-
-	return ;
 }
 
 
@@ -280,7 +274,7 @@ Sound3DClass::Set_Listener_Transform (const Matrix3D &tm)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-Sound3DClass::Update_Miles_Transform (void)
+Sound3DClass::Update_Miles_Transform ()
 {
 	//
 	// Do we have a valid miles handle?
@@ -323,8 +317,6 @@ Sound3DClass::Update_Miles_Transform (void)
 										  up.Z,
 										  up.X);
 	}
-
-	return ;
 }
 
 
@@ -372,8 +364,6 @@ Sound3DClass::Set_Position (const Vector3 &position)
 					listener_space_pos.Z, listener_space_pos.X);
 		}
 	}
-
-	return ;
 }
 
 
@@ -401,8 +391,6 @@ Sound3DClass::Set_Velocity (const Vector3 &velocity)
 												m_CurrentVelocity.Z,
 												m_CurrentVelocity.X);
 	}
-
-	return ;
 }
 
 
@@ -425,8 +413,6 @@ Sound3DClass::Set_DropOff_Radius (float radius)
 													m_DropOffRadius,
 													(m_MaxVolRadius > 1.0F) ? m_MaxVolRadius : 1.0F);
 	}
-
-	return ;
 }
 
 
@@ -447,8 +433,6 @@ Sound3DClass::Set_Max_Vol_Radius (float radius)
 													m_DropOffRadius,
 													(m_MaxVolRadius > 1.0F) ? m_MaxVolRadius : 1.0F);
 	}
-
-	return ;
 }
 
 
@@ -458,7 +442,7 @@ Sound3DClass::Set_Max_Vol_Radius (float radius)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-Sound3DClass::Initialize_Miles_Handle (void)
+Sound3DClass::Initialize_Miles_Handle ()
 {
 	MMSLockClass lock;
 
@@ -534,8 +518,6 @@ Sound3DClass::Initialize_Miles_Handle (void)
 		// Associate this object instance with the handle
 		m_SoundHandle->Set_Sample_User_Data (INFO_OBJECT_PTR, (void *)this);
 	}
-
-	return ;
 }
 
 
@@ -545,7 +527,7 @@ Sound3DClass::Initialize_Miles_Handle (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-Sound3DClass::Allocate_Miles_Handle (void)
+Sound3DClass::Allocate_Miles_Handle ()
 {
 	//MMSLockClass lock;
 
@@ -555,8 +537,6 @@ Sound3DClass::Allocate_Miles_Handle (void)
 	if (m_SoundHandle == nullptr) {
 		Set_Miles_Handle ((MILES_HANDLE)WWAudioClass::Get_Instance ()->Get_3D_Sample (*this));
 	}
-
-	return ;
 }
 
 
@@ -579,8 +559,6 @@ Sound3DClass::Add_To_Scene (bool start_playing)
 		}
 		m_Scene = scene;
 	}
-
-	return ;
 }
 
 
@@ -590,7 +568,7 @@ Sound3DClass::Add_To_Scene (bool start_playing)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-Sound3DClass::Remove_From_Scene (void)
+Sound3DClass::Remove_From_Scene ()
 {
 	if (m_Scene != nullptr) {
 
@@ -604,8 +582,6 @@ Sound3DClass::Remove_From_Scene (void)
 		m_Scene = nullptr;
 		m_PhysWrapper = nullptr;
 	}
-
-	return ;
 }
 
 
@@ -615,11 +591,10 @@ Sound3DClass::Remove_From_Scene (void)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-Sound3DClass::On_Loop_End (void)
+Sound3DClass::On_Loop_End ()
 {
 	// Allow the base class to process this message
 	AudibleSoundClass::On_Loop_End ();
-	return ;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -628,7 +603,7 @@ Sound3DClass::On_Loop_End (void)
 //
 /////////////////////////////////////////////////////////////////////////////////
 const PersistFactoryClass &
-Sound3DClass::Get_Factory (void) const
+Sound3DClass::Get_Factory () const
 {
 	return _Sound3DPersistFactory;
 }
@@ -731,6 +706,4 @@ Sound3DClass::Set_Miles_Handle (MILES_HANDLE handle)
 		//
 		Initialize_Miles_Handle ();
 	}
-
-	return ;
 }

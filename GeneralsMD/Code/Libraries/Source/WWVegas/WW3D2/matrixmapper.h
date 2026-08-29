@@ -39,9 +39,9 @@
 
 #pragma once
 
-#include "always.h"
-#include "bittype.h"
-#include "matrix4.h"
+#include "WWLib/always.h"
+#include "WWLib/bittype.h"
+#include "WWMath/matrix4.h"
 #include "mapper.h"
 
 // Modified to use DX 8 texture matrices
@@ -60,7 +60,7 @@
 */
 class MatrixMapperClass : public TextureMapperClass
 {
-	W3DMPO_GLUE(MatrixMapperClass)
+	W3DMPO_CODE(MatrixMapperClass)
 public:
 
 	enum {
@@ -83,21 +83,21 @@ public:
 	bool						Get_Flag(uint32 flag) const;
 
 	void						Set_Type(MappingType type);
-	MappingType				Get_Type(void);
+	MappingType				Get_Type();
 
 	void						Set_Texture_Transform(const Matrix3D & view_to_texture,float texsize);
 	void						Set_Texture_Transform(const Matrix4x4 & view_to_texture,float texsize);
-	const Matrix4x4 &		Get_Texture_Transform(void) const;
+	const Matrix4x4 &		Get_Texture_Transform() const;
 
 	void						Set_Gradient_U_Coord(float coord) { GradientUCoord = coord; }
-	float						Get_Gradient_U_Coord(void) { return GradientUCoord; }
+	float						Get_Gradient_U_Coord() { return GradientUCoord; }
 
 	void						Compute_Texture_Coordinate(const Vector3 & point,Vector3 * set_stq);
 
-	TextureMapperClass*	Clone(void) const { 	WWASSERT(0);	return nullptr; }
+	virtual TextureMapperClass*	Clone() const override { 	WWASSERT(0);	return nullptr; }
 
-	virtual void			Apply(int uv_array_index);
-	virtual void			Calculate_Texture_Matrix(Matrix4x4 &tex_matrix);
+	virtual void			Apply(int uv_array_index) override;
+	virtual void			Calculate_Texture_Matrix(Matrix4x4 &tex_matrix) override;
 
 protected:
 
@@ -126,12 +126,12 @@ public:
 
 	CompositeMatrixMapperClass(TextureMapperClass *internal_mapper, unsigned int stage);
 	CompositeMatrixMapperClass(const CompositeMatrixMapperClass & src);
-	virtual ~CompositeMatrixMapperClass(void);
+	virtual ~CompositeMatrixMapperClass() override;
 
-	virtual TextureMapperClass *Clone(void) const { return NEW_REF( CompositeMatrixMapperClass, (*this)); }
+	virtual TextureMapperClass *Clone() const override { return NEW_REF( CompositeMatrixMapperClass, (*this)); }
 
-	virtual void Apply(int uv_array_index);
-	virtual void Calculate_Texture_Matrix(Matrix4x4 &tex_matrix);
+	virtual void Apply(int uv_array_index) override;
+	virtual void Calculate_Texture_Matrix(Matrix4x4 &tex_matrix) override;
 
 protected:
 
@@ -157,12 +157,12 @@ inline void MatrixMapperClass::Set_Type(MappingType type)
 	Type = type;
 }
 
-inline MatrixMapperClass::MappingType MatrixMapperClass::Get_Type(void)
+inline MatrixMapperClass::MappingType MatrixMapperClass::Get_Type()
 {
 	return Type;
 }
 
-inline const Matrix4x4 & MatrixMapperClass::Get_Texture_Transform(void) const
+inline const Matrix4x4 & MatrixMapperClass::Get_Texture_Transform() const
 {
 	return ViewToTexture;
 }

@@ -65,7 +65,7 @@ BuildAssistant *TheBuildAssistant = nullptr;
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-ObjectSellInfo::ObjectSellInfo( void )
+ObjectSellInfo::ObjectSellInfo()
 {
 
 	m_id = INVALID_ID;
@@ -75,7 +75,7 @@ ObjectSellInfo::ObjectSellInfo( void )
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-ObjectSellInfo::~ObjectSellInfo( void )
+ObjectSellInfo::~ObjectSellInfo()
 {
 
 }
@@ -104,7 +104,7 @@ static Bool isDozer( Object *obj )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-BuildAssistant::BuildAssistant( void )
+BuildAssistant::BuildAssistant()
 {
 
 	m_buildPositions = nullptr;
@@ -114,7 +114,7 @@ BuildAssistant::BuildAssistant( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-BuildAssistant::~BuildAssistant( void )
+BuildAssistant::~BuildAssistant()
 {
 
 	delete [] m_buildPositions;
@@ -125,7 +125,7 @@ BuildAssistant::~BuildAssistant( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void BuildAssistant::init( void )
+void BuildAssistant::init()
 {
 
 	//
@@ -139,7 +139,7 @@ void BuildAssistant::init( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void BuildAssistant::reset( void )
+void BuildAssistant::reset()
 {
 
 	// clear all our data from the sell list
@@ -166,7 +166,7 @@ static const Real TOTAL_FRAMES_TO_SELL_OBJECT = LOGICFRAMES_PER_SECOND * 3.0f;
 //-------------------------------------------------------------------------------------------------
 /** Update phase for the build assistant */
 //-------------------------------------------------------------------------------------------------
-void BuildAssistant::update( void )
+void BuildAssistant::update()
 {
 	ObjectSellInfo *sellInfo;
 	Object *obj;
@@ -737,7 +737,7 @@ void BuildAssistant::iterateFootprint( const ThingTemplate *build,
 LegalBuildCode BuildAssistant::isLocationClearOfObjects( const Coord3D *worldPos,
 																											 const ThingTemplate *build,
 																											 Real angle,
-																											 Object *builderObject,
+																											 const Object *builderObject,
 																											 UnsignedInt options,
 																											 Player *thePlayer)
 {
@@ -996,14 +996,14 @@ LegalBuildCode BuildAssistant::isLocationLegalToBuild( const Coord3D *worldPos,
 																											 const ThingTemplate *build,
 																											 Real angle,
 																											 UnsignedInt options,
-																											 Object *builderObject,
+																											 const Object *builderObject,
 																											 Player *player)
 {
 
 	/* You just can't never build off the map, regardless of options.  jba. */
 	Region3D mapExtent;
 	TheTerrainLogic->getMaximumPathfindExtent(&mapExtent);
-	if (!mapExtent.isInRegionNoZ(worldPos)) {
+	if (!mapExtent.isInRegionNoZ(*worldPos)) {
 		return LBC_RESTRICTED_TERRAIN;
 	}
 
@@ -1083,7 +1083,7 @@ LegalBuildCode BuildAssistant::isLocationLegalToBuild( const Coord3D *worldPos,
 	// if clear path is requested check to see if the builder object can get there (unless it's a structure)
 	if( BitIsSet( options, CLEAR_PATH ) && builderObject && !builderObject->isKindOf( KINDOF_IMMOBILE ) )
 	{
-		AIUpdateInterface *ai = builderObject->getAIUpdateInterface();
+		const AIUpdateInterface *ai = builderObject->getAIUpdateInterface();
 
 		//
 		// if there is no AI interface for this object, it cannot possible pass a clear path
@@ -1531,7 +1531,7 @@ Bool BuildAssistant::isRemovableForConstruction( Object *obj )
 		return TRUE;
 
 	// Rubble, scrap & dead units can be cleared.
-	if( obj->isEffectivelyDead( ) )
+	if( obj->isEffectivelyDead() )
 		return TRUE;
 
 	// not removable

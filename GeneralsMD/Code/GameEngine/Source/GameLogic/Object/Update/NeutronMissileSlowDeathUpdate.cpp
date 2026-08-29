@@ -30,6 +30,7 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 #include "Common/GameState.h"
+#include "Common/GlobalData.h"
 #include "Common/Player.h"
 #include "Common/Xfer.h"
 #include "GameClient/FXList.h"
@@ -51,7 +52,7 @@
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-NeutronMissileSlowDeathBehaviorModuleData::NeutronMissileSlowDeathBehaviorModuleData( void )
+NeutronMissileSlowDeathBehaviorModuleData::NeutronMissileSlowDeathBehaviorModuleData()
 {
 
 	for( Int i = 0; i < MAX_NEUTRON_BLASTS; ++i )
@@ -207,14 +208,14 @@ NeutronMissileSlowDeathBehavior::NeutronMissileSlowDeathBehavior( Thing *thing, 
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-NeutronMissileSlowDeathBehavior::~NeutronMissileSlowDeathBehavior( void )
+NeutronMissileSlowDeathBehavior::~NeutronMissileSlowDeathBehavior()
 {
 
 }
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-UpdateSleepTime NeutronMissileSlowDeathBehavior::update( void )
+UpdateSleepTime NeutronMissileSlowDeathBehavior::update()
 {
 /// @todo srj use SLEEPY_UPDATE here
 	// get the module data
@@ -287,6 +288,42 @@ UpdateSleepTime NeutronMissileSlowDeathBehavior::update( void )
 
 }
 
+static void debugDrawBlastCircle( const Coord3D *center, Real radius, Real tileWidth,
+																 Int frameDuration, const RGBColor &color )
+{
+	extern void addIcon(const Coord3D *pos, Real width, Int frameDuration, RGBColor color);
+
+	if( radius <= 0.0f )
+		return;
+
+	// space the icons roughly one tile apart along the circumference, within sane bounds
+	tileWidth = max( tileWidth, 1.0f );
+	Int segments = (Int)ceilf( (2.0f * PI * radius) / tileWidth * 0.5f );
+	segments = clamp(1, segments, 256);
+
+	for( Int i = 0; i < segments; ++i )
+	{
+		Real angle = (2.0f * PI * i) / segments;
+		Coord3D pos;
+
+		pos.x = center->x + radius * cosf( angle );
+		pos.y = center->y + radius * sinf( angle );
+		pos.z = TheTerrainLogic->getGroundHeight( pos.x, pos.y );
+
+		addIcon( &pos, tileWidth, frameDuration, color );
+	}
+}
+
+static void debugDrawBlastRadii( Object *missile, const BlastInfo *blastInfo, Real tileWidth, Int frameDuration )
+{
+	constexpr const RGBColor innerColor = { 0.0f, 1.0f, 1.0f }; // cyan, everything in here takes full damage
+	constexpr const RGBColor outerColor = { 1.0f, 1.0f, 0.0f }; // yellow, damage falls off out here
+	const Coord3D *missilePos = missile->getPosition();
+
+	debugDrawBlastCircle( missilePos, blastInfo->innerRadius, tileWidth, frameDuration, innerColor );
+	debugDrawBlastCircle( missilePos, blastInfo->outerRadius, tileWidth, frameDuration, outerColor );
+}
+
 // ------------------------------------------------------------------------------------------------
 /** Do a single blast for the bomb */
 // ------------------------------------------------------------------------------------------------
@@ -314,6 +351,14 @@ void NeutronMissileSlowDeathBehavior::doBlast( const BlastInfo *blastInfo )
 	// scan objects around us and do damage to objects we have "passed over" and are behind us
 	if( blastInfo->outerRadius )
 	{
+#if defined(RTS_DEBUG)
+		if( TheGlobalData->m_debugProjectilePath && (blastInfo->maxDamage > 0.0f || blastInfo->minDamage > 0.0f) )
+		{
+			constexpr const Int frameDuration = 60 * LOGICFRAMES_PER_SECOND;
+			debugDrawBlastRadii( missile, blastInfo, TheGlobalData->m_debugProjectileTileWidth, frameDuration );
+		}
+#endif
+
 		ObjectIterator *iter = ThePartitionManager->iterateObjectsInRange( missilePos,
 																																			 blastInfo->outerRadius,
 																																			 FROM_CENTER_2D,
@@ -519,7 +564,7 @@ void NeutronMissileSlowDeathBehavior::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void NeutronMissileSlowDeathBehavior::loadPostProcess( void )
+void NeutronMissileSlowDeathBehavior::loadPostProcess()
 {
 
 	// extend base class

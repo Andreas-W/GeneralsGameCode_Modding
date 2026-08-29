@@ -34,7 +34,7 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "dynamesh.h"
 
 // sgc : wwlib and wwmath contain different rect.h files...
@@ -61,19 +61,19 @@ public:
 	** Constructor and Destructor
 	*/
 	TextDrawClass( int max_chars );
-	~TextDrawClass();
+	virtual ~TextDrawClass() override;
 
 	// Set Coordinate Range
 	void	Set_Coordinate_Ranges(	const Vector2 & param_ul, const Vector2 & param_lr,
 											const Vector2 & dest_ul, const Vector2 & dest_lr );
 
 	// Reset all polys and verts
-	virtual	void Reset( void );
+	virtual	void Reset() override;
 
 	/*
 	** class id of this render object
 	*/
-	virtual int	Class_ID(void) const	{ return CLASSID_TEXTDRAW; }
+	virtual int	Class_ID() const override { return CLASSID_TEXTDRAW; }
 
 	/*
 	**

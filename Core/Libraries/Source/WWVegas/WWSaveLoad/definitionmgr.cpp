@@ -39,12 +39,12 @@
 #include "definitionfactory.h"
 #include "definitionfactorymgr.h"
 #include "definitionclassids.h"
-#include "chunkio.h"
+#include "WWLib/chunkio.h"
 #include "persistfactory.h"
-#include "wwdebug.h"
-#include "wwmemlog.h"
+#include "WWDebug/wwdebug.h"
+#include "WWDebug/wwmemlog.h"
 #include "twiddler.h"
-#include "wwprofile.h"
+#include "WWDebug/wwprofile.h"
 
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -83,9 +83,8 @@ HashTemplateClass<StringClass, DynamicVectorClass<DefinitionClass*>*>* Definitio
 //	DefinitionMgrClass
 //
 //////////////////////////////////////////////////////////////////////////////////
-DefinitionMgrClass::DefinitionMgrClass (void)
+DefinitionMgrClass::DefinitionMgrClass ()
 {
-	return ;
 }
 
 
@@ -94,10 +93,9 @@ DefinitionMgrClass::DefinitionMgrClass (void)
 //	~DefinitionMgrClass
 //
 //////////////////////////////////////////////////////////////////////////////////
-DefinitionMgrClass::~DefinitionMgrClass (void)
+DefinitionMgrClass::~DefinitionMgrClass ()
 {
 	Free_Definitions ();
-	return ;
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -315,7 +313,7 @@ DefinitionMgrClass::Find_Typed_Definition (const char *name, uint32 class_id, bo
 //
 //////////////////////////////////////////////////////////////////////////////////
 void
-DefinitionMgrClass::List_Available_Definitions (void)
+DefinitionMgrClass::List_Available_Definitions ()
 {
 	//
 	//	Loop through all the definitions and print the definition name
@@ -327,8 +325,6 @@ DefinitionMgrClass::List_Available_Definitions (void)
 			WWDEBUG_SAY(("  >%s<", curr_def->Get_Name ()));
 		}
 	}
-
-	return ;
 }
 
 
@@ -351,8 +347,6 @@ DefinitionMgrClass::List_Available_Definitions (int superclass_id)
 	{
 		WWDEBUG_SAY(("  >%s<", definition->Get_Name ()));
 	}
-
-	return ;
 }
 
 
@@ -463,7 +457,7 @@ DefinitionMgrClass::Get_Next (DefinitionClass *curr_def)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-DefinitionMgrClass::Free_Definitions (void)
+DefinitionMgrClass::Free_Definitions ()
 {
 	// Clear the hash table
 	if (DefinitionHash) {
@@ -502,7 +496,7 @@ DefinitionMgrClass::Free_Definitions (void)
 //
 ////////////////////////////////////////////////////////////////////////////
 void
-DefinitionMgrClass::Prepare_Definition_Array (void)
+DefinitionMgrClass::Prepare_Definition_Array ()
 {
 	if (_DefinitionCount + 1 > _MaxDefinitionCount) {
 
@@ -525,8 +519,6 @@ DefinitionMgrClass::Prepare_Definition_Array (void)
 		_MaxDefinitionCount		= new_size;
 	}
 	if (!DefinitionHash) DefinitionHash=W3DNEW HashTemplateClass<StringClass, DynamicVectorClass<DefinitionClass*>*>;
-
-	return ;
 }
 
 
@@ -618,8 +610,6 @@ DefinitionMgrClass::Register_Definition (DefinitionClass *definition)
 			_DefinitionCount ++;
 		}
 	}
-
-	return ;
 }
 
 
@@ -648,8 +638,6 @@ DefinitionMgrClass::Unregister_Definition (DefinitionClass *definition)
 		definition->m_DefinitionMgrLink = -1;
 		_DefinitionCount --;
 	}
-
-	return ;
 }
 
 

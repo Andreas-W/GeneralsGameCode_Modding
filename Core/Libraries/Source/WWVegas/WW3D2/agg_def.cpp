@@ -36,12 +36,12 @@
 #include "agg_def.h"
 #include "htree.h"
 #include "w3derr.h"
-#include "chunkio.h"
-#include "wwdebug.h"
+#include "WWLib/chunkio.h"
+#include "WWDebug/wwdebug.h"
 #include "assetmgr.h"
 #include "matinfo.h"
 #include "texture.h"
-#include "wwstring.h"
+#include "WWLib/wwstring.h"
 
 #include <windows.h>
 
@@ -64,14 +64,13 @@ AggregateLoaderClass	_AggregateLoader;
 //
 //	AggregateDefClass
 //
-AggregateDefClass::AggregateDefClass (void)
+AggregateDefClass::AggregateDefClass ()
 	: m_pName (nullptr)
 {
 	// Set our member data to default settings
 	::memset (&m_Info, 0, sizeof (m_Info));
 	::memset (&m_MiscInfo, 0, sizeof (m_MiscInfo));
 	m_MiscInfo.OriginalClassID = RenderObjClass::CLASSID_HLOD;
-	return ;
 }
 
 
@@ -89,7 +88,6 @@ AggregateDefClass::AggregateDefClass (const AggregateDefClass &src)
 
 	// Invoke the assignment operator
 	(*this) = src;
-	return ;
 }
 
 
@@ -106,7 +104,6 @@ AggregateDefClass::AggregateDefClass (RenderObjClass &base_model)
 	m_MiscInfo.OriginalClassID = RenderObjClass::CLASSID_HLOD;
 
 	Initialize (base_model);
-	return ;
 }
 
 
@@ -114,7 +111,7 @@ AggregateDefClass::AggregateDefClass (RenderObjClass &base_model)
 //
 //	~AggregateDefClass
 //
-AggregateDefClass::~AggregateDefClass (void)
+AggregateDefClass::~AggregateDefClass ()
 {
 	// Free the name buffer if necessary
 	if (m_pName != nullptr) {
@@ -125,7 +122,6 @@ AggregateDefClass::~AggregateDefClass (void)
 	}
 
 	Free_Subobject_List ();
-	return ;
 }
 
 
@@ -177,7 +173,7 @@ AggregateDefClass::operator= (const AggregateDefClass &src)
 //	Free_Subobject_List
 //
 void
-AggregateDefClass::Free_Subobject_List (void)
+AggregateDefClass::Free_Subobject_List ()
 {
 	// Delete all the stucture pointers contained in the subobject list
 	for (int index = 0; index < m_SubobjectList.Count (); index ++) {
@@ -187,7 +183,6 @@ AggregateDefClass::Free_Subobject_List (void)
 
 	// Reset the lists contents
 	m_SubobjectList.Delete_All ();
-	return ;
 }
 
 
@@ -196,7 +191,7 @@ AggregateDefClass::Free_Subobject_List (void)
 //	Create
 //
 RenderObjClass *
-AggregateDefClass::Create (void)
+AggregateDefClass::Create ()
 {
 	// Attempt to create an instance of the hierarchy
 	RenderObjClass *pmodel = Create_Render_Object (m_Info.BaseModelName);
@@ -304,8 +299,6 @@ AggregateDefClass::Attach_Subobjects (RenderObjClass &base_model)
 			}
 		}
 	}
-
-	return ;
 }
 
 
@@ -408,7 +401,6 @@ AggregateDefClass::Initialize (RenderObjClass &base_model)
 
 	// Release the model if necessary
 	REF_PTR_RELEASE (pvanilla_model);
-	return ;
 }
 
 
@@ -494,8 +486,6 @@ AggregateDefClass::Build_Subobject_List
 		}
 		node_list.Delete_All ();
 	}
-
-	return ;
 }
 
 
@@ -678,7 +668,6 @@ AggregateDefClass::Add_Subobject (const W3dAggregateSubobjectStruct &subobj_info
 
 	// Add this new entry to the list
 	m_SubobjectList.Add (pnew_entry);
-	return ;
 }
 
 

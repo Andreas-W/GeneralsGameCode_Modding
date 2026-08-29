@@ -77,7 +77,7 @@ void Radar::deleteList( RadarObject **list )
 //-------------------------------------------------------------------------------------------------
 /** Delete list resources used by the radar and return them to the memory pools */
 //-------------------------------------------------------------------------------------------------
-void Radar::deleteListResources( void )
+void Radar::deleteListResources()
 {
 	deleteList(&m_objectList);
 	deleteList(&m_localObjectList);
@@ -94,7 +94,7 @@ void Radar::deleteListResources( void )
 // PUBLIC METHODS /////////////////////////////////////////////////////////////////////////////////
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-RadarObject::RadarObject( void )
+RadarObject::RadarObject()
 {
 
 	m_object = nullptr;
@@ -105,7 +105,7 @@ RadarObject::RadarObject( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-RadarObject::~RadarObject( void )
+RadarObject::~RadarObject()
 {
 
 }
@@ -172,14 +172,14 @@ void RadarObject::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void RadarObject::loadPostProcess( void )
+void RadarObject::loadPostProcess()
 {
 
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-Radar::Radar( void )
+Radar::Radar()
 {
 
 	m_radarWindow = nullptr;
@@ -206,7 +206,7 @@ Radar::Radar( void )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-Radar::~Radar( void )
+Radar::~Radar()
 {
 
 	// delete list resources
@@ -217,7 +217,7 @@ Radar::~Radar( void )
 //-------------------------------------------------------------------------------------------------
 /** Clear all radar events */
 //-------------------------------------------------------------------------------------------------
-void Radar::clearAllEvents( void )
+void Radar::clearAllEvents()
 {
 
 	// set next free index to the first one
@@ -253,7 +253,7 @@ void Radar::clearAllEvents( void )
 //-------------------------------------------------------------------------------------------------
 /** Reset radar data */
 //-------------------------------------------------------------------------------------------------
-void Radar::reset( void )
+void Radar::reset()
 {
 
 	// delete list resources
@@ -273,7 +273,7 @@ void Radar::reset( void )
 //-------------------------------------------------------------------------------------------------
 /** Radar per frame update */
 //-------------------------------------------------------------------------------------------------
-void Radar::update( void )
+void Radar::update()
 {
 	Int i;
 	UnsignedInt thisFrame = TheGameLogic->getFrame();
@@ -1186,10 +1186,16 @@ Bool Radar::tryEvent( RadarEventType event, const Coord3D *pos )
 		{
 
 			// get distance from our new event location to this event location in 2D
-			Real distSquared = m_event[ i ].worldLoc.x - pos->x * m_event[ i ].worldLoc.x - pos->x +
-												 m_event[ i ].worldLoc.y - pos->y * m_event[ i ].worldLoc.y - pos->y;
+			const Real distSquared = sqr(m_event[ i ].worldLoc.x - pos->x) + sqr(m_event[ i ].worldLoc.y - pos->y);
 
-			if( distSquared <= closeEnoughDistanceSq )
+			Bool isClose = distSquared <= closeEnoughDistanceSq;
+			#if PRESERVE_RADAR_WARNING_SUPPRESSION
+				// TheSuperHackers @tweak Preserve retail map-wide suppression for under attack events
+				// because otherwise they trigger way too frequent from cargo planes.
+				isClose |= (event == RADAR_EVENT_UNDER_ATTACK);
+			#endif
+
+			if( isClose )
 			{
 
 				// finally only reject making a new event of this existing one is "recent enough"
@@ -1227,7 +1233,7 @@ void Radar::refreshTerrain( TerrainLogic *terrain )
 	* rebuilding the radar graphic because that process is slow.  If you need to update
 	* the terrain on the radar immediately use refreshTerrain() */
 // ------------------------------------------------------------------------------------------------
-void Radar::queueTerrainRefresh( void )
+void Radar::queueTerrainRefresh()
 {
 
 	//
@@ -1433,7 +1439,7 @@ void Radar::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void Radar::loadPostProcess( void )
+void Radar::loadPostProcess()
 {
 
 	//

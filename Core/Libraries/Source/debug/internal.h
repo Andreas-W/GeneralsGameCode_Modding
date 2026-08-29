@@ -37,7 +37,7 @@
 #ifdef _DEBUG
 #  define __ASSERT(x) do { if (!(x)) DebugInternalAssert(__FILE__,__LINE__,#x); } while (0)
 #else
-#  define __ASSERT(x) do { } while(0)
+#  define __ASSERT(x)
 #endif
 
 /** \internal
@@ -88,7 +88,7 @@ public:
   virtual bool Execute(class Debug& dbg, const char *cmd, CommandMode cmdmode,
                        unsigned argn, const char * const * argv);
 
-  virtual void Delete(void)
+  virtual void Delete()
   {
     this->~DebugCmdInterfaceDebug();
     DebugFreeMemory(this);

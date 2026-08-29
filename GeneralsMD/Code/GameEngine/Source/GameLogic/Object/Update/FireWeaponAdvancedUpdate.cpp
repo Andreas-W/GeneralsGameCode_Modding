@@ -202,13 +202,13 @@ void CalculateFacingMatrix(const Coord3D& objectPosition, const Coord3D& targetP
 	{
 		// Use a different vector to calculate the cross product. The world's X-axis is a safe choice.
 		Coord3D alternateUp(1.0f, 0.0f, 0.0f);
-		Coord3D::crossProduct(&newX, &alternateUp, &newY);
+		Coord3D::crossProduct(newX, alternateUp, newY);
 	}
 	else
 	{
 		// Calculate the new Y-axis using the cross product. The result is a vector
 		// perpendicular to both the direction and the world's up vector.
-		Coord3D::crossProduct(&worldUp, &newX, &newY);
+		Coord3D::crossProduct(worldUp, newX, newY);
 	}
 
 	newY.normalize();
@@ -217,7 +217,7 @@ void CalculateFacingMatrix(const Coord3D& objectPosition, const Coord3D& targetP
 	// The cross product of the new X and Y axes gives us the new Z-axis,
 	// completing the right-handed coordinate system.
 	Coord3D newZ;
-	Coord3D::crossProduct(&newX, &newY, &newZ);
+	Coord3D::crossProduct(newX, newY, newZ);
 	// Normalization is not strictly necessary here if newX and newY are already
 	// normalized and perpendicular, but it adds robustness.
 	newZ.normalize();
@@ -345,7 +345,7 @@ UpdateSleepTime FireWeaponAdvancedUpdate::update( void )
 	{
 		Coord3D targetPos = getNextTargetPos();
 		Coord3D firingOffset = getScatterRadiusOffset(data->m_scatterRadius);
-		targetPos.add(&firingOffset);
+		targetPos.add(firingOffset);
 
 		//DEBUG_LOG(("NextPos: %f, %f, %f", targetPos.x, targetPos.y, targetPos.z));
 

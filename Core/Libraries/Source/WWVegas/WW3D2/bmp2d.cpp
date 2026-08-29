@@ -38,7 +38,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "bmp2d.h"
-#include "pot.h"
+#include "WWMath/pot.h"
 #include "ww3d.h"
 #include "texture.h"
 #include "surfaceclass.h"
@@ -293,7 +293,7 @@ Bitmap2DObjClass::Bitmap2DObjClass
 	Set_Dirty();
 }
 
-RenderObjClass * Bitmap2DObjClass::Clone(void) const
+RenderObjClass * Bitmap2DObjClass::Clone() const
 {
 	return NEW_REF( Bitmap2DObjClass, (*this));
 }

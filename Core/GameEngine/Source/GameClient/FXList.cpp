@@ -101,8 +101,8 @@ static void adjustVectorXY(Coord3D* vec, const Matrix3D* mtx)
 		u.y = Sin(angle);
 		u.z = 0.0f;
 
-		y.crossProduct(&z, &u, &y);
-		x.crossProduct(&y, &z, &x);
+		y.crossProduct(z, u, y);
+		x.crossProduct(y, z, x);
 
 		mat.Set(x.x, y.x, z.x, pos.x,
 			      x.y, y.y, z.y, pos.y,
@@ -917,7 +917,7 @@ protected:
 		}
 
 		const ParticleSystemTemplate *tmp = TheParticleSystemManager->findTemplate(m_name);
-		DEBUG_ASSERTCRASH(tmp, ("ParticleSystem %s not found",m_name.str()));
+		DEBUG_ASSERTCRASH(TheParticleSystemManager->isDummy() || tmp, ("ParticleSystem %s not found",m_name.str()));
 		if (tmp)
 		{
 			Bool needHeightCheck = m_createAtGroundHeight || m_minAllowedHeight > -INFINITY || m_maxAllowedHeight < INFINITY || m_allowedSurfaceType != SURFACE_ALL;

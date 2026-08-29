@@ -43,10 +43,9 @@
 //	SoundHandleClass
 //
 //////////////////////////////////////////////////////////////////////
-SoundHandleClass::SoundHandleClass (void)	:
+SoundHandleClass::SoundHandleClass ()	:
 	Buffer (nullptr)
 {
-	return ;
 }
 
 
@@ -55,7 +54,7 @@ SoundHandleClass::SoundHandleClass (void)	:
 //	~SoundHandleClass
 //
 //////////////////////////////////////////////////////////////////////
-SoundHandleClass::~SoundHandleClass (void)
+SoundHandleClass::~SoundHandleClass ()
 {
 	//
 	//	Delay the release of the buffer (fixes a sync bug
@@ -65,8 +64,6 @@ SoundHandleClass::~SoundHandleClass (void)
 		WWAudioThreadsClass::Add_Delayed_Release_Object (Buffer);
 		Buffer = nullptr;
 	}
-
-	return ;
 }
 
 
@@ -79,6 +76,5 @@ void
 SoundHandleClass::Initialize (SoundBufferClass *buffer)
 {
 	REF_PTR_SET (Buffer, buffer);
-	return ;
 }
 

@@ -81,7 +81,7 @@ StickyBombUpdate::StickyBombUpdate( Thing *thing, const ModuleData *moduleData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-StickyBombUpdate::~StickyBombUpdate( void )
+StickyBombUpdate::~StickyBombUpdate()
 {
 }
 
@@ -179,7 +179,7 @@ void StickyBombUpdate::initStickyBomb( Object *target, const Object *bomber, con
 }
 
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime StickyBombUpdate::update( void )
+UpdateSleepTime StickyBombUpdate::update()
 {
 	// Continually reset position of stickybomb to match the position of the target.
 	const Object *target = getTargetObject();
@@ -292,11 +292,13 @@ void StickyBombUpdate::detonate()
 		}
 	}
 
+#if RETAIL_COMPATIBLE_CRC
 	if( getObject()->isKindOf(KINDOF_BOOBY_TRAP) && boobyTrappedObject )
 	{
 		// This kind of sticky bomb needs to set a status, so the poor victim can trigger us from assorted places
 		boobyTrappedObject->clearStatus( MAKE_OBJECT_STATUS_MASK(OBJECT_STATUS_BOOBY_TRAPPED) );
 	}
+#endif
 
 	getObject()->kill();// Most things just fire weapons in their death modules
 }
@@ -340,6 +342,20 @@ Anim2DTemplate* StickyBombUpdate::getAnimTimedTemplate() {
 }
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
+#if !RETAIL_COMPATIBLE_CRC
+void StickyBombUpdate::onDelete()
+{
+	// TheSuperHackers @bugfix Stubbjax 05/08/2026 Clear booby trap status when destroyed, not just when detonated.
+	if (getObject()->isKindOf(KINDOF_BOOBY_TRAP))
+	{
+		Object* boobyTrappedObject = getTargetObject();
+
+		// This kind of sticky bomb needs to set a status, so the poor victim can trigger us from assorted places
+		if (boobyTrappedObject)
+			boobyTrappedObject->clearStatus(MAKE_OBJECT_STATUS_MASK(OBJECT_STATUS_BOOBY_TRAPPED));
+	}
+}
+#endif
 
 // ------------------------------------------------------------------------------------------------
 /** CRC */
@@ -382,7 +398,7 @@ void StickyBombUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void StickyBombUpdate::loadPostProcess( void )
+void StickyBombUpdate::loadPostProcess()
 {
 
 	// extend base class

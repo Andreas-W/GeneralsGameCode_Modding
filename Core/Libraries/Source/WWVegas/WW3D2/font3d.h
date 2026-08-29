@@ -34,10 +34,10 @@
 
 #pragma once
 
-#include "always.h"
-#include "vector4.h"
-#include "widestring.h"
-#include "rect.h"
+#include "WWLib/always.h"
+#include "WWMath/vector4.h"
+#include "WWLib/widestring.h"
+#include "WWMath/rect.h"
 
 class TextureClass;
 class SurfaceClass;
@@ -73,7 +73,7 @@ public:
 	** and Destructor
 	*/
 	Font3DDataClass( const char *filename );
-	~Font3DDataClass();
+	virtual ~Font3DDataClass() override;
 
 	// the name of the font data (used for name matching and the like.)
 	char		*Name;
@@ -103,7 +103,7 @@ public:
 	/*
 	** access texture material
 	*/
-	TextureClass *	Peek_Texture( void )								{ return Texture; }
+	TextureClass *	Peek_Texture()								{ return Texture; }
 
 private:
 	/*
@@ -149,18 +149,18 @@ public:
 	** and Destructor
 	*/
 	Font3DInstanceClass( const char *filename );
-	~Font3DInstanceClass();
+	virtual ~Font3DInstanceClass() override;
 
 	/*
 	** access texture material
 	*/
-	TextureClass *Peek_Texture( void ) { return FontData->Peek_Texture(); }
+	TextureClass *Peek_Texture() { return FontData->Peek_Texture(); }
 
 	/*
 	** The non-scaled monospace char width in pixels ( set to 0 for proportional spaced font )
 	*/
-	void	Set_Mono_Spaced( void );
-	void	Set_Proportional( void )	{ MonoSpacing = 0;  Build_Cached_Tables(); }
+	void	Set_Mono_Spaced();
+	void	Set_Proportional()	{ MonoSpacing = 0;  Build_Cached_Tables(); }
 
 
 	/*
@@ -175,7 +175,7 @@ public:
 	*/
 	float	Char_Width( WCHAR ch ) const		{ return ScaledWidthTable[ch&0xFF]; }
 	float	Char_Spacing( WCHAR ch ) const	{ return ScaledSpacingTable[ch&0xFF]; }
-	float	Char_Height( void ) const			{ return ScaledHeight; }
+	float	Char_Height() const			{ return ScaledHeight; }
 
 
 	/*

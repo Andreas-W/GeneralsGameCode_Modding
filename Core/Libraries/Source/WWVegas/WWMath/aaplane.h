@@ -36,7 +36,7 @@
 
 #pragma once
 
-#include "always.h"
+#include "WWLib/always.h"
 #include "vector3.h"
 
 
@@ -50,7 +50,7 @@ public:
 
 	enum AxisEnum { XNORMAL = 0, YNORMAL = 1, ZNORMAL = 2 };
 
-	AAPlaneClass(void)																		{ }
+	AAPlaneClass()																		{ }
 	AAPlaneClass(AxisEnum normal,float dist) : Normal(normal),Dist(dist)		{ }
 
 	void Set(AxisEnum normal,float dist);

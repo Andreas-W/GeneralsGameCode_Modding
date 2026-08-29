@@ -76,25 +76,25 @@ class VictoryConditions : public VictoryConditionsInterface
 public:
 	VictoryConditions();
 
-	void init( void );
-	void reset( void );
-	void update( void );
+	virtual void init() override;
+	virtual void reset() override;
+	virtual void update() override;
 
-	Bool hasAchievedVictory(Player *player);					///< has a specific player and his allies won?
-	Bool hasBeenDefeated(Player *player);							///< has a specific player and his allies lost?
-	Bool hasSinglePlayerBeenDefeated(Player *player);	///< has a specific player lost?
+	virtual Bool hasAchievedVictory(Player *player) override;					///< has a specific player and his allies won?
+	virtual Bool hasBeenDefeated(Player *player) override;							///< has a specific player and his allies lost?
+	virtual Bool hasSinglePlayerBeenDefeated(Player *player) override;	///< has a specific player lost?
 
-	void cachePlayerPtrs( void );											///< players have been created - cache the ones of interest
+	virtual void cachePlayerPtrs() override;											///< players have been created - cache the ones of interest
 
-	Bool isLocalAlliedVictory( void );								///< convenience function
-	Bool isLocalAlliedDefeat( void );									///< convenience function
-	Bool isLocalDefeat( void );												///< convenience function
-	Bool amIObserver( void ) { return m_isObserver;} 	///< Am I an observer?( need this for scripts )
-	virtual UnsignedInt getEndFrame( void ) { return m_endFrame; }	///< on which frame was the game effectively over?
+	virtual Bool isLocalAlliedVictory() override;								///< convenience function
+	virtual Bool isLocalAlliedDefeat() override;									///< convenience function
+	virtual Bool isLocalDefeat() override;												///< convenience function
+	virtual Bool amIObserver() override { return m_isObserver;} 	///< Am I an observer?( need this for scripts )
+	virtual UnsignedInt getEndFrame() override { return m_endFrame; }	///< on which frame was the game effectively over?
 private:
 	Player* findFirstUndefeatedPlayer(); ///< Find the first player that has not been defeated.
 	void markAllianceVictorious(Player* victoriousPlayer); ///< Mark the victorious player and his allies as victorious.
-	Bool multipleAlliancesExist(void); ///< Are there multiple alliances still alive?
+	Bool multipleAlliancesExist(); ///< Are there multiple alliances still alive?
 
 	Player*				m_players[MAX_PLAYER_COUNT];
 	Int						m_localSlotNum;
@@ -107,7 +107,7 @@ private:
 };
 
 //-------------------------------------------------------------------------------------------------
-VictoryConditionsInterface * createVictoryConditions( void )
+VictoryConditionsInterface * createVictoryConditions()
 {
 	// only one created, so no MemoryPool usage
 	return NEW VictoryConditions;
@@ -120,13 +120,13 @@ VictoryConditions::VictoryConditions()
 }
 
 //-------------------------------------------------------------------------------------------------
-void VictoryConditions::init( void )
+void VictoryConditions::init()
 {
 	reset();
 }
 
 //-------------------------------------------------------------------------------------------------
-void VictoryConditions::reset( void )
+void VictoryConditions::reset()
 {
 	for (Int i=0; i<MAX_PLAYER_COUNT; ++i)
 	{
@@ -174,7 +174,7 @@ Bool VictoryConditions::multipleAlliancesExist()
 }
 
 //-------------------------------------------------------------------------------------------------
-void VictoryConditions::update( void )
+void VictoryConditions::update()
 {
 	if (!TheRecorder->isMultiplayer() || (m_localSlotNum < 0 && !m_isObserver))
 		return;
@@ -211,18 +211,15 @@ void VictoryConditions::update( void )
 				TheAudio->addAudioEvent(&leftGameSound);
 			}
 
-			for (Int idx = 0; idx < MAX_SLOTS; ++idx)
+			if (TheGameInfo)
 			{
-				AsciiString pName;
-				pName.format("player%d", idx);
-				if (p->getPlayerNameKey() == NAMEKEY(pName))
+				const Int slotIndex = ThePlayerList->getSlotIndex(p->getPlayerIndex());
+				GameSlot *slot = slotIndex >= 0 ? TheGameInfo->getSlot(slotIndex) : nullptr;
+
+				if (slot && slot->isAI())
 				{
-					GameSlot *slot = (TheGameInfo)?TheGameInfo->getSlot(idx):nullptr;
-					if (slot && slot->isAI())
-					{
-						DEBUG_LOG(("Marking AI player %s as defeated", pName.str()));
-						slot->setLastFrameInGame(TheGameLogic->getFrame());
-					}
+					DEBUG_LOG(("Marking AI player %s as defeated", TheNameKeyGenerator->keyToName(p->getPlayerNameKey()).str()));
+					slot->setLastFrameInGame(TheGameLogic->getFrame());
 				}
 			}
 
@@ -357,7 +354,7 @@ Bool VictoryConditions::hasSinglePlayerBeenDefeated(Player *player)
 }
 
 //-------------------------------------------------------------------------------------------------
-void VictoryConditions::cachePlayerPtrs( void )
+void VictoryConditions::cachePlayerPtrs()
 {
 	if (!TheRecorder->isMultiplayer())
 		return;
@@ -390,7 +387,7 @@ void VictoryConditions::cachePlayerPtrs( void )
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool VictoryConditions::isLocalAlliedVictory( void )
+Bool VictoryConditions::isLocalAlliedVictory()
 {
 	if (m_isObserver)
 		return false;
@@ -399,7 +396,7 @@ Bool VictoryConditions::isLocalAlliedVictory( void )
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool VictoryConditions::isLocalAlliedDefeat( void )
+Bool VictoryConditions::isLocalAlliedDefeat()
 {
 	if (m_isObserver)
 		return m_singleAllianceRemaining;
@@ -408,7 +405,7 @@ Bool VictoryConditions::isLocalAlliedDefeat( void )
 }
 
 //-------------------------------------------------------------------------------------------------
-Bool VictoryConditions::isLocalDefeat( void )
+Bool VictoryConditions::isLocalDefeat()
 {
 	if (m_isObserver)
 		return FALSE;

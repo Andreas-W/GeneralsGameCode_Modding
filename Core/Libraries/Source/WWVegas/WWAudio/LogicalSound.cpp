@@ -34,7 +34,7 @@
 #include "WWAudio.h"
 #include "SoundScene.h"
 #include "SoundChunkIDs.h"
-#include "persistfactory.h"
+#include "WWSaveLoad/persistfactory.h"
 
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +70,7 @@ enum
 //	LogicalSoundClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
-LogicalSoundClass::LogicalSoundClass (void)
+LogicalSoundClass::LogicalSoundClass ()
 	:	m_DropOffRadius (1),
 		m_TypeMask (0),
 		m_Position (0, 0, 0),
@@ -80,7 +80,6 @@ LogicalSoundClass::LogicalSoundClass (void)
 		m_NotifyDelayInMS (2000),
 		m_LastNotification (0)
 {
-	return ;
 }
 
 
@@ -89,9 +88,8 @@ LogicalSoundClass::LogicalSoundClass (void)
 //	~LogicalSoundClass
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
-LogicalSoundClass::~LogicalSoundClass (void)
+LogicalSoundClass::~LogicalSoundClass ()
 {
-	return ;
 }
 
 
@@ -112,8 +110,6 @@ LogicalSoundClass::Add_To_Scene (bool /*start_playing*/)
 		m_Scene = scene;
 		scene->Add_Logical_Sound (this, m_IsSingleShot);
 	}
-
-	return ;
 }
 
 
@@ -123,7 +119,7 @@ LogicalSoundClass::Add_To_Scene (bool /*start_playing*/)
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 void
-LogicalSoundClass::Remove_From_Scene (void)
+LogicalSoundClass::Remove_From_Scene ()
 {
 	if (m_Scene != nullptr) {
 
@@ -135,8 +131,6 @@ LogicalSoundClass::Remove_From_Scene (void)
 		m_PhysWrapper			= nullptr;
 		m_LastNotification	= 0;
 	}
-
-	return ;
 }
 
 
@@ -181,7 +175,7 @@ LogicalSoundClass::On_Frame_Update (unsigned int milliseconds)
 //
 /////////////////////////////////////////////////////////////////////////////////
 const PersistFactoryClass &
-LogicalSoundClass::Get_Factory (void) const
+LogicalSoundClass::Get_Factory () const
 {
 	return _LogicalSoundPersistFactory;
 }

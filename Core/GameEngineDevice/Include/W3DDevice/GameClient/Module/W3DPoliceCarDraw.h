@@ -49,12 +49,12 @@ public:
 	W3DPoliceCarDraw( Thing *thing, const ModuleData* moduleData );
 	// virtual destructor prototype provided by memory pool declaration
 
-	virtual void doDrawModule(const Matrix3D* transformMtx);
+	virtual void doDrawModule(const Matrix3D* transformMtx) override;
 
 protected:
 
 	/// create the dynamic light for the search light
-	W3DDynamicLight *createDynamicLight( void );
+	W3DDynamicLight *createDynamicLight();
 
 	W3DDynamicLight *m_light;  ///< light for the POLICECAR
 	Real					m_curFrame;

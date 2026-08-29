@@ -33,13 +33,14 @@
 #include "PreRTS.h"
 #include "Common/SpecialPower.h"
 #include "Common/Xfer.h"
+#include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Module/SpecialPowerModule.h"
 #include "GameLogic/Module/UnpauseSpecialPowerUpgrade.h"
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UnpauseSpecialPowerUpgradeModuleData::UnpauseSpecialPowerUpgradeModuleData( void )
+UnpauseSpecialPowerUpgradeModuleData::UnpauseSpecialPowerUpgradeModuleData()
 {
 	m_specialPower = nullptr;
 }
@@ -73,14 +74,14 @@ UnpauseSpecialPowerUpgrade::UnpauseSpecialPowerUpgrade( Thing *thing, const Modu
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UnpauseSpecialPowerUpgrade::~UnpauseSpecialPowerUpgrade( void )
+UnpauseSpecialPowerUpgrade::~UnpauseSpecialPowerUpgrade()
 {
 
 }
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void UnpauseSpecialPowerUpgrade::upgradeImplementation( void )
+void UnpauseSpecialPowerUpgrade::upgradeImplementation()
 {
 	for (BehaviorModule** m = getObject()->getBehaviorModules(); *m; ++m)
 	{
@@ -89,7 +90,15 @@ void UnpauseSpecialPowerUpgrade::upgradeImplementation( void )
 			continue;
 
 		if( sp->getSpecialPowerTemplate() == getUnpauseSpecialPowerUpgradeModuleData()->m_specialPower )
+		{
 			sp->pauseCountdown( FALSE );
+
+			if (sp->startsReady())
+			{
+				UnsignedInt now = TheGameLogic->getFrame();
+				sp->setReadyFrame(now);
+			}
+		}
 	}
 }
 
@@ -125,7 +134,7 @@ void UnpauseSpecialPowerUpgrade::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void UnpauseSpecialPowerUpgrade::loadPostProcess( void )
+void UnpauseSpecialPowerUpgrade::loadPostProcess()
 {
 
 	// extend base class

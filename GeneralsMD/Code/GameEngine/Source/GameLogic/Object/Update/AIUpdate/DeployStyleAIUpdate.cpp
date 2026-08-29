@@ -59,7 +59,7 @@ DeployStyleAIUpdate::DeployStyleAIUpdate( Thing *thing, const ModuleData* module
 }
 
 //-------------------------------------------------------------------------------------------------
-DeployStyleAIUpdate::~DeployStyleAIUpdate( void )
+DeployStyleAIUpdate::~DeployStyleAIUpdate()
 {
 }
 
@@ -92,7 +92,7 @@ void DeployStyleAIUpdate::aiDoCommand( const AICommandParms* parms )
 }
 
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime DeployStyleAIUpdate::update( void )
+UpdateSleepTime DeployStyleAIUpdate::update()
 {
 	// Suspend deploy/undeploy timers while disabled; only the locomotor runs.
 	if (isAiSuspendedByDisable())
@@ -147,7 +147,14 @@ UpdateSleepTime DeployStyleAIUpdate::update( void )
 		}
 	}
 
-	if( isInRange || isInGuardIdleState )
+	// TheSuperHackers @bugfix Caball009 27/07/2026 The pathfinding code may use a stricter attack range check than used
+	// in this function, so the range check is insufficient. Objects are not allowed to deploy and attack if they're moving.
+#if RETAIL_COMPATIBLE_CRC
+	if (isInRange || isInGuardIdleState)
+#else
+	// @todo Simplify the code by moving the second branch up so 'isTryingToMove' is checked first.
+	if (!isTryingToMove && (isInRange || isInGuardIdleState))
+#endif
 	{
 		switch( m_state )
 		{
@@ -531,7 +538,7 @@ void DeployStyleAIUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void DeployStyleAIUpdate::loadPostProcess( void )
+void DeployStyleAIUpdate::loadPostProcess()
 {
  // extend base class
 	AIUpdateInterface::loadPostProcess();

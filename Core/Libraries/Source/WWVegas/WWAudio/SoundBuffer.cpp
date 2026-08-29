@@ -36,11 +36,11 @@
 
 
 #include "SoundBuffer.h"
-#include "RAWFILE.h"
-#include "wwdebug.h"
+#include "WWLib/RAWFILE.h"
+#include "WWDebug/wwdebug.h"
 #include "Utils.h"
-#include "ffactory.h"
-#include "win.h"
+#include "WWLib/ffactory.h"
+#include "WWLib/win.h"
 
 
 
@@ -66,7 +66,7 @@ static DynamicVectorClass<FileMappingClass> MappingList;
 //
 //	SoundBufferClass
 //
-SoundBufferClass::SoundBufferClass (void)
+SoundBufferClass::SoundBufferClass ()
 	: m_Buffer (nullptr),
 	  m_Length (0),
 	  m_Filename (nullptr),
@@ -76,7 +76,6 @@ SoundBufferClass::SoundBufferClass (void)
 	  m_Channels (0),
 	  m_Type (WAVE_FORMAT_IMA_ADPCM)
 {
-	return ;
 }
 
 
@@ -84,11 +83,10 @@ SoundBufferClass::SoundBufferClass (void)
 //
 //	~SoundBufferClass
 //
-SoundBufferClass::~SoundBufferClass (void)
+SoundBufferClass::~SoundBufferClass ()
 {
 	SAFE_FREE (m_Filename);
 	Free_Buffer ();
-	return ;
 }
 
 
@@ -97,7 +95,7 @@ SoundBufferClass::~SoundBufferClass (void)
 //	Free_Buffer
 //
 void
-SoundBufferClass::Free_Buffer (void)
+SoundBufferClass::Free_Buffer ()
 {
 	// Free the buffer's memory
 	delete [] m_Buffer;
@@ -105,7 +103,6 @@ SoundBufferClass::Free_Buffer (void)
 
 	// Make sure we reset the length
 	m_Length = 0L;
-	return ;
 }
 
 
@@ -138,8 +135,6 @@ SoundBufferClass::Determine_Stats (unsigned char *buffer)
 		float bytes_sec = float((m_Channels * m_Rate * m_Bits) >> 3);
 		m_Duration = (unsigned long)((((float)m_Length) / bytes_sec) * 1000.0F);
 	}
-
-	return ;
 }
 
 
@@ -154,8 +149,6 @@ SoundBufferClass::Set_Filename (const char *name)
 	if (name != nullptr) {
 		m_Filename = ::strdup (name);
 	}
-
-	return ;
 }
 
 
@@ -284,10 +277,9 @@ SoundBufferClass::Load_From_Memory
 //
 //	StreamSoundBufferClass
 //
-StreamSoundBufferClass::StreamSoundBufferClass (void)	:
+StreamSoundBufferClass::StreamSoundBufferClass ()	:
 	  SoundBufferClass ()
 {
-	return ;
 }
 
 
@@ -295,9 +287,8 @@ StreamSoundBufferClass::StreamSoundBufferClass (void)	:
 //
 //	~StreamSoundBufferClass
 //
-StreamSoundBufferClass::~StreamSoundBufferClass (void)
+StreamSoundBufferClass::~StreamSoundBufferClass ()
 {
-	return ;
 }
 
 
@@ -306,9 +297,8 @@ StreamSoundBufferClass::~StreamSoundBufferClass (void)
 //	Free_Buffer
 //
 void
-StreamSoundBufferClass::Free_Buffer (void)
+StreamSoundBufferClass::Free_Buffer ()
 {
-	return ;
 }
 
 

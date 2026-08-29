@@ -310,7 +310,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	return 0;
 }
 
-void CMainFrame::adjustWindowSize(void)
+void CMainFrame::adjustWindowSize()
 {
 	HWND hDesk = ::GetDesktopWindow();
 	CRect top;
@@ -385,7 +385,7 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs)
 	return TRUE;
 }
 
-void CMainFrame::ResetWindowPositions(void)
+void CMainFrame::ResetWindowPositions()
 {
 	if (m_curOptions == nullptr) {
 		m_curOptions = &m_brushOptions;
@@ -573,7 +573,7 @@ void CMainFrame::OnEditCameraoptions()
 	m_cameraOptions.ShowWindow(SW_SHOWNA);
 }
 
-void CMainFrame::handleCameraChange(void)
+void CMainFrame::handleCameraChange()
 {
 	m_cameraOptions.update();
 }

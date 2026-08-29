@@ -215,7 +215,7 @@ void DefaultProductionExitUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void DefaultProductionExitUpdate::loadPostProcess( void )
+void DefaultProductionExitUpdate::loadPostProcess()
 {
 
 	// extend base class

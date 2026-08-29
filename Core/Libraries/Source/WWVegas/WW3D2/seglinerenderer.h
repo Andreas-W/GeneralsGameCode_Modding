@@ -38,11 +38,11 @@
 
 #pragma once
 
-#include "always.h"
-#include "shader.h"
+#include "WWLib/always.h"
+#include "WW3D2/shader.h"
 #include "texture.h"
-#include "matrix3d.h"
-#include "vector2.h"
+#include "WWMath/matrix3d.h"
+#include "WWMath/vector2.h"
 
 class RenderInfoClass;
 class SphereClass;
@@ -65,10 +65,10 @@ class SegLineRendererClass
 {
 public:
 
-	SegLineRendererClass(void);
+	SegLineRendererClass();
 	SegLineRendererClass(const SegLineRendererClass & that);
 	SegLineRendererClass & operator = (const SegLineRendererClass & that);
-	~SegLineRendererClass(void);
+	~SegLineRendererClass();
 
 	enum TextureMapMode {
 		UNIFORM_WIDTH_TEXTURE_MAP =	0x00000000,	// Entire line uses one row of texture (constant V)
@@ -125,7 +125,7 @@ public:
 										const SphereClass & obj_sphere,
 										Vector4 * rgbas = 0);
 
-	void					Reset_Line(void);
+	void					Reset_Line();
 	void					Scale(float scale);
 
 private:
@@ -190,7 +190,7 @@ private:
 
 
 
-inline SegLineRendererClass::TextureMapMode SegLineRendererClass::Get_Texture_Mapping_Mode(void) const
+inline SegLineRendererClass::TextureMapMode SegLineRendererClass::Get_Texture_Mapping_Mode() const
 {
 	return (TextureMapMode)((Bits & TEXTURE_MAP_MODE_MASK) >> TEXTURE_MAP_MODE_OFFSET);
 }
@@ -201,7 +201,7 @@ inline void SegLineRendererClass::Set_Texture_Mapping_Mode(SegLineRendererClass:
 	Bits |= ((mode << TEXTURE_MAP_MODE_OFFSET) & TEXTURE_MAP_MODE_MASK);
 }
 
-inline Vector2 SegLineRendererClass::Get_UV_Offset_Rate(void) const
+inline Vector2 SegLineRendererClass::Get_UV_Offset_Rate() const
 {
 	return UVOffsetDeltaPerMS * 1000.0f;
 }

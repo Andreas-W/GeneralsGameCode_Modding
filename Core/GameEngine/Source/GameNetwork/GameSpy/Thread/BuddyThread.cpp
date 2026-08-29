@@ -36,8 +36,8 @@
 #include "GameNetwork/GameSpy/PersistentStorageThread.h"
 #include "GameNetwork/GameSpy/ThreadUtils.h"
 
-#include "mutex.h"
-#include "thread.h"
+#include "WWLib/mutex.h"
+#include "WWLib/thread.h"
 
 
 //-------------------------------------------------------------------------
@@ -49,23 +49,23 @@ class BuddyThreadClass;
 class GameSpyBuddyMessageQueue : public GameSpyBuddyMessageQueueInterface
 {
 public:
-	virtual ~GameSpyBuddyMessageQueue();
+	virtual ~GameSpyBuddyMessageQueue() override;
 	GameSpyBuddyMessageQueue();
-	virtual void startThread( void );
-	virtual void endThread( void );
-	virtual Bool isThreadRunning( void );
-	virtual Bool isConnected( void );
-	virtual Bool isConnecting( void );
+	virtual void startThread() override;
+	virtual void endThread() override;
+	virtual Bool isThreadRunning() override;
+	virtual Bool isConnected() override;
+	virtual Bool isConnecting() override;
 
-	virtual void addRequest( const BuddyRequest& req );
-	virtual Bool getRequest( BuddyRequest& req );
+	virtual void addRequest( const BuddyRequest& req ) override;
+	virtual Bool getRequest( BuddyRequest& req ) override;
 
-	virtual void addResponse( const BuddyResponse& resp );
-	virtual Bool getResponse( BuddyResponse& resp );
+	virtual void addResponse( const BuddyResponse& resp ) override;
+	virtual Bool getResponse( BuddyResponse& resp ) override;
 
-	virtual GPProfile getLocalProfileID( void );
+	virtual GPProfile getLocalProfileID() override;
 
-	BuddyThreadClass* getThread( void );
+	BuddyThreadClass* getThread();
 
 private:
 	MutexClass m_requestMutex;
@@ -75,7 +75,7 @@ private:
 	BuddyThreadClass *m_thread;
 };
 
-GameSpyBuddyMessageQueueInterface* GameSpyBuddyMessageQueueInterface::createNewMessageQueue( void )
+GameSpyBuddyMessageQueueInterface* GameSpyBuddyMessageQueueInterface::createNewMessageQueue()
 {
 	return NEW GameSpyBuddyMessageQueue;
 }
@@ -91,7 +91,7 @@ class BuddyThreadClass : public ThreadClass
 public:
 	BuddyThreadClass() : ThreadClass() { m_isNewAccount = m_isdeleting = m_isConnecting = m_isConnected = false; m_profileID = 0; m_lastErrorCode = 0; }
 
-	void Thread_Function();
+	virtual void Thread_Function() override;
 
 	void errorCallback( GPConnection *con, GPErrorArg *arg );
 	void messageCallback( GPConnection *con, GPRecvBuddyMessageArg *arg );
@@ -99,10 +99,10 @@ public:
 	void requestCallback( GPConnection *con, GPRecvBuddyRequestArg *arg );
 	void statusCallback( GPConnection *con, GPRecvBuddyStatusArg *arg );
 
-	Bool isConnecting( void ) { return m_isConnecting; }
-	Bool isConnected( void ) { return m_isConnected; }
+	Bool isConnecting() { return m_isConnecting; }
+	Bool isConnected() { return m_isConnected; }
 
-	GPProfile getLocalProfileID( void ) { return m_profileID; }
+	GPProfile getLocalProfileID() { return m_profileID; }
 
 private:
 	Bool m_isNewAccount;
@@ -162,7 +162,7 @@ GameSpyBuddyMessageQueue::~GameSpyBuddyMessageQueue()
 	endThread();
 }
 
-void GameSpyBuddyMessageQueue::startThread( void )
+void GameSpyBuddyMessageQueue::startThread()
 {
 	if (!m_thread)
 	{
@@ -178,23 +178,23 @@ void GameSpyBuddyMessageQueue::startThread( void )
 	}
 }
 
-void GameSpyBuddyMessageQueue::endThread( void )
+void GameSpyBuddyMessageQueue::endThread()
 {
 	delete m_thread;
 	m_thread = nullptr;
 }
 
-Bool GameSpyBuddyMessageQueue::isThreadRunning( void )
+Bool GameSpyBuddyMessageQueue::isThreadRunning()
 {
 	return (m_thread) ? m_thread->Is_Running() : false;
 }
 
-Bool GameSpyBuddyMessageQueue::isConnected( void )
+Bool GameSpyBuddyMessageQueue::isConnected()
 {
 	return (m_thread) ? m_thread->isConnected() : false;
 }
 
-Bool GameSpyBuddyMessageQueue::isConnecting( void )
+Bool GameSpyBuddyMessageQueue::isConnecting()
 {
 	return (m_thread) ? m_thread->isConnecting() : false;
 }
@@ -243,12 +243,12 @@ Bool GameSpyBuddyMessageQueue::getResponse( BuddyResponse& resp )
 	return true;
 }
 
-BuddyThreadClass* GameSpyBuddyMessageQueue::getThread( void )
+BuddyThreadClass* GameSpyBuddyMessageQueue::getThread()
 {
 	return m_thread;
 }
 
-GPProfile GameSpyBuddyMessageQueue::getLocalProfileID( void )
+GPProfile GameSpyBuddyMessageQueue::getLocalProfileID()
 {
 	return (m_thread) ? m_thread->getLocalProfileID() : 0;
 }

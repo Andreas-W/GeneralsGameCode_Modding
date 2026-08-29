@@ -72,9 +72,9 @@ class W3DDebugDisplay : public DebugDisplay
 	public:
 
 		W3DDebugDisplay();
-		virtual ~W3DDebugDisplay();
+		virtual ~W3DDebugDisplay() override;
 
-		void init( void );																						///< Initialized the display
+		void init();																						///< Initialized the display
 		void setFont( GameFont *font );																///< Set the font to render with
 		void setFontWidth( Int width ) { m_fontWidth = width; };			///< Set the font width
 		void setFontHeight( Int height ) { m_fontHeight = height; };		///< Set the font height
@@ -86,7 +86,7 @@ class W3DDebugDisplay : public DebugDisplay
 		Int m_fontHeight;
 		DisplayString *m_displayString;
 
-		virtual void drawText( Int x, Int y, Char *text );			///< Render null terminated string at current cursor position
+		virtual void drawText( Int x, Int y, Char *text ) override;			///< Render null terminated string at current cursor position
 
 };
 

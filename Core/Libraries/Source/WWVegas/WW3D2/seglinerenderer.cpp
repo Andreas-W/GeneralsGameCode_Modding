@@ -42,10 +42,10 @@
 #include "rinfo.h"
 #include "dx8wrapper.h"
 #include "sortingrenderer.h"
-#include "vp.h"
-#include "Vector3i.h"
-#include "RANDOM.h"
-#include "v3_rnd.h"
+#include "WWMath/vp.h"
+#include "WWMath/Vector3i.h"
+#include "WWLib/RANDOM.h"
+#include "WWMath/v3_rnd.h"
 #include "meshgeometry.h"
 
 
@@ -68,7 +68,7 @@
 
 
 
-SegLineRendererClass::SegLineRendererClass(void) :
+SegLineRendererClass::SegLineRendererClass() :
 		Texture(nullptr),
 		Shader(ShaderClass::_PresetAdditiveSpriteShader),
 		Width(0.0f),
@@ -132,7 +132,7 @@ SegLineRendererClass & SegLineRendererClass::operator = (const SegLineRendererCl
 	return *this;
 }
 
-SegLineRendererClass::~SegLineRendererClass(void)
+SegLineRendererClass::~SegLineRendererClass()
 {
 	REF_PTR_RELEASE(Texture);
 	delete [] m_vertexBuffer;
@@ -174,7 +174,7 @@ void SegLineRendererClass::Set_Texture(TextureClass *texture)
 	REF_PTR_SET(Texture,texture);
 }
 
-TextureClass * SegLineRendererClass::Get_Texture(void) const
+TextureClass * SegLineRendererClass::Get_Texture() const
 {
 	if (Texture != nullptr) {
 		Texture->Add_Ref();
@@ -199,7 +199,7 @@ void SegLineRendererClass::Set_Texture_Tile_Factor(float factor)
 	///@todo: I raised this number and didn't see much difference on our min-spec. -MW
 	const static float MAX_LINE_TILING_FACTOR = 50.0f;
 	if (factor > MAX_LINE_TILING_FACTOR) {
-		// WWDEBUG_SAY(("Texture (%s) Tile Factor (%.2f) too large in SegLineRendererClass!\r\n", Get_Texture()->Get_Texture_Name(), TextureTileFactor));
+		WWDEBUG_SAY(("Texture (%s) Tile Factor (%.2f) too large in SegLineRendererClass!", Peek_Texture()->Get_Texture_Name().str(), TextureTileFactor));
 		factor = MAX_LINE_TILING_FACTOR;
 	} else {
 		factor = MAX(factor, 0.0f);
@@ -207,7 +207,7 @@ void SegLineRendererClass::Set_Texture_Tile_Factor(float factor)
 	TextureTileFactor = factor;
 }
 
-void SegLineRendererClass::Reset_Line(void)
+void SegLineRendererClass::Reset_Line()
 {
 	LastUsedSyncTime = WW3D::Get_Logic_Time_Milliseconds();
 	CurrentUVOffset.Set(0.0f,0.0f);

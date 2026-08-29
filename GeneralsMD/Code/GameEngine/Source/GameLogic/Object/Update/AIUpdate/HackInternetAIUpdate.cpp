@@ -60,7 +60,7 @@ HackInternetAIUpdate::HackInternetAIUpdate( Thing *thing, const ModuleData* modu
 }
 
 //-------------------------------------------------------------------------------------------------
-HackInternetAIUpdate::~HackInternetAIUpdate( void )
+HackInternetAIUpdate::~HackInternetAIUpdate()
 {
 }
 
@@ -98,7 +98,7 @@ Bool HackInternetAIUpdate::isHackingPackingOrUnpacking() const
 }
 
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime HackInternetAIUpdate::update( void )
+UpdateSleepTime HackInternetAIUpdate::update()
 {
 	// Suspend hacking (and pending-command handling) while disabled; only the locomotor runs.
 	if (isAiSuspendedByDisable())
@@ -236,7 +236,7 @@ void HackInternetAIUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void HackInternetAIUpdate::loadPostProcess( void )
+void HackInternetAIUpdate::loadPostProcess()
 {
  // extend base class
 	AIUpdateInterface::loadPostProcess();
@@ -286,7 +286,7 @@ void UnpackingState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void UnpackingState::loadPostProcess( void )
+void UnpackingState::loadPostProcess()
 {
 }
 
@@ -375,7 +375,7 @@ void PackingState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void PackingState::loadPostProcess( void )
+void PackingState::loadPostProcess()
 {
 }
 
@@ -451,7 +451,7 @@ void HackInternetState::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void HackInternetState::loadPostProcess( void )
+void HackInternetState::loadPostProcess()
 {
 }
 
@@ -555,7 +555,7 @@ StateReturnType HackInternetState::update()
 					moneyString.format( TheGameText->fetch( "GUI:AddCash" ), amount );
 					Coord3D pos;
 					pos.zero();
-					pos.add( owner->getPosition() );
+					pos.add( *owner->getPosition() );
 					pos.z += 20.0f; //add a little z to make it show up above the unit.
 
 

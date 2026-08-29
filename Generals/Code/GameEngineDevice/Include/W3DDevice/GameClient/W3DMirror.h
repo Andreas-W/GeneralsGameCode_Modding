@@ -24,13 +24,13 @@
 
 #pragma once
 
-#include "always.h"
-#include "rendobj.h"
-#include "w3d_file.h"
-#include "dx8vertexbuffer.h"
-#include "dx8indexbuffer.h"
-#include "shader.h"
-#include "vertmaterial.h"
+#include "WWLib/always.h"
+#include "WW3D2/rendobj.h"
+#include "WW3D2/w3d_file.h"
+#include "WW3D2/dx8vertexbuffer.h"
+#include "WW3D2/dx8indexbuffer.h"
+#include "WW3D2/shader.h"
+#include "WW3D2/vertmaterial.h"
 #include "Lib/BaseType.h"
 #include "Common/GameType.h"
 
@@ -46,14 +46,14 @@ class MirrorRenderObjClass : public RenderObjClass
 
 public:
 
-	MirrorRenderObjClass(void);
-	~MirrorRenderObjClass(void);
+	MirrorRenderObjClass();
+	~MirrorRenderObjClass();
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Render Object Interface (W3D methods)
 	/////////////////////////////////////////////////////////////////////////////
-	virtual RenderObjClass *	Clone(void) const;
-	virtual int						Class_ID(void) const;
+	virtual RenderObjClass *	Clone() const;
+	virtual int						Class_ID() const;
 	virtual void					Render(RenderInfoClass & rinfo);
 /// @todo: Add methods for collision detection with mirror surface
 //	virtual Bool					Cast_Ray(RayCollisionTestClass & raytest);
@@ -106,8 +106,8 @@ protected:
 	};
 
 	skySetting m_skySettings[TIME_OF_DAY_COUNT];	///< settings for each time of day
-	void renderSky(void);	///<draw the sky layer (clouds, stars, etc.)
+	void renderSky();	///<draw the sky layer (clouds, stars, etc.)
 	void renderSkyBody(Matrix3D *mat);	///<draw the sky body (sun, moon, etc.)
-	void renderWater(void);
-	void renderWaterMesh(void);
+	void renderWater();
+	void renderWaterMesh();
 };

@@ -74,7 +74,7 @@ StructureToppleUpdate::StructureToppleUpdate( Thing *thing, const ModuleData* mo
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-StructureToppleUpdate::~StructureToppleUpdate( void )
+StructureToppleUpdate::~StructureToppleUpdate()
 {
 }
 
@@ -83,7 +83,7 @@ static void parseOCL( INI* ini, void *instance, void * /*store*/, const void* /*
 {
 	StructureToppleUpdateModuleData* self = (StructureToppleUpdateModuleData*)instance;
 	StructureTopplePhaseType stphase = (StructureTopplePhaseType)INI::scanIndexList(ini->getNextToken(), TheStructureTopplePhaseNames);
-	for (const char* token = ini->getNextToken(); token != nullptr; token = ini->getNextTokenOrNull())
+	for (const char* token = ini->getNextToken(); token; token = ini->getNextTokenOrNull())
 	{
 		const ObjectCreationList *ocl = TheObjectCreationListStore->findObjectCreationList(token);	// could be null! this is OK!
 		self->m_ocls[stphase].push_back(ocl);
@@ -198,7 +198,7 @@ void StructureToppleUpdate::onDie( const DamageInfo *damageInfo )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-UpdateSleepTime StructureToppleUpdate::update( void )
+UpdateSleepTime StructureToppleUpdate::update()
 {
 	static const Real TOPPLE_ACCELERATION_FACTOR = 0.02f;
 
@@ -617,7 +617,7 @@ void StructureToppleUpdate::xfer( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Load post process */
 // ------------------------------------------------------------------------------------------------
-void StructureToppleUpdate::loadPostProcess( void )
+void StructureToppleUpdate::loadPostProcess()
 {
 
 	// extend base class
