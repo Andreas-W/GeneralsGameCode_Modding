@@ -38,6 +38,7 @@
 #include "Common/ThingFactory.h"
 
 #include "GameClient/Line2D.h"
+#include "GameClient/TerrainRoads.h"
 
 #include "GameLogic/AI.h"
 #include "GameLogic/GameLogic.h"
@@ -4369,6 +4370,12 @@ void Pathfinder::classifyObjectFootprint( Object *obj, Bool insert )
 		return;  // It is important to not abuse bridge towers.
 	}
 
+	if (obj->isKindOf(KINDOF_BRIDGE) && !obj->getTemplate()->isBridge()) {
+		// Procedural bridge span.  Its deck is a pathfind layer of its own, and the ground below it
+		// is governed by the bridge clearance, not by this object's placeholder box.
+		return;
+	}
+
 	if (obj->getTemplate()->getFenceWidth() > 0.0f)
 	{
 		if (!obj->isKindOf(KINDOF_DEFENSIVE_WALL))
@@ -4861,6 +4868,10 @@ static void calculateBridgeHeights(IRegion2D bounds, PathfindCell** map)
 		if (cellHiX > bounds.hi.x) cellHiX = bounds.hi.x;
 		if (cellHiY > bounds.hi.y) cellHiY = bounds.hi.y;
 
+		// a thick deck, girders or arches hang below the driving surface and take away room
+		TerrainRoadType *bridgeTemplate = TheTerrainRoads->findBridge( bridge->getBridgeTemplateName() );
+		Real deckHeight = bridgeTemplate ? bridgeTemplate->getBridgeDeckHeight() : 0.0f;
+
 		for (Int i = cellLoX; i < cellHiX; ++i) {
 			for (Int j = cellLoY; j < cellHiY; ++j) {
 				Real worldX = ((Real)i + 0.5f) * PATHFIND_CELL_SIZE_F;
@@ -4878,12 +4889,15 @@ static void calculateBridgeHeights(IRegion2D bounds, PathfindCell** map)
 					continue;
 				}
 
+				// the deck plane through the two bridge points is what a unit passing below clears
 				Real bridgeZ = TheTerrainLogic->getLayerHeight(worldX, worldY, layer);
-				Real waterZ, groundZ;
+
+				// isUnderwater leaves waterZ untouched where there is no water, so seed both
+				Real waterZ = 0.0f, groundZ = 0.0f;
 				TheTerrainLogic->isUnderwater(worldX, worldY, &waterZ, &groundZ);
 				Real baseZ   = (waterZ > groundZ) ? waterZ : groundZ;
 
-				Real gap = bridgeZ - baseZ;
+				Real gap = bridgeZ - deckHeight - baseZ;
 				if (gap < 0.0f) gap = 0.0f;
 
 				Int encoded = (Int)(gap / 10.0f);

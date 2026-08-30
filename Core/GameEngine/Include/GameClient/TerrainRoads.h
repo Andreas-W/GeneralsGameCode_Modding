@@ -100,6 +100,7 @@ public:
 	Real getBridgeHoleAreaPercentage() { return m_bridgeHoleAreaPercentage;	}
 	Bool isDestroyable( void ) { return m_isDestroyable; }
 	AsciiString getBridgeObjectName( void ) { return m_bridgeObjectName; }
+	Real getBridgeDeckHeight( void ) { return m_bridgeDeckHeight; }
 
 	// friend access methods to be used by the road collection only!
 	void friend_setName( AsciiString name ) { m_name = name; }
@@ -132,6 +133,7 @@ public:
 	void friend_setBridgeHoleAreaPercentage( Real percentage ) { m_bridgeHoleAreaPercentage = percentage; }
 	void friend_setDestroyable( Bool destroyable ) { m_isDestroyable = destroyable; }
 	void friend_setBridgeObjectName( AsciiString name ) { m_bridgeObjectName = name; }
+	void friend_setBridgeDeckHeight( Real height ) { m_bridgeDeckHeight = height; }
 
 	/// get the parsing table for INI
 	const FieldParse *getRoadFieldParse() { return m_terrainRoadFieldParseTable; }
@@ -203,6 +205,12 @@ protected:
 	//
 	Bool m_isDestroyable;												///< true if this bridge can be destroyed
 	AsciiString m_bridgeObjectName;							///< object representing the bridge span in the logic
+
+	//
+	// the deck plane is the driving surface; a thick deck, girders or arches hang below it and
+	// take away room from anything passing underneath
+	//
+	Real m_bridgeDeckHeight;								///< thickness of the deck below the driving surface
 };
 
 //-------------------------------------------------------------------------------------------------

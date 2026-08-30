@@ -87,6 +87,7 @@ const FieldParse TerrainRoadType::m_terrainBridgeFieldParseTable[] =
 	{ "BridgeHoleAreaPercentage",     INI::parsePercentToReal,      nullptr, offsetof( TerrainRoadType, m_bridgeHoleAreaPercentage) },
 	{ "Destroyable",									INI::parseBool,								nullptr, offsetof( TerrainRoadType, m_isDestroyable ) },
 	{ "BridgeObjectName",							INI::parseAsciiString,				nullptr, offsetof( TerrainRoadType, m_bridgeObjectName ) },
+	{ "BridgeDeckHeight",							INI::parseReal,								nullptr, offsetof( TerrainRoadType, m_bridgeDeckHeight ) },
 
 
 	{ nullptr,									nullptr,													nullptr, 0 },
@@ -223,6 +224,7 @@ TerrainRoadType::TerrainRoadType()
 	m_numFXPerType = 0;
 	m_bridgeHoleAreaPercentage = 0.0f;
 	m_isDestroyable = FALSE;
+	m_bridgeDeckHeight = 0.0f;
 
 }
 
@@ -413,6 +415,7 @@ TerrainRoadType *TerrainRoadCollection::newBridge( AsciiString name )
 		bridge->friend_setBridgeHoleAreaPercentage( defaultBridge->getBridgeHoleAreaPercentage() );
 		bridge->friend_setDestroyable( defaultBridge->isDestroyable() );
 		bridge->friend_setBridgeObjectName( defaultBridge->getBridgeObjectName() );
+		bridge->friend_setBridgeDeckHeight( defaultBridge->getBridgeDeckHeight() );
 		for( Int state = BODY_PRISTINE; state < BODYDAMAGETYPE_COUNT; state++ )
 		{
 
