@@ -301,7 +301,7 @@ m_bridgeInfo(theInfo)
 	if( bridgeTemplate->isDestroyable() == FALSE )
 		return;
 
-	updateSpanObjectGeometry();
+	updateBridgeObjectGeometry();
 
 	// if defined, set hole area for destroyable bridges/drawbridges
 	if (bridgeTemplate->getBridgeHoleAreaPercentage() > 0.0f) {
@@ -538,51 +538,56 @@ void Bridge::setDrawBridgeStage(bool open) {
 }
 
 //-------------------------------------------------------------------------------------------------
-/** updateSpanObjectGeometry - match the span object's collision box to the state of the bridge. */
+/** updateBridgeObjectGeometry - match the bridge object's collision box to the state of the deck. */
 //-------------------------------------------------------------------------------------------------
-void Bridge::updateSpanObjectGeometry()
+void Bridge::updateBridgeObjectGeometry()
 {
 	Object *bridgeObj = TheGameLogic->findObjectByID( m_bridgeInfo.bridgeObjectID );
 	if( bridgeObj == nullptr )
 		return;
 
 	//
-	// landmark bridges are authored with a box that matches their model, and DrawBridgeUpdate owns
-	// it, so leave them alone
+	// once the deck is rubble, or a drawbridge stands open, there is nothing left to shoot at,
+	// bump into or block the ground below.  a landmark bridge keeps a box the size of the whole
+	// structure and the pathfinder stamps that into the ground, so it has to go with the deck.
 	//
-	if( bridgeObj->getTemplate()->isBridge() )
-		return;
+	const Bool deckIsGone = (bridgeObj->getBodyModule()->getDamageState() == BODY_RUBBLE) || hasHole();
 
 	GeometryInfo geom = bridgeObj->getTemplate()->getTemplateGeometryInfo();
-	if( bridgeObj->getBodyModule()->getDamageState() == BODY_RUBBLE )
+	if( deckIsGone )
 	{
-		//
-		// nothing is left of the span to shoot at or bump into.  the box is as long as the whole
-		// bridge, so leaving it behind makes every shot passing near the wreck detonate on it.
-		//
 		geom.set( GEOMETRY_BOX, TRUE, 0.0f, 0.0f, 0.0f );
 	}
 	else
 	{
-		//
-		// the object template geometry is just a placeholder since the span is drawn by the bridge
-		// buffer; size it to the actual span so area weapons aimed at the deck hit us
-		//
-		Coord2D span;
-		span.x = m_bridgeInfo.to.x - m_bridgeInfo.from.x;
-		span.y = m_bridgeInfo.to.y - m_bridgeInfo.from.y;
-		geom.setMajorRadius( span.length() / 2.0f );
-		geom.setMinorRadius( m_bridgeInfo.bridgeWidth / 2.0f );
+		if( bridgeObj->getTemplate()->isBridge() == FALSE )
+		{
+			//
+			// a procedural span is drawn by the bridge buffer, so its template geometry is only a
+			// placeholder; size it to the actual span so area weapons aimed at the deck hit us
+			//
+			Coord2D span;
+			span.x = m_bridgeInfo.to.x - m_bridgeInfo.from.x;
+			span.y = m_bridgeInfo.to.y - m_bridgeInfo.from.y;
+			geom.setMajorRadius( span.length() / 2.0f );
+			geom.setMinorRadius( m_bridgeInfo.bridgeWidth / 2.0f );
+		}
 
 		//
 		// ActiveBody turns collisions off for good when a structure rubbles and never turns them
-		// back on, so a repaired span has to ask for them again
+		// back on, so a repaired bridge has to ask for them again
 		//
 		bridgeObj->clearStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_NO_COLLISIONS ) );
 	}
 
-	// setGeometryInfo, not setGeometryInfoZ -- the partition footprint has to change with the box
+	//
+	// the pathfind footprint is derived from the geometry when the object is stamped, so it has to
+	// come out and go back in around the change.  setGeometryInfo, not setGeometryInfoZ, so that
+	// the partition footprint follows the box too.
+	//
+	TheAI->pathfinder()->removeObjectFromPathfindMap( bridgeObj );
 	bridgeObj->setGeometryInfo( geom );
+	TheAI->pathfinder()->addObjectToPathfindMap( bridgeObj );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -599,7 +604,17 @@ Bool Bridge::isPointOnBridge(const Coord3D *pLoc, bool ignoreHole)
 	unsigned char flags{ 0U };
 
 	// If bridge has hole and point is in hole area -> not on bridge
-	if (!ignoreHole && hasHole() && hasHoleArea()) {
+	if (!ignoreHole && hasHole()) {
+
+		//
+		// BridgeHoleAreaPercentage is optional, and without it there are no hole corners to test
+		// against.  a bridge that is destroyed or standing open has lost the whole deck, so say so
+		// rather than reporting it as intact.
+		//
+		if (!hasHoleArea()) {
+			return false;
+		}
+
 		Vector3 left1(m_bridgeInfo.fromLeftHole.x, m_bridgeInfo.fromLeftHole.y, m_bridgeInfo.fromLeftHole.z);
 		Vector3 right1(m_bridgeInfo.fromRightHole.x, m_bridgeInfo.fromRightHole.y, m_bridgeInfo.fromRightHole.z);
 		Vector3 left2(m_bridgeInfo.toLeftHole.x, m_bridgeInfo.toLeftHole.y, m_bridgeInfo.toLeftHole.z);
@@ -1040,7 +1055,7 @@ void Bridge::updateDamageState()
 				m_bridgeInfo.curDamageState = damageState;
 				if (damageState == BODY_RUBBLE) {
 					TheAI->pathfinder()->changeBridgeState(m_layer, false);
-					updateSpanObjectGeometry();
+					updateBridgeObjectGeometry();
 					m_bridgeInfo.damageStateChanged = true;
 					Object *obj;
 					for (obj = TheGameLogic->getFirstObject(); obj; obj=obj->getNextObject()) {
@@ -1078,9 +1093,15 @@ void Bridge::updateDamageState()
 					if( bbi == nullptr || bbi->isScaffoldPresent() == FALSE )
 						TheAI->pathfinder()->changeBridgeState(m_layer, true);
 
-					// the span is shootable again as soon as it stops being rubble, even while the
-					// scaffolding still keeps the deck closed
-					updateSpanObjectGeometry();
+					//
+					// the deck is whole again, so drop the hole that onDie punched in it.  this has
+					// to happen before the box is rebuilt, since the box follows the hole.
+					//
+					setDrawBridgeStage(false);
+
+					// the bridge is shootable again as soon as it stops being rubble, even while
+					// the scaffolding still keeps the deck closed
+					updateBridgeObjectGeometry();
 					m_bridgeInfo.damageStateChanged = true;
 				}
 			}

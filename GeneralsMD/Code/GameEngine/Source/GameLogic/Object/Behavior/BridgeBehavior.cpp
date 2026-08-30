@@ -984,6 +984,15 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 	// kill the towers associated with us
 	auto moduleData = getBridgeBehaviorModuleData();
 
+	//
+	// the deck is gone whether or not it can be rebuilt, so punch the hole for either kind.  this
+	// runs before handleObjectsOnBridgeOnDie, which walks the bridge corners directly and so is
+	// not affected by the hole.
+	//
+	Bridge* deadBridge = TheTerrainLogic->findBridgeAt(getObject()->getPosition());
+	if (deadBridge)
+		deadBridge->setDrawBridgeStage(true);
+
 	if (!moduleData->m_restoreable) {
 		Object* tower;
 		for (Int i = 0; i < BRIDGE_MAX_TOWERS; ++i)
@@ -997,13 +1006,6 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 		}
 	}
 	else {
-		// for destroy/repairable bridges set it to have a hole at death
-		Bridge* bridge = TheTerrainLogic->findBridgeAt(getObject()->getPosition());
-		if (bridge)
-		{
-			bridge->setDrawBridgeStage(true);
-		}
-
 		// Set tower owner back to neutral
 		Object* tower;
 		for (Int i = 0; i < BRIDGE_MAX_TOWERS; ++i)

@@ -182,9 +182,9 @@ bool DrawBridgeUpdate::setDrawBridgeState(bool opened, const Object* fromTower)
 			else {
 				obj->clearAndSetModelConditionState(MODELCONDITION_DOOR_1_OPENING, MODELCONDITION_DOOR_1_CLOSING);
 				obj->setGeometryInfo(obj->getTemplate()->getTemplateGeometryInfo());
-				// a procedural span's box comes from the bridge, not from its placeholder template
+				// the box comes from the bridge, not from a procedural span's placeholder template
 				if (bridge != nullptr)
-					bridge->updateSpanObjectGeometry();
+					bridge->updateBridgeObjectGeometry();
 				m_openingFrame = 0U; // when rapid toggling is possible
 				m_closingDamageFrame = TheGameLogic->getFrame() + data->m_closingDamageTime;
 
