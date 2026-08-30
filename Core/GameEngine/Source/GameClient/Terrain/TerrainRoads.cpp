@@ -416,6 +416,9 @@ TerrainRoadType *TerrainRoadCollection::newBridge( AsciiString name )
 		bridge->friend_setDestroyable( defaultBridge->isDestroyable() );
 		bridge->friend_setBridgeObjectName( defaultBridge->getBridgeObjectName() );
 		bridge->friend_setBridgeDeckHeight( defaultBridge->getBridgeDeckHeight() );
+
+		// a block that omits RadarColor drew black on the radar without this
+		bridge->friend_setRadarColor( defaultBridge->getRadarColor() );
 		for( Int state = BODY_PRISTINE; state < BODYDAMAGETYPE_COUNT; state++ )
 		{
 

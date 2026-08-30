@@ -134,6 +134,7 @@ public:
 	void friend_setDestroyable( Bool destroyable ) { m_isDestroyable = destroyable; }
 	void friend_setBridgeObjectName( AsciiString name ) { m_bridgeObjectName = name; }
 	void friend_setBridgeDeckHeight( Real height ) { m_bridgeDeckHeight = height; }
+	void friend_setRadarColor( RGBColor color ) { m_radarColor = color; }
 
 	/// get the parsing table for INI
 	const FieldParse *getRoadFieldParse() { return m_terrainRoadFieldParseTable; }
