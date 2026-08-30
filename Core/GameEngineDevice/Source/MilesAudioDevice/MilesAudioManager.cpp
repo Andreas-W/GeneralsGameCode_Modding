@@ -635,6 +635,8 @@ void MilesAudioManager::playAudioEvent( AudioRequest* req )
 
 	AsciiString fileToPlay = event->getFilename();
 	PlayingAudio *newPlaying = allocatePlayingAudio();
+	newPlaying->m_requestStop = req->m_requestStop;
+
 	switch(info->m_soundType)
 	{
 		case AT_Music:
@@ -922,13 +924,35 @@ void MilesAudioManager::stopAudioEvent( AudioHandle handle )
 		return;
 	}
 
+	// Look for it in the request list.
+	{
+		std::list<AudioRequest*>::iterator it;
+		for( it = m_audioRequests.begin(); it != m_audioRequests.end(); it++ )
+		{
+			AudioRequest *req = (*it);
+			if( req->m_pendingEvent && req->m_pendingEvent->getPlayingHandle() == handle )
+			{
+				if (req->m_pendingEvent->getAudioEventInfo()->m_soundType == AT_SoundEffect)
+				{
+					req->m_requestStop = true;
+				}
+				else
+				{
+					deleteInstance(req);
+					m_audioRequests.erase(it);
+				}
+				return;
+			}
+		}
+	}
+
 	for ( it = m_playingStreams.begin(); it != m_playingStreams.end(); ++it ) {
 		PlayingAudio *playing = (*it);
 
 		if (playing->m_audioEventRTS->getPlayingHandle() == handle) {
 			// found it
 			stopPlayingAudio(playing);
-			break;
+			return;
 		}
 	}
 
@@ -936,8 +960,8 @@ void MilesAudioManager::stopAudioEvent( AudioHandle handle )
 		PlayingAudio *playing = (*it);
 
 		if (playing->m_audioEventRTS->getPlayingHandle() == handle) {
-			stopPlayingAudio(playing);
-			break;
+			playing->m_requestStop = true;
+			return;
 		}
 	}
 
@@ -949,15 +973,14 @@ void MilesAudioManager::stopAudioEvent( AudioHandle handle )
 			DEBUG_LOG((" (%s)", playing->m_audioEventRTS->getEventName()));
 		#endif
 			// Fork: AC_STOPEARLY looping 3D sounds advance to their decay/tail instead of hard-cutting.
-			// Otherwise use Base's atomic, crash-safe stop (#2774).
 			if (playing->m_audioEventRTS->getAudioEventInfo()->m_control & AC_STOPEARLY) {
 				DEBUG_LOG((">>> stopAudioEvent (3DSounds): %s\n", playing->m_audioEventRTS->getEventName().str()));
 				handleLoopStopEarly(playing);
 			}
 			else {
-				stopPlayingAudio(playing);
+				playing->m_requestStop = true;
 			}
-			break;
+			return;
 		}
 	}
 }
@@ -973,7 +996,7 @@ void MilesAudioManager::killAudioEventImmediately( AudioHandle audioEvent )
 		if( req->m_pendingEvent && req->m_pendingEvent->getPlayingHandle() == audioEvent )
 		{
 			deleteInstance(req);
-			ait = m_audioRequests.erase(ait);
+			m_audioRequests.erase(ait);
 			return;
 		}
 	}
@@ -1113,6 +1136,7 @@ void MilesAudioManager::rerequestPlayingAudio( PlayingAudio *playing )
 	AudioRequest *req = allocateAudioRequest();
 	req->m_pendingEvent = playing->m_audioEventRTS;
 	req->m_requiresCheckForSample = true;
+	req->m_requestStop = playing->m_requestStop;
 	appendAudioRequest(req);
 }
 
@@ -2731,6 +2755,10 @@ Bool MilesAudioManager::startNextLoop( PlayingAudio *playing )
 	playing->m_file = nullptr;
 
 	if (playing->m_status != PS_Playing) {
+		return false;
+	}
+
+	if (playing->m_requestStop) {
 		return false;
 	}
 
