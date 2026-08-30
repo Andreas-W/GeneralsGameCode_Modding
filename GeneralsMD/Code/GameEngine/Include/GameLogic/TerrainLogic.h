@@ -210,6 +210,7 @@ public:
 	Bool hasHoleArea(); // check if this bridge has defined a hole area for damaged/drawbridge state
 	Bool hasHole(); // Check if bridge currently has a hole (destroyed/drawbridge open)
 	void setDrawBridgeStage(bool open); // change if bridge is open/closed 
+	void updateSpanObjectGeometry(); // size the span object's collision box, or collapse it when the span is rubble
 };
 
 //-------------------------------------------------------------------------------------------------

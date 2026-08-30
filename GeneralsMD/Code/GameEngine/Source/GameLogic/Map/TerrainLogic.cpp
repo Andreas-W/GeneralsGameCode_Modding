@@ -301,17 +301,7 @@ m_bridgeInfo(theInfo)
 	if( bridgeTemplate->isDestroyable() == FALSE )
 		return;
 
-	//
-	// the object template geometry is just a placeholder since the span is drawn by the bridge
-	// buffer; size it to the actual span so area weapons aimed at the deck hit us
-	//
-	Coord2D span;
-	span.x = m_bridgeInfo.to.x - m_bridgeInfo.from.x;
-	span.y = m_bridgeInfo.to.y - m_bridgeInfo.from.y;
-	GeometryInfo geom = bridge->getGeometryInfo();
-	geom.setMajorRadius( span.length() / 2.0f );
-	geom.setMinorRadius( m_bridgeInfo.bridgeWidth / 2.0f );
-	bridge->setGeometryInfo( geom );
+	updateSpanObjectGeometry();
 
 	// if defined, set hole area for destroyable bridges/drawbridges
 	if (bridgeTemplate->getBridgeHoleAreaPercentage() > 0.0f) {
@@ -545,6 +535,54 @@ Bool Bridge::hasHole() {
 
 void Bridge::setDrawBridgeStage(bool open) {
 	m_bridgeInfo.drawBridgeOpened = open;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** updateSpanObjectGeometry - match the span object's collision box to the state of the bridge. */
+//-------------------------------------------------------------------------------------------------
+void Bridge::updateSpanObjectGeometry()
+{
+	Object *bridgeObj = TheGameLogic->findObjectByID( m_bridgeInfo.bridgeObjectID );
+	if( bridgeObj == nullptr )
+		return;
+
+	//
+	// landmark bridges are authored with a box that matches their model, and DrawBridgeUpdate owns
+	// it, so leave them alone
+	//
+	if( bridgeObj->getTemplate()->isBridge() )
+		return;
+
+	GeometryInfo geom = bridgeObj->getTemplate()->getTemplateGeometryInfo();
+	if( bridgeObj->getBodyModule()->getDamageState() == BODY_RUBBLE )
+	{
+		//
+		// nothing is left of the span to shoot at or bump into.  the box is as long as the whole
+		// bridge, so leaving it behind makes every shot passing near the wreck detonate on it.
+		//
+		geom.set( GEOMETRY_BOX, TRUE, 0.0f, 0.0f, 0.0f );
+	}
+	else
+	{
+		//
+		// the object template geometry is just a placeholder since the span is drawn by the bridge
+		// buffer; size it to the actual span so area weapons aimed at the deck hit us
+		//
+		Coord2D span;
+		span.x = m_bridgeInfo.to.x - m_bridgeInfo.from.x;
+		span.y = m_bridgeInfo.to.y - m_bridgeInfo.from.y;
+		geom.setMajorRadius( span.length() / 2.0f );
+		geom.setMinorRadius( m_bridgeInfo.bridgeWidth / 2.0f );
+
+		//
+		// ActiveBody turns collisions off for good when a structure rubbles and never turns them
+		// back on, so a repaired span has to ask for them again
+		//
+		bridgeObj->clearStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_NO_COLLISIONS ) );
+	}
+
+	// setGeometryInfo, not setGeometryInfoZ -- the partition footprint has to change with the box
+	bridgeObj->setGeometryInfo( geom );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1002,6 +1040,7 @@ void Bridge::updateDamageState()
 				m_bridgeInfo.curDamageState = damageState;
 				if (damageState == BODY_RUBBLE) {
 					TheAI->pathfinder()->changeBridgeState(m_layer, false);
+					updateSpanObjectGeometry();
 					m_bridgeInfo.damageStateChanged = true;
 					Object *obj;
 					for (obj = TheGameLogic->getFirstObject(); obj; obj=obj->getNextObject()) {
@@ -1038,6 +1077,10 @@ void Bridge::updateDamageState()
 					BridgeBehaviorInterface *bbi = BridgeBehavior::getBridgeBehaviorInterfaceFromObject( bridge );
 					if( bbi == nullptr || bbi->isScaffoldPresent() == FALSE )
 						TheAI->pathfinder()->changeBridgeState(m_layer, true);
+
+					// the span is shootable again as soon as it stops being rubble, even while the
+					// scaffolding still keeps the deck closed
+					updateSpanObjectGeometry();
 					m_bridgeInfo.damageStateChanged = true;
 				}
 			}
@@ -1839,6 +1882,12 @@ PathfindLayerEnum TerrainLogic::getLayerForDestination(const Coord3D *pos)
 	}
 
 	while (pBridge ) {
+		// a collapsed bridge has no deck left to stand on, shoot at or put an effect on
+		if (pBridge->peekBridgeInfo()->curDamageState == BODY_RUBBLE) {
+			pBridge = pBridge->getNext();
+			continue;
+		}
+
 		// filter out destroyed bridges or open draw bridges
 		if (pBridge->isPointOnBridge(pos, false) ) {
 			Real delta = fabs(pos->z-pBridge->getBridgeHeight(pos, nullptr));
