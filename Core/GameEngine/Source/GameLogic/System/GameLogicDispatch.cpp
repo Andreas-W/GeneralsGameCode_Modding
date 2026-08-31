@@ -46,6 +46,9 @@
 #include "Common/BuildAssistant.h"
 #include "Common/SpecialPower.h"
 #include "Common/ThingTemplate.h"
+#include "Common/Team.h"
+#include "GameLogic/Module/BehaviorModule.h"
+#include "GameLogic/Module/CreateModule.h"
 #include "Common/Upgrade.h"
 #include "Common/StatsCollector.h"
 #include "Common/Radar.h"
@@ -679,6 +682,50 @@ void GameLogic::logicMessageDispatcher( GameMessage *msg, void *userData )
 				currentlySelectedGroup->releaseWeaponLockForGroup(LOCKED_TEMPORARILY);	// release any temporary locks.
 				currentlySelectedGroup->groupSmartGarrison( target, CMD_FROM_PLAYER );
 			}
+
+			break;
+
+		}
+		//---------------------------------------------------------------------------------------------
+		// Debug/cheat spawn of a single object for the message's player.
+		// This is dispatched through the logic instead of being created directly by the chat command
+		// in the client, because W3DModelDraw only validates its public bones, turret info and weapon
+		// barrel info while TheGameLogic is inside its update (see isValidTimeToCalcLogicStuff).
+		// Creating the object outside of that leaves the drawable uninitialized: muzzle flashes stay
+		// visible, turrets do not track, and giving the object an order can crash.
+		case GameMessage::MSG_SPAWN_OBJECT_AT_POSITION:
+		{
+			const NameKeyType templateKey = (NameKeyType)msg->getArgument( 0 )->integer;
+			const Coord3D pos = msg->getArgument( 1 )->location;
+
+			const ThingTemplate *tmpl = TheThingFactory->findTemplate( TheNameKeyGenerator->keyToName( templateKey ) );
+			if( tmpl == nullptr )
+				break;
+
+			Team *team = msgPlayer->getDefaultTeam();
+			if( team == nullptr )
+				break;
+
+			Object *obj = TheThingFactory->newObject( tmpl, team );
+			if( obj == nullptr )
+				break;
+
+			obj->setPosition( &pos );
+			obj->setOrientation( 0.0f );
+
+			// onCreate() already ran in the constructor, but the game side CreateModules still need to
+			// run so that upgrades are granted, weapons are locked and special powers are registered.
+			for( BehaviorModule **m = obj->getBehaviorModules(); m && *m; ++m )
+			{
+				CreateModuleInterface *create = (*m)->getCreate();
+				if( create == nullptr )
+					continue;
+
+				create->onBuildComplete();
+			}
+
+			// Creation is another valid and essential time to call this. This object now Looks.
+			obj->handlePartitionCellMaintenance();
 
 			break;
 

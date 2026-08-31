@@ -608,6 +608,7 @@ public:
 		MSG_DO_SPECIAL_POWER_AT_MULTIPLE_LOCATIONS,	///< N-point: (spID, count, coord*count, options, sourceID) - all target points committed in one message (chronosphere = 2)
 		MSG_DO_REVERSE_MOVETO,											///< (location) move to the location driving in reverse
 		MSG_DO_SMART_GARRISON,											///< (target objectID) distribute the selected group across the target and nearby transports
+		MSG_SPAWN_OBJECT_AT_POSITION,					///< (thingTemplate NameKey, location) debug/cheat spawn of one object for the local player; must run in the logic so the drawable is initialized correctly
 
 		MSG_BEGIN_DEBUG_NETWORK_MESSAGES = 1900,		///< network messages that exist only in debug/internal builds. all grouped separately.
 

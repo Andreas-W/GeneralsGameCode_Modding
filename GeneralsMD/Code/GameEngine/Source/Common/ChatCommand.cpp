@@ -24,6 +24,8 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "Common/ChatCommand.h"
+#include "Common/MessageStream.h"
+#include "Common/NameKeyGenerator.h"
 #include "Common/INI.h"
 #include "Common/Money.h"
 #include "Common/Player.h"
@@ -47,6 +49,7 @@
 #include "GameLogic/WeaponSetType.h"
 #include "GameLogic/ArmorSet.h"
 #include "GameLogic/Module/BehaviorModule.h"
+#include "GameLogic/Module/CreateModule.h"
 #include "GameLogic/Module/SpecialPowerModule.h"
 
 //-------------------------------------------------------------------------------------------------
@@ -181,19 +184,22 @@ void ChatCommand::execute() const
 	if (!m_spawnObjectAtCursor.isEmpty())
 	{
 		const ThingTemplate *tmpl = TheThingFactory ? TheThingFactory->findTemplate( m_spawnObjectAtCursor ) : nullptr;
-		Player *player = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
-		Team *team = player ? player->getDefaultTeam() : nullptr;
-		if (tmpl && team && TheMouse && TheTacticalView)
+		if (tmpl && TheMouse && TheTacticalView && TheMessageStream)
 		{
 			Coord3D pos;
 			const MouseIO *mouseIO = TheMouse->getMouseStatus();
-			TheTacticalView->screenToTerrain( &mouseIO->pos, &pos );
-
-			Object *obj = TheThingFactory->newObject( tmpl, team );
-			if (obj)
+			// screenToTerrain fails when the cursor is not over the terrain. Without testing it, pos
+			// would stay uninitialized and the object would be spawned at a garbage position.
+			if( TheTacticalView->screenToTerrain( &mouseIO->pos, &pos ) )
 			{
-				obj->setPosition( &pos );
-				obj->setOrientation( 0.0f );
+				// Do not create the object here. This runs from the in game chat window, so it is client
+				// code outside of the logic update, and W3DModelDraw only validates its public bones,
+				// turret info and weapon barrel info while TheGameLogic is inside its update. Creating
+				// the object here leaves the drawable uninitialized: muzzle flashes stay visible, turrets
+				// do not track, and giving the object an order can crash. Post it to the logic instead.
+				GameMessage *msg = TheMessageStream->appendMessage( GameMessage::MSG_SPAWN_OBJECT_AT_POSITION );
+				msg->appendIntegerArgument( (Int)TheNameKeyGenerator->nameToKey( m_spawnObjectAtCursor ) );
+				msg->appendLocationArgument( pos );
 			}
 		}
 		else if (!tmpl)
