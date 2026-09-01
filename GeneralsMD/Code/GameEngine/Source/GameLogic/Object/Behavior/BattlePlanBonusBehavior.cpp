@@ -58,7 +58,7 @@ BattlePlanBonusBehaviorModuleData::BattlePlanBonusBehaviorModuleData()
 		m_armorSetFlagEntries[i] = ARMORSET_NONE;
 		m_armorDamageScalarEntries[i] = 1.0;
 		m_sightRangeScalarEntries[i] = 1.0;
-		//m_movementSpeedScalarEntries[i] = 1.0;
+		m_movementSpeedScalarEntries[i] = 1.0;
 		m_statusToSetEntries[i] = OBJECT_STATUS_NONE;
 		m_statusToClearEntries[i] = OBJECT_STATUS_NONE;
 	}
@@ -114,15 +114,15 @@ void BattlePlanBonusBehaviorModuleData::parseBPSightRangeScalar(INI* ini, void* 
 	self->m_sightRangeScalarEntries[plan - 1] = INI::scanReal(ini->getNextToken());
 }
 //-------------------------------------------------------------------------------------------------
-//void BattlePlanBonusBehaviorModuleData::parseBPMovementSpeedScalar(INI* ini, void* instance, void* store, const void* userData)
-//{
-//	BattlePlanBonusBehaviorModuleData* self = (BattlePlanBonusBehaviorModuleData*)instance;
-//	BattlePlanStatus plan = (BattlePlanStatus)INI::scanIndexList(ini->getNextToken(), TheBattlePlanStatusNames);
-//	if ((plan) == PLANSTATUS_NONE)
-//		return;
-//
-//	self->m_movementSpeedScalarEntries[plan - 1] = INI::scanReal(ini->getNextToken());
-//}
+void BattlePlanBonusBehaviorModuleData::parseBPMovementSpeedScalar(INI* ini, void* instance, void* store, const void* userData)
+{
+	BattlePlanBonusBehaviorModuleData* self = (BattlePlanBonusBehaviorModuleData*)instance;
+	BattlePlanStatus plan = (BattlePlanStatus)INI::scanIndexList(ini->getNextToken(), TheBattlePlanStatusNames);
+	if ((plan) == PLANSTATUS_NONE)
+		return;
+
+	self->m_movementSpeedScalarEntries[plan - 1] = INI::scanReal(ini->getNextToken());
+}
 //-------------------------------------------------------------------------------------------------
 void BattlePlanBonusBehaviorModuleData::parseBPStatusToSet(INI* ini, void* instance, void* store, const void* userData)
 {
@@ -158,7 +158,7 @@ void BattlePlanBonusBehaviorModuleData::parseBPStatusToClear(INI* ini, void* ins
 		{ "ArmorSet",	parseBPArmorSetFlag, NULL, 0 },
 		{ "ArmorDamageScalar",	parseBPArmorDamageScalar, NULL, 0 },
 		{ "SightRangeScalar",	parseBPSightRangeScalar, NULL, 0 },
-		//{ "MovementSpeedScalar",	parseBPMovementSpeedScalar, NULL, 0 },
+		{ "MovementSpeedScalar",	parseBPMovementSpeedScalar, NULL, 0 },
 		{ "StatusToSet",	parseBPStatusToSet, NULL, 0 },
 		{ "StatusToClear",	parseBPStatusToClear, NULL, 0 },
 		
@@ -304,13 +304,15 @@ void BattlePlanBonusBehavior::addBonusForType(BattlePlanStatus plan)
 		obj->setVisionRange(obj->getVisionRange() * d->m_sightRangeScalarEntries[idx]);
 		obj->setShroudClearingRange(obj->getShroudClearingRange() * d->m_sightRangeScalarEntries[idx]);
 	}
-	/*if (d->m_movementSpeedScalarEntries[idx] != 1.0) {
+	if (d->m_movementSpeedScalarEntries[idx] != 1.0) {
+		// Apply through the AIUpdate rather than the current Locomotor directly: AIUpdateInterface
+		// keeps the accumulated multiplier and re-applies it whenever the locomotor changes, so the
+		// bonus survives locomotor set changes.
 		AIUpdateInterface* ai = obj->getAI();
 		if (ai) {
-			Locomotor* loco = ai->getCurLocomotor();
-			loco->applySpeedMultiplier(d->m_movementSpeedScalarEntries[idx]);
+			ai->applySpeedMultiplier(d->m_movementSpeedScalarEntries[idx]);
 		}
-	}*/
+	}
 	if (d->m_statusToSetEntries[idx] != -1) {
 		obj->setStatus(MAKE_OBJECT_STATUS_MASK(d->m_statusToSetEntries[idx]));
 	}
@@ -356,13 +358,13 @@ void BattlePlanBonusBehavior::removeBonusForType(BattlePlanStatus plan)
 		obj->setVisionRange(obj->getVisionRange() * sightRangeScalar);
 		obj->setShroudClearingRange(obj->getShroudClearingRange() * sightRangeScalar);
 	}
-	/*if (d->m_movementSpeedScalarEntries[idx] != 1.0) {
+	if (d->m_movementSpeedScalarEntries[idx] != 1.0) {
+		// Undo by applying the reciprocal, matching the other scalars above.
 		AIUpdateInterface* ai = obj->getAI();
 		if (ai) {
-			Locomotor* loco = ai->getCurLocomotor();
-			loco->applySpeedMultiplier(d->m_movementSpeedScalarEntries[idx]);
+			ai->applySpeedMultiplier(1.0f / __max(d->m_movementSpeedScalarEntries[idx], 0.01f));
 		}
-	}*/
+	}
 	if (d->m_statusToSetEntries[idx] != -1) {
 		obj->setStatus(MAKE_OBJECT_STATUS_MASK(d->m_statusToSetEntries[idx]), FALSE);
 	}
