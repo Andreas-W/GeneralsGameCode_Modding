@@ -88,6 +88,13 @@ const FieldParse TerrainRoadType::m_terrainBridgeFieldParseTable[] =
 	{ "Destroyable",									INI::parseBool,								nullptr, offsetof( TerrainRoadType, m_isDestroyable ) },
 	{ "BridgeObjectName",							INI::parseAsciiString,				nullptr, offsetof( TerrainRoadType, m_bridgeObjectName ) },
 	{ "BridgeDeckHeight",							INI::parseReal,								nullptr, offsetof( TerrainRoadType, m_bridgeDeckHeight ) },
+	{ "BridgeCollapseDuration",				INI::parseDurationUnsignedInt,nullptr, offsetof( TerrainRoadType, m_bridgeCollapseDuration ) },
+	{ "BridgeCollapseDrop",						INI::parseReal,								nullptr, offsetof( TerrainRoadType, m_bridgeCollapseDrop ) },
+	{ "BridgeCollapseTilt",						INI::parseAngleReal,					nullptr, offsetof( TerrainRoadType, m_bridgeCollapseTilt ) },
+	{ "BridgeCollapseStagger",					INI::parsePercentToReal,			nullptr, offsetof( TerrainRoadType, m_bridgeCollapseStagger ) },
+	{ "BridgeRebuildDuration",					INI::parseDurationUnsignedInt,nullptr, offsetof( TerrainRoadType, m_bridgeRebuildDuration ) },
+	{ "BridgeCollapseSingleSpanRoll",	INI::parseAngleReal,					nullptr, offsetof( TerrainRoadType, m_bridgeCollapseSingleSpanRoll ) },
+	{ "BridgeCollapseSingleSpanDrop",	INI::parseReal,								nullptr, offsetof( TerrainRoadType, m_bridgeCollapseSingleSpanDrop ) },
 
 
 	{ nullptr,									nullptr,													nullptr, 0 },
@@ -225,6 +232,13 @@ TerrainRoadType::TerrainRoadType()
 	m_bridgeHoleAreaPercentage = 0.0f;
 	m_isDestroyable = FALSE;
 	m_bridgeDeckHeight = 0.0f;
+	m_bridgeCollapseDuration = 0;
+	m_bridgeCollapseDrop = 0.0f;
+	m_bridgeCollapseTilt = 0.0f;
+	m_bridgeCollapseStagger = 0.0f;
+	m_bridgeRebuildDuration = 0;
+	m_bridgeCollapseSingleSpanRoll = 0.0f;
+	m_bridgeCollapseSingleSpanDrop = 0.0f;
 
 }
 
@@ -416,6 +430,13 @@ TerrainRoadType *TerrainRoadCollection::newBridge( AsciiString name )
 		bridge->friend_setDestroyable( defaultBridge->isDestroyable() );
 		bridge->friend_setBridgeObjectName( defaultBridge->getBridgeObjectName() );
 		bridge->friend_setBridgeDeckHeight( defaultBridge->getBridgeDeckHeight() );
+		bridge->friend_setBridgeCollapseDuration( defaultBridge->getBridgeCollapseDuration() );
+		bridge->friend_setBridgeCollapseDrop( defaultBridge->getBridgeCollapseDrop() );
+		bridge->friend_setBridgeCollapseTilt( defaultBridge->getBridgeCollapseTilt() );
+		bridge->friend_setBridgeCollapseStagger( defaultBridge->getBridgeCollapseStagger() );
+		bridge->friend_setBridgeRebuildDuration( defaultBridge->getBridgeRebuildDuration() );
+		bridge->friend_setBridgeCollapseSingleSpanRoll( defaultBridge->getBridgeCollapseSingleSpanRoll() );
+		bridge->friend_setBridgeCollapseSingleSpanDrop( defaultBridge->getBridgeCollapseSingleSpanDrop() );
 
 		// a block that omits RadarColor drew black on the radar without this
 		bridge->friend_setRadarColor( defaultBridge->getRadarColor() );

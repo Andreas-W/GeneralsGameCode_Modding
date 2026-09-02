@@ -77,6 +77,29 @@ typedef enum {
 	SECTIONAL_BRIDGE = 1
 } TBridgeType;
 
+typedef enum {
+	BRIDGE_ANIM_NONE = 0,
+	BRIDGE_ANIM_COLLAPSE = 1,
+	BRIDGE_ANIM_REBUILD = 2
+} TBridgeAnimType;
+
+//
+// Per span section deformation for the collapse/rebuild animation.  The deck lives in a shared
+// world space vertex buffer and has no skeleton, so the fold is applied to the finished world
+// position rather than to the model matrix: the model->world mapping divides the bridge axis by
+// the bridge length, so a rotation baked into the matrix would come out sheared.
+//
+struct BridgeSectionAnim
+{
+	Vector3 pivot;				///< world position the section hinges about
+	Vector3 along;				///< normalized bridge axis
+	Vector3 across;				///< normalized across-bridge axis
+	Vector3 up;						///< normalized up axis
+	Real		angle;				///< fold angle about the across axis, radians
+	Real		roll;					///< bank angle about the along axis, radians
+	Real		drop;					///< world units the section sinks
+};
+
 class BridgeInfo;
 /// The individual data for a bridge.
 class W3DBridge
@@ -111,6 +134,9 @@ protected:
 	AsciiString m_templateName;					///< Name of the bridge type.
 	BodyDamageType m_curDamageState;
 	Bool			m_enabled;
+	TBridgeAnimType m_animType;				///< deck animation currently playing, if any
+	UnsignedInt m_animStartFrame;			///< logic frame the animation started on
+	BodyDamageType m_pendingDamageState;	///< model to load once a collapse animation lands
 
 protected:
 	Int getModelVerticesFixed(VertexFormatXYZNDUV1 *destination_vb, Int curVertex, const Matrix3D &mtx, MeshClass *pMesh, RefRenderObjListIterator *pLightsIterator);
@@ -118,7 +144,11 @@ protected:
 	Int getModelVertices(VertexFormatXYZNDUV1 *destination_vb, Int curVertex,  Real xOffset,
 																Vector3 &vec, Vector3 &vecNormal, Vector3 &vecZ, Vector3 &offset,
 																const Matrix3D &mtx,
-																MeshClass *pMesh, RefRenderObjListIterator *pLightsIterator);
+																MeshClass *pMesh, RefRenderObjListIterator *pLightsIterator,
+																const BridgeSectionAnim *anim = nullptr);
+	Real getAnimPhase(UnsignedInt now) const;		///< 0..1 progress of the current animation
+	Bool computeSectionAnim(Int section, Int numSpans, Real phase, Real xOffset,
+																const Vector3 &vec, BridgeSectionAnim *anim);
 
 public:
 	W3DBridge();
@@ -130,6 +160,9 @@ public:
 	const Vector3* getEnd() const { return &m_end;}
 	Bool load(BodyDamageType curDamageState);
 	BodyDamageType getDamageState() {return m_curDamageState;};
+	Bool isAnimating() const {return m_animType != BRIDGE_ANIM_NONE;};
+	/// Advance the deck animation against the logic state.  Returns true if the buffer needs a rebake.
+	Bool updateAnimation(BodyDamageType logicState, UnsignedInt now);
 	void setDamageState(BodyDamageType state) { m_curDamageState = state;};
 	void getIndicesNVertices(UnsignedShort *destination_ib, VertexFormatXYZNDUV1 *destination_vb, Int *curIndexP, Int *curVertexP, RefRenderObjListIterator *pLightsIterator);
 	Bool cullBridge(CameraClass * camera);						 ///< Culls the bridges.  Returns true if visibility changed.

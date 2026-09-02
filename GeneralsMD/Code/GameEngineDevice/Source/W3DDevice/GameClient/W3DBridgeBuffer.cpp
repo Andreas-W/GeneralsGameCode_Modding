@@ -56,6 +56,7 @@
 #include "Common/ThingTemplate.h"
 #include "GameClient/TerrainRoads.h"
 #include "GameLogic/Damage.h"
+#include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/BodyModule.h"
 #include "W3DDevice/GameLogic/W3DTerrainLogic.h"
 #include "W3DDevice/GameClient/TerrainTex.h"
@@ -108,7 +109,10 @@ m_sectionMesh(nullptr),
 m_rightMesh(nullptr),
 m_visible(false),
 m_curDamageState(BODY_PRISTINE),
-m_scale(1.0)
+m_scale(1.0),
+m_animType(BRIDGE_ANIM_NONE),
+m_animStartFrame(0),
+m_pendingDamageState(BODY_PRISTINE)
 {
 }
 
@@ -397,6 +401,44 @@ void W3DBridge::getBridgeInfo(BridgeInfo *pInfo)
 
 
 //=============================================================================
+// rotateInBridgeFrame
+//=============================================================================
+/** Rotates a vector inside an orthonormal bridge frame: a pitch in the (along, up)
+plane for the multi span fold, and a roll in the (across, up) plane for the single
+span bank.  Both are plain 2D rotations because the frame is orthonormal.
+
+The frame is built from the bridge end points rather than from vec/vecNormal/vecZ,
+because those three are not orthogonal for a sloped bridge that does not run along
+world X -- decomposing against them would skew the fold instead of rotating it. */
+//=============================================================================
+static Vector3 rotateInBridgeFrame(const Vector3 &v, const BridgeSectionAnim *anim)
+{
+	Real a = Vector3::Dot_Product(v, anim->along);
+	Real c = Vector3::Dot_Product(v, anim->across);
+	Real u = Vector3::Dot_Product(v, anim->up);
+
+	// pitch -- the fold, used when there are enough sections to fold against each other
+	if (anim->angle != 0.0f) {
+		Real ca = (Real)cos(anim->angle);
+		Real sa = (Real)sin(anim->angle);
+		Real na = a*ca - u*sa;
+		u = a*sa + u*ca;
+		a = na;
+	}
+
+	// roll -- the sideways bank of a single span deck sinking
+	if (anim->roll != 0.0f) {
+		Real cr = (Real)cos(anim->roll);
+		Real sr = (Real)sin(anim->roll);
+		Real nc = c*cr - u*sr;
+		u = c*sr + u*cr;
+		c = nc;
+	}
+
+	return anim->along * a + anim->across * c + anim->up * u;
+}
+
+//=============================================================================
 // W3DBridge::getModelVertices
 //=============================================================================
 /** Gets the vertex values for a section of a bridge.  */
@@ -404,7 +446,8 @@ void W3DBridge::getBridgeInfo(BridgeInfo *pInfo)
 Int W3DBridge::getModelVertices(VertexFormatXYZNDUV1 *destination_vb, Int curVertex, Real xOffset,
 																Vector3 &vec, Vector3 &vecNormal, Vector3 &vecZ, Vector3 &offset,
 																const Matrix3D &mtx,
-																MeshClass *pMesh, RefRenderObjListIterator *pLightsIterator)
+																MeshClass *pMesh, RefRenderObjListIterator *pLightsIterator,
+																const BridgeSectionAnim *anim)
 {
 	if (pMesh == nullptr)
 		return(0);
@@ -444,6 +487,12 @@ Int W3DBridge::getModelVertices(VertexFormatXYZNDUV1 *destination_vb, Int curVer
 		vLoc.Y += m_start.Y;
 		vLoc.Z += m_start.Z;
 
+		// fold and sink this section if a collapse/rebuild animation is running
+		if (anim) {
+			vLoc = anim->pivot + rotateInBridgeFrame(vLoc - anim->pivot, anim);
+			vLoc.Z -= anim->drop;
+		}
+
 		curVb->x = vLoc.X;
 		curVb->y = vLoc.Y;
 		curVb->z = vLoc.Z;
@@ -462,6 +511,10 @@ Int W3DBridge::getModelVertices(VertexFormatXYZNDUV1 *destination_vb, Int curVer
 		curVb->diffuse = 0xFF000000;
 #else
 		normal = (normal.X) * vec + normal.Y*vecNormal + normal.Z*vecZ;
+		// the normals have to turn with the geometry or a falling section lights wrongly
+		if (anim) {
+			normal = rotateInBridgeFrame(normal, anim);
+		}
 		normal.Normalize();
 		TheTerrainRenderObject->doTheLight(&vb, lightRay, &normal, nullptr, 1.0f);
 		curVb->nx = 0;	//will these to keep AGP write buffer happy.
@@ -502,6 +555,227 @@ Int W3DBridge::getModelVerticesFixed(VertexFormatXYZNDUV1 *destination_vb, Int c
 	vecZ *= m_scale;
 	Real xOffset = -m_leftMinX;
 	return(getModelVertices(destination_vb, curVertex, xOffset, vec, vecNormal, vecZ, m_start, mtx, pMesh, pLightsIterator));
+}
+
+//=============================================================================
+// W3DBridge::getAnimPhase
+//=============================================================================
+/** Progress of the running deck animation, 0..1.
+
+Deliberately computed from absolute elapsed frames rather than an accumulated
+delta: drawBridges runs more than once per rendered frame (the water reflection
+pass calls it again), and an accumulator would advance the animation twice as
+fast whenever the bridge is reflected. */
+//=============================================================================
+Real W3DBridge::getAnimPhase(UnsignedInt now) const
+{
+	TerrainRoadType *bridge = TheTerrainRoads ? TheTerrainRoads->findBridge(m_templateName) : nullptr;
+	if (bridge == nullptr)
+		return 1.0f;
+
+	UnsignedInt duration = (m_animType == BRIDGE_ANIM_REBUILD) ?
+													bridge->getBridgeRebuildDuration() : bridge->getBridgeCollapseDuration();
+
+	// a zero duration means the modder did not ask for an animation
+	if (duration == 0 || now < m_animStartFrame)
+		return 1.0f;
+
+	Real t = (Real)(now - m_animStartFrame) / (Real)duration;
+	if (t > 1.0f) t = 1.0f;
+
+	// the rebuild is simply the collapse played backwards
+	if (m_animType == BRIDGE_ANIM_REBUILD)
+		t = 1.0f - t;
+
+	return t;
+}
+
+//=============================================================================
+// W3DBridge::computeSectionAnim
+//=============================================================================
+/** Builds the deformation for one span section.
+
+With several sections the failure ripples out from mid span: the centre sections
+start folding immediately, the ones near the banks lag by up to BridgeCollapseStagger
+of the total duration, and each half hinges about its outboard edge so the deck folds
+inward.
+
+A bridge that resolves to a single section has nothing to fold against -- hinging it
+about one edge just swings it like a trapdoor -- so it banks sideways about its own
+centre and sinks instead.  The stagger is meaningless there and is ignored.
+
+Returns false when this section has nothing to do, so untouched sections keep the
+cheap path. */
+//=============================================================================
+Bool W3DBridge::computeSectionAnim(Int section, Int numSpans, Real phase, Real xOffset,
+																		 const Vector3 &vec, BridgeSectionAnim *anim)
+{
+	if (anim == nullptr || numSpans < 1)
+		return false;
+
+	TerrainRoadType *bridge = TheTerrainRoads ? TheTerrainRoads->findBridge(m_templateName) : nullptr;
+	if (bridge == nullptr)
+		return false;
+
+	const Bool singleSpan = (numSpans == 1);
+
+	Real drop = bridge->getBridgeCollapseDrop();
+	Real tilt = bridge->getBridgeCollapseTilt();
+	Real roll = bridge->getBridgeCollapseSingleSpanRoll();
+
+	if (singleSpan) {
+		// a zero single span drop just reuses the normal one
+		Real singleDrop = bridge->getBridgeCollapseSingleSpanDrop();
+		if (singleDrop != 0.0f)
+			drop = singleDrop;
+		tilt = 0.0f;										// no fold, it banks instead
+		if (drop == 0.0f && roll == 0.0f)
+			return false;
+	} else {
+		roll = 0.0f;										// the fold does not bank
+		if (drop == 0.0f && tilt == 0.0f)
+			return false;
+	}
+
+	Real sp;
+	Bool leftHalf = false;
+	if (singleSpan) {
+
+		// one section, so there is nothing to stagger against
+		sp = phase;
+
+	} else {
+
+		Real stagger = bridge->getBridgeCollapseStagger();
+		if (stagger < 0.0f) stagger = 0.0f;
+		if (stagger > 0.9f) stagger = 0.9f;		// keep the divide below sane
+
+		Real half = numSpans * 0.5f;
+		Real center = (Real)section + 0.5f;
+		leftHalf = center < half;
+
+		// 0 at mid span, 1 at the banks
+		Real d = (Real)fabs(center - half) / half;
+		sp = (phase - d * stagger) / (1.0f - stagger);
+
+	}
+
+	if (sp <= 0.0f)
+		return false;										// this section has not started moving yet
+	if (sp > 1.0f) sp = 1.0f;
+
+	sp = sp * sp;											// ease in, so it reads as falling and not sliding
+
+	//
+	// build an orthonormal frame from the bridge end points.  vec/vecNormal/vecZ cannot be used
+	// for this: vecZ is a rotation about world Y regardless of the bridge heading, so the three
+	// are not mutually perpendicular unless the bridge happens to run along world X.
+	//
+	Vector3 dir = m_end - m_start;
+	if (dir.Length2() < 0.0001f)
+		return false;
+	anim->along = dir;
+	anim->along.Normalize();
+
+	Vector3::Cross_Product(Vector3(0.0f, 0.0f, 1.0f), anim->along, &anim->across);
+	if (anim->across.Length2() < 0.0001f)
+		anim->across = Vector3(0.0f, 1.0f, 0.0f);	// dead vertical bridge, pick anything sane
+	anim->across.Normalize();
+
+	Vector3::Cross_Product(anim->along, anim->across, &anim->up);
+	anim->up.Normalize();
+
+	anim->drop = sp * drop;
+
+	Real pivotX;
+	if (singleSpan) {
+
+		// bank about the middle of the section so it sinks rather than swinging off one edge
+		anim->angle = 0.0f;
+		anim->roll = sp * roll;
+		pivotX = (m_sectionMinX + m_sectionMaxX) * 0.5f;
+
+	} else {
+
+		// the two halves fold toward each other, hinging about the edge nearest the bank
+		anim->angle = sp * tilt * (leftHalf ? 1.0f : -1.0f);
+		anim->roll = 0.0f;
+		pivotX = leftHalf ? m_sectionMinX : m_sectionMaxX;
+
+	}
+
+	anim->pivot = m_start + vec * (pivotX + xOffset);
+
+	return true;
+}
+
+//=============================================================================
+// W3DBridge::updateAnimation
+//=============================================================================
+/** Reconciles the buffer model with the logic damage state, running the deck
+animation across the transition instead of popping between models.  Returns true
+if the shared vertex buffer needs rebuilding this frame.
+
+Client side only -- nothing here feeds back into the logic.  The logic has already
+flipped to BODY_RUBBLE by the time a collapse starts, so riders are dead and the
+layer is closed while the deck is still visibly falling. */
+//=============================================================================
+Bool W3DBridge::updateAnimation(BodyDamageType logicState, UnsignedInt now)
+{
+	TerrainRoadType *bridge = TheTerrainRoads ? TheTerrainRoads->findBridge(m_templateName) : nullptr;
+	UnsignedInt collapseDuration = bridge ? bridge->getBridgeCollapseDuration() : 0;
+	UnsignedInt rebuildDuration = bridge ? bridge->getBridgeRebuildDuration() : 0;
+
+	// let a running animation finish before looking at the logic state again
+	if (m_animType == BRIDGE_ANIM_COLLAPSE) {
+		if (now >= m_animStartFrame + collapseDuration) {
+			// the deck has finished falling, so now show the wreck
+			m_animType = BRIDGE_ANIM_NONE;
+			BodyDamageType prevState = m_curDamageState;
+			m_curDamageState = m_pendingDamageState;
+			if (!load(m_pendingDamageState))
+				load(prevState);
+		}
+		return true;
+	}
+
+	if (m_animType == BRIDGE_ANIM_REBUILD) {
+		if (now >= m_animStartFrame + rebuildDuration)
+			m_animType = BRIDGE_ANIM_NONE;
+		return true;
+	}
+
+	if (logicState == m_curDamageState)
+		return false;
+
+	//
+	// healthy -> rubble.  hold the model we are already showing and fold it; the broken model
+	// is swapped in when the fall lands.  the BRIDGE_ANIM_NONE guard above matters here, or
+	// this would restart every frame since m_curDamageState deliberately lags the logic.
+	//
+	if (logicState == BODY_RUBBLE && collapseDuration > 0) {
+		m_animType = BRIDGE_ANIM_COLLAPSE;
+		m_animStartFrame = now;
+		m_pendingDamageState = logicState;
+		return true;
+	}
+
+	// every other transition swaps the model straight away, as it always did
+	BodyDamageType prevState = m_curDamageState;
+	m_curDamageState = logicState;
+	if (!load(logicState)) {
+		// put the old model back
+		load(prevState);
+		m_curDamageState = logicState;
+	}
+
+	// rubble -> healthy.  the deck is whole geometry again, so unfold it into place.
+	if (prevState == BODY_RUBBLE && rebuildDuration > 0) {
+		m_animType = BRIDGE_ANIM_REBUILD;
+		m_animStartFrame = now;
+	}
+
+	return true;
 }
 
 //=============================================================================
@@ -587,10 +861,24 @@ void W3DBridge::getIndicesNVertices(UnsignedShort *destination_ib, VertexFormatX
 	m_numPolygons += numI/3;
 
 	Int i;
+	//
+	// the deck animation folds the span sections only -- the left and right end pieces sit on
+	// the abutments and stay put.
+	//
+	Real animPhase = 0.0f;
+	if (m_animType != BRIDGE_ANIM_NONE && TheGameLogic)
+		animPhase = getAnimPhase(TheGameLogic->getFrame());
+
 	// draw the spans.
 	for (i=0; i<numSpans; i++) {
+		BridgeSectionAnim sectionAnim;
+		const BridgeSectionAnim *pAnim = nullptr;
+		if (m_animType != BRIDGE_ANIM_NONE &&
+				computeSectionAnim(i, numSpans, animPhase, xOffset+i*spanLength, vec, &sectionAnim))
+			pAnim = &sectionAnim;
+
 		numV = getModelVertices(destination_vb, *curVertexP, xOffset+i*spanLength, vec, vecNormal, vecZ, m_start,
-			m_sectionMtx, m_sectionMesh, pLightsIterator);
+			m_sectionMtx, m_sectionMesh, pLightsIterator, pAnim);
 		if (!numV)
 		{	//not enough room for vertices
 			DEBUG_ASSERTCRASH( numV, ("W3DBridge::GetIndicesNVertices(). Vertex overflow.") );
@@ -1116,8 +1404,9 @@ void W3DBridgeBuffer::drawBridges(CameraClass * camera, Bool wireframe, TextureC
 		for (curBridge=0; curBridge<m_numBridges; curBridge++) {
 			m_bridges[curBridge].setEnabled(false);
 		}
-		/* Check for any changed damage states. */
+		/* Check for any changed damage states, and advance any running deck animation. */
 		Bool changed = false;
+		UnsignedInt now = TheGameLogic ? TheGameLogic->getFrame() : 0;
 		for (Bridge *bridge = TheTerrainLogic->getFirstBridge(); bridge; bridge = bridge->getNext()) {
 			BridgeInfo info;
 			bridge->getBridgeInfo(&info);
@@ -1125,16 +1414,8 @@ void W3DBridgeBuffer::drawBridges(CameraClass * camera, Bool wireframe, TextureC
 				continue;
 			}
 			m_bridges[info.bridgeIndex].setEnabled(true);
-			if (m_bridges[info.bridgeIndex].getDamageState() != info.curDamageState) {
+			if (m_bridges[info.bridgeIndex].updateAnimation(info.curDamageState, now))
 				changed = true;
-				BodyDamageType curState = m_bridges[info.bridgeIndex].getDamageState();
-				m_bridges[info.bridgeIndex].setDamageState(info.curDamageState);
-				if (!m_bridges[info.bridgeIndex].load(info.curDamageState)) {
-					// put the old model back.
-					m_bridges[info.bridgeIndex].load(curState);
-					m_bridges[info.bridgeIndex].setDamageState(info.curDamageState);
-				}
-			}
 		}
 		if (changed) {
 			loadBridgesInVertexAndIndexBuffers(nullptr);
