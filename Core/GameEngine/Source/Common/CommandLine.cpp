@@ -745,8 +745,10 @@ Int parseLoadSave(char *args[], int num)
 		TheWritableGlobalData->m_shellMapOn = FALSE;
 		TheWritableGlobalData->m_playIntro = FALSE;
 		TheWritableGlobalData->m_playSizzle = FALSE;
+
+		return 2;
 	}
-	return 2;
+	return 1;
 }
 
 //=============================================================================
