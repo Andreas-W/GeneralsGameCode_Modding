@@ -745,8 +745,8 @@ void MissileAIUpdate::doAttackState(Bool turnOK, Bool randomPath)
 			targetPos.add(offset);
 
 			if (!d->m_isTorpedo) {
-				// Make sure Z is above ground
-				PathfindLayerEnum layer = TheTerrainLogic->getHighestLayerForDestination(&targetPos);
+				// Make sure Z is above ground.  A collapsed bridge is not something to clear.
+				PathfindLayerEnum layer = TheTerrainLogic->getHighestLayerForDestination(&targetPos, TRUE);
 				Real minHeight = TheTerrainLogic->getLayerHeight(targetPos.x, targetPos.y, layer) + APPROACH_HEIGHT;
 				targetPos.z = __max(targetPos.z, minHeight);
 			}
@@ -1027,8 +1027,10 @@ UpdateSleepTime MissileAIUpdate::update()
 
 	// note that we want to use getHighestLayerForDestination() here, so that anything even slightly
 	// below the bridge translates into GROUND. (getLayerForDestination just does a "closest" check)
+	// a collapsed bridge has no deck left to stop us, so ask for healthy bridges only
+	const Bool onlyHealthyBridges = TRUE;
 	PathfindLayerEnum oldLayer = getObject()->getLayer();
-	PathfindLayerEnum newLayer = TheTerrainLogic->getHighestLayerForDestination(getObject()->getPosition());
+	PathfindLayerEnum newLayer = TheTerrainLogic->getHighestLayerForDestination(getObject()->getPosition(), onlyHealthyBridges);
 	getObject()->setLayer(newLayer);
 
 	if (projectileIsArmed() && oldLayer != LAYER_GROUND && newLayer == LAYER_GROUND)
@@ -1036,7 +1038,7 @@ UpdateSleepTime MissileAIUpdate::update()
 		// see if we' still in the bridge's xy area
 		Coord3D tmp = *getObject()->getPosition();
 		tmp.z = 9999.0f;
-		PathfindLayerEnum testLayer = TheTerrainLogic->getHighestLayerForDestination(&tmp);
+		PathfindLayerEnum testLayer = TheTerrainLogic->getHighestLayerForDestination(&tmp, onlyHealthyBridges);
 		if (testLayer == oldLayer)
 		{
 			// ensure we are slightly above the bridge, to account for fudge & sloppy art
@@ -1104,7 +1106,7 @@ void MissileAIUpdate::projectileNowJammed()
 	targetPosition.y += GameLogicRandomValue(-scatter, scatter);
 	targetPosition.z = TheTerrainLogic->getLayerHeight(	targetPosition.x,
 																											targetPosition.y,
-																											TheTerrainLogic->getHighestLayerForDestination(&targetPosition) );
+																											TheTerrainLogic->getHighestLayerForDestination(&targetPosition, TRUE) );
 
 	getStateMachine()->setGoalObject(nullptr);
 	// Projectiles are expressly forbidden from getting AIIdle.  Who am I to argue.

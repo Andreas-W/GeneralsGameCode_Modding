@@ -736,8 +736,10 @@ UpdateSleepTime DumbProjectileBehavior::update()
 
 	// note that we want to use getHighestLayerForDestination() here, so that anything even slightly
 	// below the bridge translates into GROUND. (getLayerForDestination just does a "closest" check)
+	// a collapsed bridge has no deck left to stop us, so ask for healthy bridges only
+	const Bool onlyHealthyBridges = TRUE;
 	PathfindLayerEnum oldLayer = getObject()->getLayer();
-	PathfindLayerEnum newLayer = TheTerrainLogic->getHighestLayerForDestination(getObject()->getPosition());
+	PathfindLayerEnum newLayer = TheTerrainLogic->getHighestLayerForDestination(getObject()->getPosition(), onlyHealthyBridges);
 	getObject()->setLayer(newLayer);
 
 	if (oldLayer != LAYER_GROUND && newLayer == LAYER_GROUND)
@@ -745,7 +747,7 @@ UpdateSleepTime DumbProjectileBehavior::update()
 		// see if we' still in the bridge's xy area
 		Coord3D tmp = *getObject()->getPosition();
 		tmp.z = 9999.0f;
-		PathfindLayerEnum testLayer = TheTerrainLogic->getHighestLayerForDestination(&tmp);
+		PathfindLayerEnum testLayer = TheTerrainLogic->getHighestLayerForDestination(&tmp, onlyHealthyBridges);
 		if (testLayer == oldLayer)
 		{
 			// ensure we are slightly above the bridge, to account for fudge & sloppy art

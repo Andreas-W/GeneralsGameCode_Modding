@@ -107,11 +107,14 @@ BridgeBehaviorModuleData::~BridgeBehaviorModuleData()
 
 // ------------------------------------------------------------------------------------------------
 /** Parse time and location info in the form of:
-	* Delay:#### <Bone:BoneName> */
+	* Delay:#### <Bone:BoneName> <SpanFraction:0.0-1.0> */
 // ------------------------------------------------------------------------------------------------
 static void parseTimeAndLocationInfo( INI *ini, void *instance,
 																			TimeAndLocationInfo *timeAndLocationInfo )
 {
+
+	// no explicit placement along the span unless one is given below
+	timeAndLocationInfo->spanFraction = -1.0f;
 
 	// delay label
 	const char *token = ini->getNextToken( ini->getSepsColon() );
@@ -126,28 +129,87 @@ static void parseTimeAndLocationInfo( INI *ini, void *instance,
 	// delay value
 	ini->parseDurationUnsignedInt( ini, instance, &timeAndLocationInfo->delay, nullptr );
 
-	// get optional bone label
-	token = ini->getNextTokenOrNull( ini->getSepsColon() );
-	if( token )
+	// get the optional location labels
+	while( (token = ini->getNextTokenOrNull( ini->getSepsColon() )) != nullptr )
 	{
 
-		// token must be a label for bone location
-		if( stricmp( token, "Bone" ) != 0 )
+		if( stricmp( token, "Bone" ) == 0 )
 		{
 
-			DEBUG_CRASH(( "Expected 'Bone' token, found '%s'", token ));
+			// read bone name and store
+			timeAndLocationInfo->boneName = ini->getNextAsciiString();
+
+		}
+		else if( stricmp( token, "SpanFraction" ) == 0 )
+		{
+
+			// 0 is the 'from' bank, 1 is the 'to' bank
+			ini->parseReal( ini, instance, &timeAndLocationInfo->spanFraction, nullptr );
+
+		}
+		else
+		{
+
+			DEBUG_CRASH(( "Expected 'Bone' or 'SpanFraction' token, found '%s'", token ));
 			throw INI_INVALID_DATA;
 
 		}
-
-		// read bone name and store
-		timeAndLocationInfo->boneName = ini->getNextAsciiString();
 
 	}
 
 }
 
 //-------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+/** Position a fraction of the way along the bridge centreline -- 0 at the 'from' bank, 1 at the
+	* 'to' bank -- and optionally a matrix oriented along the span so debris lines up with the deck.
+	*
+	* Unlike getRandomSurfacePosition this draws no random numbers.  That is deliberate: adding
+	* SpanFraction entries must not shift the logic RNG sequence, or existing replays would diverge. */
+// ------------------------------------------------------------------------------------------------
+static Bool getSpanPositionAndMatrix( const BridgeInfo *bridgeInfo, Real fraction,
+																	 Coord3D *pos, Matrix3D *mtx )
+{
+
+	// sanity
+	if( bridgeInfo == nullptr || pos == nullptr )
+		return FALSE;
+
+	if( fraction < 0.0f ) fraction = 0.0f;
+	if( fraction > 1.0f ) fraction = 1.0f;
+
+	// the midpoints of the two ends give us the centreline
+	Coord3D from, to;
+	from.x = (bridgeInfo->fromLeft.x + bridgeInfo->fromRight.x) * 0.5f;
+	from.y = (bridgeInfo->fromLeft.y + bridgeInfo->fromRight.y) * 0.5f;
+	from.z = (bridgeInfo->fromLeft.z + bridgeInfo->fromRight.z) * 0.5f;
+	to.x = (bridgeInfo->toLeft.x + bridgeInfo->toRight.x) * 0.5f;
+	to.y = (bridgeInfo->toLeft.y + bridgeInfo->toRight.y) * 0.5f;
+	to.z = (bridgeInfo->toLeft.z + bridgeInfo->toRight.z) * 0.5f;
+
+	pos->x = from.x + (to.x - from.x) * fraction;
+	pos->y = from.y + (to.y - from.y) * fraction;
+	pos->z = from.z + (to.z - from.z) * fraction;
+
+	if( mtx )
+	{
+
+		Vector3 dir( to.x - from.x, to.y - from.y, to.z - from.z );
+		if( dir.Length2() < 0.0001f )
+			return FALSE;
+		dir.Normalize();		// buildTransformMatrix requires a normalized direction
+
+		Vector3 p( pos->x, pos->y, pos->z );
+		mtx->buildTransformMatrix( p, dir );
+
+	}
+
+	return TRUE;
+
+}
+
+// ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 /*static*/ void BridgeBehaviorModuleData::parseFX( INI *ini,
 											 														 void *instance,
@@ -629,6 +691,14 @@ void BridgeBehavior::onBodyDamageStateChange( const DamageInfo* damageInfo,
 	if( newState != BODY_RUBBLE )
 		m_deathFrame = 0;
 
+	//
+	// the deck is back, so start shoving anything that ended up standing inside it.  this is the
+	// trigger for sectional bridges: the tower healing path in BridgeTowerBehavior only fires
+	// onRepaired() at one exact moment, and any other route back out of rubble would miss it.
+	//
+	if( oldState == BODY_RUBBLE && newState != BODY_RUBBLE )
+		m_repairedFrame = TheGameLogic->getFrame();
+
 	// first resolve any fx stuff if we need to
 	if( m_fxResolved == FALSE )
 		resolveFX();
@@ -852,14 +922,20 @@ UpdateSleepTime BridgeBehavior::update()
 			if( deathTime == (*fxIt).timeAndLocationInfo.delay )
 			{
 				Coord3D pos;
+				Matrix3D spanMtx;
+				const Matrix3D *pMtx = nullptr;
 
 				//
-				// if a bone name is present, we'll use the bone position, otherwise we'll pick a
-				// spot somewhere on the bridge surface
+				// a bone name wins, then an explicit spot along the span, otherwise we pick a
+				// random spot somewhere on the bridge surface as we always did
 				//
 				boneName = (*fxIt).timeAndLocationInfo.boneName;
+				const Real spanFraction = (*fxIt).timeAndLocationInfo.spanFraction;
 				if( boneName.isEmpty() == FALSE )
 					us->getSingleLogicalBonePosition( boneName.str(), &pos, nullptr );
+				else if( spanFraction >= 0.0f && bridgeInfo &&
+								 getSpanPositionAndMatrix( bridgeInfo, spanFraction, &pos, &spanMtx ) )
+					pMtx = &spanMtx;
 				else if ( bridge && bridgeTemplate && bridgeInfo)//we have valid Terrain data for the bridge
 					getRandomSurfacePosition( bridgeTemplate, bridgeInfo, &pos );
 				else
@@ -867,7 +943,7 @@ UpdateSleepTime BridgeBehavior::update()
 
 
 				// launch the fx list
-				FXList::doFXPos( (*fxIt).fx, &pos );
+				FXList::doFXPos( (*fxIt).fx, &pos, pMtx );
 
 			}
 
@@ -923,8 +999,11 @@ UpdateSleepTime BridgeBehavior::update()
 				else
 				{
 
-					// get random place on bridge
-					if ( bridge && bridgeTemplate && bridgeInfo )//we have valid Terrain data for the bridge
+					// an explicit spot along the span, else a random place on bridge
+					const Real spanFraction = (*oclIt).timeAndLocationInfo.spanFraction;
+					if( spanFraction >= 0.0f && bridgeInfo )
+						getSpanPositionAndMatrix( bridgeInfo, spanFraction, &pos, nullptr );
+					else if ( bridge && bridgeTemplate && bridgeInfo )//we have valid Terrain data for the bridge
 						getRandomSurfacePosition( bridgeTemplate, bridgeInfo, &pos );
 					else
 						pos.set( *getObject()->getPosition() );
@@ -984,6 +1063,15 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 	// kill the towers associated with us
 	auto moduleData = getBridgeBehaviorModuleData();
 
+	//
+	// the deck is gone whether or not it can be rebuilt, so punch the hole for either kind.  this
+	// runs before handleObjectsOnBridgeOnDie, which walks the bridge corners directly and so is
+	// not affected by the hole.
+	//
+	Bridge* deadBridge = TheTerrainLogic->findBridgeAt(getObject()->getPosition());
+	if (deadBridge)
+		deadBridge->setDrawBridgeStage(true);
+
 	if (!moduleData->m_restoreable) {
 		Object* tower;
 		for (Int i = 0; i < BRIDGE_MAX_TOWERS; ++i)
@@ -997,13 +1085,6 @@ void BridgeBehavior::onDie( const DamageInfo *damageInfo )
 		}
 	}
 	else {
-		// for destroy/repairable bridges set it to have a hole at death
-		Bridge* bridge = TheTerrainLogic->findBridgeAt(getObject()->getPosition());
-		if (bridge)
-		{
-			bridge->setDrawBridgeStage(true);
-		}
-
 		// Set tower owner back to neutral
 		Object* tower;
 		for (Int i = 0; i < BRIDGE_MAX_TOWERS; ++i)
