@@ -691,6 +691,14 @@ void BridgeBehavior::onBodyDamageStateChange( const DamageInfo* damageInfo,
 	if( newState != BODY_RUBBLE )
 		m_deathFrame = 0;
 
+	//
+	// the deck is back, so start shoving anything that ended up standing inside it.  this is the
+	// trigger for sectional bridges: the tower healing path in BridgeTowerBehavior only fires
+	// onRepaired() at one exact moment, and any other route back out of rubble would miss it.
+	//
+	if( oldState == BODY_RUBBLE && newState != BODY_RUBBLE )
+		m_repairedFrame = TheGameLogic->getFrame();
+
 	// first resolve any fx stuff if we need to
 	if( m_fxResolved == FALSE )
 		resolveFX();
