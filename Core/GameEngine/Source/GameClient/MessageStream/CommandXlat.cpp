@@ -1843,8 +1843,10 @@ GameMessage::Type CommandTranslator::handleGuiCommand( const CommandButton *comm
 					break;
 			}
 
-			// null out the GUI command if we're actually doing something
-			if( type == DO_COMMAND )
+			// null out the GUI command if we're actually doing something.
+			// Exception: an N-point (chronosphere) power keeps the command pending between clicks
+			// so the remaining clicks (or a right-click cancel) can still be handled.
+			if( type == DO_COMMAND && !TheInGameUI->hasPendingSpecialPowerLocations() )
 			{
 				TheInGameUI->setGUICommand( nullptr );
 			}
