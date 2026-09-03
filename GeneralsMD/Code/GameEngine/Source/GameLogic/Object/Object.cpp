@@ -6934,7 +6934,12 @@ Short Object::getRequiredBridgeHeight() const {
 		return 0;
 	}
 	else {
+		//
+		// A cell stores floor(clearance / 10), so a cell reporting 1 only guarantees 10 units of
+		// room.  Round the requirement up, otherwise a 12 unit tall object would ask for 1 and be
+		// let through a 10 unit gap it does not fit under.
+		//
 		Real geometryHeight = getGeometryInfo().getMaxHeightAbovePosition();
-		return std::clamp(static_cast<Short>(geometryHeight / 10.0f), static_cast<Short>(1), static_cast<Short>(15));
+		return std::clamp(static_cast<Short>(REAL_TO_INT_CEIL(geometryHeight / 10.0f)), static_cast<Short>(1), static_cast<Short>(15));
 	}
 }

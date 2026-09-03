@@ -51,6 +51,7 @@ struct TimeAndLocationInfo
 {
 	UnsignedInt delay;			///< how long to wait to execute this
 	AsciiString boneName;		///< which bone to execute at
+	Real spanFraction;			///< 0..1 along the bridge centreline, <0 means unset
 };
 // ------------------------------------------------------------------------------------------------
 struct BridgeFXInfo

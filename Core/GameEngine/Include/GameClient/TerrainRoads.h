@@ -98,6 +98,16 @@ public:
 	Real getTransitionEffectsHeight() { return m_transitionEffectsHeight; }
 	Int getNumFXPerType() { return m_numFXPerType; }
 	Real getBridgeHoleAreaPercentage() { return m_bridgeHoleAreaPercentage;	}
+	Bool isDestroyable( void ) { return m_isDestroyable; }
+	AsciiString getBridgeObjectName( void ) { return m_bridgeObjectName; }
+	Real getBridgeDeckHeight( void ) { return m_bridgeDeckHeight; }
+	UnsignedInt getBridgeCollapseDuration( void ) { return m_bridgeCollapseDuration; }
+	Real getBridgeCollapseDrop( void ) { return m_bridgeCollapseDrop; }
+	Real getBridgeCollapseTilt( void ) { return m_bridgeCollapseTilt; }
+	Real getBridgeCollapseStagger( void ) { return m_bridgeCollapseStagger; }
+	UnsignedInt getBridgeRebuildDuration( void ) { return m_bridgeRebuildDuration; }
+	Real getBridgeCollapseSingleSpanRoll( void ) { return m_bridgeCollapseSingleSpanRoll; }
+	Real getBridgeCollapseSingleSpanDrop( void ) { return m_bridgeCollapseSingleSpanDrop; }
 
 	// friend access methods to be used by the road collection only!
 	void friend_setName( AsciiString name ) { m_name = name; }
@@ -127,6 +137,18 @@ public:
 	void friend_setRepairedToFXString( BodyDamageType state, Int index, AsciiString s ) { m_repairedToFXString[ state ][ index ] = s; }
 	void friend_setTransitionEffectsHeight( Real height ) { m_transitionEffectsHeight = height; }
 	void friend_setNumFXPerType( Int num ) { m_numFXPerType = num; }
+	void friend_setBridgeHoleAreaPercentage( Real percentage ) { m_bridgeHoleAreaPercentage = percentage; }
+	void friend_setDestroyable( Bool destroyable ) { m_isDestroyable = destroyable; }
+	void friend_setBridgeObjectName( AsciiString name ) { m_bridgeObjectName = name; }
+	void friend_setBridgeDeckHeight( Real height ) { m_bridgeDeckHeight = height; }
+	void friend_setBridgeCollapseDuration( UnsignedInt frames ) { m_bridgeCollapseDuration = frames; }
+	void friend_setBridgeCollapseDrop( Real drop ) { m_bridgeCollapseDrop = drop; }
+	void friend_setBridgeCollapseTilt( Real tilt ) { m_bridgeCollapseTilt = tilt; }
+	void friend_setBridgeCollapseStagger( Real stagger ) { m_bridgeCollapseStagger = stagger; }
+	void friend_setBridgeRebuildDuration( UnsignedInt frames ) { m_bridgeRebuildDuration = frames; }
+	void friend_setBridgeCollapseSingleSpanRoll( Real roll ) { m_bridgeCollapseSingleSpanRoll = roll; }
+	void friend_setBridgeCollapseSingleSpanDrop( Real drop ) { m_bridgeCollapseSingleSpanDrop = drop; }
+	void friend_setRadarColor( RGBColor color ) { m_radarColor = color; }
 
 	/// get the parsing table for INI
 	const FieldParse *getRoadFieldParse() { return m_terrainRoadFieldParseTable; }
@@ -190,6 +212,38 @@ protected:
 	Int m_numFXPerType; ///< for *each* fx/ocl we will make this many of them on the bridge area
 
 	Real m_bridgeHoleAreaPercentage; ///< if bridge is openable/destroyable, how much % of length becomes open
+
+	//
+	// non landmark bridges are drawn procedurally and are represented in the logic by an object
+	// created from m_bridgeObjectName; when destroyable they also get the 4 targetable towers
+	// that landmark bridges have
+	//
+	Bool m_isDestroyable;												///< true if this bridge can be destroyed
+	AsciiString m_bridgeObjectName;							///< object representing the bridge span in the logic
+
+	//
+	// the deck plane is the driving surface; a thick deck, girders or arches hang below it and
+	// take away room from anything passing underneath
+	//
+	Real m_bridgeDeckHeight;								///< thickness of the deck below the driving surface
+
+	//
+	// a sectional bridge deck is baked into a shared vertex buffer and has no skeleton, so it
+	// cannot play a model animation.  these drive a procedural fold-and-drop of the span sections
+	// instead.  all default to zero, which reproduces the old instant model swap exactly.
+	//
+	UnsignedInt m_bridgeCollapseDuration;		///< frames the collapse animation runs, 0 disables it
+	Real m_bridgeCollapseDrop;							///< world units a fully collapsed section falls
+	Real m_bridgeCollapseTilt;							///< radians a fully collapsed section folds by
+	Real m_bridgeCollapseStagger;						///< 0..1 of the duration spent rippling out from mid span
+	UnsignedInt m_bridgeRebuildDuration;		///< frames the rebuild animation runs, 0 disables it
+
+	//
+	// a bridge short enough to resolve to a single span section has nothing to fold against, so
+	// it banks sideways and sinks instead of hinging.  a zero drop falls back to the value above.
+	//
+	Real m_bridgeCollapseSingleSpanRoll;	///< radians a one-span deck banks by, sign picks the side
+	Real m_bridgeCollapseSingleSpanDrop;	///< world units a one-span deck sinks, 0 means use the normal drop
 };
 
 //-------------------------------------------------------------------------------------------------
