@@ -61,7 +61,7 @@ public:
 	ArmorSetType m_armorSetFlagEntries[BATTLE_PLAN_COUNT];
 	Real m_armorDamageScalarEntries[BATTLE_PLAN_COUNT];
 	Real m_sightRangeScalarEntries[BATTLE_PLAN_COUNT];
-	//Real m_movementSpeedScalarEntries[BATTLE_PLAN_COUNT];
+	Real m_movementSpeedScalarEntries[BATTLE_PLAN_COUNT];
 	ObjectStatusTypes m_statusToSetEntries[BATTLE_PLAN_COUNT];
 	ObjectStatusTypes m_statusToClearEntries[BATTLE_PLAN_COUNT];
 
@@ -82,7 +82,7 @@ private:
 	static void parseBPArmorSetFlag(INI* ini, void* instance, void* store, const void* userData);
 	static void parseBPArmorDamageScalar(INI* ini, void* instance, void* store, const void* userData);
 	static void parseBPSightRangeScalar(INI* ini, void* instance, void* store, const void* userData);
-	//static void parseBPMovementSpeedScalar(INI* ini, void* instance, void* store, const void* userData);
+	static void parseBPMovementSpeedScalar(INI* ini, void* instance, void* store, const void* userData);
 	static void parseBPStatusToSet(INI* ini, void* instance, void* store, const void* userData);
 	static void parseBPStatusToClear(INI* ini, void* instance, void* store, const void* userData);
 };

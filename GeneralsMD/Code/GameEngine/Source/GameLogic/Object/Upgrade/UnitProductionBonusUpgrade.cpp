@@ -99,7 +99,8 @@ UnitProductionBonusUpgradeModuleData::UnitProductionBonusUpgradeModuleData( void
 	m_templateNames.clear();
 	m_costPercentage = 0.0f;
 	m_timePercentage = 0.0f;
-	// m_isOneShot = FALSE;
+	m_isOneShot = FALSE;
+	m_stackingType = NO_STACKING;
 
 }  // end UnitProductionBonusUpgradeModuleData
 
@@ -113,7 +114,8 @@ UnitProductionBonusUpgradeModuleData::UnitProductionBonusUpgradeModuleData( void
 	{
 		{ "CostModifierPercentage",			INI::parsePercentToReal, NULL, offsetof( UnitProductionBonusUpgradeModuleData, m_costPercentage ) },
 		{ "BuildTimeModifierPercentage",			INI::parsePercentToReal, NULL, offsetof( UnitProductionBonusUpgradeModuleData, m_timePercentage ) },
-		// { "IsOneShotUpgrade",		INI::parseBool, NULL, offsetof( UnitProductionBonusUpgradeModuleData, m_isOneShot) },
+		{ "IsOneShotUpgrade",		INI::parseBool, NULL, offsetof( UnitProductionBonusUpgradeModuleData, m_isOneShot) },
+		{ "BonusStacksWith",		INI::parseIndexList, TheBonusStackingTypeNames, offsetof( UnitProductionBonusUpgradeModuleData, m_stackingType) },
 		{ "UnitTemplateName", INI::parseAsciiStringVectorAppend, NULL, offsetof(UnitProductionBonusUpgradeModuleData, m_templateNames) },
 
 		{ 0, 0, 0, 0 } 
@@ -142,42 +144,91 @@ UnitProductionBonusUpgrade::~UnitProductionBonusUpgrade( void )
 }  // end ~UnitProductionBonusUpgrade
 
 //-------------------------------------------------------------------------------------------------
+// Apply or remove this module's bonus on the given player (ref-counted, source-tracked).
 //-------------------------------------------------------------------------------------------------
-//void UnitProductionBonusUpgrade::onDelete( void )
-//{
-//
-//	// this upgrade module is now "not upgraded"
-//	setUpgradeExecuted(FALSE);
-//
-//}  // end onDelete
+void UnitProductionBonusUpgrade::applyBonus( Player *player, Bool add )
+{
+	if (player == NULL)
+		return;
+
+	const UnitProductionBonusUpgradeModuleData * d = getUnitProductionBonusUpgradeModuleData();
+	const Bool stackWithAny    = (d->m_stackingType == SAME_TYPE);
+	const Bool stackUniqueType = (d->m_stackingType == OTHER_TYPE);
+	const UnsignedInt sourceTemplateID = getObject()->getTemplate()->getTemplateID();
+
+	for (std::vector<AsciiString>::const_iterator tempName = d->m_templateNames.begin();
+		tempName != d->m_templateNames.end(); ++tempName)
+	{
+		if (d->m_costPercentage != 0.0f)
+		{
+			if (add)
+				player->addProductionCostChangeStackable(*tempName, d->m_costPercentage, sourceTemplateID, stackUniqueType, stackWithAny);
+			else
+				player->removeProductionCostChangeStackable(*tempName, d->m_costPercentage, sourceTemplateID, stackUniqueType, stackWithAny);
+		}
+
+		if (d->m_timePercentage != 0.0f)
+		{
+			if (add)
+				player->addProductionTimeChangeStackable(*tempName, d->m_timePercentage, sourceTemplateID, stackUniqueType, stackWithAny);
+			else
+				player->removeProductionTimeChangeStackable(*tempName, d->m_timePercentage, sourceTemplateID, stackUniqueType, stackWithAny);
+		}
+	}
+}
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-//void UnitProductionBonusUpgrade::onCapture( Player *oldOwner, Player *newOwner )
-//{
-//	
-//
-//}  // end onCapture
+void UnitProductionBonusUpgrade::onDelete( void )
+{
+	const UnitProductionBonusUpgradeModuleData * d = getUnitProductionBonusUpgradeModuleData();
+
+	// one-shot bonuses are permanent; nothing to clean up
+	if (d->m_isOneShot)
+		return;
+
+	// nothing to remove if we never applied
+	if (isAlreadyUpgraded() == FALSE)
+		return;
+
+	applyBonus( getObject()->getControllingPlayer(), FALSE );
+
+	// this upgrade module is now "not upgraded"
+	setUpgradeExecuted(FALSE);
+
+}  // end onDelete
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+void UnitProductionBonusUpgrade::onCapture( Player *oldOwner, Player *newOwner )
+{
+	const UnitProductionBonusUpgradeModuleData * d = getUnitProductionBonusUpgradeModuleData();
+
+	// one-shot bonuses stay with the original player; don't remove or transfer
+	if (d->m_isOneShot)
+		return;
+
+	if (isAlreadyUpgraded() == FALSE)
+		return;
+
+	if (oldOwner)
+	{
+		applyBonus( oldOwner, FALSE );
+		setUpgradeExecuted(FALSE);
+	}
+	if (newOwner)
+	{
+		applyBonus( newOwner, TRUE );
+		setUpgradeExecuted(TRUE);
+	}
+
+}  // end onCapture
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 void UnitProductionBonusUpgrade::upgradeImplementation( void )
 {
-	const UnitProductionBonusUpgradeModuleData * d = getUnitProductionBonusUpgradeModuleData();
-
-	Player *player = getObject()->getControllingPlayer();
-
-	for (std::vector<AsciiString>::const_iterator tempName = d->m_templateNames.begin();
-		tempName != d->m_templateNames.end(); ++tempName)
-	{
-		if (d->m_costPercentage != 0.0f) {
-			player->addProductionCostChangePercent(*tempName, d->m_costPercentage);
-		}
-
-		if (d->m_timePercentage != 0.0f) {
-			player->addProductionTimeChangePercent(*tempName, d->m_timePercentage);
-		}
-	}
+	applyBonus( getObject()->getControllingPlayer(), TRUE );
 
 }  // end upgradeImplementation
 

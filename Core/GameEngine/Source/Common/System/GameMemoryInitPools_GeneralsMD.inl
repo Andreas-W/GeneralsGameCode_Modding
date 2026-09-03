@@ -535,6 +535,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "RAMFile", 32, 32 },
 	{ "BattlePlanBonuses", 32, 32 },
 	{ "KindOfPercentProductionChange", 32, 32 },
+	{ "TemplatePercentProductionChange", 32, 32 },
 	{ "UserParser", 4096, 256 },
 	{ "XferBlockData", 32, 32 },
 	{ "EvaCheckInfo", 52, 16 },

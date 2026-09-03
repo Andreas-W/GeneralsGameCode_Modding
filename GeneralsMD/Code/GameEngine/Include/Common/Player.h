@@ -132,6 +132,23 @@ public:
 EMPTY_DTOR(KindOfPercentProductionChange)
 
 // ------------------------------------------------------------------------------------------------
+// Like KindOfPercentProductionChange, but keyed by a build-template name (used by
+// UnitProductionBonusUpgrade). Ref-counted + source-tracked so the same bonus from many units is
+// applied once and removed cleanly on loss.
+class TemplatePercentProductionChange : public MemoryPoolObject
+{
+	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(TemplatePercentProductionChange, "TemplatePercentProductionChange")
+public:
+	NameKeyType			m_templateNameKey;
+	Real				m_percent;
+	UnsignedInt			m_ref;			// Counter
+	Bool				m_stackWithAny;	// this entry can stack with any of same values
+	UnsignedInt			m_templateID;	// Bonus Source thingtemplate
+
+};
+EMPTY_DTOR(TemplatePercentProductionChange)
+
+// ------------------------------------------------------------------------------------------------
 struct SpecialPowerReadyTimerType
 {
 	SpecialPowerReadyTimerType()
@@ -436,6 +453,13 @@ public:
 	// These values can now be set via module
 	void addProductionCostChangePercent(AsciiString buildTemplateName, Real percent);
 	void addProductionTimeChangePercent(AsciiString buildTemplateName, Real percent);
+
+	// Ref-counted, source-tracked template-name production changes (UnitProductionBonusUpgrade).
+	// Mirrors addKindOfProductionCostChange semantics (BonusStacksWith) but keyed by template name.
+	void addProductionCostChangeStackable(AsciiString buildTemplateName, Real percent, UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny);
+	void removeProductionCostChangeStackable(AsciiString buildTemplateName, Real percent, UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny);
+	void addProductionTimeChangeStackable(AsciiString buildTemplateName, Real percent, UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny);
+	void removeProductionTimeChangeStackable(AsciiString buildTemplateName, Real percent, UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny);
 
 
 	// Friend function for the script engine's usage.
@@ -866,6 +890,12 @@ private:
 	mutable KindOfPercentProductionChangeList m_kindOfPercentProductionChangeList;
 	// Production Time modifier (we can re-use the same types)
 	mutable KindOfPercentProductionChangeList m_kindOfPercentProductionTimeChangeList;
+
+	// Template-name production modifiers (ref-counted, source-tracked) for UnitProductionBonusUpgrade
+	typedef std::list<TemplatePercentProductionChange*> TemplatePercentProductionChangeList;
+	typedef TemplatePercentProductionChangeList::iterator TemplatePercentProductionChangeListIt;
+	mutable TemplatePercentProductionChangeList m_templateProductionCostChangeList;
+	mutable TemplatePercentProductionChangeList m_templateProductionTimeChangeList;
 
 	// Global build-speed multiplier for this player (>1 = faster). Defaults to 1.0 (no change).
 	Real m_productionSpeedMultiplier;

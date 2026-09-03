@@ -505,6 +505,23 @@ void Player::init(const PlayerTemplate* pt)
 			deleteInstance(tof);
 	}
 
+	TemplatePercentProductionChangeListIt tit = m_templateProductionCostChangeList.begin();
+	while (tit != m_templateProductionCostChangeList.end())
+	{
+		TemplatePercentProductionChange* tpc = *tit;
+		tit = m_templateProductionCostChangeList.erase(tit);
+		if (tpc)
+			deleteInstance(tpc);
+	}
+	tit = m_templateProductionTimeChangeList.begin();
+	while (tit != m_templateProductionTimeChangeList.end())
+	{
+		TemplatePercentProductionChange* tpc = *tit;
+		tit = m_templateProductionTimeChangeList.erase(tit);
+		if (tpc)
+			deleteInstance(tpc);
+	}
+
 	m_productionSpeedMultiplier = 1.0f;
 
 	getAcademyStats()->init( this );
@@ -2043,25 +2060,42 @@ UnsignedInt Player::getSupplyBoxValue()
 //=============================================================================
 Real Player::getProductionCostChangePercent( AsciiString buildTemplateName ) const
 {
-  ProductionChangeMap::const_iterator it = m_productionCostChanges.find(NAMEKEY(buildTemplateName));
-  if (it != m_productionCostChanges.end())
+	NameKeyType key = NAMEKEY(buildTemplateName);
+
+	Real total = 0.0f;
+	ProductionChangeMap::const_iterator it = m_productionCostChanges.find(key);	// faction discounts
+	if (it != m_productionCostChanges.end())
+		total = (*it).second;
+
+	// add ref-counted upgrade bonuses (deduped per BonusStacksWith; summed here)
+	for (TemplatePercentProductionChangeListIt tit = m_templateProductionCostChangeList.begin();
+			tit != m_templateProductionCostChangeList.end(); ++tit)
 	{
-		return (*it).second;
+		if ((*tit)->m_templateNameKey == key)
+			total += (*tit)->m_percent;
 	}
 
-	return 0.0f;
+	return total;
 }
 
 //=============================================================================
 Real Player::getProductionTimeChangePercent( AsciiString buildTemplateName ) const
 {
-  ProductionChangeMap::const_iterator it = m_productionTimeChanges.find(NAMEKEY(buildTemplateName));
-  if (it != m_productionTimeChanges.end())
+	NameKeyType key = NAMEKEY(buildTemplateName);
+
+	Real total = 0.0f;
+	ProductionChangeMap::const_iterator it = m_productionTimeChanges.find(key);	// faction discounts
+	if (it != m_productionTimeChanges.end())
+		total = (*it).second;
+
+	for (TemplatePercentProductionChangeListIt tit = m_templateProductionTimeChangeList.begin();
+			tit != m_templateProductionTimeChangeList.end(); ++tit)
 	{
-		return (*it).second;
+		if ((*tit)->m_templateNameKey == key)
+			total += (*tit)->m_percent;
 	}
 
-	return 0.0f;
+	return total;
 }
 
 //=============================================================================
@@ -2092,6 +2126,119 @@ void Player::addProductionTimeChangePercent(AsciiString buildTemplateName, Real 
 	// If we haven't found it, add it
 	m_productionTimeChanges[NAMEKEY(buildTemplateName)] = percent;
 	//TODO: remove the entry if we end up at 0?
+}
+
+//=============================================================================
+// Ref-counted, source-tracked template-name production changes. Mirrors
+// addKindOfProductionCostChange / removeKindOfProductionCostChange but keyed by template name.
+//=============================================================================
+void Player::addProductionCostChangeStackable(AsciiString buildTemplateName, Real percent,
+	UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny)
+{
+	NameKeyType key = NAMEKEY(buildTemplateName);
+
+	if (!stackWithAny)	// dedup: don't add another entry for the same effect, just ref-count it
+	{
+		for (TemplatePercentProductionChangeListIt it = m_templateProductionCostChangeList.begin();
+				it != m_templateProductionCostChangeList.end(); ++it)
+		{
+			TemplatePercentProductionChange* tpc = *it;
+			if (tpc->m_percent == percent && tpc->m_templateNameKey == key &&
+				(!stackUniqueType || (tpc->m_templateID == sourceTemplateID && tpc->m_templateID != INVALID_ID)))
+			{
+				tpc->m_ref++;
+				return;
+			}
+		}
+	}
+
+	TemplatePercentProductionChange* newTpc = newInstance(TemplatePercentProductionChange);
+	newTpc->m_templateNameKey = key;
+	newTpc->m_percent = percent;
+	newTpc->m_ref = 1;
+	newTpc->m_stackWithAny = stackWithAny;
+	newTpc->m_templateID = sourceTemplateID;
+	m_templateProductionCostChangeList.push_back(newTpc);
+}
+
+//=============================================================================
+void Player::removeProductionCostChangeStackable(AsciiString buildTemplateName, Real percent,
+	UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny)
+{
+	NameKeyType key = NAMEKEY(buildTemplateName);
+
+	for (TemplatePercentProductionChangeListIt it = m_templateProductionCostChangeList.begin();
+			it != m_templateProductionCostChangeList.end(); ++it)
+	{
+		TemplatePercentProductionChange* tpc = *it;
+		if (tpc->m_percent == percent && tpc->m_templateNameKey == key &&
+			(!stackWithAny || tpc->m_stackWithAny) &&
+			(!stackUniqueType || tpc->m_templateID == sourceTemplateID))
+		{
+			tpc->m_ref--;
+			if (tpc->m_ref == 0)
+			{
+				m_templateProductionCostChangeList.erase(it);
+				deleteInstance(tpc);
+			}
+			return;
+		}
+	}
+}
+
+//=============================================================================
+void Player::addProductionTimeChangeStackable(AsciiString buildTemplateName, Real percent,
+	UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny)
+{
+	NameKeyType key = NAMEKEY(buildTemplateName);
+
+	if (!stackWithAny)
+	{
+		for (TemplatePercentProductionChangeListIt it = m_templateProductionTimeChangeList.begin();
+				it != m_templateProductionTimeChangeList.end(); ++it)
+		{
+			TemplatePercentProductionChange* tpc = *it;
+			if (tpc->m_percent == percent && tpc->m_templateNameKey == key &&
+				(!stackUniqueType || (tpc->m_templateID == sourceTemplateID && tpc->m_templateID != INVALID_ID)))
+			{
+				tpc->m_ref++;
+				return;
+			}
+		}
+	}
+
+	TemplatePercentProductionChange* newTpc = newInstance(TemplatePercentProductionChange);
+	newTpc->m_templateNameKey = key;
+	newTpc->m_percent = percent;
+	newTpc->m_ref = 1;
+	newTpc->m_stackWithAny = stackWithAny;
+	newTpc->m_templateID = sourceTemplateID;
+	m_templateProductionTimeChangeList.push_back(newTpc);
+}
+
+//=============================================================================
+void Player::removeProductionTimeChangeStackable(AsciiString buildTemplateName, Real percent,
+	UnsignedInt sourceTemplateID, Bool stackUniqueType, Bool stackWithAny)
+{
+	NameKeyType key = NAMEKEY(buildTemplateName);
+
+	for (TemplatePercentProductionChangeListIt it = m_templateProductionTimeChangeList.begin();
+			it != m_templateProductionTimeChangeList.end(); ++it)
+	{
+		TemplatePercentProductionChange* tpc = *it;
+		if (tpc->m_percent == percent && tpc->m_templateNameKey == key &&
+			(!stackWithAny || tpc->m_stackWithAny) &&
+			(!stackUniqueType || tpc->m_templateID == sourceTemplateID))
+		{
+			tpc->m_ref--;
+			if (tpc->m_ref == 0)
+			{
+				m_templateProductionTimeChangeList.erase(it);
+				deleteInstance(tpc);
+			}
+			return;
+		}
+	}
 }
 
 //=============================================================================
@@ -4398,7 +4545,7 @@ void Player::xfer( Xfer *xfer )
 {
 
 	// version
-	const XferVersion currentVersion = 9;
+	const XferVersion currentVersion = 10;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -4865,6 +5012,53 @@ void Player::xfer( Xfer *xfer )
 		}  // end for i
 
 	}  // end else, load
+
+	// template-name production COST and TIME change lists (ref-counted upgrade bonuses)
+	if (version >= 10)
+	{
+		for (Int listIndex = 0; listIndex < 2; ++listIndex)
+		{
+			TemplatePercentProductionChangeList& list =
+				(listIndex == 0) ? m_templateProductionCostChangeList : m_templateProductionTimeChangeList;
+
+			UnsignedShort count = list.size();
+			xfer->xferUnsignedShort( &count );
+
+			if (xfer->getXferMode() == XFER_SAVE)
+			{
+				for (TemplatePercentProductionChangeListIt it = list.begin(); it != list.end(); ++it)
+				{
+					TemplatePercentProductionChange* tpc = *it;
+					AsciiString name = KEYNAME(tpc->m_templateNameKey);
+					xfer->xferAsciiString( &name );
+					xfer->xferReal( &tpc->m_percent );
+					xfer->xferUnsignedInt( &tpc->m_ref );
+					xfer->xferBool( &tpc->m_stackWithAny );
+					xfer->xferUnsignedInt( &tpc->m_templateID );
+				}
+			}
+			else
+			{
+				if (!list.empty())
+				{
+					DEBUG_CRASH(("Player::xfer - template production change list should be empty but is not"));
+					throw SC_INVALID_DATA;
+				}
+				for (UnsignedShort i = 0; i < count; ++i)
+				{
+					AsciiString name;
+					TemplatePercentProductionChange* tpc = newInstance(TemplatePercentProductionChange);
+					xfer->xferAsciiString( &name );
+					tpc->m_templateNameKey = NAMEKEY(name);
+					xfer->xferReal( &tpc->m_percent );
+					xfer->xferUnsignedInt( &tpc->m_ref );
+					xfer->xferBool( &tpc->m_stackWithAny );
+					xfer->xferUnsignedInt( &tpc->m_templateID );
+					list.push_back(tpc);
+				}
+			}
+		}
+	}
 
 
 

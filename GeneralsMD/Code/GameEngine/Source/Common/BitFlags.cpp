@@ -376,6 +376,9 @@ const char* const WeaponBonusConditionFlags::s_bitNameList[] =
 	"EXTRA8",
 	"LEVEL_FOUR",
 	"LEVEL_FIVE",
+	"BATTLEPLAN_BOMBARDMENT_TWO",  // These are used for manual extra bonus flags
+	"BATTLEPLAN_HOLDTHELINE_TWO",
+	"BATTLEPLAN_SEARCHANDDESTROY_TWO",
 	nullptr
 };
 static_assert(ARRAY_SIZE(WeaponBonusConditionFlags::s_bitNameList) == WEAPONBONUSCONDITION_COUNT + 1, "Incorrect array size");
