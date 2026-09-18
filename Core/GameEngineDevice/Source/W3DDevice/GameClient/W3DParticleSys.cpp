@@ -66,7 +66,7 @@ static void unbindParticleMaterial( Bool bound )
 
 W3DParticleSystemManager::W3DParticleSystemManager()
 {
-	m_batchBillboard = true;
+	m_batchParticleAlignment = ParticleSystemInfo::PARTICLE_ALIGNMENT_BILLBOARD;
 	m_batchShaderType = ParticleSystemInfo::INVALID_SHADER;
 
 	m_pointGroup = nullptr;
@@ -267,7 +267,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 			pos = p->getPosition();
 			psize = p->getSize();
 
-			m_fieldParticleCount += ( sys->getPriority() == AREA_EFFECT && !sys->shouldBillboard() );
+			m_fieldParticleCount += ( sys->getPriority() == AREA_EFFECT && sys->isFieldParticle() );
 
 			//@todo lorenzen sez: use pointer arithmetic for these arrays
 			personalities[pointCount] = p->getPersonality();
@@ -381,7 +381,7 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 			/// @todo Use both QUADS and TRIS for particles
 			m_pointGroup->Set_Point_Mode( PointGroupClass::QUADS );
 			m_pointGroup->Set_Arrays( m_posBuffer, m_RGBABuffer, nullptr, m_sizeBuffer, m_angleBuffer, nullptr, pointCount );
-			m_pointGroup->Set_Billboard(sys->shouldBillboard());
+			m_pointGroup->Set_Billboard(sys->getParticleAlignment() == ParticleSystemInfo::PARTICLE_ALIGNMENT_BILLBOARD);
 
 			/// @todo Support animated texture particles
 			/// @todo lorenzen sez: unimplemented code wastes cpu cycles
@@ -440,14 +440,14 @@ Bool W3DParticleSystemManager::finishedBatch(const ParticleSystem& system, const
 {
 	return texture.Peek() != m_batchTexture.Peek() ||
 		system.getShaderType() != m_batchShaderType ||
-		system.shouldBillboard() != m_batchBillboard;
+		system.getParticleAlignment() != m_batchParticleAlignment;
 }
 
 void W3DParticleSystemManager::initializeBatch(const ParticleSystem& system, const RefCountPtr<TextureClass>& texture)
 {
 	m_batchTexture = texture;
 	m_batchShaderType = system.getShaderType();
-	m_batchBillboard = system.shouldBillboard();
+	m_batchParticleAlignment = system.getParticleAlignment();
 }
 
 void W3DParticleSystemManager::flushParticleBatch(RenderInfoClass& rinfo, UnsignedInt& pointCount)
@@ -475,7 +475,7 @@ void W3DParticleSystemManager::flushParticleBatch(RenderInfoClass& rinfo, Unsign
 		m_pointGroup->Set_Flag(PointGroupClass::TRANSFORM, true);
 		m_pointGroup->Set_Point_Mode(PointGroupClass::QUADS);
 		m_pointGroup->Set_Arrays(m_posBuffer, m_RGBABuffer, nullptr, m_sizeBuffer, m_angleBuffer, nullptr, pointCount);
-		m_pointGroup->Set_Billboard(m_batchBillboard);
+		m_pointGroup->Set_Billboard(m_batchParticleAlignment == ParticleSystemInfo::PARTICLE_ALIGNMENT_BILLBOARD);
 		m_pointGroup->Set_Point_Frame(0);
 		const Bool material = bindParticleMaterial( m_batchTexture.Peek(), m_batchShaderType == ParticleSystemInfo::ADDITIVE );
 		m_pointGroup->Render(rinfo);
@@ -485,6 +485,6 @@ void W3DParticleSystemManager::flushParticleBatch(RenderInfoClass& rinfo, Unsign
 	}
 
 	m_batchTexture.Clear();
-	m_batchBillboard = false;
+	m_batchParticleAlignment = ParticleSystemInfo::PARTICLE_ALIGNMENT_BILLBOARD;
 	m_batchShaderType = ParticleSystemInfo::INVALID_SHADER;
 }
