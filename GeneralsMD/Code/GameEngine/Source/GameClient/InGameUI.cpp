@@ -470,7 +470,7 @@ void InGameUI::xfer( Xfer *xfer )
 					xfer->xferBool(&swInfo->m_hiddenByScript);
 					xfer->xferBool(&swInfo->m_hiddenByScience);
 					xfer->xferBool(&swInfo->m_ready);
-          if ( currentVersion >= 3 )
+          if ( version >= 3 )
           {
             xfer->xferBool( &swInfo->m_evaReadyPlayed );
           }
@@ -517,7 +517,7 @@ void InGameUI::xfer( Xfer *xfer )
 			xfer->xferBool(&hiddenByScript);
 			xfer->xferBool(&hiddenByScience);
 			xfer->xferBool(&ready);
-      if ( currentVersion >= 3 )
+      if ( version >= 3 )
       {
         xfer->xferBool( &evaReadyPlayed );
       }
