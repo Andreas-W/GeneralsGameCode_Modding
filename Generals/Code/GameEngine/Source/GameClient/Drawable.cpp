@@ -5567,7 +5567,7 @@ void TintEnvelope::crc( Xfer *xfer )
 /** Xfer Method
 	* Version Info;
 	* 1: Initial version
-	* 2: TheSuperHackers @tweak Serialize sustain counter as float instead of integer
+	* 2: TheSuperHackers @tweak Serialize sustain counter as double instead of integer
 	*/
 // ------------------------------------------------------------------------------------------------
 void TintEnvelope::xfer( Xfer *xfer )
@@ -5597,13 +5597,17 @@ void TintEnvelope::xfer( Xfer *xfer )
 	// sustain counter
 	if (version <= 1)
 	{
+		// TheSuperHackers @info bobtista 23/09/2026 The double counter can represent SUSTAIN_INDEFINITELY exactly.
 		UnsignedInt sustainCounter = (UnsignedInt)m_sustainCounter;
 		xfer->xferUnsignedInt( &sustainCounter );
-		m_sustainCounter = (Real)sustainCounter;
+		if( xfer->getXferMode() == XFER_LOAD )
+		{
+			m_sustainCounter = sustainCounter;
+		}
 	}
 	else
 	{
-		xfer->xferReal( &m_sustainCounter );
+		xfer->xferDouble( &m_sustainCounter );
 	}
 
 	// affect
