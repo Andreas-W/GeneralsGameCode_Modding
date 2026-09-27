@@ -11,6 +11,7 @@
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/TerrainLogic.h"
 #include "GameLogic/Module/AIUpdate.h"
+#include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
 #include "GameClient/FXList.h"
 
@@ -43,7 +44,9 @@ RiftSlowDeathBehaviorModuleData::RiftSlowDeathBehaviorModuleData(void)
 	m_damagePerSecond = 0.0f;
 	m_damageInterval = LOGICFRAMES_PER_SECOND;
 	m_damageType = DAMAGE_EXPLOSION;
+	m_deathType = DEATH_NORMAL;
 	m_consumeDeathType = DEATH_EXPLODED;
+	m_consumeDeathRadius = 0.0f;
 
 	m_finalPushForce = 0.0f;
 	m_finalPushSpeed = 0.0f;
@@ -63,6 +66,9 @@ RiftSlowDeathBehaviorModuleData::RiftSlowDeathBehaviorModuleData(void)
 	m_FXfinal = NULL;
 	m_FXconsume = NULL;
 	m_OCLconsume = NULL;
+	m_OCLstructureDebris = NULL;
+	m_structureDebrisChance = 1.0f;
+	m_structureDebrisCount = 1;
 }  // end RiftSlowDeathBehaviorModuleData
 
 // ------------------------------------------------------------------------------------------------
@@ -96,7 +102,9 @@ RiftSlowDeathBehaviorModuleData::RiftSlowDeathBehaviorModuleData(void)
 		{ "DamagePerSecond",			INI::parseReal,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_damagePerSecond) },
 		{ "DamageInterval",				INI::parseDurationUnsignedInt,	NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_damageInterval) },
 		{ "DamageType",						INI::parseIndexList,		DamageTypeFlags::s_bitNameList, offsetof(RiftSlowDeathBehaviorModuleData, m_damageType) },
+		{ "DeathType",						INI::parseIndexList,		TheDeathNames,	offsetof(RiftSlowDeathBehaviorModuleData, m_deathType) },
 		{ "ConsumeDeathType",			INI::parseIndexList,		TheDeathNames,	offsetof(RiftSlowDeathBehaviorModuleData, m_consumeDeathType) },
+		{ "ConsumeDeathRadius",		INI::parseReal,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_consumeDeathRadius) },
 
 		{ "FinalPushForce",				INI::parseReal,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_finalPushForce) },
 		{ "FinalPushSpeed",				INI::parseVelocityReal,					NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_finalPushSpeed) },
@@ -110,6 +118,9 @@ RiftSlowDeathBehaviorModuleData::RiftSlowDeathBehaviorModuleData(void)
 		{ "FXFinal",							INI::parseFXList,								NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_FXfinal) },
 		{ "FXConsume",						INI::parseFXList,								NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_FXconsume) },
 		{ "OCLConsume",						INI::parseObjectCreationList,		NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_OCLconsume) },
+		{ "StructureDebrisOCL",		INI::parseObjectCreationList,		NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_OCLstructureDebris) },
+		{ "StructureDebrisChance",INI::parsePercentToReal,				NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_structureDebrisChance) },
+		{ "StructureDebrisCount",	INI::parseInt,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_structureDebrisCount) },
 
 		{ 0, 0, 0, 0 }
 	};
@@ -291,7 +302,7 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 
 	DamageInfo damageInfo;
 	damageInfo.in.m_damageType = d->m_damageType;
-	damageInfo.in.m_deathType = d->m_consumeDeathType;
+	damageInfo.in.m_deathType = d->m_deathType;
 	damageInfo.in.m_sourceID = self->getID();
 	damageInfo.in.m_amount = damageAmount;
 	// no shockwave here: we move victims through physics directly, and attemptDamage refuses to
@@ -311,6 +322,7 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 	// consuming kills objects, so collect them and deal with them once the iterator is released
 	std::vector<ObjectID> consumed;
 	std::vector<ObjectID> inRange;
+	std::vector<ObjectID> debrisSources;
 
 	for (Object* victim = iter->first(); victim != NULL; victim = iter->next())
 	{
@@ -324,17 +336,32 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 		if (victim->getContainedBy() != NULL)
 			continue;
 
-		if (damageThisFrame)
-			victim->attemptDamage(&damageInfo);
-
-		if (!isPullable(victim))
-			continue;
-
 		Coord3D toRift;
 		toRift.x = m_riftPos.x - victim->getPosition()->x;
 		toRift.y = m_riftPos.y - victim->getPosition()->y;
 		toRift.z = m_riftPos.z - victim->getPosition()->z;
 		Real dist = toRift.length();
+
+		Bool pullable = isPullable(victim);
+
+		if (damageThisFrame)
+		{
+			// only things that can actually fall in may die the consume death
+			damageInfo.in.m_deathType = (pullable && dist <= d->m_consumeDeathRadius) ? d->m_consumeDeathType : d->m_deathType;
+			// the same DamageInfo is reused for every victim, so clear what the last one reported
+			damageInfo.out = DamageInfoOutput();
+			victim->attemptDamage(&damageInfo);
+
+			if (d->m_OCLstructureDebris != NULL
+					&& victim->isKindOf(KINDOF_STRUCTURE)
+					&& !damageInfo.out.m_noEffect
+					&& damageInfo.out.m_actualDamageDealt > 0.0f
+					&& GameLogicRandomValueReal(0.0f, 1.0f) < d->m_structureDebrisChance)
+				debrisSources.push_back(victim->getID());
+		}
+
+		if (!pullable)
+			continue;
 
 		if (d->m_eventHorizonRadius > 0.0f && dist <= d->m_eventHorizonRadius)
 		{
@@ -360,7 +387,7 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 	Real releaseRadiusSqr = (d->m_radius * RIFT_RELEASE_SLOP) * (d->m_radius * RIFT_RELEASE_SLOP);
 	for (Int i = (Int)m_victims.size() - 1; i >= 0; --i)
 	{
-		const RiftVictim& v = m_victims[i];
+		RiftVictim& v = m_victims[i];
 
 		Bool keep = FALSE;
 		for (std::vector<ObjectID>::const_iterator it = inRange.begin(); it != inRange.end(); ++it)
@@ -382,16 +409,67 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 			away.x = obj->getPosition()->x - m_riftPos.x;
 			away.y = obj->getPosition()->y - m_riftPos.y;
 			away.z = 0.0f;
-			if (away.lengthSqr() <= releaseRadiusSqr)
+			// but let go at once of anything that stopped being pullable, e.g. just turned invulnerable
+			if (away.lengthSqr() <= releaseRadiusSqr && isPullable(obj))
 				continue;
 
 			releaseVictim(v, obj);
+		}
+		else if (obj != NULL)
+		{
+			// Dead but not yet destroyed. Anything that died close to the center keeps falling in
+			// until its own death modules remove it; the alive filter hides it from the scan above,
+			// so it is steered from here instead.
+			Coord3D toRift;
+			toRift.x = m_riftPos.x - obj->getPosition()->x;
+			toRift.y = m_riftPos.y - obj->getPosition()->y;
+			toRift.z = m_riftPos.z - obj->getPosition()->z;
+			Real dist = toRift.length();
+
+			// our debris has an InactiveBody, which counts as dead from birth, so it always lands here
+			if ((v.m_savedFlags & RiftVictim::RIFTSAVE_DEBRIS) != 0)
+			{
+				if (d->m_eventHorizonRadius > 0.0f && dist <= d->m_eventHorizonRadius)
+				{
+					TheGameLogic->destroyObject(obj);
+					m_victims.erase(m_victims.begin() + i);
+					continue;
+				}
+
+				steerVictim(v, obj, toRift, dist, strength);
+				continue;
+			}
+
+			if ((v.m_savedFlags & RiftVictim::RIFTSAVE_DYING) != 0 || dist <= d->m_consumeDeathRadius)
+			{
+				if ((v.m_savedFlags & RiftVictim::RIFTSAVE_DYING) == 0)
+				{
+					v.m_savedFlags |= RiftVictim::RIFTSAVE_DYING;
+
+					// a dead flyer's AI no longer drives its locomotor, so take it over through physics
+					if ((v.m_savedFlags & RiftVictim::RIFTSAVE_USES_LOCOMOTOR) != 0)
+					{
+						v.m_savedFlags &= ~RiftVictim::RIFTSAVE_USES_LOCOMOTOR;
+						beginPhysicsCapture(v, obj);
+					}
+				}
+
+				steerVictim(v, obj, toRift, dist, strength);
+				continue;
+			}
 		}
 
 		m_victims.erase(m_victims.begin() + i);
 	}
 
-	// now that the iterator is gone it is safe to destroy things
+	// now that the iterator is gone it is safe to create and destroy things
+	for (std::vector<ObjectID>::const_iterator it = debrisSources.begin(); it != debrisSources.end(); ++it)
+	{
+		Object* structure = TheGameLogic->findObjectByID(*it);
+		if (structure != NULL)
+			spawnStructureDebris(structure);
+	}
+
 	for (std::vector<ObjectID>::const_iterator it = consumed.begin(); it != consumed.end(); ++it)
 	{
 		Object* victim = TheGameLogic->findObjectByID(*it);
@@ -416,7 +494,7 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-Bool RiftSlowDeathBehavior::isPullable(const Object* victim) const
+Bool RiftSlowDeathBehavior::isPullable(const Object* victim, Bool isDebris) const
 {
 	const RiftSlowDeathBehaviorModuleData* d = getRiftSlowDeathBehaviorModuleData();
 
@@ -424,8 +502,28 @@ Bool RiftSlowDeathBehavior::isPullable(const Object* victim) const
 	if (victim->isKindOf(KINDOF_IMMOBILE)
 			|| victim->isKindOf(KINDOF_STRUCTURE)
 			|| victim->isKindOf(KINDOF_BRIDGE)
-			|| victim->isKindOf(KINDOF_BRIDGE_TOWER))
+			|| victim->isKindOf(KINDOF_BRIDGE_TOWER)
+			|| victim->isKindOf(KINDOF_IMMUNE_TO_PULL))
 		return FALSE;
+
+	// invulnerable things are left alone. Our own debris is exempt: it usually has an InactiveBody,
+	// which always reports itself as indestructible.
+	if (!isDebris)
+	{
+		const BodyModuleInterface* body = victim->getBodyModule();
+		if ((body != NULL && body->isIndestructible()) || victim->getIsUndetectedDefector())
+			return FALSE;
+
+		// these take damage but can never die, so the event horizon could never consume them
+		static const NameKeyType key_ImmortalBody = NAMEKEY("ImmortalBody");
+		static const NameKeyType key_HighlanderBody = NAMEKEY("HighlanderBody");
+		for (BehaviorModule** m = victim->getBehaviorModules(); *m; ++m)
+		{
+			NameKeyType key = (*m)->getModuleNameKey();
+			if (key == key_ImmortalBody || key == key_HighlanderBody)
+				return FALSE;
+		}
+	}
 
 	if (victim->isAnyKindOf(d->m_noPullKindOf))
 		return FALSE;
@@ -470,8 +568,6 @@ RiftVictim* RiftSlowDeathBehavior::findVictim(ObjectID id)
 // ------------------------------------------------------------------------------------------------
 void RiftSlowDeathBehavior::captureVictim(Object* victim)
 {
-	const RiftSlowDeathBehaviorModuleData* d = getRiftSlowDeathBehaviorModuleData();
-
 	RiftVictim v;
 	v.m_id = victim->getID();
 	v.m_kinematicVel.zero();
@@ -487,35 +583,7 @@ void RiftSlowDeathBehavior::captureVictim(Object* victim)
 	}
 	else
 	{
-		// DISABLED_FREEFALL is the only disable that suspends the AI while leaving physics running
-		// (AIUpdate tolerates DISABLED_HELD only), so it is what hands the object over to us.
-		if (victim->isDisabledByType(DISABLED_FREEFALL))
-			v.m_savedFlags |= RiftVictim::RIFTSAVE_WAS_DISABLED_FREEFALL;
-		victim->setDisabled(DISABLED_FREEFALL);
-
-		if (physics != NULL)
-		{
-			if (physics->getIsInFreeFall())
-				v.m_savedFlags |= RiftVictim::RIFTSAVE_WAS_IN_FREEFALL;
-
-			physics->setStickToGround(FALSE);
-			physics->setAllowToFall(TRUE);		// stop physics clamping z to the terrain
-			physics->setIsInFreeFall(TRUE);		// physics then re-asserts the disable for us each frame
-			physics->setAllowBouncing(FALSE);
-			physics->setAllowCollideForce(FALSE);
-			physics->setImmuneToFallingDamage(TRUE);
-			physics->setStunned(TRUE);
-			victim->setModelConditionState(MODELCONDITION_STUNNED_FLAILING);
-
-			if (d->m_initialLiftVelocity > 0.0f)
-			{
-				Coord3D kick;
-				kick.x = 0.0f;
-				kick.y = 0.0f;
-				kick.z = d->m_initialLiftVelocity;
-				physics->addVelocityTo(&kick);
-			}
-		}
+		beginPhysicsCapture(v, victim);
 	}
 
 	if (physics != NULL)
@@ -530,6 +598,46 @@ void RiftSlowDeathBehavior::captureVictim(Object* victim)
 	m_victims.push_back(v);
 
 }  // end captureVictim
+
+// ------------------------------------------------------------------------------------------------
+/** Take the victim away from its AI and hand it to physics, which steerVictim then drives. */
+// ------------------------------------------------------------------------------------------------
+void RiftSlowDeathBehavior::beginPhysicsCapture(RiftVictim& v, Object* victim)
+{
+	const RiftSlowDeathBehaviorModuleData* d = getRiftSlowDeathBehaviorModuleData();
+
+	// DISABLED_FREEFALL is the only disable that suspends the AI while leaving physics running
+	// (AIUpdate tolerates DISABLED_HELD only), so it is what hands the object over to us.
+	if (victim->isDisabledByType(DISABLED_FREEFALL))
+		v.m_savedFlags |= RiftVictim::RIFTSAVE_WAS_DISABLED_FREEFALL;
+	victim->setDisabled(DISABLED_FREEFALL);
+
+	PhysicsBehavior* physics = victim->getPhysics();
+	if (physics == NULL)
+		return;
+
+	if (physics->getIsInFreeFall())
+		v.m_savedFlags |= RiftVictim::RIFTSAVE_WAS_IN_FREEFALL;
+
+	physics->setStickToGround(FALSE);
+	physics->setAllowToFall(TRUE);		// stop physics clamping z to the terrain
+	physics->setIsInFreeFall(TRUE);		// physics then re-asserts the disable for us each frame
+	physics->setAllowBouncing(FALSE);
+	physics->setAllowCollideForce(FALSE);
+	physics->setImmuneToFallingDamage(TRUE);
+	physics->setStunned(TRUE);
+	victim->setModelConditionState(MODELCONDITION_STUNNED_FLAILING);
+
+	if (d->m_initialLiftVelocity > 0.0f)
+	{
+		Coord3D kick;
+		kick.x = 0.0f;
+		kick.y = 0.0f;
+		kick.z = d->m_initialLiftVelocity;
+		physics->addVelocityTo(&kick);
+	}
+
+}  // end beginPhysicsCapture
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -757,12 +865,51 @@ void RiftSlowDeathBehavior::releaseAllVictims(void)
 	for (std::vector<RiftVictim>::const_iterator it = m_victims.begin(); it != m_victims.end(); ++it)
 	{
 		Object* obj = TheGameLogic->findObjectByID(it->m_id);
-		if (obj != NULL && !obj->isEffectivelyDead())
+		if (obj != NULL && (!obj->isEffectivelyDead() || (it->m_savedFlags & RiftVictim::RIFTSAVE_DEBRIS) != 0))
 			releaseVictim(*it, obj);
 	}
 	m_victims.clear();
 
 }  // end releaseAllVictims
+
+// ------------------------------------------------------------------------------------------------
+/** Fire the debris OCL at a random spot on the structure, so it looks like the rift is tearing
+	* pieces out of it. */
+// ------------------------------------------------------------------------------------------------
+void RiftSlowDeathBehavior::spawnStructureDebris(Object* structure)
+{
+	const RiftSlowDeathBehaviorModuleData* d = getRiftSlowDeathBehaviorModuleData();
+	const GeometryInfo& geom = structure->getGeometryInfo();
+
+	Real angle = structure->getOrientation();
+	Real c = Cos(angle);
+	Real s = Sin(angle);
+
+	for (Int n = 0; n < d->m_structureDebrisCount; ++n)
+	{
+		// the footprint offset is in the structure's local space
+		Coord3D offset;
+		geom.makeRandomOffsetWithinFootprint(offset);
+
+		Coord3D pos = *structure->getPosition();
+		pos.x += offset.x * c - offset.y * s;
+		pos.y += offset.x * s + offset.y * c;
+		pos.z += GameLogicRandomValueReal(0.0f, geom.getMaxHeightAbovePosition());
+
+		Object* debris = ObjectCreationList::create(d->m_OCLstructureDebris, structure, &pos, NULL, 0.0f);
+
+		// Debris usually has an InactiveBody and so counts as dead from birth, which hides it from
+		// the scan in doRiftTick. We therefore grab it here and track it ourselves.
+		if (debris == NULL || !isPullable(debris, TRUE) || findVictim(debris->getID()) != NULL)
+			continue;
+
+		captureVictim(debris);
+		RiftVictim* held = findVictim(debris->getID());
+		if (held != NULL)
+			held->m_savedFlags |= RiftVictim::RIFTSAVE_DEBRIS;
+	}
+
+}  // end spawnStructureDebris
 
 // ------------------------------------------------------------------------------------------------
 /** The singularity collapses: everything we held is let go and thrown clear, and the whole radius
@@ -782,7 +929,7 @@ void RiftSlowDeathBehavior::doCollapse(void)
 		for (std::vector<RiftVictim>::const_iterator it = m_victims.begin(); it != m_victims.end(); ++it)
 		{
 			Object* obj = TheGameLogic->findObjectByID(it->m_id);
-			if (obj == NULL || obj->isEffectivelyDead())
+			if (obj == NULL || (obj->isEffectivelyDead() && (it->m_savedFlags & RiftVictim::RIFTSAVE_DEBRIS) == 0))
 				continue;
 
 			PhysicsBehavior* physics = obj->getPhysics();
