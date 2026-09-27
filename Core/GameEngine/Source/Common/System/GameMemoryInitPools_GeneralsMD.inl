@@ -709,5 +709,6 @@ static PoolSizeRec PoolSizes[] =
 	{ "DrawBridgeTowerUpdate", 8, 8 },
 	{ "DrawBridgeUpdate", 4, 4 },
 	{ "CrateApplyUpgrade", 64, 32 },
+	{ "RiftSlowDeathBehavior", 8, 8 },
 	{ 0, 0, 0 }
 };

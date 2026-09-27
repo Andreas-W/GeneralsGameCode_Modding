@@ -219,6 +219,7 @@ enum DeathType CPP_11(: Int)
 	//New Death Types
 	DEATH_CHRONO,
 	DEATH_CRYO,
+	DEATH_BLACK_HOLE,
 	
 	DEATH_NUM_TYPES			// keep this last
 };
@@ -250,7 +251,7 @@ static const char *const TheDeathNames[] =
 	//New:
 	"CHRONO",
 	"CRYO",
-
+	"BLACK_HOLE",
 	nullptr
 };
 static_assert(ARRAY_SIZE(TheDeathNames) == DEATH_NUM_TYPES + 1, "Incorrect array size");
