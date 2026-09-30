@@ -319,8 +319,10 @@ McpJson cmdImportHeightmap(const McpJson &args)
 // Cell masks
 //-------------------------------------------------------------------------------------------------
 
+} // namespace
+
 /// True if the cell is covered by a water polygon whose surface is above the terrain.
-bool isCellUnderWater(WorldHeightMapEdit *map, Int cx, Int cy)
+bool mcpIsCellUnderWater(WorldHeightMapEdit *map, Int cx, Int cy)
 {
 	const Int border = map->getBorderSize();
 	ICoord3D pt;
@@ -336,6 +338,9 @@ bool isCellUnderWater(WorldHeightMapEdit *map, Int cx, Int cy)
 	}
 	return false;
 }
+
+namespace
+{
 
 McpJson cmdExportMask(const McpJson &args)
 {
@@ -362,7 +367,7 @@ McpJson cmdExportMask(const McpJson &args)
 			bool set;
 			if (kind == "passability") set = map->getCliffState(cx, cy) != 0;
 			else if (kind == "texture") set = map->getTextureClass(cx, cy, true) == texClass;
-			else set = isCellUnderWater(map, cx, cy);
+			else set = mcpIsCellUnderWater(map, cx, cy);
 			pixels[(ch - 1 - y) * cw + x] = set ? 255 : 0;
 			if (set) numSet++;
 		}

@@ -137,6 +137,8 @@ public: // Editing methods.
 	/// Copies heights, textures (including blends) and passability from a same-sized map through a
 	/// mirror or rotation. Cliff texture mapping is reset on the copied cells.
 	void copyTransformedFrom(WorldHeightMapEdit *src, const HeightMapTransform &xf, Bool heights, Bool textures, Bool passability);
+	/// Removes both blend layers from the cells in the inclusive index range.
+	void clearBlends(Int x0, Int y0, Int x1, Int y1);
 	static Int getNumTexClasses() {return m_numGlobalTextureClasses;};
 	static AsciiString getTexClassName(int ndx) {return m_globalTextureClasses[ndx].name;}
 	static AsciiString getTexClassUiName(int ndx) ;

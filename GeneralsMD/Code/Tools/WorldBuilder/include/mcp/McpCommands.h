@@ -50,6 +50,7 @@ void mcpRegisterObjectCommands();
 void mcpRegisterWaypointCommands();
 void mcpRegisterImageCommands();
 void mcpRegisterSymmetryCommands();
+void mcpRegisterGenerateCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers
@@ -75,6 +76,9 @@ void mcpCommit(Undoable *undo);
 /// Refreshes the views from an edited heightmap copy and commits it as one undo step (releases the copy).
 /// Pass texturesChanged when tiles were repainted, so the tile set is optimized and the texture list refreshed.
 McpJson mcpCommitHeightMapEdit(WorldHeightMapEdit *copy, bool texturesChanged);
+
+/// True if the cell is covered by a water polygon whose surface is above the terrain.
+bool mcpIsCellUnderWater(WorldHeightMapEdit *map, int cx, int cy);
 
 /// Texture class from a name or index argument (see terrain.list_textures).
 int mcpFindTextureClass(const McpJson &args, const char *key);

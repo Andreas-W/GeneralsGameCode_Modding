@@ -5,6 +5,7 @@ Run WorldBuilderZH.exe with ``-mcp`` first, then point an MCP client at this scr
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, Literal
 
@@ -268,6 +269,120 @@ def terrain_set_passability(impassable: bool = True, shape: Shape | None = None,
 def terrain_sample(x: float, y: float) -> dict:
     """Height, texture and passability at a world point."""
     return wb.call("terrain.sample", x=x, y=y)
+
+
+# --------------------------------------------------------------------------------------------------
+# Procedural terrain
+# --------------------------------------------------------------------------------------------------
+
+_PRESET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "presets")
+
+
+def _load_presets(name: str) -> dict[str, Any]:
+    with open(os.path.join(_PRESET_DIR, name), encoding="utf-8") as f:
+        data = json.load(f)
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
+def _preset(kind: str, name: str) -> dict[str, Any]:
+    presets = _load_presets(kind)
+    if name not in presets:
+        raise ToolError(f"unknown preset '{name}'; available: {', '.join(sorted(presets))}")
+    return presets[name]
+
+
+@mcp.tool()
+def terrain_list_presets() -> dict:
+    """Terrain layouts (for terrain_generate) and sceneries (for terrain_auto_texture), with their settings."""
+    return {"layouts": _load_presets("layouts.json"), "sceneries": _load_presets("sceneries.json")}
+
+
+@mcp.tool()
+def terrain_generate(preset: str | None = "default", layers: list[dict[str, Any]] | None = None, seed: int = 1,
+                     mode: Literal["set", "add"] = "set", base_height: float | None = None,
+                     shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                     radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                     x1: float | None = None, y1: float | None = None, feather: float = 0,
+                     protect: list[dict[str, Any]] | None = None) -> dict:
+    """Generates terrain heights from layered Perlin noise (Genesis TerrainGenerator).
+    Each layer adds clamp(noise, 0..1) * height raw units; noise has frequency (per heightmap vertex),
+    octaves, persistence (roughness), amplitude, and optional ridged (sharp crests) or signed (-1..1).
+    preset loads a layout from terrain_list_presets (default, rolling, mountains, flat_bumpy); passing
+    layers overrides it. mode=set starts from base_height, mode=add adds onto the current terrain.
+    Limit to a circle/rect with feather, and keep spots unchanged with
+    protect=[{"x":..,"y":..,"radius":..,"feather":..}] (e.g. base locations; flatten them afterwards).
+    Different seeds give different terrain. One undo step."""
+    if layers is None:
+        if preset is None:
+            raise ToolError("pass a preset or layers")
+        layout = _preset("layouts.json", preset)
+        layers = layout["layers"]
+        if base_height is None:
+            base_height = layout.get("base_height")
+    return wb.call("terrain.generate", layers=layers, seed=seed, mode=mode, base_height=base_height,
+                   feather=feather, protect=protect, **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
+def terrain_limit_slope(max_step: float = 15, iterations: int = 20, shape: Shape | None = None,
+                        x: float | None = None, y: float | None = None, radius: float | None = None,
+                        x0: float | None = None, y0: float | None = None, x1: float | None = None,
+                        y1: float | None = None) -> dict:
+    """Pulls too-steep neighbouring vertices together until no height step exceeds max_step raw units
+    (Genesis TerrainSmoother). Impassable cliff flags follow the resulting slopes automatically.
+    Run it after terrain_generate to turn noise spikes into walkable slopes. One undo step."""
+    return wb.call("terrain.limit_slope", max_step=max_step, iterations=iterations,
+                   **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
+def terrain_auto_texture(scenery: str | None = "highlands", base: dict[str, Any] | None = None,
+                         cliff: dict[str, Any] | None = None, water: dict[str, Any] | None = None,
+                         cliff_slope: float | None = None, water_below: float | None = None,
+                         seed: int = 1, blend: bool = True, edge_texture: str | None = None,
+                         shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                         radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                         x1: float | None = None, y1: float | None = None) -> dict:
+    """Textures the terrain automatically (Genesis TextureGenerator). Each cell is classified as
+    cliff (height difference across the cell >= cliff_slope raw, default 12, or impassable),
+    water (below water_below raw height, or under a water polygon when water_below is omitted),
+    or ground. Each class has a base texture plus overlays scattered by noise:
+    {"texture": .., "overlays": [{"texture": .., "frequency": 0.07, "threshold": 0.5}]}.
+    scenery loads a preset (highlands, fall, snow, woodland, rocky_island, sand_cliffs, desert);
+    base/cliff/water override its parts. Overlays, cliffs and water are then blended into their
+    surroundings (blend=false skips that). Fails up front if the map has no room for a texture.
+    One undo step."""
+    preset = _preset("sceneries.json", scenery) if scenery else {}
+    base = base or preset.get("base")
+    cliff = cliff or preset.get("cliff")
+    water = water or preset.get("water")
+    if base is None:
+        raise ToolError("pass a scenery or a base texture")
+    if cliff is not None and cliff_slope is not None:
+        cliff = {**cliff, "slope": cliff_slope}
+    if water is not None and water_below is not None:
+        water = {**water, "below": water_below}
+    return wb.call("terrain.auto_texture", base=base, cliff=cliff, water=water, seed=seed, blend=blend,
+                   edge_texture=edge_texture, **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
+def terrain_blend_all(textures: list[str] | None = None, edge_texture: str | None = None,
+                      shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                      radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                      x1: float | None = None, y1: float | None = None) -> dict:
+    """Auto-blends the edges of every region of the given textures (default: all textures except the
+    most common one, taken as the ground) into their surroundings. One undo step."""
+    return wb.call("terrain.blend_all", textures=textures, edge_texture=edge_texture,
+                   **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
+def terrain_remove_blends(shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                          radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                          x1: float | None = None, y1: float | None = None) -> dict:
+    """Removes texture blends (in an area or the whole map), leaving hard texture edges. One undo step."""
+    return wb.call("terrain.remove_blends", **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
 
 
 # --------------------------------------------------------------------------------------------------

@@ -1,0 +1,63 @@
+{
+  "_comment": "Sceneries for terrain_auto_texture, from Genesis (Genesis.UI/Sceneries/*.xml and the MapTools defaults). Overlay 'frequency' is the Genesis Granularity; an overlay replaces the texture where its noise exceeds 'threshold' (0.5).",
+  "highlands": {
+    "base": {"texture": "GrassLargeType1", "overlays": [
+      {"texture": "GrassMediumType22", "frequency": 0.05},
+      {"texture": "GrassMediumType6", "frequency": 0.07},
+      {"texture": "GrassMediumType5", "frequency": 0.1}]},
+    "cliff": {"texture": "CliffMediumType15b", "overlays": [{"texture": "CliffMediumType17", "frequency": 0.23}]}
+  },
+  "fall": {
+    "base": {"texture": "GrassMediumType30", "overlays": [
+      {"texture": "GrassMediumType11b", "frequency": 0.1},
+      {"texture": "GrassMediumType37d", "frequency": 0.15},
+      {"texture": "GrassMediumType10", "frequency": 0.07}]},
+    "cliff": {"texture": "CliffMediumType15", "overlays": [
+      {"texture": "CliffMediumType13", "frequency": 0.2},
+      {"texture": "GrassMediumType23", "frequency": 0.3}]}
+  },
+  "snow": {
+    "base": {"texture": "SnowLargeType1", "overlays": [
+      {"texture": "SnowType5", "frequency": 0.05},
+      {"texture": "SnowType6", "frequency": 0.1}]},
+    "cliff": {"texture": "CliffMediumType17bsnowy", "overlays": [{"texture": "CliffMediumType17b", "frequency": 0.23}]}
+  },
+  "woodland": {
+    "base": {"texture": "GrassMediumType13Light", "overlays": [
+      {"texture": "GrassMediumType13", "frequency": 0.05},
+      {"texture": "GrassMediumType24", "frequency": 0.1}]},
+    "cliff": {"texture": "CliffMediumType16", "overlays": [
+      {"texture": "CliffMediumType1", "frequency": 0.3},
+      {"texture": "CliffMediumType15", "frequency": 0.23}]}
+  },
+  "rocky_island": {
+    "base": {"texture": "GrassMediumType7", "overlays": [
+      {"texture": "Grass02", "frequency": 0.05},
+      {"texture": "GrassMediumType30", "frequency": 0.07},
+      {"texture": "GrassMediumType10", "frequency": 0.1}]},
+    "cliff": {"texture": "CliffMediumType3", "overlays": [{"texture": "RocksMediumType1Snow2", "frequency": 0.15}]}
+  },
+  "sand_cliffs": {
+    "base": {"texture": "DirtMediumType11", "overlays": [
+      {"texture": "GrassMediumType23brown", "frequency": 0.05},
+      {"texture": "RocksMediumType1", "frequency": 0.1},
+      {"texture": "RocksMediumType1Snow2", "frequency": 0.07}]},
+    "cliff": {"texture": "CliffMediumType3"}
+  },
+  "desert": {
+    "base": {"texture": "SandMediumType13", "overlays": [
+      {"texture": "SandMediumType13b", "frequency": 0.1},
+      {"texture": "SandMediumType13c", "frequency": 0.05},
+      {"texture": "SandMediumType13d", "frequency": 0.05},
+      {"texture": "SandMediumType13grassy4", "frequency": 0.05},
+      {"texture": "SandLargeType3Light", "frequency": 0.05},
+      {"texture": "SandMediumType6Light", "frequency": 0.05}]},
+    "cliff": {"texture": "CliffLargeType1", "overlays": [
+      {"texture": "CliffMediumType1", "frequency": 0.07},
+      {"texture": "CliffMediumType16", "frequency": 0.05},
+      {"texture": "CliffMediumType15", "frequency": 0.05}]},
+    "water": {"texture": "SandMediumType9blue", "overlays": [
+      {"texture": "SandMediumType9blue2", "frequency": 0.07},
+      {"texture": "SandMediumType9blue3", "frequency": 0.04}]}
+  }
+}

@@ -1781,6 +1781,18 @@ void WorldHeightMapEdit::copyTransformedFrom(WorldHeightMapEdit *src, const Heig
 	}
 }
 
+void WorldHeightMapEdit::clearBlends(Int x0, Int y0, Int x1, Int y1)
+{
+	for (Int y = y0; y <= y1; y++) {
+		for (Int x = x0; x <= x1; x++) {
+			if (x < 0 || y < 0 || x >= m_width || y >= m_height) continue;
+			const Int ndx = y*m_width + x;
+			m_blendTileNdxes[ndx] = 0;
+			m_extraBlendTileNdxes[ndx] = 0;
+		}
+	}
+}
+
 Bool WorldHeightMapEdit::optimizeTiles()
 {
 	// Run through all the tile indexes changing to tile classes.
