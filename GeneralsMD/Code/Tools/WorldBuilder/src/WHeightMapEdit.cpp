@@ -1435,7 +1435,7 @@ void WorldHeightMapEdit::blendToThisClass(Int xIndex, Int yIndex,
 		Fills the region at xIndex, yIndex with the specified texture. DoReplace forces texture to
 		be replaced on entire map.
 */
-Bool WorldHeightMapEdit::floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace)
+Bool WorldHeightMapEdit::floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace, Bool askToConfirm)
 {
 	Int ndx = (yIndex*m_width)+xIndex;
 	Int curTileClass = getTextureClass(xIndex, yIndex, true);
@@ -1455,11 +1455,16 @@ Bool WorldHeightMapEdit::floodFill(Int xIndex, Int yIndex, Int textureClass, Boo
 		}
 	}
 	if (!canFitTexture(textureClass) || doReplace) {
-		CString confirm;
-		confirm.Format(IDS_CONFIRM_REPLACE_TEXTURE, m_globalTextureClasses[curTileClass].name.str());
-		Int msg = ::AfxMessageBox(confirm, MB_YESNO);
-		::AfxGetMainWnd()->SetFocus();
-		if (msg == IDNO) {
+		if (askToConfirm) {
+			CString confirm;
+			confirm.Format(IDS_CONFIRM_REPLACE_TEXTURE, m_globalTextureClasses[curTileClass].name.str());
+			Int msg = ::AfxMessageBox(confirm, MB_YESNO);
+			::AfxGetMainWnd()->SetFocus();
+			if (msg == IDNO) {
+				return false;
+			}
+		} else if (!doReplace) {
+			// Without a prompt, only replace everywhere when the caller asked for it.
 			return false;
 		}
 		doReplace = true;

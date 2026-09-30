@@ -118,9 +118,12 @@ def edit_redo(count: int = 1) -> dict:
 @mcp.tool()
 def view_set_camera(x: float | None = None, y: float | None = None, angle_deg: float | None = None,
                     pitch: float | None = None, zoom: float | None = None, reset: bool = False) -> dict:
-    """Moves the 3D camera. x/y: world point to center on. angle_deg: camera yaw. pitch: 1.0 is the
-    default tilt, smaller looks more top-down. zoom: mouse wheel offset, 0 is default, positive zooms in
-    (about +-1200 is a strong zoom). reset restores the default camera first."""
+    """Moves the 3D camera. x/y: world point shown in the middle of the screen (kept when omitted);
+    the result reports the current one. angle_deg: camera yaw.
+    pitch: must be > 0; 1.0 is the default tilt, larger values look more straight down (about 2.5 is
+    nearly top-down), smaller values flatten toward the horizon. zoom: mouse wheel offset, 0 is default,
+    positive zooms in, negative zooms out (about -3500 shows a whole 240x240 map).
+    reset restores the default camera first; the other arguments are applied after it."""
     return wb.call("view.set_camera", x=x, y=y, angle_deg=angle_deg, pitch=pitch, zoom=zoom, reset=reset or None)
 
 
@@ -193,8 +196,9 @@ def terrain_paint_texture(texture: str, shape: Shape | None = None,
 
 @mcp.tool()
 def terrain_flood_fill(texture: str, x: float, y: float, replace_all: bool = False) -> dict:
-    """Flood fills the connected texture region under world point (x, y). replace_all replaces that
-    texture everywhere on the map."""
+    """Flood fills the connected texture region under world point (x, y) with `texture`.
+    replace_all instead replaces the texture under the point everywhere on the map; use it when the map
+    has no room for another texture (it swaps one texture for the other)."""
     return wb.call("terrain.flood_fill", texture=texture, x=x, y=y, replace_all=replace_all)
 
 

@@ -247,19 +247,42 @@ WbView3d *require3DView()
 	return view;
 }
 
+/// Ground point at the center of the screen. WorldBuilder applies pitch by tilting the view ray away
+/// from the camera target (see WbView3d::setupCamera), so for pitch != 1 the screen center lies at
+/// target + (source - target) * (1 - 1/pitch) rather than at the target itself.
+void getLookAtPoint(WbView3d *view, Real *x, Real *y)
+{
+	const Vector3 source = view->getCameraSource();
+	const Vector3 target = view->getCameraTarget();
+	const Real k = 1.0f - 1.0f / view->getCameraPitch();
+	*x = target.X + (source.X - target.X) * k;
+	*y = target.Y + (source.Y - target.Y) * k;
+}
+
 McpJson describeCamera(WbView3d *view)
 {
 	McpJson j = McpJson::makeObject();
 	j.set("angle_deg", view->getCameraAngle() * 180.0 / PI);
 	j.set("pitch", view->getCameraPitch());
 	j.set("zoom", view->getZoomOffset());
-	Vector3 target = view->getCameraTarget();
-	j.set("target_x", target.X).set("target_y", target.Y).set("target_z", target.Z);
+	Real lookX, lookY;
+	getLookAtPoint(view, &lookX, &lookY);
+	j.set("x", lookX).set("y", lookY);
 	return j;
 }
 
 void applyCamera(WbView3d *view, const McpJson &args)
 {
+	// Validate before changing anything so a bad argument leaves the camera untouched.
+	const Real pitch = (Real)mcpArgNumber(args, "pitch", 1.0);
+	if (pitch <= 0) {
+		mcpFail("pitch must be > 0 (1.0 is the default tilt, larger looks more top-down)");
+	}
+	Real lookX, lookY;
+	getLookAtPoint(view, &lookX, &lookY);
+	const Real x = (Real)mcpArgNumber(args, "x", lookX);
+	const Real y = (Real)mcpArgNumber(args, "y", lookY);
+
 	if (mcpArgBool(args, "reset", false)) {
 		view->setDefaultCamera();
 	}
@@ -270,14 +293,19 @@ void applyCamera(WbView3d *view, const McpJson &args)
 		view->setZoomOffset((Real)mcpArgNumber(args, "zoom"));
 	}
 	if (args.has("pitch")) {
-		view->setCameraPitch((Real)mcpArgNumber(args, "pitch"));
+		view->setCameraPitch(pitch);
 	}
-	if (args.has("x") || args.has("y")) {
-		Vector3 target = view->getCameraTarget();
-		Real x = (Real)mcpArgNumber(args, "x", target.X);
-		Real y = (Real)mcpArgNumber(args, "y", target.Y);
+	// Keep the requested (or previous) point in the middle of the screen. The camera offset depends a
+	// little on the ground height under the new center, so refine it a few times.
+	for (Int i = 0; i < 3; i++) {
+		view->redraw();
+		const Vector3 source = view->getCameraSource();
+		const Vector3 target = view->getCameraTarget();
+		const Real k = 1.0f - 1.0f / view->getCameraPitch();
+		const Real centerX = x - (source.X - target.X) * k;
+		const Real centerY = y - (source.Y - target.Y) * k;
 		// The view center is kept in cell units.
-		view->setCenterInView(x / MAP_XY_FACTOR, y / MAP_XY_FACTOR);
+		view->setCenterInView(centerX / MAP_XY_FACTOR, centerY / MAP_XY_FACTOR);
 	}
 	view->redraw();
 }
@@ -334,6 +362,6 @@ void mcpRegisterMapCommands()
 	mcpRegisterCommand("map.set_info", cmdMapSetInfo, "{name?,time_of_day?,weather?} Changes map settings.");
 	mcpRegisterCommand("edit.undo", cmdUndo, "{count?} Undoes the last edits.");
 	mcpRegisterCommand("edit.redo", cmdRedo, "{count?} Redoes undone edits.");
-	mcpRegisterCommand("view.set_camera", cmdSetCamera, "{x?,y?,angle_deg?,pitch?,zoom?,reset?} Moves the 3D camera.");
+	mcpRegisterCommand("view.set_camera", cmdSetCamera, "{x?,y?,angle_deg?,pitch?,zoom?,reset?} Moves the 3D camera. pitch: 1 default, larger = more top-down. zoom: wheel offset, negative zooms out.");
 	mcpRegisterCommand("view.screenshot", cmdScreenshot, "{path?,format?:jpg|png,max_width?,quality?,x?,y?,angle_deg?,pitch?,zoom?,reset?} Renders the 3D view to an image.");
 }

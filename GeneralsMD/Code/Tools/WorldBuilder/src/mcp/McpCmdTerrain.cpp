@@ -407,12 +407,30 @@ McpJson cmdFloodFill(const McpJson &args)
 	if (x < 0 || y < 0 || x >= map->getXExtent() || y >= map->getYExtent()) {
 		mcpFail("point is outside the map");
 	}
+	const bool replaceAll = mcpArgBool(args, "replace_all", false);
+	const Int curClass = map->getTextureClass(x, y, true);
+	if (curClass < 0) {
+		mcpFail("the cell under the point has no single base texture to fill");
+	}
+	if (curClass == texClass) {
+		return McpJson::makeObject().set("changed", false).set("reason", "the region already has this texture");
+	}
+	if (!replaceAll && !map->isTexClassUsed(texClass) && !map->canFitTexture(texClass)) {
+		mcpFail("the map has no room for another texture; pass replace_all=true to swap '%s' for it everywhere",
+			WorldHeightMapEdit::getTexClassName(curClass).str());
+	}
+
 	WorldHeightMapEdit *copy = map->duplicate();
 	EditRange range;
-	if (copy->floodFill(x, y, texClass, mcpArgBool(args, "replace_all", false))) {
+	// Never let WorldHeightMapEdit ask for confirmation: a message box would block the bridge.
+	if (copy->floodFill(x, y, texClass, replaceAll, false)) {
 		range.add(0, 0);
 		range.add(copy->getXExtent() - 1, copy->getYExtent() - 1);
 		range.fullUpdate = true;
+	} else {
+		REF_PTR_RELEASE(copy);
+		mcpFail("flood fill failed (with replace_all, the new texture may need more tile space than '%s')",
+			WorldHeightMapEdit::getTexClassName(curClass).str());
 	}
 	return commitHeightMapEdit(copy, range);
 }

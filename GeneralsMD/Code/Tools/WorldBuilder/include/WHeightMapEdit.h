@@ -119,7 +119,7 @@ public: // Editing methods.
 	void setHeight(Int xIndex, Int yIndex, UnsignedByte height);
 	void setCliff(Int xIndex, Int yIndex, Bool impassable) {setCliffState(xIndex, yIndex, impassable);}
 	Bool setTileNdx(Int xIndex, Int yIndex, Int textureClass, Bool singleTile);
-	Bool floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace);
+	Bool floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace, Bool askToConfirm = true);
 	static Int getNumTexClasses() {return m_numGlobalTextureClasses;};
 	static AsciiString getTexClassName(int ndx) {return m_globalTextureClasses[ndx].name;}
 	static AsciiString getTexClassUiName(int ndx) ;
