@@ -5,6 +5,7 @@
 !.gitattributes
 !.github
 !.gitmodules
+!.mcp.json
 
 *.user
 *.ncb
@@ -67,3 +68,4 @@ build.ninja
 ## Python
 __pycache__/
 *.pyc
+.venv/

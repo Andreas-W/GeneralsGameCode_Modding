@@ -1224,6 +1224,19 @@ void CWorldBuilderDoc::Create3DView()
 }
 
 
+static Bool s_haveNewMapOverride = false;
+static TNewHeightInfo s_newMapOverride;
+
+void CWorldBuilderDoc::setNewMapOverride(Int xExtent, Int yExtent, Int initialHeight, Int border)
+{
+	s_newMapOverride.xExtent = xExtent;
+	s_newMapOverride.yExtent = yExtent;
+	s_newMapOverride.initialHeight = initialHeight;
+	s_newMapOverride.borderWidth = border;
+	s_newMapOverride.forResize = false;
+	s_haveNewMapOverride = true;
+}
+
 BOOL CWorldBuilderDoc::OnNewDocument()
 {
 #ifdef ONLY_ONE_AT_A_TIME
@@ -1246,7 +1259,10 @@ BOOL CWorldBuilderDoc::OnNewDocument()
 	hi.yExtent = AfxGetApp()->GetProfileInt("GameOptions", "Default Map Y-size", 100);
 	hi.borderWidth = AfxGetApp()->GetProfileInt("GameOptions", "Default Map Border", 30);
 	hi.forResize = false;
-	if (!firstTime) {
+	if (s_haveNewMapOverride) {
+		hi = s_newMapOverride;
+		s_haveNewMapOverride = false;
+	} else if (!firstTime) {
 		CString label;
 		label.LoadString(IDS_NEW);
 		CNewHeightMap htDialog(&hi, label);

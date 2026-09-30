@@ -1,0 +1,12 @@
+[project]
+name = "worldbuilder-mcp"
+version = "0.1.0"
+description = "MCP server that drives Zero Hour WorldBuilder through its localhost command bridge"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=2.2,<3",
+]
+
+[tool.uv]
+# Scripts only, nothing to build or install as a package.
+package = false

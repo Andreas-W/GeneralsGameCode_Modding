@@ -195,6 +195,18 @@ set(WORLDBUILDER_SRC
     "include/WorldBuilder.h"
     "include/WorldBuilderDoc.h"
     "include/WorldBuilderView.h"
+    "include/mcp/McpCommands.h"
+    "include/mcp/McpJson.h"
+    "include/mcp/McpScreenshot.h"
+    "include/mcp/McpServer.h"
+    "src/mcp/McpCmdMap.cpp"
+    "src/mcp/McpCmdObjects.cpp"
+    "src/mcp/McpCmdTerrain.cpp"
+    "src/mcp/McpCmdWaypoints.cpp"
+    "src/mcp/McpCommands.cpp"
+    "src/mcp/McpJson.cpp"
+    "src/mcp/McpScreenshot.cpp"
+    "src/mcp/McpServer.cpp"
 )
 
 add_executable(z_worldbuilder WIN32)
@@ -224,6 +236,8 @@ target_link_libraries(z_worldbuilder PRIVATE
     z_gameengine
     z_gameenginedevice
     zi_always
+    stb
+    ws2_32
 )
 
 if(WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows")
