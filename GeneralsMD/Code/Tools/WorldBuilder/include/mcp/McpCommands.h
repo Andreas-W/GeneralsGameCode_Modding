@@ -48,6 +48,7 @@ void mcpRegisterMapCommands();
 void mcpRegisterTerrainCommands();
 void mcpRegisterObjectCommands();
 void mcpRegisterWaypointCommands();
+void mcpRegisterImageCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers
@@ -69,6 +70,13 @@ WorldHeightMapEdit *mcpHeightMap();
 
 /// Commits an undoable to the active document, which takes ownership.
 void mcpCommit(Undoable *undo);
+
+/// Refreshes the views from an edited heightmap copy and commits it as one undo step (releases the copy).
+/// Pass texturesChanged when tiles were repainted, so the tile set is optimized and the texture list refreshed.
+McpJson mcpCommitHeightMapEdit(WorldHeightMapEdit *copy, bool texturesChanged);
+
+/// Texture class from a name or index argument (see terrain.list_textures).
+int mcpFindTextureClass(const McpJson &args, const char *key);
 
 /// Heightmap vertex index for a world coordinate (nearest vertex, not clamped).
 int mcpWorldToIndexX(double worldX);

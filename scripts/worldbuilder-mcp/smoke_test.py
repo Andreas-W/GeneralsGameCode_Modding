@@ -61,6 +61,17 @@ def main() -> int:
     if roads:
         wb.call("roads.add", type=roads[0], points=[[50, 500], [300, 500], [400, 700]])
 
+    # Heightmap image round trip must be lossless.
+    out_png = os.path.join(tempfile.mkdtemp(prefix="wb_mcp_"), "height.png")
+    wb.call("terrain.export_heightmap", path=out_png)
+    wb.call("terrain.import_heightmap", path=out_png, fit="exact")
+    again_png = out_png.replace("height.png", "height2.png")
+    wb.call("terrain.export_heightmap", path=again_png)
+    assert open(out_png, "rb").read() == open(again_png, "rb").read(), "heightmap round trip changed heights"
+    wb.call("edit.undo")
+    water = wb.call("terrain.export_mask", kind="water")
+    assert water["cells_set"] > 0, water
+
     shot = wb.call("view.screenshot", x=400, y=400)
     print("screenshot:", shot["path"], shot["width"], "x", shot["height"])
 

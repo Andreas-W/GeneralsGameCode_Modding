@@ -499,6 +499,20 @@ McpJson cmdSample(const McpJson &args)
 
 } // namespace
 
+Int mcpFindTextureClass(const McpJson &args, const char *key)
+{
+	return findTextureClass(args, key);
+}
+
+McpJson mcpCommitHeightMapEdit(WorldHeightMapEdit *copy, bool texturesChanged)
+{
+	EditRange range;
+	range.add(0, 0);
+	range.add(copy->getXExtent() - 1, copy->getYExtent() - 1);
+	range.fullUpdate = texturesChanged;
+	return commitHeightMapEdit(copy, range);
+}
+
 void mcpRegisterTerrainCommands()
 {
 	mcpRegisterCommand("terrain.get_heights", cmdGetHeights, "{x0?,y0?,w?,h?,step?} Raw vertex heights (0..255) as rows; indices include the border.");

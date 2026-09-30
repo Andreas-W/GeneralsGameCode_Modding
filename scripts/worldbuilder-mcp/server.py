@@ -5,6 +5,7 @@ Run WorldBuilderZH.exe with ``-mcp`` first, then point an MCP client at this scr
 
 from __future__ import annotations
 
+import os
 from typing import Any, Literal
 
 from mcp.server.mcpserver import Image, MCPServer
@@ -223,6 +224,73 @@ def terrain_set_passability(impassable: bool = True, shape: Shape | None = None,
 def terrain_sample(x: float, y: float) -> dict:
     """Height, texture and passability at a world point."""
     return wb.call("terrain.sample", x=x, y=y)
+
+
+# --------------------------------------------------------------------------------------------------
+# Terrain images
+# --------------------------------------------------------------------------------------------------
+
+def _abspath(path: str | None) -> str | None:
+    # WorldBuilder runs with the mod folder as its working directory, so resolve relative paths here.
+    return os.path.abspath(path) if path else None
+
+
+ImageFit = Literal["stretch", "exact", "center"]
+Channel = Literal["luma", "r", "g", "b", "a"]
+
+
+@mcp.tool()
+def terrain_export_heightmap(path: str | None = None, normalize: bool = False, include_border: bool = True,
+                             view: bool = False) -> Any:
+    """Writes the heightmap as an 8-bit grayscale PNG: one pixel per heightmap vertex, pixel value =
+    raw height 0..255, top row = north edge. normalize stretches the used height range to 0..255 for
+    easier viewing (not for round trips). include_border=false exports only the playable area.
+    view=true also returns the image so you can look at the relief. Default path is a temp file."""
+    result = wb.call("terrain.export_heightmap", path=_abspath(path), normalize=normalize,
+                     include_border=include_border)
+    if view:
+        return [result, Image(path=result["path"])]
+    return result
+
+
+@mcp.tool()
+def terrain_import_heightmap(path: str, mode: Literal["set", "add"] = "set", range: list[float] | None = None,
+                             channel: Channel = "luma", fit: ImageFit = "stretch", include_border: bool = True,
+                             smooth: int = 0) -> dict:
+    """Loads terrain heights from a PNG/BMP/TGA image (8 or 16 bit; top row = north). Pixel 0..max is
+    mapped onto range=[low, high] raw heights (default [0, 255] for set, [-64, 64] for add). mode=add
+    adds the mapped value to the current heights. fit: stretch = resample to the map (bilinear),
+    exact = image must match the vertex grid size, center = place 1:1 in the middle.
+    include_border=false targets only the playable area. smooth = smoothing passes afterwards.
+    Tip: generate heightmaps locally (e.g. Python + numpy/PIL) and import them here. One undo step."""
+    return wb.call("terrain.import_heightmap", path=_abspath(path), mode=mode, range=range, channel=channel,
+                   fit=fit, include_border=include_border, smooth=smooth)
+
+
+@mcp.tool()
+def terrain_export_mask(kind: Literal["passability", "texture", "water"], texture: str | None = None,
+                        path: str | None = None, include_border: bool = True, view: bool = False) -> Any:
+    """Writes a black/white PNG with one pixel per terrain cell (top row = north): impassable cells,
+    cells whose base texture is `texture`, or cells under water. view=true also returns the image."""
+    result = wb.call("terrain.export_mask", kind=kind, texture=texture, path=_abspath(path),
+                     include_border=include_border)
+    if view:
+        return [result, Image(path=result["path"])]
+    return result
+
+
+@mcp.tool()
+def terrain_import_mask(path: str, target: Literal["passability", "texture"], texture: str | None = None,
+                        threshold: int = 128, invert: bool = False, impassable: bool = True,
+                        channel: Channel = "luma", fit: ImageFit = "stretch", include_border: bool = True) -> dict:
+    """Applies a mask image to terrain cells: every cell whose pixel is >= threshold (0..255, or below it
+    with invert) is painted with `texture` (target=texture) or set impassable/passable (target=passability,
+    impassable flag). Cells outside the mask are left unchanged. Handy for stamping shapes such as text,
+    rivers or plateaus that you draw as an image locally. fit=exact expects one pixel per cell
+    (map_info heightmap extent minus one). One undo step."""
+    return wb.call("terrain.import_mask", path=_abspath(path), target=target, texture=texture,
+                   threshold=threshold, invert=invert, impassable=impassable, channel=channel, fit=fit,
+                   include_border=include_border)
 
 
 # --------------------------------------------------------------------------------------------------

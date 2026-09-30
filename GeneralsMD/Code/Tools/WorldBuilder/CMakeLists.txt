@@ -199,6 +199,7 @@ set(WORLDBUILDER_SRC
     "include/mcp/McpJson.h"
     "include/mcp/McpScreenshot.h"
     "include/mcp/McpServer.h"
+    "src/mcp/McpCmdImage.cpp"
     "src/mcp/McpCmdMap.cpp"
     "src/mcp/McpCmdObjects.cpp"
     "src/mcp/McpCmdTerrain.cpp"

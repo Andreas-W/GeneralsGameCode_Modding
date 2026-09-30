@@ -79,6 +79,7 @@ void registerAllCommands()
 	mcpRegisterTerrainCommands();
 	mcpRegisterObjectCommands();
 	mcpRegisterWaypointCommands();
+	mcpRegisterImageCommands();
 }
 
 std::string makeErrorReply(const McpJson &id, const std::string &message)

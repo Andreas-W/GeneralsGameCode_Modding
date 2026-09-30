@@ -62,3 +62,7 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
 - **Heights.** Raw heights are 0..255; world height is raw × 0.625.
 - **Undo.** WorldBuilder keeps 15 undo steps. Waypoint links are not undoable (same as in the UI).
 - **Screenshots.** They render the 3D view, so the WorldBuilder window must not be minimized.
+- **Terrain images.** Heightmap and mask PNGs have north at the top.
+  - Heightmaps have one pixel per heightmap vertex, and the pixel value is the raw height. 16-bit images are accepted on import.
+  - Masks have one pixel per cell.
+  - Relative paths are resolved by the Python server, not by WorldBuilder.
