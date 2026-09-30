@@ -202,6 +202,7 @@ set(WORLDBUILDER_SRC
     "src/mcp/McpCmdImage.cpp"
     "src/mcp/McpCmdMap.cpp"
     "src/mcp/McpCmdObjects.cpp"
+    "src/mcp/McpCmdSymmetry.cpp"
     "src/mcp/McpCmdTerrain.cpp"
     "src/mcp/McpCmdWaypoints.cpp"
     "src/mcp/McpCommands.cpp"

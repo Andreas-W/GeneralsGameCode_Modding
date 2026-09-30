@@ -1656,6 +1656,131 @@ void WorldHeightMapEdit::setHeight(Int xIndex, Int yIndex, UnsignedByte height) 
 		This optimizes the tiles and blend tiles, recalculating them
 		and removing any unused ones.
 */
+// Direction of the opaque side of a blend, following blendSpecificTiles: horizontal blends are
+// opaque on the left when inverted, vertical ones at the bottom, and diagonals point at their
+// corner. Long diagonals store the complementary corner, which transforms the same way.
+static void getBlendDirection(const TBlendTileInfo &info, Int *dx, Int *dy)
+{
+	const Bool inverted = (info.inverted & INVERTED_MASK) != 0;
+	if (info.horiz) {
+		*dx = inverted ? -1 : 1;
+		*dy = 0;
+	} else if (info.vert) {
+		*dx = 0;
+		*dy = inverted ? -1 : 1;
+	} else {
+		*dx = info.rightDiagonal ? 1 : -1;
+		*dy = inverted ? -1 : 1;
+	}
+}
+
+static void setBlendDirection(TBlendTileInfo *info, Int dx, Int dy)
+{
+	Bool inverted;
+	info->horiz = info->vert = info->rightDiagonal = info->leftDiagonal = false;
+	if (dy == 0) {
+		info->horiz = true;
+		inverted = dx < 0;
+	} else if (dx == 0) {
+		info->vert = true;
+		inverted = dy < 0;
+	} else {
+		info->rightDiagonal = dx > 0;
+		info->leftDiagonal = dx < 0;
+		inverted = dy < 0;
+	}
+	info->inverted = (info->inverted & FLIPPED_MASK) | (inverted ? INVERTED_MASK : 0);
+}
+
+static Bool isDiagonalNeedingFlip(const TBlendTileInfo &info)
+{
+	const Bool inverted = (info.inverted & INVERTED_MASK) != 0;
+	return (info.rightDiagonal && !inverted) || (info.leftDiagonal && inverted);
+}
+
+void WorldHeightMapEdit::copyTransformedFrom(WorldHeightMapEdit *src, const HeightMapTransform &xf, Bool heights, Bool textures, Bool passability)
+{
+	DEBUG_ASSERTCRASH(src->m_width == m_width && src->m_height == m_height, ("copyTransformedFrom needs maps of the same size"));
+	if (src->m_width != m_width || src->m_height != m_height) {
+		return;
+	}
+	Int x, y, sx, sy;
+	if (heights) {
+		for (y = 0; y < m_height; y++) {
+			for (x = 0; x < m_width; x++) {
+				if (xf.sourceVertex(x, y, &sx, &sy)) {
+					// Raw copy: passability is copied separately below.
+					m_data[y*m_width + x] = src->m_data[sy*m_width + sx];
+				}
+			}
+		}
+	}
+	if (!textures && !passability) {
+		return;
+	}
+	for (y = 0; y < m_height-1; y++) {
+		for (x = 0; x < m_width-1; x++) {
+			if (!xf.sourceCell(x, y, &sx, &sy)) {
+				continue;
+			}
+			if (passability) {
+				setCliffState(x, y, src->getCliffState(sx, sy));
+			}
+			if (!textures) {
+				continue;
+			}
+			const Int ndx = y*m_width + x;
+			const Int srcNdx = sy*m_width + sx;
+			const Int baseClass = src->getTextureClassFromNdx(src->m_tileNdxes[srcNdx]);
+			if (baseClass < 0) {
+				continue;
+			}
+			// Tiles depend on the cell position inside the texture, so recompute them instead of copying.
+			m_tileNdxes[ndx] = getTileNdxForClass(x, y, baseClass);
+			m_cliffInfoNdxes[ndx] = 0;
+			m_blendTileNdxes[ndx] = 0;
+			m_extraBlendTileNdxes[ndx] = 0;
+
+			TBlendTileInfo blends[2];
+			Bool hasBlend[2] = { src->m_blendTileNdxes[srcNdx] != 0, src->m_extraBlendTileNdxes[srcNdx] != 0 };
+			if (!hasBlend[0]) {
+				continue;
+			}
+			for (Int layer = 0; layer < 2; layer++) {
+				if (!hasBlend[layer]) continue;
+				blends[layer] = src->m_blendedTiles[layer == 0 ? src->m_blendTileNdxes[srcNdx] : src->m_extraBlendTileNdxes[srcNdx]];
+				const Int blendClass = src->getTextureClassFromNdx(blends[layer].blendNdx);
+				if (blendClass < 0) {
+					hasBlend[layer] = false;
+					continue;
+				}
+				blends[layer].blendNdx = getTileNdxForClass(x, y, blendClass);
+				Int dx, dy;
+				getBlendDirection(blends[layer], &dx, &dy);
+				xf.mapDirection(x, y, &dx, &dy);
+				setBlendDirection(&blends[layer], dx, dy);
+				blends[layer].inverted &= ~FLIPPED_MASK;
+			}
+			// A mirror changes which triangle split the diagonal layers need, so rederive the forced
+			// flips that keep a horizontal/vertical layer consistent with a diagonal one (see blendSpecificTiles).
+			for (Int layer = 0; layer < 2; layer++) {
+				const Int other = 1 - layer;
+				if (hasBlend[layer] && hasBlend[other] && (blends[layer].horiz || blends[layer].vert) && isDiagonalNeedingFlip(blends[other])) {
+					blends[layer].inverted |= FLIPPED_MASK;
+				}
+			}
+			if (hasBlend[0]) {
+				const Int blendNdx = findOrCreateBlendTile(&blends[0]);
+				m_blendTileNdxes[ndx] = blendNdx > 0 ? blendNdx : 0;
+			}
+			if (hasBlend[1] && m_blendTileNdxes[ndx] != 0) {
+				const Int blendNdx = findOrCreateBlendTile(&blends[1]);
+				m_extraBlendTileNdxes[ndx] = blendNdx > 0 ? blendNdx : 0;
+			}
+		}
+	}
+}
+
 Bool WorldHeightMapEdit::optimizeTiles()
 {
 	// Run through all the tile indexes changing to tile classes.

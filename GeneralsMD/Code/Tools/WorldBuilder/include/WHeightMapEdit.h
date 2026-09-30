@@ -57,6 +57,20 @@ typedef struct
 } TGlobalTextureClass;
 
 
+/// Describes a mirror or rotation for WorldHeightMapEdit::copyTransformedFrom by mapping destination
+/// vertices and cells back to their source.
+class HeightMapTransform
+{
+public:
+	virtual ~HeightMapTransform() {}
+	/// Returns false to leave the destination vertex unchanged.
+	virtual Bool sourceVertex(Int x, Int y, Int *srcX, Int *srcY) const = 0;
+	/// Same for cells; a cell is addressed by its lower left vertex.
+	virtual Bool sourceCell(Int x, Int y, Int *srcX, Int *srcY) const = 0;
+	/// Maps a direction (components -1, 0 or 1) from source to destination orientation for a destination cell.
+	virtual void mapDirection(Int x, Int y, Int *dx, Int *dy) const = 0;
+};
+
 class WorldHeightMapEdit : public WorldHeightMap
 {
 protected:
@@ -120,6 +134,9 @@ public: // Editing methods.
 	void setCliff(Int xIndex, Int yIndex, Bool impassable) {setCliffState(xIndex, yIndex, impassable);}
 	Bool setTileNdx(Int xIndex, Int yIndex, Int textureClass, Bool singleTile);
 	Bool floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace, Bool askToConfirm = true);
+	/// Copies heights, textures (including blends) and passability from a same-sized map through a
+	/// mirror or rotation. Cliff texture mapping is reset on the copied cells.
+	void copyTransformedFrom(WorldHeightMapEdit *src, const HeightMapTransform &xf, Bool heights, Bool textures, Bool passability);
 	static Int getNumTexClasses() {return m_numGlobalTextureClasses;};
 	static AsciiString getTexClassName(int ndx) {return m_globalTextureClasses[ndx].name;}
 	static AsciiString getTexClassUiName(int ndx) ;

@@ -80,6 +80,7 @@ void registerAllCommands()
 	mcpRegisterObjectCommands();
 	mcpRegisterWaypointCommands();
 	mcpRegisterImageCommands();
+	mcpRegisterSymmetryCommands();
 }
 
 std::string makeErrorReply(const McpJson &id, const std::string &message)

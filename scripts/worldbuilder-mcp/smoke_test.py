@@ -61,6 +61,15 @@ def main() -> int:
     if roads:
         wb.call("roads.add", type=roads[0], points=[[50, 500], [300, 500], [400, 700]])
 
+    # Symmetry: mirror the west half onto the east half, then undo.
+    before_wp = len(wb.call("waypoints.list")["waypoints"])
+    sym = wb.call("map.symmetrize", mode="mirror_x", source="west")
+    names = [w["waypoint_name"] for w in wb.call("waypoints.list")["waypoints"]]
+    assert "Player_2_Start" in names, (sym, names)
+    wb.call("map.transform", op="rotate_180")
+    wb.call("edit.undo", count=2)
+    assert len(wb.call("waypoints.list")["waypoints"]) == before_wp
+
     # Heightmap image round trip must be lossless.
     out_png = os.path.join(tempfile.mkdtemp(prefix="wb_mcp_"), "height.png")
     wb.call("terrain.export_heightmap", path=out_png)

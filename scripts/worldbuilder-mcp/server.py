@@ -113,6 +113,50 @@ def edit_redo(count: int = 1) -> dict:
 
 
 # --------------------------------------------------------------------------------------------------
+# Symmetry
+# --------------------------------------------------------------------------------------------------
+
+SymmetryParts = dict[str, bool]
+
+
+@mcp.tool()
+def map_transform(op: Literal["mirror_x", "mirror_y", "rotate_90", "rotate_180", "rotate_270",
+                              "mirror_diag", "mirror_antidiag"],
+                  include: SymmetryParts | None = None) -> dict:
+    """Mirrors or rotates the whole map in place: heights, textures (blends are re-oriented),
+    passability, objects, waypoints and areas. mirror_x flips east/west, mirror_y north/south,
+    rotations are counterclockwise; rotations by 90/270 and the diagonal mirrors need a square map.
+    include: {heights, textures, passability, objects, waypoints, areas} booleans, all true by default.
+    One undo step. Cliff texture mapping (UV adjustment) is reset on the moved cells."""
+    return wb.call("map.transform", op=op, include=include)
+
+
+@mcp.tool()
+def map_symmetrize(mode: Literal["mirror_x", "mirror_y", "rotate_180", "mirror_diag", "mirror_antidiag",
+                                 "rotate_quarters"],
+                   source: Literal["west", "east", "south", "north", "sw", "se", "ne", "nw"],
+                   rename: str | list[list[str]] = "auto", owner_map: dict[str, str] | None = None,
+                   include: SymmetryParts | None = None, axis_tolerance: float = 5,
+                   skip_default_water: bool = True) -> dict:
+    """Builds a symmetric map: copies the `source` part onto the rest, replacing whatever was there.
+    - mirror_x (source west|east), mirror_y (south|north): mirror symmetry for 2 players.
+    - rotate_180 (source south|north|west|east): point symmetry for 2 players (e.g. bases in opposite
+      corners).
+    - mirror_diag (across y=x, source se|nw) / mirror_antidiag (across y=-x, source sw|ne).
+    - rotate_quarters (source sw|se|ne|nw, square map): 4-player rotational symmetry, copies go
+      counterclockwise.
+    Copies terrain, textures, passability, objects (road pairs stay intact), waypoints with their
+    links, and areas. Objects/areas within axis_tolerance (world units) of the mirror axis or center
+    are kept once instead of copied. rename="auto" renumbers players in names and owners for each copy
+    (Player_1_Start -> Player_2_Start, P1_ -> P2_, InnerPerimeter1 -> InnerPerimeter2,
+    teamplayer0001 -> teamplayer0002); "none" keeps names; or pass [["from","to"], ...] replacements.
+    owner_map {old_team: new_team} overrides owners. "Default Water" is left alone by default.
+    Object ids from objects_list are invalidated. One undo step."""
+    return wb.call("map.symmetrize", mode=mode, source=source, rename=rename, owner_map=owner_map,
+                   include=include, axis_tolerance=axis_tolerance, skip_default_water=skip_default_water)
+
+
+# --------------------------------------------------------------------------------------------------
 # View
 # --------------------------------------------------------------------------------------------------
 

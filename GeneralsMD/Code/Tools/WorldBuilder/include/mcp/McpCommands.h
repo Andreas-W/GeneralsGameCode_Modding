@@ -49,6 +49,7 @@ void mcpRegisterTerrainCommands();
 void mcpRegisterObjectCommands();
 void mcpRegisterWaypointCommands();
 void mcpRegisterImageCommands();
+void mcpRegisterSymmetryCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers
