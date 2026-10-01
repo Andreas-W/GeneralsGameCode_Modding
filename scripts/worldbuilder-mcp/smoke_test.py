@@ -79,6 +79,15 @@ def main() -> int:
         wb.call("edit.undo")
         assert wb.call("map.info")["counts"]["objects"] == objects_before
 
+    # Routed road: must build segments, optionally flatten, and undo as one step.
+    if roads:
+        road_points = wb.call("map.info")["counts"]["road_points"]
+        rt = wb.call("roads.route", type=roads[0], to=[880, 620], **{"from": [60, 600]})
+        assert rt["segments"] >= 1 and rt["length"] > 800, rt
+        assert wb.call("map.info")["counts"]["road_points"] == road_points + 2 * rt["segments"]
+        wb.call("edit.undo")
+        assert wb.call("map.info")["counts"]["road_points"] == road_points
+
     # Symmetry: mirror the west half onto the east half, then undo.
     before_wp = len(wb.call("waypoints.list")["waypoints"])
     sym = wb.call("map.symmetrize", mode="mirror_x", source="west")

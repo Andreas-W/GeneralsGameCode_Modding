@@ -341,38 +341,19 @@ McpJson cmdAddRoad(const McpJson &args)
 	else if (corner == "tight") cornerFlag = FLAG_ROAD_CORNER_TIGHT;
 	else if (corner != "curved") mcpFail("corners must be curved, angled or tight");
 
-	// Each segment is a pair of map objects; consecutive segments share end locations so the
-	// renderer joins them.
-	MapObject *head = nullptr;
-	MapObject *tail = nullptr;
-	for (size_t i = 0; i + 1 < points.size(); i++) {
-		Coord3D loc[2];
-		for (Int k = 0; k < 2; k++) {
-			const McpJson &p = points.at(i + k);
-			if (!p.isArray() || p.size() < 2 || !p.at(0).isNumber() || !p.at(1).isNumber()) {
-				if (head) deleteInstance(head);
-				mcpFail("points must be [x, y] pairs in world units");
-			}
-			loc[k].x = (Real)p.at(0).asNumber();
-			loc[k].y = (Real)p.at(1).asNumber();
-			loc[k].z = 0; // roads stick to the terrain.
+	std::vector<Coord2D> pts;
+	for (size_t i = 0; i < points.size(); i++) {
+		const McpJson &p = points.at(i);
+		if (!p.isArray() || p.size() < 2 || !p.at(0).isNumber() || !p.at(1).isNumber()) {
+			mcpFail("points must be [x, y] pairs in world units");
 		}
-		MapObject *p1 = newInstance(MapObject)(loc[0], roadName, 0.0f, 0, nullptr, nullptr);
-		MapObject *p2 = newInstance(MapObject)(loc[1], roadName, 0.0f, 0, nullptr, nullptr);
-		p1->setColor(RGB(255, 255, 0));
-		p2->setColor(RGB(255, 255, 0));
-		p1->setFlag(isBridge ? FLAG_BRIDGE_POINT1 : FLAG_ROAD_POINT1);
-		p2->setFlag(isBridge ? FLAG_BRIDGE_POINT2 : FLAG_ROAD_POINT2);
-		if (!isBridge && cornerFlag) {
-			p1->setFlag(cornerFlag);
-			p2->setFlag(cornerFlag);
-		}
-		p1->getProperties()->setAsciiString(TheKey_originalOwner, NEUTRAL_TEAM_INTERNAL_STR);
-		p2->getProperties()->setAsciiString(TheKey_originalOwner, NEUTRAL_TEAM_INTERNAL_STR);
-		p1->setNextMap(p2);
-		if (tail) tail->setNextMap(p1); else head = p1;
-		tail = p2;
+		Coord2D c;
+		c.x = (Real)p.at(0).asNumber();
+		c.y = (Real)p.at(1).asNumber();
+		pts.push_back(c);
 	}
+	MapObject *tail = nullptr;
+	MapObject *head = mcpBuildRoadChain(roadName, isBridge, pts, std::vector<Int>(pts.size(), cornerFlag), &tail);
 	PointerTool::clearSelection();
 	mcpCommit(new AddObjectUndoable(doc, head));
 
@@ -385,6 +366,37 @@ McpJson cmdAddRoad(const McpJson &args)
 }
 
 } // namespace
+
+MapObject *mcpBuildRoadChain(const AsciiString &roadName, bool isBridge, const std::vector<Coord2D> &points,
+	const std::vector<Int> &cornerFlags, MapObject **outTail)
+{
+	// Each segment is a pair of map objects; consecutive segments share end locations so the
+	// renderer joins them.
+	MapObject *head = nullptr;
+	MapObject *tail = nullptr;
+	for (size_t i = 0; i + 1 < points.size(); i++) {
+		MapObject *pair[2];
+		for (Int k = 0; k < 2; k++) {
+			Coord3D loc;
+			loc.x = points[i + k].x;
+			loc.y = points[i + k].y;
+			loc.z = 0; // roads stick to the terrain.
+			pair[k] = newInstance(MapObject)(loc, roadName, 0.0f, 0, nullptr, nullptr);
+			pair[k]->setColor(RGB(255, 255, 0));
+			if (!isBridge && cornerFlags[i + k]) {
+				pair[k]->setFlag(cornerFlags[i + k]);
+			}
+			pair[k]->getProperties()->setAsciiString(TheKey_originalOwner, NEUTRAL_TEAM_INTERNAL_STR);
+		}
+		pair[0]->setFlag(isBridge ? FLAG_BRIDGE_POINT1 : FLAG_ROAD_POINT1);
+		pair[1]->setFlag(isBridge ? FLAG_BRIDGE_POINT2 : FLAG_ROAD_POINT2);
+		pair[0]->setNextMap(pair[1]);
+		if (tail) tail->setNextMap(pair[0]); else head = pair[0];
+		tail = pair[1];
+	}
+	if (outTail) *outTail = tail;
+	return head;
+}
 
 void mcpRegisterWaypointCommands()
 {

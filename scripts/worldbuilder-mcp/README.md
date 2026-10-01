@@ -70,6 +70,11 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Player numbers in names and owners are renumbered for each copy.
   - Cliff texture mapping is reset on copied cells.
   - The mirroring approach follows the Genesis map tools (The CWC Team, Apache-2.0).
+- **Road routing.** `roads_route` finds its own way from A to B, optionally through via points.
+  - It goes around cliffs, water, structures and named areas, prefers gentle slopes and refuses steep steps.
+  - Unneeded bends are removed, but a shortcut is never allowed to be noticeably steeper than the routed path.
+  - By default it levels the ground under the road to a smoothed profile.
+  - Road and terrain change are one undo step.
 - **Scattering.** `objects_scatter` places decoration such as trees and rocks at random.
   - It takes weighted templates and a count or density, and can group objects into noise-driven groves.
   - It keeps clear of roads, building footprints, start positions, cliffs and water.

@@ -24,6 +24,9 @@
 
 #include "mcp/McpJson.h"
 
+#include "Common/AsciiString.h"
+#include <vector>
+
 class CWorldBuilderDoc;
 class WorldHeightMapEdit;
 class MapObject;
@@ -53,6 +56,7 @@ void mcpRegisterSymmetryCommands();
 void mcpRegisterGenerateCommands();
 void mcpRegisterSkirmishCommands();
 void mcpRegisterScatterCommands();
+void mcpRegisterRouteCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers
@@ -104,6 +108,11 @@ PolygonTrigger *mcpRequirePolygon(int id);
 
 /// Common JSON description of a map object.
 McpJson mcpDescribeObject(MapObject *obj);
+
+/// Builds the linked map objects for a road polyline (or a 2-point bridge): one object pair per
+/// segment. cornerFlags holds a FLAG_ROAD_CORNER_* value (or 0) per polyline point.
+MapObject *mcpBuildRoadChain(const AsciiString &roadName, bool isBridge, const std::vector<Coord2D> &points,
+	const std::vector<Int> &cornerFlags, MapObject **outTail);
 
 /// Converts between engine property dictionaries and JSON objects. When writing, the type of a key
 /// that already exists in the dict is kept; new keys get their type from the JSON value.
