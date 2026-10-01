@@ -159,6 +159,38 @@ def map_replace(textures: dict[str, str] | None = None, objects: dict[str, str] 
 
 
 # --------------------------------------------------------------------------------------------------
+# Resize
+# --------------------------------------------------------------------------------------------------
+
+@mcp.tool()
+def map_resize(width: int | None = None, height: int | None = None,
+               anchor: Literal["center", "left", "right", "bottom", "top", "bottom_left", "bottom_right",
+                               "top_left", "top_right"] | None = None,
+               add_left: int | None = None, add_right: int | None = None, add_bottom: int | None = None,
+               add_top: int | None = None, border: int | None = None, fill_height: int | None = None,
+               fill_texture: str | None = None,
+               remove_outside: Literal["none", "objects", "waypoints", "all"] = "none") -> dict:
+    """Grows or crops the map. Terrain, textures, passability, objects, waypoints, roads, areas, water
+    and build lists keep their place on the terrain, so their world coordinates shift by the returned
+    world_offset when cells are added or removed on the left or bottom.
+    Two ways to give the new size (cells, as in map_new):
+    - width/height with an anchor: the anchored side or corner stays put (default center: the change
+      is split between both sides).
+    - add_left/add_right/add_bottom/add_top: cells to add per side; negative values crop.
+    border changes the border width. New cells continue the old edge, which smears edge detail into
+    stripes: fill_height (raw 0..255) and fill_texture give them a fixed height and texture instead.
+    Rework a grown strip afterwards with terrain_generate / terrain_auto_texture limited to a rect.
+    remove_outside deletes objects and/or waypoints that end up outside the new map (a road segment
+    only when both ends are outside); by default they are kept and counted in objects_outside.
+    Areas are never deleted (areas_outside counts those entirely off the map). An area that covers
+    the whole map, like Default Water, is refit to the new map. Script actions with literal
+    coordinates are not adjusted. One undo step."""
+    return wb.call("map.resize", width=width, height=height, anchor=anchor, add_left=add_left,
+                   add_right=add_right, add_bottom=add_bottom, add_top=add_top, border=border,
+                   fill_height=fill_height, fill_texture=fill_texture, remove_outside=remove_outside)
+
+
+# --------------------------------------------------------------------------------------------------
 # Symmetry
 # --------------------------------------------------------------------------------------------------
 

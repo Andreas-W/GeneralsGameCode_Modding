@@ -58,6 +58,7 @@ void mcpRegisterSkirmishCommands();
 void mcpRegisterScatterCommands();
 void mcpRegisterRouteCommands();
 void mcpRegisterReplaceCommands();
+void mcpRegisterResizeCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers

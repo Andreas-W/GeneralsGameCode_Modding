@@ -117,6 +117,30 @@ def main() -> int:
     assert any(t["name"] == old_tex for t in restored["textures"])
     assert any(o["template"] == old_template for o in restored["objects"])
 
+    # Resize: grow on three sides, everything keeps its place on the terrain; then undo.
+    info_before = wb.call("map.info")
+    rs = wb.call("map.resize", add_left=20, add_bottom=10, add_right=4, fill_height=30,
+                 fill_texture=textures[1]["name"])
+    assert rs["changed"] and (rs["width"], rs["height"]) == (120, 106), rs
+    assert rs["world_offset"] == {"x": 200, "y": 100} and rs["areas_refit"] == 1, rs
+    strip = wb.call("terrain.sample", x=50, y=500)
+    assert strip["height_raw"] == 30 and strip["texture"] == textures[1]["name"], strip
+    grown = wb.call("map.info")
+    assert grown["boundaries"][0] == {"width_cells": 120, "height_cells": 106}, grown
+    assert wb.call("terrain.sample", x=500, y=400)["height_raw"] == 60
+    moved = next(o for o in wb.call("objects.list")["objects"] if o.get("name") == "MyBarracks")
+    assert abs(moved["x"] - 520) < 0.01 and abs(moved["y"] - 400) < 0.01, moved
+    wb.call("edit.undo")
+    assert wb.call("map.info") == info_before
+
+    # Crop to the top right corner: what falls off the map is removed on request and comes back on undo.
+    crop = wb.call("map.resize", width=40, height=40, anchor="top_right", remove_outside="all")
+    assert crop["removed_waypoints"] == 3 and crop["removed_objects"] >= 1 and crop["areas_outside"] >= 2, crop
+    assert not wb.call("waypoints.list")["links"]
+    wb.call("edit.undo")
+    assert wb.call("map.info") == info_before
+    assert len(wb.call("waypoints.list")["links"]) == 1
+
     # Symmetry: mirror the west half onto the east half, then undo.
     before_wp = len(wb.call("waypoints.list")["waypoints"])
     sym = wb.call("map.symmetrize", mode="mirror_x", source="west")

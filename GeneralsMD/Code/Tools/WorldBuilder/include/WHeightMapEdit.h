@@ -162,6 +162,11 @@ public: // Editing methods.
 
 	Bool resize(Int newXSize, Int newYSize, Int newHeight, Int newBorder, Bool anchorTop, Bool anchorBottom,
 							Bool anchorLeft, Bool anchorRight, Coord3D *pObjOffset);
+	/// Changes the map size by adding cells on each side (negative values remove cells). New cells
+	/// continue the old edge: its height (or fillHeight if that is not negative) and its base texture
+	/// (or fillTextureClass if that is not negative).
+	/// Unlike resize() it keeps manual passability and updates the boundaries. Never shows a dialog.
+	Bool resizeBySides(Int addLeft, Int addBottom, Int addRight, Int addTop, Int newBorder, Int fillHeight, Int fillTextureClass);
 	Bool remapTextures(); ///< returns true if the operation had an effect.
 	void reloadTextures(); ///< Reloads textures from disk.
 	void resetResources(); ///< Releases textures in preparation for device reset.

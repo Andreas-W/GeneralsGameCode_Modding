@@ -2033,6 +2033,144 @@ Bool WorldHeightMapEdit::resize(Int newXSize, Int newYSize, Int newHeight, Int n
 	return(true);
 }
 
+static Int clampIndex(Int value, Int maxValue)
+{
+	if (value < 0) return 0;
+	if (value > maxValue) return maxValue;
+	return value;
+}
+
+Bool WorldHeightMapEdit::resizeBySides(Int addLeft, Int addBottom, Int addRight, Int addTop, Int newBorder, Int fillHeight, Int fillTextureClass)
+{
+	if (newBorder<0) newBorder = 0;
+	const Int oldPlayableX = m_width - 2*m_borderSize;
+	const Int oldPlayableY = m_height - 2*m_borderSize;
+	const Int newPlayableX = oldPlayableX + addLeft + addRight;
+	const Int newPlayableY = oldPlayableY + addBottom + addTop;
+	if (newPlayableX < 2 || newPlayableY < 2) {
+		return(false);
+	}
+	const Int newXSize = newPlayableX + 2*newBorder;
+	const Int newYSize = newPlayableY + 2*newBorder;
+	const Int newDataSize = newXSize*newYSize;
+	// Old index of the new index 0.
+	const Int xOffset = m_borderSize - newBorder - addLeft;
+	const Int yOffset = m_borderSize - newBorder - addBottom;
+
+	Short *tileNdxes = new Short[newDataSize];
+	Short *blendTileNdxes = new Short[newDataSize];
+	Short *extraBlendTileNdxes = new Short[newDataSize];
+	Short *cliffInfoNdxes = new Short[newDataSize];
+	// Same paranoia row as in the constructor.
+	HeightSampleType *data = new HeightSampleType[newDataSize + newXSize+1];
+	memset(data, 0, newDataSize + newXSize+1);
+	const Int numBytesX = (newXSize+7)/8;	//how many bytes to fit all bitflags
+	UnsignedByte *flipState = new UnsignedByte[numBytesX*newYSize];
+	UnsignedByte *cliffState = new UnsignedByte[numBytesX*newYSize];
+	memset(flipState, 0, numBytesX*newYSize);
+	memset(cliffState, 0, numBytesX*newYSize);
+
+	Int i, j;
+	for (j=0; j<newYSize; j++) {
+		for (i=0; i<newXSize; i++) {
+			const Int newNdx = i+j*newXSize;
+			const Int oldI = i+xOffset;
+			const Int oldJ = j+yOffset;
+			// Heights live on vertices, everything else on cells. A cell is addressed by its lower
+			// left vertex, so the last row and column have no cell.
+			const Bool vertexInRange = oldI>=0 && oldI<m_width && oldJ>=0 && oldJ<m_height;
+			const Bool cellInRange = oldI>=0 && oldI<m_width-1 && oldJ>=0 && oldJ<m_height-1;
+			if (vertexInRange || fillHeight<0) {
+				data[newNdx] = m_data[clampIndex(oldI, m_width-1) + clampIndex(oldJ, m_height-1)*m_width];
+			} else {
+				data[newNdx] = (HeightSampleType)fillHeight;
+			}
+			const Int oldNdx = clampIndex(oldI, m_width-2) + clampIndex(oldJ, m_height-2)*m_width;
+			if (cellInRange) {
+				tileNdxes[newNdx] = m_tileNdxes[oldNdx];
+				blendTileNdxes[newNdx] = m_blendTileNdxes[oldNdx];
+				extraBlendTileNdxes[newNdx] = m_extraBlendTileNdxes[oldNdx];
+				cliffInfoNdxes[newNdx] = m_cliffInfoNdxes[oldNdx];
+				const UnsignedByte bit = (UnsignedByte)(1<<(i&0x7));
+				if (getFlipState(oldI, oldJ)) flipState[j*numBytesX + (i>>3)] |= bit;
+				if (getCliffState(oldI, oldJ)) cliffState[j*numBytesX + (i>>3)] |= bit;
+			} else {
+				tileNdxes[newNdx] = m_tileNdxes[oldNdx];
+				const Int texClass = fillTextureClass >= 0 ? fillTextureClass : getTextureClassFromNdx(m_tileNdxes[oldNdx]);
+				if (texClass >= 0) {
+					// Tiles depend on the cell position inside the texture. Use the position the cell
+					// would have in the old map, so the new cells continue the old tiling.
+					const Int period = 2*m_globalTextureClasses[texClass].width;
+					Int tileX = oldI, tileY = oldJ;
+					if (period > 0) {
+						tileX = ((oldI % period) + period) % period;
+						tileY = ((oldJ % period) + period) % period;
+					}
+					tileNdxes[newNdx] = getTileNdxForClass(tileX, tileY, texClass);
+				}
+				blendTileNdxes[newNdx] = 0;
+				extraBlendTileNdxes[newNdx] = 0;
+				cliffInfoNdxes[newNdx] = 0;
+			}
+		}
+	}
+
+	delete[] m_tileNdxes;
+	delete[] m_cliffInfoNdxes;
+	delete[] m_blendTileNdxes;
+	delete[] m_extraBlendTileNdxes;
+	delete[] m_data;
+	delete[] m_cellCliffState;
+	delete[] m_cellFlipState;
+	const Int oldWidth = m_width;
+	const Int oldHeight = m_height;
+	m_tileNdxes = tileNdxes;
+	m_blendTileNdxes = blendTileNdxes;
+	m_extraBlendTileNdxes = extraBlendTileNdxes;
+	m_cliffInfoNdxes = cliffInfoNdxes;
+	m_data = data;
+	m_cellFlipState = flipState;
+	m_cellCliffState = cliffState;
+	m_flipStateWidth = numBytesX;
+	m_width = newXSize;
+	m_height = newYSize;
+	m_borderSize = newBorder;
+	m_dataSize = newDataSize;
+
+	// Old cells keep their passability; new cells get it from their heights.
+	for (j=0; j<m_height-1; j++) {
+		for (i=0; i<m_width-1; i++) {
+			const Int oldI = i+xOffset;
+			const Int oldJ = j+yOffset;
+			if (oldI<0 || oldI>=oldWidth-1 || oldJ<0 || oldJ>=oldHeight-1) {
+				setCellCliffFlagFromHeights(i, j);
+			}
+		}
+	}
+
+	// Boundaries are measured from the lower left corner of the playable area. One that covered
+	// the whole map keeps doing so; the others move with the terrain as far as they can.
+	for (size_t b=0; b<m_boundaries.size(); b++) {
+		ICoord2D &boundary = m_boundaries[b];
+		if (boundary.x == 0 || boundary.y == 0) {
+			continue;
+		}
+		if (boundary.x == oldPlayableX && boundary.y == oldPlayableY) {
+			boundary.x = newPlayableX;
+			boundary.y = newPlayableY;
+		} else {
+			boundary.x = clampIndex(boundary.x + addLeft, newPlayableX);
+			boundary.y = clampIndex(boundary.y + addBottom, newPlayableY);
+			if (boundary.x < 1) boundary.x = 1;
+			if (boundary.y < 1) boundary.y = 1;
+		}
+	}
+
+	setDrawOrg(0,0);
+	optimizeTiles();
+	return(true);
+}
+
 
 /** Returns true if the texture class is used in the current
 map.  If false, the texture is not used or loaded in the

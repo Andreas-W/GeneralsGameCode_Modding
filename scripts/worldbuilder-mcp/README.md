@@ -70,6 +70,11 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Player numbers in names and owners are renumbered for each copy.
   - Cliff texture mapping is reset on copied cells.
   - The mirroring approach follows the Genesis map tools (The CWC Team, Apache-2.0).
+- **Resize.** `map_resize` grows or crops the map, by a new size with an anchor or by cells per side.
+  - Terrain, textures, passability, objects, waypoints, roads, areas, water and build lists keep their place on the terrain.
+  - New cells continue the old edge, or get a fixed height and texture.
+  - Objects and waypoints that fall off the map can be removed. Areas that cover the whole map, like Default Water, are refit.
+  - Unlike WorldBuilder's own File > Resize it also moves areas and updates the map boundary.
 - **Usage and bulk replace.** `map_usage` lists what a map uses; `map_replace` swaps names everywhere in one undo step.
   - `map_usage` lists textures, object templates and road types, and flags templates the game does not know.
   - `map_replace` takes `{from: to}` mappings for textures (blends are kept), object templates and road types.
