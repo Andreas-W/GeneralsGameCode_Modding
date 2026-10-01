@@ -23,6 +23,7 @@
 
 #include "CUndoable.h"
 #include "WorldBuilderDoc.h"
+#include "wbview3d.h"
 
 #include <utility>
 #include <vector>
@@ -49,4 +50,45 @@ public:
 
 private:
 	CWorldBuilderDoc *m_doc;
+};
+
+/// Moves, rotates, renames or re-templates objects. Set the new values on the MoveInfo returned by
+/// add(); they are applied in Do().
+class McpModifyObjectsUndoable : public Undoable
+{
+public:
+	McpModifyObjectsUndoable(CWorldBuilderDoc *doc) : m_doc(doc), m_list(nullptr), m_tail(nullptr), m_templateChanged(false) {}
+	virtual ~McpModifyObjectsUndoable() override { delete m_list; }
+
+	MoveInfo *add(MapObject *obj)
+	{
+		MoveInfo *info = new MoveInfo(obj);
+		if (m_tail) m_tail->m_next = info; else m_list = info;
+		m_tail = info;
+		return info;
+	}
+	void setTemplateChanged() { m_templateChanged = true; }
+
+	virtual void Do() override { apply(true); }
+	virtual void Undo() override { apply(false); }
+
+private:
+	void apply(bool forward)
+	{
+		for (MoveInfo *info = m_list; info; info = info->m_next) {
+			if (forward) info->DoMove(m_doc); else info->UndoMove(m_doc);
+		}
+		if (m_templateChanged) {
+			WbView3d *view = m_doc->GetActive3DView();
+			if (view) {
+				view->resetRenderObjects();
+				view->invalObjectInView(nullptr);
+			}
+		}
+	}
+
+	CWorldBuilderDoc *m_doc;
+	MoveInfo *m_list;
+	MoveInfo *m_tail;
+	bool m_templateChanged;
 };

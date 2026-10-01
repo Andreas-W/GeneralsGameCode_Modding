@@ -22,6 +22,7 @@
 #include "StdAfx.h"
 #define DEFINE_EDITOR_SORTING_NAMES
 #include "mcp/McpCommands.h"
+#include "mcp/McpUndoables.h"
 
 #include "CUndoable.h"
 #include "PointerTool.h"
@@ -40,46 +41,6 @@
 
 namespace
 {
-
-/// Moves, rotates or re-templates objects. The edits are applied when constructed, like ModifyObjectUndoable.
-class McpModifyObjectsUndoable : public Undoable
-{
-public:
-	McpModifyObjectsUndoable(CWorldBuilderDoc *doc) : m_doc(doc), m_list(nullptr), m_tail(nullptr), m_templateChanged(false) {}
-	virtual ~McpModifyObjectsUndoable() override { delete m_list; }
-
-	MoveInfo *add(MapObject *obj)
-	{
-		MoveInfo *info = new MoveInfo(obj);
-		if (m_tail) m_tail->m_next = info; else m_list = info;
-		m_tail = info;
-		return info;
-	}
-	void setTemplateChanged() { m_templateChanged = true; }
-
-	virtual void Do() override { apply(true); }
-	virtual void Undo() override { apply(false); }
-
-private:
-	void apply(bool forward)
-	{
-		for (MoveInfo *info = m_list; info; info = info->m_next) {
-			if (forward) info->DoMove(m_doc); else info->UndoMove(m_doc);
-		}
-		if (m_templateChanged) {
-			WbView3d *view = m_doc->GetActive3DView();
-			if (view) {
-				view->resetRenderObjects();
-				view->invalObjectInView(nullptr);
-			}
-		}
-	}
-
-	CWorldBuilderDoc *m_doc;
-	MoveInfo *m_list;
-	MoveInfo *m_tail;
-	bool m_templateChanged;
-};
 
 std::vector<MapObject *> requireObjects(const McpJson &args)
 {

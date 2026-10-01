@@ -341,30 +341,6 @@ void polygonCentroid(PolygonTrigger *trig, const Frame &frame, double *px, doubl
 // Undoables
 //-------------------------------------------------------------------------------------------------
 
-/// Moves and rotates objects in place (map.transform).
-class MoveObjectsUndoable : public Undoable
-{
-public:
-	MoveObjectsUndoable(CWorldBuilderDoc *doc) : m_doc(doc), m_list(nullptr), m_tail(nullptr) {}
-	virtual ~MoveObjectsUndoable() override { delete m_list; }
-
-	void add(MapObject *obj, const Coord3D &loc, Real angle)
-	{
-		MoveInfo *info = new MoveInfo(obj);
-		info->m_newLocation = loc;
-		info->m_newAngle = angle;
-		if (m_tail) m_tail->m_next = info; else m_list = info;
-		m_tail = info;
-	}
-	virtual void Do() override { for (MoveInfo *i = m_list; i; i = i->m_next) i->DoMove(m_doc); }
-	virtual void Undo() override { for (MoveInfo *i = m_list; i; i = i->m_next) i->UndoMove(m_doc); }
-
-private:
-	CWorldBuilderDoc *m_doc;
-	MoveInfo *m_list;
-	MoveInfo *m_tail;
-};
-
 /// Replaces all points of existing polygons (map.transform).
 class PolygonPointsUndoable : public Undoable
 {
@@ -800,13 +776,15 @@ McpJson cmdTransform(const McpJson &args)
 		undo->addUndoable(polys);
 	}
 	if (inc.objects || inc.waypoints) {
-		MoveObjectsUndoable *moves = new MoveObjectsUndoable(doc);
+		McpModifyObjectsUndoable *moves = new McpModifyObjectsUndoable(doc);
 		for (MapObject *obj = MapObject::getFirstMapObject(); obj; obj = obj->getNext()) {
 			if (obj->isWaypoint() ? !inc.waypoints : !inc.objects) continue;
 			Coord3D loc;
 			Real angle;
 			transformObject(obj, frame, m, &loc, &angle);
-			moves->add(obj, loc, angle);
+			MoveInfo *info = moves->add(obj);
+			info->m_newLocation = loc;
+			info->m_newAngle = angle;
 			objectsMoved++;
 		}
 		undo->addUndoable(moves);

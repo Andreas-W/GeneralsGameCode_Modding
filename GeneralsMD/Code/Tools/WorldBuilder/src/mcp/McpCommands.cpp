@@ -85,6 +85,7 @@ void registerAllCommands()
 	mcpRegisterSkirmishCommands();
 	mcpRegisterScatterCommands();
 	mcpRegisterRouteCommands();
+	mcpRegisterReplaceCommands();
 }
 
 std::string makeErrorReply(const McpJson &id, const std::string &message)

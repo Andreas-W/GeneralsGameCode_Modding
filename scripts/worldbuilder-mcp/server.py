@@ -117,6 +117,48 @@ def edit_redo(count: int = 1) -> dict:
 
 
 # --------------------------------------------------------------------------------------------------
+# Usage and bulk replace
+# --------------------------------------------------------------------------------------------------
+
+def _read_mapping_file(path: str) -> dict[str, str]:
+    """Reads a Genesis-style replace list: one "from to" pair per line."""
+    mapping: dict[str, str] = {}
+    with open(os.path.abspath(path), encoding="utf-8") as f:
+        for line in f:
+            parts = line.split(None, 1)
+            if len(parts) == 2 and not parts[0].startswith("#"):
+                mapping[parts[0]] = parts[1].strip()
+    return mapping
+
+
+@mcp.tool()
+def map_usage() -> dict:
+    """Lists what the map uses: textures with cell counts, object templates with counts (known=false
+    marks templates this game/mod does not have, e.g. in a map made for another mod) and road types.
+    Use it to build the mappings for map_replace."""
+    return wb.call("map.usage")
+
+
+@mcp.tool()
+def map_replace(textures: dict[str, str] | None = None, objects: dict[str, str] | None = None,
+                roads: dict[str, str] | None = None, textures_file: str | None = None,
+                objects_file: str | None = None, roads_file: str | None = None, dry_run: bool = False) -> dict:
+    """Replaces textures, object templates and road/bridge types everywhere in the map, each given as
+    a {from: to} mapping (names as in map_usage; matching ignores case). Textures keep their blends;
+    objects keep position, rotation, owner and properties; roads keep their corner flags. The
+    *_file arguments read a text file with one "from to" pair per line (Genesis replace lists).
+    dry_run only reports how many cells/objects would change. A name cannot be both a source and a
+    target in one call (run chained or swapped replacements separately). One undo step."""
+    def merged(mapping: dict[str, str] | None, path: str | None) -> dict[str, str] | None:
+        if path is None:
+            return mapping
+        return {**_read_mapping_file(path), **(mapping or {})}
+
+    return wb.call("map.replace", textures=merged(textures, textures_file),
+                   objects=merged(objects, objects_file), roads=merged(roads, roads_file), dry_run=dry_run)
+
+
+# --------------------------------------------------------------------------------------------------
 # Symmetry
 # --------------------------------------------------------------------------------------------------
 

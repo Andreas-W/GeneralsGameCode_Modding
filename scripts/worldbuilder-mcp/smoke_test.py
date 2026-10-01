@@ -88,6 +88,25 @@ def main() -> int:
         wb.call("edit.undo")
         assert wb.call("map.info")["counts"]["road_points"] == road_points
 
+    # Usage and bulk replace: swap a texture and an object template, then undo.
+    usage = wb.call("map.usage")
+    old_template = templates[0]["name"]
+    assert any(o["template"] == old_template and o["known"] for o in usage["objects"]), usage
+    structures = wb.call("objects.list_templates", editor_sorting="STRUCTURE", limit=5)["templates"]
+    new_template = next(t["name"] for t in structures if t["name"] != old_template)
+    old_tex, new_tex = textures[0]["name"], textures[2]["name"]
+    dry = wb.call("map.replace", textures={old_tex: new_tex}, dry_run=True)
+    assert dry["textures"][0]["cells"] > 0 and not dry["changed"], dry
+    rep = wb.call("map.replace", textures={old_tex: new_tex}, objects={old_template: new_template})
+    assert rep["changed"] and rep["objects"][0]["count"] == 1, rep
+    after = wb.call("map.usage")
+    assert not any(t["name"] == old_tex for t in after["textures"]), after["textures"]
+    assert any(o["template"] == new_template for o in after["objects"]), after["objects"]
+    wb.call("edit.undo")
+    restored = wb.call("map.usage")
+    assert any(t["name"] == old_tex for t in restored["textures"])
+    assert any(o["template"] == old_template for o in restored["objects"])
+
     # Symmetry: mirror the west half onto the east half, then undo.
     before_wp = len(wb.call("waypoints.list")["waypoints"])
     sym = wb.call("map.symmetrize", mode="mirror_x", source="west")

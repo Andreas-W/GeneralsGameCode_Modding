@@ -70,6 +70,10 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Player numbers in names and owners are renumbered for each copy.
   - Cliff texture mapping is reset on copied cells.
   - The mirroring approach follows the Genesis map tools (The CWC Team, Apache-2.0).
+- **Usage and bulk replace.** `map_usage` lists what a map uses; `map_replace` swaps names everywhere in one undo step.
+  - `map_usage` lists textures, object templates and road types, and flags templates the game does not know.
+  - `map_replace` takes `{from: to}` mappings for textures (blends are kept), object templates and road types.
+  - It can also read Genesis-style "from to" list files, and has a dry run.
 - **Road routing.** `roads_route` finds its own way from A to B, optionally through via points.
   - It goes around cliffs, water, structures and named areas, prefers gentle slopes and refuses steep steps.
   - Unneeded bends are removed, but a shortcut is never allowed to be noticeably steeper than the routed path.
