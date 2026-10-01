@@ -4994,6 +4994,7 @@ StateReturnType AIAttackAimAtTargetState::onEnter()
 	AIUpdateInterface* victimAI = victim ? victim->getAI() : nullptr;
 
 	Locomotor* curLoco = sourceAI->getCurLocomotor();
+	// Note: RequiresMoveToTurn locos still use angle goals here; locoUpdate_moveTowardsAngle drives them forward to turn.
 	m_canTurnInPlace = curLoco ? curLoco->getMinSpeed() == 0.0f : false;
 
 
@@ -7745,6 +7746,7 @@ StateReturnType AIFaceState::onEnter()
 
 	AIUpdateInterface* ai = source->getAI();
 	Locomotor* curLoco = ai->getCurLocomotor();
+	// Note: RequiresMoveToTurn locos still use angle goals here; locoUpdate_moveTowardsAngle drives them forward to turn.
 	m_canTurnInPlace = curLoco ? curLoco->getMinSpeed() == 0.0f : false;
 
 	Object* target = getMachineGoalObject();

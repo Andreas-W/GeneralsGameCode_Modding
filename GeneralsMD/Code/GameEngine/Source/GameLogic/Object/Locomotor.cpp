@@ -334,6 +334,7 @@ LocomotorTemplate::LocomotorTemplate()
 	m_airborneTargetingHeight = INT_MAX;
 	m_stickToGround = false;
 	m_canMoveBackward = false;
+	m_requiresMoveToTurn = false;
 	// defaults match the values the backwards-movement logic used before these were configurable
 	m_backwardsMoveAngleThreshold = PI/2;
 	m_backwardsMoveDistanceFactorThreshold = 5.0f;
@@ -504,6 +505,7 @@ const FieldParse* LocomotorTemplate::getFieldParse() const
 		{ "AirborneTargetingHeight", INI::parseInt, nullptr, offsetof( LocomotorTemplate, m_airborneTargetingHeight ) },
 		{ "StickToGround",				INI::parseBool,			nullptr,	offsetof(LocomotorTemplate, m_stickToGround) },
 		{ "CanMoveBackwards",				INI::parseBool,			nullptr,	offsetof(LocomotorTemplate, m_canMoveBackward) },
+		{ "RequiresMoveToTurn",				INI::parseBool,			nullptr,	offsetof(LocomotorTemplate, m_requiresMoveToTurn) },
 		{ "BackwardsMoveAngleThreshold",				INI::parseAngleReal,	nullptr,	offsetof(LocomotorTemplate, m_backwardsMoveAngleThreshold) },
 		{ "BackwardsMoveDistanceFactorThreshold",	INI::parseReal,			nullptr,	offsetof(LocomotorTemplate, m_backwardsMoveDistanceFactorThreshold) },
 		{ "BackwardsMoveSpeedFactor",				INI::parseReal,			nullptr,	offsetof(LocomotorTemplate, m_backwardsMoveSpeedFactor) },
@@ -989,6 +991,35 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
 	}
 	else
 	{
+		if (m_template->m_requiresMoveToTurn)
+		{
+			// can't pivot in place: drive forward toward the goal angle so the appearance-specific
+			// mover (e.g. moveTowardsPositionWheels) applies MinTurnSpeed / reversing / 3-point turns.
+			// Once aligned, fall through to the in-place path (no-op rotation).
+			const Real ALIGNED_THRESH = 0.035f;	// ~2 degrees, same as AI aim/face REL_THRESH
+			Real relAngle = stdAngleDiff(goalAngle, obj->getOrientation());
+			if (fabs(relAngle) > ALIGNED_THRESH)
+			{
+				BodyDamageType bdt = obj->getBodyModule()->getDamageState();
+				Real maxSpeed = getMaxSpeedForCondition(bdt);
+				// mirrors the turnSpeed clamp in moveTowardsPositionWheels
+				Real speed = m_template->m_minTurnSpeed;
+				if (speed < maxSpeed/4.0f)
+					speed = maxSpeed/4.0f;
+				if (speed > maxSpeed)
+					speed = maxSpeed;
+
+				Coord3D desiredPos = *obj->getPosition();
+				desiredPos.x += Cos(goalAngle) * 1000.0f;
+				desiredPos.y += Sin(goalAngle) * 1000.0f;
+				// huge "dist to goal" so we don't brake as if nearing a destination
+				const Real onPathDistToGoal = 99999.0f;
+				Bool blocked = false;
+				locoUpdate_moveTowardsPosition(obj, desiredPos, onPathDistToGoal, speed, &blocked);
+				return;
+			}
+		}
+
 		DEBUG_ASSERTCRASH(m_template->m_appearance != LOCO_THRUST, ("THRUST should always have minspeeds!"));
 		Coord3D desiredPos = *obj->getPosition();
 		desiredPos.x += Cos(goalAngle) * 1000.0f;
