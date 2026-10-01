@@ -61,6 +61,15 @@ def main() -> int:
     if roads:
         wb.call("roads.add", type=roads[0], points=[[50, 500], [300, 500], [400, 700]])
 
+    # Skirmish AI data: needs two starts, so add a second one first.
+    wb.call("waypoints.add", x=800, y=800, name="Player_2_Start")
+    assert not wb.call("ai.skirmish_check")["ready"]
+    setup = wb.call("ai.skirmish_setup", inner_radius=120, outer_radius=220)
+    assert setup["waypoints_created"] == 30, setup
+    check = wb.call("ai.skirmish_check")
+    assert check["ready"], check
+    wb.call("edit.undo", count=2)
+
     # Symmetry: mirror the west half onto the east half, then undo.
     before_wp = len(wb.call("waypoints.list")["waypoints"])
     sym = wb.call("map.symmetrize", mode="mirror_x", source="west")

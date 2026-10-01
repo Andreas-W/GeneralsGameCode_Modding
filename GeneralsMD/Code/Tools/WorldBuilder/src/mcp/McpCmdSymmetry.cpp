@@ -26,6 +26,7 @@
 
 #include "StdAfx.h"
 #include "mcp/McpCommands.h"
+#include "mcp/McpUndoables.h"
 
 #include "CUndoable.h"
 #include "PointerTool.h"
@@ -399,30 +400,6 @@ private:
 	std::vector<Entry> m_entries;
 };
 
-/// Adds and removes waypoint links, which WorldBuilder itself does not record for undo.
-class WaypointLinksUndoable : public Undoable
-{
-public:
-	typedef std::pair<Int, Int> Link;
-	WaypointLinksUndoable(CWorldBuilderDoc *doc) : m_doc(doc) {}
-
-	std::vector<Link> added, removed;
-
-	virtual void Do() override
-	{
-		for (size_t i = 0; i < removed.size(); i++) m_doc->removeWaypointLink(removed[i].first, removed[i].second);
-		for (size_t i = 0; i < added.size(); i++) m_doc->addWaypointLink(added[i].first, added[i].second);
-	}
-	virtual void Undo() override
-	{
-		for (size_t i = 0; i < added.size(); i++) m_doc->removeWaypointLink(added[i].first, added[i].second);
-		for (size_t i = 0; i < removed.size(); i++) m_doc->addWaypointLink(removed[i].first, removed[i].second);
-	}
-
-private:
-	CWorldBuilderDoc *m_doc;
-};
-
 //-------------------------------------------------------------------------------------------------
 // Renaming
 //-------------------------------------------------------------------------------------------------
@@ -694,7 +671,7 @@ McpJson cmdSymmetrize(const McpJson &args)
 	}
 
 	// Waypoint links: drop links of deleted waypoints, recreate source links between the copies.
-	WaypointLinksUndoable *links = new WaypointLinksUndoable(doc);
+	McpWaypointLinksUndoable *links = new McpWaypointLinksUndoable(doc);
 	for (Int i = 0; i < doc->getNumWaypointLinks(); i++) {
 		Int a, b;
 		doc->getWaypointLink(i, &a, &b);

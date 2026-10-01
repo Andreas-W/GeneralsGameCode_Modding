@@ -31,6 +31,9 @@ Workflow tips:
   valid names instead of guessing.
 - Object owners are team names from sides_list ("team" is neutral, "teamplayer0001" belongs to
   player0001). Add players with sides_add_player.
+- Skirmish maps: add Player_<N>_Start waypoints, then run ai_skirmish_setup (and ai_skirmish_check).
+  The AI needs numbered names: InnerPerimeter1, OuterPerimeter1 and paths labeled Center1, Flank1,
+  Backdoor1 leading into base 1, and so on per player. Plain "Center" labels are ignored.
 - Every edit is one WorldBuilder undo step (edit_undo reverts it). WorldBuilder keeps only 15.
 - Use view_screenshot to look at the result.
 """
@@ -616,6 +619,37 @@ def roads_add(type: str, points: list[list[float]],
     """Adds a road along [x, y] world points (one segment per consecutive pair), or a bridge with
     exactly 2 points."""
     return wb.call("roads.add", type=type, points=points, corners=corners)
+
+
+# --------------------------------------------------------------------------------------------------
+# Skirmish AI
+# --------------------------------------------------------------------------------------------------
+
+@mcp.tool()
+def ai_skirmish_setup(inner_radius: float = 350, outer_radius: float = 600, flank_angle: float = 70,
+                      backdoor_angle: float = 70, path_points: int = 5, combat_zone: bool = True,
+                      replace: bool = True) -> dict:
+    """Creates everything the skirmish AI looks up by name, for every Player_<N>_Start waypoint:
+    - areas InnerPerimeter<N> / OuterPerimeter<N> (circles of the given radii around the start),
+    - three approach paths INTO base N, labeled Center<N>, Flank<N> and Backdoor<N> (the number is
+      the defending player; attackers join at the nearest waypoint and follow the links into the
+      base). Flank/backdoor swing out by flank_angle/backdoor_angle degrees to either side.
+      Waypoints are kept inside the map and moved off cliffs and water.
+    - a CombatZone area between the bases (used by the mod's scripts).
+    replace=true (default) first removes existing perimeters, CombatZone and approach-path waypoints
+    (including unnumbered Center/Flank/Backdoor labels, which the AI ignores), so it can be re-run
+    after moving starts. Place the start waypoints first. One undo step; object ids are invalidated."""
+    return wb.call("ai.skirmish_setup", inner_radius=inner_radius, outer_radius=outer_radius,
+                   flank_angle=flank_angle, backdoor_angle=backdoor_angle, path_points=path_points,
+                   combat_zone=combat_zone, replace=replace)
+
+
+@mcp.tool()
+def ai_skirmish_check() -> dict:
+    """Checks whether the map has what the skirmish AI needs: per start position the perimeter
+    areas and the number of waypoints on its Center/Flank/Backdoor approach paths, plus a list of
+    problems (missing areas or paths, path labels without a player number)."""
+    return wb.call("ai.skirmish_check")
 
 
 @mcp.tool()

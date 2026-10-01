@@ -70,6 +70,9 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Player numbers in names and owners are renumbered for each copy.
   - Cliff texture mapping is reset on copied cells.
   - The mirroring approach follows the Genesis map tools (The CWC Team, Apache-2.0).
+- **Skirmish AI.** `ai_skirmish_setup` creates what the AI looks up by name for every `Player_<N>_Start`. `ai_skirmish_check` reports what is missing.
+  - Areas: `InnerPerimeter<N>` and `OuterPerimeter<N>`, plus a `CombatZone`.
+  - Paths: approach paths into each base, labelled `Center<N>`, `Flank<N>` and `Backdoor<N>`.
 - **Procedural terrain.** A typical sequence is `terrain_generate`, then `terrain_limit_slope`, then `terrain_auto_texture`.
   - `terrain_generate` builds heights from layered, seeded Perlin noise. It can protect spots such as base locations.
   - `terrain_limit_slope` turns spikes into walkable slopes.

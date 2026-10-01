@@ -51,6 +51,7 @@ void mcpRegisterWaypointCommands();
 void mcpRegisterImageCommands();
 void mcpRegisterSymmetryCommands();
 void mcpRegisterGenerateCommands();
+void mcpRegisterSkirmishCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers

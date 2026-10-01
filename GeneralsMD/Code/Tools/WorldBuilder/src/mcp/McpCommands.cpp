@@ -82,6 +82,7 @@ void registerAllCommands()
 	mcpRegisterImageCommands();
 	mcpRegisterSymmetryCommands();
 	mcpRegisterGenerateCommands();
+	mcpRegisterSkirmishCommands();
 }
 
 std::string makeErrorReply(const McpJson &id, const std::string &message)
