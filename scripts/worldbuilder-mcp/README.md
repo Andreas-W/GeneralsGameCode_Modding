@@ -83,6 +83,10 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - It takes weighted templates and a count or density, and can group objects into noise-driven groves.
   - It keeps clear of roads, building footprints, start positions, cliffs and water.
   - Optional filters limit it by texture, slope or named area.
+- **Start positions.** `map_generate_starts` places `Player_<N>_Start` waypoints for 2 to 8 players, evenly spaced around the map center.
+  - The first player sits in the lower-left corner unless an angle is given; `distance` pulls all starts toward the center.
+  - Each base area is flattened with a feathered edge, and lifted above water if needed.
+  - Existing start waypoints are replaced. It fails if the bases would overlap.
 - **Skirmish AI.** `ai_skirmish_setup` creates what the AI looks up by name for every `Player_<N>_Start`. `ai_skirmish_check` reports what is missing.
   - Areas: `InnerPerimeter<N>` and `OuterPerimeter<N>`, plus a `CombatZone`.
   - Paths: approach paths into each base, labelled `Center<N>`, `Flank<N>` and `Backdoor<N>`.

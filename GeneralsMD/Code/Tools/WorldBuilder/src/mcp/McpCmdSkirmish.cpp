@@ -447,10 +447,200 @@ McpJson cmdSkirmishSetup(const McpJson &args)
 	return j;
 }
 
+//-------------------------------------------------------------------------------------------------
+// map.generate_starts
+//-------------------------------------------------------------------------------------------------
+
+/// Height of the highest water surface covering a world point, or a negative value if there is none.
+double waterHeightAt(double x, double y)
+{
+	ICoord3D pt;
+	pt.x = (Int)floor(x + 0.5);
+	pt.y = (Int)floor(y + 0.5);
+	pt.z = 0;
+	double best = -1;
+	for (PolygonTrigger *trig = PolygonTrigger::getFirstPolygonTrigger(); trig; trig = trig->getNext()) {
+		if (!trig->isWaterArea() || trig->getNumPoints() < 3) continue;
+		if (trig->pointInTrigger(pt) && trig->getPoint(0)->z > best) best = trig->getPoint(0)->z;
+	}
+	return best;
+}
+
+/// Places Player_<N>_Start waypoints at even angles around the map center, on a rectangle inset
+/// from the map edges (Genesis StartingPositionGenerator), and levels each base area.
+McpJson cmdGenerateStarts(const McpJson &args)
+{
+	CWorldBuilderDoc *doc = mcpDoc();
+	WorldHeightMapEdit *map = mcpHeightMap();
+	MapBounds bounds;
+	bounds.init(map);
+	const Int numPlayers = mcpArgInt(args, "players");
+	if (numPlayers < 2 || numPlayers > 8) mcpFail("players must be 2..8");
+	const double baseRadius = mcpArgNumber(args, "base_radius", 300);
+	const double margin = mcpArgNumber(args, "edge_margin", baseRadius + 50);
+	const double distance = mcpArgNumber(args, "distance", 1.0);
+	const bool flatten = mcpArgBool(args, "flatten", true);
+	const double feather = mcpArgNumber(args, "flatten_feather", 150);
+	const bool replace = mcpArgBool(args, "replace", true);
+	if (baseRadius < 50) mcpFail("base_radius must be >= 50");
+	if (distance <= 0 || distance > 1) mcpFail("distance must be in (0, 1]");
+
+	const double cx = bounds.maxX / 2, cy = bounds.maxY / 2;
+	const double hx = cx - margin, hy = cy - margin;
+	if (hx <= 0 || hy <= 0) {
+		mcpFail("the map is too small for edge_margin %.0f (playable size %.0f x %.0f)", margin, bounds.maxX, bounds.maxY);
+	}
+	// Default: the first player sits toward the south-west corner, which puts two players on a
+	// diagonal and four players into the corners.
+	const double firstAngle = args.has("angle_deg") ? mcpArgNumber(args, "angle_deg") * PI / 180.0 : atan2(-hy, -hx);
+
+	std::vector<Vec2> positions;
+	for (Int i = 0; i < numPlayers; i++) {
+		const double a = firstAngle + i * 2 * PI / numPlayers;
+		const double dx = cos(a), dy = sin(a);
+		// Distance along the ray to the inset rectangle.
+		const double tx = fabs(dx) > 1e-9 ? hx / fabs(dx) : 1e30;
+		const double ty = fabs(dy) > 1e-9 ? hy / fabs(dy) : 1e30;
+		const double t = (tx < ty ? tx : ty) * distance;
+		Vec2 p = { cx + dx * t, cy + dy * t };
+		positions.push_back(p);
+	}
+	double closest = 1e30;
+	for (size_t i = 0; i < positions.size(); i++) {
+		for (size_t k = i + 1; k < positions.size(); k++) {
+			const double d = hypot(positions[i].x - positions[k].x, positions[i].y - positions[k].y);
+			if (d < closest) closest = d;
+		}
+	}
+	if (closest < 2 * baseRadius) {
+		mcpFail("the starts would be only %.0f apart, less than two base radii (%.0f); use a larger map, fewer players or a smaller base_radius",
+			closest, 2 * baseRadius);
+	}
+
+	// Existing start waypoints are replaced.
+	std::vector<MapObject *> oldStarts;
+	std::set<Int> oldIds;
+	for (MapObject *obj = MapObject::getFirstMapObject(); obj; obj = obj->getNext()) {
+		if (!obj->isWaypoint()) continue;
+		int number = 0, consumed = 0;
+		const AsciiString name = obj->getWaypointName();
+		if (sscanf(name.str(), "Player_%d_Start%n", &number, &consumed) == 1 && consumed == name.getLength()) {
+			oldStarts.push_back(obj);
+			oldIds.insert(obj->getWaypointID());
+		}
+	}
+	if (!replace && !oldStarts.empty()) {
+		mcpFail("the map already has %d start waypoints; pass replace=true to replace them", (int)oldStarts.size());
+	}
+
+	MultipleUndoable *undo = new MultipleUndoable;
+	McpWaypointLinksUndoable *links = new McpWaypointLinksUndoable(doc);
+	for (Int i = 0; i < doc->getNumWaypointLinks(); i++) {
+		Int a, b;
+		doc->getWaypointLink(i, &a, &b);
+		if (oldIds.count(a) || oldIds.count(b)) links->removed.push_back(std::make_pair(a, b));
+	}
+	undo->addUndoable(links);
+
+	MapObject *head = nullptr, *tail = nullptr;
+	McpJson starts = McpJson::makeArray();
+	std::vector<double> targets(positions.size(), 0);
+	const Int border = map->getBorderSize();
+	for (size_t i = 0; i < positions.size(); i++) {
+		// Level the base to the average height of the area, but never below the water surface.
+		double sum = 0;
+		Int count = 0;
+		const Int r = (Int)ceil(baseRadius / MAP_XY_FACTOR);
+		const Int vx = (Int)floor(positions[i].x / MAP_XY_FACTOR + 0.5) + border;
+		const Int vy = (Int)floor(positions[i].y / MAP_XY_FACTOR + 0.5) + border;
+		for (Int y = vy - r; y <= vy + r; y++) {
+			for (Int x = vx - r; x <= vx + r; x++) {
+				if (x < 0 || y < 0 || x >= map->getXExtent() || y >= map->getYExtent()) continue;
+				if ((x - vx) * (x - vx) + (y - vy) * (y - vy) > r * r) continue;
+				sum += map->getHeight(x, y);
+				count++;
+			}
+		}
+		double target = count ? sum / count : map->getHeight(vx, vy);
+		const double water = waterHeightAt(positions[i].x, positions[i].y);
+		if (water >= 0 && target * MAP_HEIGHT_SCALE <= water + 1) {
+			target = (water + 2) / MAP_HEIGHT_SCALE;
+		}
+		targets[i] = floor(target + 0.5);
+
+		Coord3D loc;
+		loc.x = (Real)positions[i].x;
+		loc.y = (Real)positions[i].y;
+		loc.z = 0;
+		MapObject *way = newInstance(MapObject)(loc, "*Waypoints/Waypoint", 0, 0, nullptr, nullptr);
+		AsciiString name;
+		name.format("Player_%d_Start", (Int)i + 1);
+		way->setIsWaypoint();
+		way->setWaypointID(doc->getNextWaypointID());
+		way->setWaypointName(name);
+		way->getProperties()->setAsciiString(TheKey_originalOwner, "team");
+		if (tail) tail->setNextMap(way); else head = way;
+		tail = way;
+		McpJson s = McpJson::makeObject();
+		s.set("player", (Int)i + 1).set("x", positions[i].x).set("y", positions[i].y);
+		if (flatten) s.set("flattened_to_raw", targets[i]);
+		starts.push(s);
+	}
+	undo->addUndoable(new AddObjectUndoable(doc, head));
+	if (!oldStarts.empty()) {
+		PointerTool::clearSelection();
+		for (size_t i = 0; i < oldStarts.size(); i++) oldStarts[i]->setSelected(true);
+		undo->addUndoable(new DeleteObjectUndoable(doc));
+		PointerTool::clearSelection();
+	}
+
+	WorldHeightMapEdit *copy = nullptr;
+	Int flattened = 0;
+	if (flatten) {
+		copy = map->duplicate();
+		const double reach = baseRadius + feather;
+		for (size_t i = 0; i < positions.size(); i++) {
+			const Int r = (Int)ceil(reach / MAP_XY_FACTOR) + 1;
+			const Int vx = (Int)floor(positions[i].x / MAP_XY_FACTOR + 0.5) + border;
+			const Int vy = (Int)floor(positions[i].y / MAP_XY_FACTOR + 0.5) + border;
+			for (Int y = vy - r; y <= vy + r; y++) {
+				for (Int x = vx - r; x <= vx + r; x++) {
+					if (x < 0 || y < 0 || x >= map->getXExtent() || y >= map->getYExtent()) continue;
+					const double d = hypot((x - border) * MAP_XY_FACTOR - positions[i].x, (y - border) * MAP_XY_FACTOR - positions[i].y);
+					if (d > reach) continue;
+					const double w = d <= baseRadius ? 1.0 : (feather > 0 ? 1.0 - (d - baseRadius) / feather : 0);
+					const double cur = copy->getHeight(x, y);
+					double h = floor(cur + (targets[i] - cur) * w + 0.5);
+					if (h < 0) h = 0;
+					if (h > 255) h = 255;
+					if ((Int)h != copy->getHeight(x, y)) {
+						copy->setHeight(x, y, (UnsignedByte)h);
+						flattened++;
+					}
+				}
+			}
+		}
+		if (flattened > 0) {
+			IRegion2D all = { 0, 0, 0, 0 };
+			doc->updateHeightMap(copy, false, all);
+			undo->addUndoable(new WBDocUndoable(doc, copy));
+		}
+	}
+	mcpCommit(undo);
+	if (copy) REF_PTR_RELEASE(copy);
+	mcpResetObjectHandles();
+
+	McpJson j = McpJson::makeObject();
+	j.set("starts", starts).set("closest_distance", closest);
+	j.set("starts_replaced", (int)oldStarts.size()).set("flattened_vertices", flattened);
+	return j;
+}
+
 } // namespace
 
 void mcpRegisterSkirmishCommands()
 {
 	mcpRegisterCommand("ai.skirmish_setup", cmdSkirmishSetup, "{inner_radius?=350, outer_radius?=600, flank_angle?=70, backdoor_angle?=70, path_points?=5, combat_zone?=true, replace?=true} Creates perimeters and Center/Flank/Backdoor approach paths for every Player_<N>_Start.");
+	mcpRegisterCommand("map.generate_starts", cmdGenerateStarts, "{players, base_radius?=300, edge_margin?, angle_deg?, distance?=1, flatten?=true, flatten_feather?=150, replace?=true} Places Player_<N>_Start waypoints evenly around the map center and levels the bases.");
 	mcpRegisterCommand("ai.skirmish_check", cmdSkirmishCheck, "Reports which skirmish AI areas and approach paths each start position has, and what is missing.");
 }

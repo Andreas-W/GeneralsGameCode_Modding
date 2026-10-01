@@ -720,6 +720,25 @@ def roads_route(type: str, from_point: list[float], to_point: list[float], via: 
 # --------------------------------------------------------------------------------------------------
 
 @mcp.tool()
+def map_generate_starts(players: int, base_radius: float = 300, edge_margin: float | None = None,
+                        angle_deg: float | None = None, distance: float = 1.0, flatten: bool = True,
+                        flatten_feather: float = 150, replace: bool = True) -> dict:
+    """Places the start positions for `players` (2..8) as Player_<N>_Start waypoints, spaced at even
+    angles around the map center (Genesis StartingPositionGenerator), so the layout is rotationally
+    symmetric. Each start lies on a rectangle inset from the playable edge by edge_margin (default
+    base_radius + 50); distance < 1 pulls them toward the center. angle_deg is the direction of
+    player 1 from the center (0 = east, counterclockwise); by default it points at the south-west
+    corner, which puts 2 players on the diagonal and 4 players into the corners. flatten levels each
+    base (base_radius, plus flatten_feather falloff) to its average height, lifted above water if
+    needed. replace=true removes existing start waypoints first. Fails if the starts would be closer
+    than two base radii. Follow with ai_skirmish_setup for the AI data. One undo step; object ids are
+    invalidated."""
+    return wb.call("map.generate_starts", players=players, base_radius=base_radius, edge_margin=edge_margin,
+                   angle_deg=angle_deg, distance=distance, flatten=flatten, flatten_feather=flatten_feather,
+                   replace=replace)
+
+
+@mcp.tool()
 def ai_skirmish_setup(inner_radius: float = 350, outer_radius: float = 600, flank_angle: float = 70,
                       backdoor_angle: float = 70, path_points: int = 5, combat_zone: bool = True,
                       replace: bool = True) -> dict:

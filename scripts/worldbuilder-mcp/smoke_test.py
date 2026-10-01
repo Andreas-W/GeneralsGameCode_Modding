@@ -61,6 +61,16 @@ def main() -> int:
     if roads:
         wb.call("roads.add", type=roads[0], points=[[50, 500], [300, 500], [400, 700]])
 
+    # Start positions: two players land on the diagonal, replacing the existing start; then undo.
+    wp_before = len(wb.call("waypoints.list")["waypoints"])
+    gs = wb.call("map.generate_starts", players=2, base_radius=150)
+    assert len(gs["starts"]) == 2 and gs["starts_replaced"] == 1, gs
+    s1, s2 = gs["starts"]
+    assert abs(s1["x"] + s2["x"] - 950) < 1 and abs(s1["y"] + s2["y"] - 950) < 1, gs
+    assert len(wb.call("waypoints.list")["waypoints"]) == wp_before + 1
+    wb.call("edit.undo")
+    assert len(wb.call("waypoints.list")["waypoints"]) == wp_before
+
     # Skirmish AI data: needs two starts, so add a second one first.
     wb.call("waypoints.add", x=800, y=800, name="Player_2_Start")
     assert not wb.call("ai.skirmish_check")["ready"]
