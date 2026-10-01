@@ -26,6 +26,7 @@
 #include "mcp/McpCommands.h"
 
 #include "WHeightMapEdit.h"
+#include "Common/MapData.h"
 #include "WorldBuilderDoc.h"
 #include "GameLogic/PolygonTrigger.h"
 
@@ -203,7 +204,7 @@ McpJson cmdExportHeightmap(const McpJson &args)
 		path = defaultImagePath("height");
 	}
 
-	Int minH = 255, maxH = 0;
+	Int minH = WorldHeightMap::getMaxHeightValue(), maxH = 0;
 	for (Int y = 0; y < r.h; y++) {
 		for (Int x = 0; x < r.w; x++) {
 			const Int h = map->getHeight(r.x0 + x, r.y0 + y);
@@ -211,12 +212,18 @@ McpJson cmdExportHeightmap(const McpJson &args)
 			if (h > maxH) maxH = h;
 		}
 	}
+	const Int heightLimit = WorldHeightMap::getMaxHeightValue();
+	const double heightScale = TheMapData->m_HeightmapScale > 0 ? TheMapData->m_HeightmapScale : 1.0;
 	std::vector<unsigned char> pixels(r.w * r.h);
 	for (Int y = 0; y < r.h; y++) {
 		for (Int x = 0; x < r.w; x++) {
 			Int h = map->getHeight(r.x0 + x, r.y0 + y);
 			if (normalize) {
 				h = maxH > minH ? (h - minH) * 255 / (maxH - minH) : 0;
+			} else {
+				// An 8-bit image holds what the map file holds: the height divided by the HeightMapScale.
+				h = (Int)floor(h / heightScale + 0.5);
+				if (h > 255) h = 255;
 			}
 			// Row 0 is the north edge.
 			pixels[(r.h - 1 - y) * r.w + x] = (unsigned char)h;
@@ -228,6 +235,7 @@ McpJson cmdExportHeightmap(const McpJson &args)
 	j.set("path", path).set("width", r.w).set("height", r.h);
 	j.set("height_raw_min", minH).set("height_raw_max", maxH).set("normalized", normalize);
 	j.set("include_border", includeBorder);
+	j.set("white_is_raw_height", normalize ? maxH : heightLimit);
 	return j;
 }
 
@@ -239,7 +247,8 @@ McpJson cmdImportHeightmap(const McpJson &args)
 		mcpFail("mode must be set or add");
 	}
 	double lo = mode == "set" ? 0 : -64;
-	double hi = mode == "set" ? 255 : 64;
+	// By default a white pixel is the highest height the map can store.
+	double hi = mode == "set" ? 255.0 * (TheMapData->m_HeightmapScale > 0 ? TheMapData->m_HeightmapScale : 1.0) : 64;
 	if (args.has("range")) {
 		const McpJson &range = mcpArgArray(args, "range");
 		if (range.size() != 2 || !range.at(0).isNumber() || !range.at(1).isNumber()) {
@@ -306,8 +315,8 @@ McpJson cmdImportHeightmap(const McpJson &args)
 			if (!touched[y * r.w + x]) continue;
 			double h = floor(heights[y * r.w + x] + 0.5);
 			if (h < 0) h = 0;
-			if (h > 255) h = 255;
-			copy->setHeight(r.x0 + x, r.y0 + y, (UnsignedByte)h);
+			if (h > WorldHeightMap::getMaxHeightValue()) h = WorldHeightMap::getMaxHeightValue();
+			copy->setHeight(r.x0 + x, r.y0 + y, (Int)h);
 		}
 	}
 	McpJson j = mcpCommitHeightMapEdit(copy, false);

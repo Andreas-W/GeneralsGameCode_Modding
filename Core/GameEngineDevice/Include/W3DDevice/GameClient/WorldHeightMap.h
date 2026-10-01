@@ -236,7 +236,8 @@ public:  // Boundary info
 
 public:  // height map info.
 	static Int getMinHeightValue() {return K_MIN_HEIGHT;}
-	static Int getMaxHeightValue() {return K_MAX_HEIGHT;}
+	/// Highest value a height sample can have: K_MAX_HEIGHT times the HeightMapScale of the map.
+	static Int getMaxHeightValue();
 
 	HeightSampleType *getDataPtr() {return m_data;}
 

@@ -612,9 +612,9 @@ McpJson cmdGenerateStarts(const McpJson &args)
 					const double cur = copy->getHeight(x, y);
 					double h = floor(cur + (targets[i] - cur) * w + 0.5);
 					if (h < 0) h = 0;
-					if (h > 255) h = 255;
+					if (h > WorldHeightMap::getMaxHeightValue()) h = WorldHeightMap::getMaxHeightValue();
 					if ((Int)h != copy->getHeight(x, y)) {
-						copy->setHeight(x, y, (UnsignedByte)h);
+						copy->setHeight(x, y, (Int)h);
 						flattened++;
 					}
 				}

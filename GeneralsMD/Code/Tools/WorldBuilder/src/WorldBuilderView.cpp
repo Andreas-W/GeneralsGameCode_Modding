@@ -186,8 +186,13 @@ void CWorldBuilderView::setShowContours(Bool show)
 /** Gets the color for a given height in the height map.  Used when we
 are not displaying terrain, and for the contour lines. */
 //=============================================================================
-DWORD CWorldBuilderView::getColorForHeight(UnsignedByte ht)
+DWORD CWorldBuilderView::getColorForHeight(Int height)
 {
+	// The color bands cover the whole height range of the map, whatever its HeightMapScale.
+	const Int maxHeight = WorldHeightMap::getMaxHeightValue();
+	Int ht = maxHeight > 0 ? height*0xff/maxHeight : 0;
+	if (ht < 0) ht = 0;
+	if (ht > 0xff) ht = 0xff;
 	Int fromR, fromG, fromB;
 	Int toR, toG, toB;
 	Int min, max;
@@ -346,7 +351,7 @@ void CWorldBuilderView::OnPaint()
 		rect.bottom = (pMap->getYExtent()-j)*m_cellSize;
 		rect.top = rect.bottom-m_cellSize;
 		for (i=minI; i<maxI; i++) {
-			UnsignedByte ht = pMap->getHeight(i, j);
+			Int ht = pMap->getHeight(i, j);
 			rect.left = i*m_cellSize;
 			rect.right = rect.left+m_cellSize;
 			// If this cell is not visible, don't bother drawing it.
@@ -552,7 +557,7 @@ void CWorldBuilderView::drawContours(CDC *pDc, CRgn *pRgn, Int minX, Int maxX, I
 
 	Int curHeight;
 	Bool didWater = false;  // We do the water level first, then step through the contours.
-	for (curHeight = ContourOptions::getContourOffset(); curHeight < 255;
+	for (curHeight = ContourOptions::getContourOffset(); curHeight < WorldHeightMap::getMaxHeightValue();
 		curHeight+= ContourOptions::getContourStep()) {
 		Bool doingWater = false;
 		CPen pen;

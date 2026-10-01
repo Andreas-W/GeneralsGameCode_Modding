@@ -182,7 +182,8 @@ void FeatherTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 					rate = 255;
 					redoRate = true;
 				}
-				m_htMapRateCopy->setHeight(i,j,rate);
+				// The rate map only borrows the height storage; its values are not heights.
+				m_htMapRateCopy->setRawHeight(i,j,rate);
 				Int total=0;
 				Real numSamples=0;
 				Int ii, jj;
@@ -218,7 +219,7 @@ void FeatherTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 					}
 				}
 				total = floor((total/numSamples));
-				UnsignedByte origHeight =  m_htMapFeatherCopy->getHeight(i, j);
+				Int origHeight =  m_htMapFeatherCopy->getHeight(i, j);
 				float rateF = rate/255.0;
 				total = floor(origHeight*(1.0f-rateF) + total*rateF + 0.5f);
 				m_htMapEditCopy->setHeight(i, j, total);

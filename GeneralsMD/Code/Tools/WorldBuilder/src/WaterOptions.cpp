@@ -24,6 +24,7 @@
 #include "Lib/BaseType.h"
 #include "CUndoable.h"
 #include "WaterOptions.h"
+#include "WHeightMapEdit.h"
 #include "WaypointOptions.h"
 #include "WorldBuilder.h"
 #include "WorldBuilderDoc.h"
@@ -351,7 +352,7 @@ void WaterOptions::GetPopSliderInfo(const long sliderID, long *pMin, long *pMax,
 
 		case IDC_HEIGHT_POPUP:
 			*pMin = 0;
-			*pMax = 255*MAP_HEIGHT_SCALE;
+			*pMax = WorldHeightMap::getMaxHeightValue()*MAP_HEIGHT_SCALE;
 			*pInitial = m_waterHeight;
 			*pLineSize = 1;
 			break;

@@ -21,6 +21,8 @@ Coordinates:
 - World units: 10 per terrain cell. (0,0) is the lower left corner of the playable area; the
   border extends to negative coordinates. Call map_info for the exact extents.
 - Heights are raw values 0..255 on the heightmap vertices; world height = raw * 0.625.
+  A map.ini next to the map can set HeightMapScale (map_info: height_map_scale): raw heights then
+  go up to 255 * scale (height_raw_limit) and are always multiples of the scale, so edits snap to it.
   terrain_get_heights/terrain_set_heights use heightmap vertex indices (which include the border);
   every other command uses world units.
 - Object angles are in degrees, counterclockwise, 0 = facing +x.
@@ -178,7 +180,7 @@ def map_resize(width: int | None = None, height: int | None = None,
       is split between both sides).
     - add_left/add_right/add_bottom/add_top: cells to add per side; negative values crop.
     border changes the border width. New cells continue the old edge, which smears edge detail into
-    stripes: fill_height (raw 0..255) and fill_texture give them a fixed height and texture instead.
+    stripes: fill_height (raw) and fill_texture give them a fixed height and texture instead.
     Rework a grown strip afterwards with terrain_generate / terrain_auto_texture limited to a rect.
     remove_outside deletes objects and/or waypoints that end up outside the new map (a road segment
     only when both ends are outside); by default they are kept and counted in objects_outside.
@@ -269,7 +271,7 @@ def view_screenshot(x: float | None = None, y: float | None = None, angle_deg: f
 @mcp.tool()
 def terrain_get_heights(x0: int = 0, y0: int = 0, w: int | None = None, h: int | None = None,
                         step: int = 1) -> dict:
-    """Reads raw vertex heights (0..255) as rows (row 0 = y0). Indices are heightmap vertex indices
+    """Reads raw vertex heights (0..height_raw_limit, see map_info) as rows (row 0 = y0). Indices are heightmap vertex indices
     including the border; vertex (border, border) is world (0,0). Use step>1 to downsample large areas.
     At most 65536 values per call."""
     return wb.call("terrain.get_heights", x0=x0, y0=y0, w=w, h=h, step=step)
@@ -277,7 +279,7 @@ def terrain_get_heights(x0: int = 0, y0: int = 0, w: int | None = None, h: int |
 
 @mcp.tool()
 def terrain_set_heights(x0: int, y0: int, heights: list[list[int | None]]) -> dict:
-    """Writes raw vertex heights (0..255). heights[r][c] goes to vertex (x0+c, y0+r); null leaves a
+    """Writes raw vertex heights (0..height_raw_limit, see map_info). heights[r][c] goes to vertex (x0+c, y0+r); null leaves a
     vertex unchanged. One undo step."""
     return wb.call("terrain.set_heights", x0=x0, y0=y0, heights=heights)
 
@@ -479,7 +481,7 @@ Channel = Literal["luma", "r", "g", "b", "a"]
 def terrain_export_heightmap(path: str | None = None, normalize: bool = False, include_border: bool = True,
                              view: bool = False) -> Any:
     """Writes the heightmap as an 8-bit grayscale PNG: one pixel per heightmap vertex, pixel value =
-    raw height 0..255, top row = north edge. normalize stretches the used height range to 0..255 for
+    raw height 0..255 (divided by the map's HeightMapScale, like in the map file), top row = north edge. normalize stretches the used height range to 0..255 for
     easier viewing (not for round trips). include_border=false exports only the playable area.
     view=true also returns the image so you can look at the relief. Default path is a temp file."""
     result = wb.call("terrain.export_heightmap", path=_abspath(path), normalize=normalize,
@@ -494,7 +496,7 @@ def terrain_import_heightmap(path: str, mode: Literal["set", "add"] = "set", ran
                              channel: Channel = "luma", fit: ImageFit = "stretch", include_border: bool = True,
                              smooth: int = 0) -> dict:
     """Loads terrain heights from a PNG/BMP/TGA image (8 or 16 bit; top row = north). Pixel 0..max is
-    mapped onto range=[low, high] raw heights (default [0, 255] for set, [-64, 64] for add). mode=add
+    mapped onto range=[low, high] raw heights (default [0, height_raw_limit] for set, [-64, 64] for add). mode=add
     adds the mapped value to the current heights. fit: stretch = resample to the map (bilinear),
     exact = image must match the vertex grid size, center = place 1:1 in the middle.
     include_border=false targets only the playable area. smooth = smoothing passes afterwards.

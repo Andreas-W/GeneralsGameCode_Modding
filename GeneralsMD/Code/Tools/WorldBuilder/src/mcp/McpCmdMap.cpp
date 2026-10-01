@@ -30,6 +30,7 @@
 #include "wbview3d.h"
 #include "Common/GameType.h"
 #include "Common/GlobalData.h"
+#include "Common/MapData.h"
 #include "Common/MapObject.h"
 #include "Common/WellKnownKeys.h"
 #include "GameLogic/PolygonTrigger.h"
@@ -56,6 +57,8 @@ McpJson cmdMapInfo(const McpJson &)
 	McpJson grid = McpJson::makeObject();
 	grid.set("x_extent", xExtent).set("y_extent", yExtent).set("border", border);
 	grid.set("playable_cells_x", xExtent - 1 - 2 * border).set("playable_cells_y", yExtent - 1 - 2 * border);
+	// HeightMapScale from the map.ini next to the map: raw heights are multiples of it, up to 255 times it.
+	grid.set("height_map_scale", TheMapData->m_HeightmapScale).set("height_raw_limit", WorldHeightMap::getMaxHeightValue());
 	j.set("heightmap", grid);
 
 	McpJson world = McpJson::makeObject();
@@ -66,7 +69,7 @@ McpJson cmdMapInfo(const McpJson &)
 	world.set("cell_size", MAP_XY_FACTOR).set("height_scale", MAP_HEIGHT_SCALE);
 	j.set("world", world);
 
-	Int minH = 255, maxH = 0;
+	Int minH = WorldHeightMap::getMaxHeightValue(), maxH = 0;
 	for (Int y = 0; y < yExtent; y++) {
 		for (Int x = 0; x < xExtent; x++) {
 			Int h = map->getHeight(x, y);
@@ -150,6 +153,12 @@ McpJson cmdMapOpen(const McpJson &args)
 		mcpFail("file not found: %s", path.c_str());
 	}
 	requireUnmodifiedOrDiscard(args);
+	// MFC only activates a document that is already open under the same path. Forget the path so
+	// the map (and its map.ini) is really read again.
+	CWorldBuilderDoc *current = CWorldBuilderDoc::GetActiveDoc();
+	if (current != nullptr && current->GetPathName().CompareNoCase(path.c_str()) == 0) {
+		current->forgetPathName();
+	}
 	CDocument *opened = WbApp()->OpenDocumentFile(path.c_str());
 	mcpResetObjectHandles();
 	if (opened == nullptr) {

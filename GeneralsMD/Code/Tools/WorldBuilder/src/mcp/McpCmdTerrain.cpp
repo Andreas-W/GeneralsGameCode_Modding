@@ -87,11 +87,12 @@ McpJson commitHeightMapEdit(WorldHeightMapEdit *copy, const EditRange &range)
 	return result;
 }
 
-UnsignedByte clampHeight(double h)
+Int clampHeight(double h)
 {
+	const Int maxHeight = WorldHeightMap::getMaxHeightValue();
 	if (h < 0) return 0;
-	if (h > 255) return 255;
-	return (UnsignedByte)floor(h + 0.5);
+	if (h > maxHeight) return maxHeight;
+	return (Int)floor(h + 0.5);
 }
 
 Int findTextureClass(const McpJson &args, const char *key)
@@ -262,7 +263,8 @@ McpJson cmdBrush(const McpJson &args)
 					}
 					next = cur + (sum / 9.0 - cur) * (wgt > 1 ? 1 : wgt);
 				}
-				UnsignedByte newHeight = clampHeight(next);
+				// Compare what would really be stored: heights snap to the map's HeightMapScale.
+				const Int newHeight = WorldHeightMapEdit::snapHeight(clampHeight(next), copy->getHeight(x, y));
 				if (newHeight != copy->getHeight(x, y)) {
 					copy->setHeight(x, y, newHeight);
 					range.add(x, y);
@@ -443,7 +445,7 @@ McpJson mcpCommitHeightMapEdit(WorldHeightMapEdit *copy, bool texturesChanged)
 
 void mcpRegisterTerrainCommands()
 {
-	mcpRegisterCommand("terrain.get_heights", cmdGetHeights, "{x0?,y0?,w?,h?,step?} Raw vertex heights (0..255) as rows; indices include the border.");
+	mcpRegisterCommand("terrain.get_heights", cmdGetHeights, "{x0?,y0?,w?,h?,step?} Raw vertex heights (0..255 times the map's HeightMapScale) as rows; indices include the border.");
 	mcpRegisterCommand("terrain.set_heights", cmdSetHeights, "{x0,y0,heights:[[...]]} Writes raw vertex heights; null entries are skipped.");
 	mcpRegisterCommand("terrain.brush", cmdBrush, "{op:raise|lower|set|flatten|smooth|noise, shape, x,y,radius | x0,y0,x1,y1, feather?, amount?, height?, strength?, iterations?, seed?}");
 	mcpRegisterCommand("terrain.list_textures", cmdListTextures, "{filter?} Available terrain texture classes.");

@@ -254,8 +254,8 @@ McpJson cmdResize(const McpJson &args)
 		mcpFail("border must be 0..%d", MAX_BORDER);
 	}
 	const Int fillHeight = args.has("fill_height") ? mcpArgInt(args, "fill_height") : -1;
-	if (args.has("fill_height") && (fillHeight < 0 || fillHeight > 255)) {
-		mcpFail("fill_height must be 0..255");
+	if (args.has("fill_height") && (fillHeight < 0 || fillHeight > WorldHeightMap::getMaxHeightValue())) {
+		mcpFail("fill_height must be 0..%d", WorldHeightMap::getMaxHeightValue());
 	}
 	Int fillTexture = -1;
 	if (args.has("fill_texture")) {

@@ -497,9 +497,9 @@ McpJson cmdRoute(const McpJson &args)
 				const double cur = map->getHeight(x, y);
 				double h = floor(cur + (profile[bestNdx] - cur) * w + 0.5);
 				if (h < 0) h = 0;
-				if (h > 255) h = 255;
+				if (h > WorldHeightMap::getMaxHeightValue()) h = WorldHeightMap::getMaxHeightValue();
 				if ((Int)h != map->getHeight(x, y)) {
-					copy->setHeight(x, y, (UnsignedByte)h);
+					copy->setHeight(x, y, (Int)h);
 					flattened++;
 				}
 			}

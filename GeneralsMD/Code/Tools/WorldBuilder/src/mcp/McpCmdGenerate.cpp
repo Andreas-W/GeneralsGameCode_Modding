@@ -65,11 +65,12 @@ struct Area
 	}
 };
 
-UnsignedByte clampHeight(double h)
+Int clampHeight(double h)
 {
+	const Int maxHeight = WorldHeightMap::getMaxHeightValue();
 	if (h < 0) return 0;
-	if (h > 255) return 255;
-	return (UnsignedByte)floor(h + 0.5);
+	if (h > maxHeight) return maxHeight;
+	return (Int)floor(h + 0.5);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -150,7 +151,7 @@ McpJson cmdGenerate(const McpJson &args)
 					: noises[i]->fractal(x, y, l.frequency, l.octaves, l.persistence, l.amplitude, l.signedResult);
 				target += v * l.height;
 			}
-			const UnsignedByte h = clampHeight(cur + (target - cur) * (w > 1 ? 1 : w));
+			const Int h = clampHeight(cur + (target - cur) * (w > 1 ? 1 : w));
 			if (h != map->getHeight(x, y)) {
 				copy->setHeight(x, y, h);
 				changed++;
@@ -221,7 +222,7 @@ McpJson cmdLimitSlope(const McpJson &args)
 	Int changed = 0;
 	for (Int y = 0; y < h; y++) {
 		for (Int x = 0; x < w; x++) {
-			const UnsignedByte nh = clampHeight(heights[y * w + x]);
+			const Int nh = clampHeight(heights[y * w + x]);
 			if (nh != map->getHeight(x0 + x, y0 + y)) {
 				// setHeight also updates the cliff (impassable) flags from the new slopes.
 				copy->setHeight(x0 + x, y0 + y, nh);

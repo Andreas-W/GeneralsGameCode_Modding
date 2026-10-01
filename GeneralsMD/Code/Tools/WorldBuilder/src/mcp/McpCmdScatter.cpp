@@ -266,7 +266,7 @@ McpJson cmdScatter(const McpJson &args)
 		if (avoidCliffs && map->getCliffState(cx, cy)) terrainOk = false;
 		if (terrainOk && avoidWater && mcpIsCellUnderWater(map, cx, cy)) terrainOk = false;
 		if (terrainOk && maxSlope >= 0) {
-			Int lo = 255, hi = 0;
+			Int lo = WorldHeightMap::getMaxHeightValue(), hi = 0;
 			for (Int dy = 0; dy <= 1; dy++) {
 				for (Int dx = 0; dx <= 1; dx++) {
 					const Int h = map->getHeight(cx + dx, cy + dy);

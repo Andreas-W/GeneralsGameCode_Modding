@@ -593,7 +593,8 @@ void WorldHeightMapEdit::saveToFile(DataChunkOutput &chunkWriter)
 		std::vector<UnsignedByte> binary_data(m_dataSize);
 		const Real f = 1.0f / TheMapData->m_HeightmapScale;
 		for (size_t i = 0; i < m_dataSize; i++) {
-			binary_data[i] = std::clamp(static_cast<UnsignedByte>(std::round(m_data[i] * f)), static_cast<UnsignedByte>(0U), static_cast<UnsignedByte>(255U));
+			// Clamp before narrowing to a byte, otherwise an out of range height wraps around.
+			binary_data[i] = static_cast<UnsignedByte>(std::clamp(static_cast<Int>(std::round(m_data[i] * f)), K_MIN_HEIGHT, K_MAX_HEIGHT));
 		}
 
 		chunkWriter.writeArrayOfBytes((char *)&binary_data[0], m_dataSize);
@@ -1641,9 +1642,27 @@ void WorldHeightMapEdit::showTileStatusInfo()
 	setHeight
 		This sets the height, and adjusts the cliff flag for the cells affected.
 */
-void WorldHeightMapEdit::setHeight(Int xIndex, Int yIndex, UnsignedByte height) {
+Int WorldHeightMapEdit::snapHeight(Int height, Int currentHeight)
+{
+	Real scale = TheMapData->m_HeightmapScale;
+	if (scale <= 0.0f) scale = 1.0f;
+	const Real stored = height / scale;
+	Int step = (Int)floor(stored);
+	const Real fraction = stored - step;
+	if (fabs(fraction - 0.5f) < 0.001f) {
+		if (height > currentHeight) step++;
+	} else if (fraction > 0.5f) {
+		step++;
+	}
+	if (step < K_MIN_HEIGHT) step = K_MIN_HEIGHT;
+	if (step > K_MAX_HEIGHT) step = K_MAX_HEIGHT;
+	// Same rounding as when the map is loaded.
+	return (Int)std::round(step * scale);
+}
+
+void WorldHeightMapEdit::setHeight(Int xIndex, Int yIndex, Int height) {
 		Int ndx = (yIndex*m_width)+xIndex;
-		if ((ndx>=0) && (ndx<m_dataSize) && m_data) m_data[ndx]=height;
+		if ((ndx>=0) && (ndx<m_dataSize) && m_data) m_data[ndx]=(HeightSampleType)snapHeight(height, m_data[ndx]);
 		setCellCliffFlagFromHeights(xIndex, yIndex);
 		setCellCliffFlagFromHeights(xIndex-1, yIndex);
 		setCellCliffFlagFromHeights(xIndex, yIndex-1);
@@ -2063,7 +2082,7 @@ Bool WorldHeightMapEdit::resizeBySides(Int addLeft, Int addBottom, Int addRight,
 	Short *cliffInfoNdxes = new Short[newDataSize];
 	// Same paranoia row as in the constructor.
 	HeightSampleType *data = new HeightSampleType[newDataSize + newXSize+1];
-	memset(data, 0, newDataSize + newXSize+1);
+	memset(data, 0, (newDataSize + newXSize+1)*sizeof(HeightSampleType));
 	const Int numBytesX = (newXSize+7)/8;	//how many bytes to fit all bitflags
 	UnsignedByte *flipState = new UnsignedByte[numBytesX*newYSize];
 	UnsignedByte *cliffState = new UnsignedByte[numBytesX*newYSize];
@@ -2083,7 +2102,7 @@ Bool WorldHeightMapEdit::resizeBySides(Int addLeft, Int addBottom, Int addRight,
 			if (vertexInRange || fillHeight<0) {
 				data[newNdx] = m_data[clampIndex(oldI, m_width-1) + clampIndex(oldJ, m_height-1)*m_width];
 			} else {
-				data[newNdx] = (HeightSampleType)fillHeight;
+				data[newNdx] = (HeightSampleType)snapHeight(fillHeight, fillHeight);
 			}
 			const Int oldNdx = clampIndex(oldI, m_width-2) + clampIndex(oldJ, m_height-2)*m_width;
 			if (cellInRange) {

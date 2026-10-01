@@ -1435,7 +1435,8 @@ BOOL CWorldBuilderDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	TheGameText->initMapStringFile(s);
 
 	s_mapini.concat("map.ini");
-	if (TheFileSystem->doesFileExist(s_mapini.str()))
+	// No doesFileExist() check: the file system caches that a file is missing, so a map.ini
+	// created while WorldBuilder runs would never be seen. The load is optional anyway.
 	{
 		INI ini;
 		ini.load(s_mapini, INI_LOAD_MAPDATA_ONLY, nullptr, true);

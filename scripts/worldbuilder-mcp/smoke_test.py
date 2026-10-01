@@ -86,6 +86,9 @@ def main() -> int:
         sc = wb.call("objects.scatter", templates=[trees[0]["name"]], count=25, seed=3, start_clearance=60)
         assert 0 < sc["placed"] <= 25, sc
         assert wb.call("map.info")["counts"]["objects"] == objects_before + sc["placed"]
+        # The scattered objects are added as one chain; each must still get its own unique ID.
+        ids = [o["unique_id"] for o in wb.call("objects.list", limit=1000)["objects"]]
+        assert len(ids) == len(set(ids)), sorted(i for i in set(ids) if ids.count(i) > 1)
         wb.call("edit.undo")
         assert wb.call("map.info")["counts"]["objects"] == objects_before
 
@@ -197,6 +200,36 @@ def main() -> int:
     names = [o.get("name") for o in wb.call("objects.list")["objects"]]
     assert "MyBarracks" in names, names
     print("saved and reopened:", path, reopened)
+
+    # HeightMapScale: a map.ini next to the map doubles all heights and the height limit.
+    plain = wb.call("terrain.sample", x=300, y=300)["height_raw"]
+    assert wb.call("map.info")["heightmap"]["height_raw_limit"] == 255
+    map_ini = os.path.join(out_dir, "map.ini")
+    with open(map_ini, "w") as f:
+        f.write("MapData\n  HeightMapScale = 2.0\nEnd\n")
+    wb.call("map.open", path=path)
+    grid = wb.call("map.info")["heightmap"]
+    assert grid["height_map_scale"] == 2 and grid["height_raw_limit"] == 510, grid
+    assert wb.call("terrain.sample", x=300, y=300)["height_raw"] == 2 * plain
+    # Heights above 255 are kept, odd heights snap to the scale, and nothing exceeds the limit.
+    wb.call("terrain.brush", op="set", x=600, y=300, radius=40, height=401)
+    assert wb.call("terrain.sample", x=600, y=300)["height_raw"] == 402
+    wb.call("terrain.brush", op="raise", x=600, y=300, radius=40, amount=500)
+    assert wb.call("terrain.sample", x=600, y=300)["height_raw"] == 510
+    wb.call("terrain.brush", op="lower", x=600, y=300, radius=40, amount=1)
+    assert wb.call("terrain.sample", x=600, y=300)["height_raw"] == 508
+    scaled_png = os.path.join(out_dir, "scaled.png")
+    wb.call("terrain.export_heightmap", path=scaled_png)
+    wb.call("terrain.import_heightmap", path=scaled_png, fit="exact")
+    assert wb.call("terrain.sample", x=600, y=300)["height_raw"] == 508
+    wb.call("map.save")
+    wb.call("map.open", path=path)
+    assert wb.call("terrain.sample", x=600, y=300)["height_raw"] == 508
+    assert wb.call("terrain.sample", x=300, y=300)["height_raw"] == 2 * plain
+    os.remove(map_ini)
+    wb.call("map.open", path=path)
+    assert wb.call("terrain.sample", x=600, y=300)["height_raw"] == 254
+    print("height map scale: ok")
     print("OK")
     return 0
 

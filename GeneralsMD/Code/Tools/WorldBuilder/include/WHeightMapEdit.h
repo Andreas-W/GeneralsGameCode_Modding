@@ -130,7 +130,13 @@ public: // Editing methods.
 	void blendTile(Int xIndex, Int yIndex, Int srcXIndex, Int srcYIndex, Int srcClass, Int edgeClass);
 	void autoBlendOut(Int xIndex, Int yIndex, Int edgeIndex = -1);
 	Int getTextureClass(Int xIndex, Int yIndex, Bool baseClass=false);
-	void setHeight(Int xIndex, Int yIndex, UnsignedByte height);
+	/// Sets a height, limited to the valid range and snapped with snapHeight().
+	void setHeight(Int xIndex, Int yIndex, Int height);
+	/// Heights are saved as bytes and multiplied by the map's HeightMapScale when loaded, so only
+	/// multiples of the scale survive a save. Returns the nearest such height in the valid range.
+	/// A height exactly between two steps moves away from currentHeight, so that a small change
+	/// has an effect in both directions.
+	static Int snapHeight(Int height, Int currentHeight);
 	void setCliff(Int xIndex, Int yIndex, Bool impassable) {setCliffState(xIndex, yIndex, impassable);}
 	Bool setTileNdx(Int xIndex, Int yIndex, Int textureClass, Bool singleTile);
 	Bool floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace, Bool askToConfirm = true);

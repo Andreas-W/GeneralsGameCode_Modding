@@ -63,6 +63,9 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
 - **World coordinates.** One terrain cell is 10 world units. (0,0) is the lower-left corner of the
   playable area.
 - **Heights.** Raw heights are 0..255; world height is raw × 0.625.
+  - A `map.ini` next to the map can set `HeightMapScale` for taller terrain. Raw heights then go up to 255 × scale.
+  - The map file still stores bytes, so heights are always multiples of the scale. Edits snap to them.
+  - Heightmap PNGs hold the stored bytes (raw ÷ scale).
 - **Undo.** WorldBuilder keeps 15 undo steps. Waypoint links are not undoable (same as in the UI).
 - **Screenshots.** They render the 3D view, so the WorldBuilder window must not be minimized.
 - **Symmetry.** `map_transform` mirrors or rotates the whole map. `map_symmetrize` copies one half or quarter onto the rest.
