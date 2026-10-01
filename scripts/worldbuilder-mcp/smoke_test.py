@@ -70,6 +70,23 @@ def main() -> int:
     wb.call("edit.undo", count=2)
     assert len(wb.call("waypoints.list")["waypoints"]) == before_wp
 
+    # Procedural terrain: generate, limit slopes, auto texture, then undo exactly what changed.
+    steps = 0
+    gen = wb.call("terrain.generate", seed=5, base_height=30, layers=[{"height": 60, "frequency": 0.03, "octaves": 3}])
+    assert gen["changed"], gen
+    steps += 1
+    if wb.call("terrain.limit_slope", max_step=6)["changed"]:
+        steps += 1
+    tex = wb.call("terrain.auto_texture", seed=5, base={"texture": textures[0]["name"]},
+                  cliff={"texture": textures[1]["name"], "slope": 5})
+    assert tex["cells_ground"] > 0, tex
+    steps += 1
+    wb.call("terrain.blend_all")
+    wb.call("terrain.remove_blends")
+    steps += 2
+    wb.call("edit.undo", count=steps)
+    assert wb.call("terrain.sample", x=300, y=300)["height_raw"] == 60, "undo did not restore the terrain"
+
     # Heightmap image round trip must be lossless.
     out_png = os.path.join(tempfile.mkdtemp(prefix="wb_mcp_"), "height.png")
     wb.call("terrain.export_heightmap", path=out_png)

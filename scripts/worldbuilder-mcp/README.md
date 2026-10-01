@@ -44,6 +44,9 @@ on its UI thread and records each edit as a normal undo step.
 uv run --directory scripts/worldbuilder-mcp smoke_test.py
 ```
 
+The bridge serves one client at a time, so run this before an MCP client has connected to
+WorldBuilder (or with the MCP server stopped). Otherwise it waits for the connection.
+
 This creates a new map and discards unsaved changes in the open one. It then exercises every
 command area, saves the map to a temp folder, reopens it and verifies it.
 
@@ -67,6 +70,12 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Player numbers in names and owners are renumbered for each copy.
   - Cliff texture mapping is reset on copied cells.
   - The mirroring approach follows the Genesis map tools (The CWC Team, Apache-2.0).
+- **Procedural terrain.** A typical sequence is `terrain_generate`, then `terrain_limit_slope`, then `terrain_auto_texture`.
+  - `terrain_generate` builds heights from layered, seeded Perlin noise. It can protect spots such as base locations.
+  - `terrain_limit_slope` turns spikes into walkable slopes.
+  - `terrain_auto_texture` textures cells as ground, cliff or water, scatters noise overlays and blends the edges.
+  - `terrain_blend_all` and `terrain_remove_blends` are bulk blending helpers.
+  - Layouts and sceneries are JSON presets in `presets/` (`terrain_list_presets`), taken from Genesis. See `NOTICE`.
 - **Terrain images.** Heightmap and mask PNGs have north at the top.
   - Heightmaps have one pixel per heightmap vertex, and the pixel value is the raw height. 16-bit images are accepted on import.
   - Masks have one pixel per cell.
