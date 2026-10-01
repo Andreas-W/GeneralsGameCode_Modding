@@ -536,6 +536,35 @@ def objects_delete(ids: list[int]) -> dict:
 
 
 @mcp.tool()
+def objects_scatter(templates: list[str | dict[str, Any]], count: int | None = None, density: float = 40,
+                    seed: int = 1, shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                    radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                    x1: float | None = None, y1: float | None = None, feather: float = 0,
+                    min_spacing: float = 30, road_clearance: float = 40, object_clearance: float = 40,
+                    start_clearance: float = 300, avoid_cliffs: bool = True, avoid_water: bool = True,
+                    max_slope: float | None = None, only_textures: list[str] | None = None,
+                    avoid_areas: list[str] | None = None, inside_areas: list[str] | None = None,
+                    cluster: dict[str, float] | None = None) -> dict:
+    """Scatters decoration (trees, bushes, rocks, props) at random positions with random rotation.
+    templates: names or {"template": .., "weight": ..} (see objects_list_templates, e.g.
+    editor_sorting SHRUBBERY or MISC_NATURAL). Number: count, or density = objects per 1000x1000
+    world units over the area. Area: the whole playable map, or a circle/rect (feather thins the edge).
+    Placement keeps min_spacing between scattered objects, road_clearance from roads,
+    object_clearance beyond the footprint of existing structures/units, start_clearance from
+    Player_<N>_Start waypoints, and skips cliffs and water. Optional filters: max_slope (raw height
+    difference across the cell), only_textures (e.g. grass only), avoid_areas / inside_areas (area
+    names). cluster={"frequency": 0.03, "threshold": 0.5} groups objects into groves using noise
+    (lower frequency = larger groves, higher threshold = fewer). Same seed gives the same result.
+    All objects are neutral. One undo step; follow with map_symmetrize if the map must stay symmetric."""
+    return wb.call("objects.scatter", templates=templates, count=count, density=density, seed=seed,
+                   feather=feather, min_spacing=min_spacing, road_clearance=road_clearance,
+                   object_clearance=object_clearance, start_clearance=start_clearance,
+                   avoid_cliffs=avoid_cliffs, avoid_water=avoid_water, max_slope=max_slope,
+                   only_textures=only_textures, avoid_areas=avoid_areas, inside_areas=inside_areas,
+                   cluster=cluster, **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
 def sides_list() -> dict:
     """Players (with their property dicts) and teams. Object owners are team names."""
     return wb.call("sides.list")

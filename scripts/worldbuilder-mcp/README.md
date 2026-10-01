@@ -70,6 +70,10 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Player numbers in names and owners are renumbered for each copy.
   - Cliff texture mapping is reset on copied cells.
   - The mirroring approach follows the Genesis map tools (The CWC Team, Apache-2.0).
+- **Scattering.** `objects_scatter` places decoration such as trees and rocks at random.
+  - It takes weighted templates and a count or density, and can group objects into noise-driven groves.
+  - It keeps clear of roads, building footprints, start positions, cliffs and water.
+  - Optional filters limit it by texture, slope or named area.
 - **Skirmish AI.** `ai_skirmish_setup` creates what the AI looks up by name for every `Player_<N>_Start`. `ai_skirmish_check` reports what is missing.
   - Areas: `InnerPerimeter<N>` and `OuterPerimeter<N>`, plus a `CombatZone`.
   - Paths: approach paths into each base, labelled `Center<N>`, `Flank<N>` and `Backdoor<N>`.

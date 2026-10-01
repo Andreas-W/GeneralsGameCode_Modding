@@ -70,6 +70,15 @@ def main() -> int:
     assert check["ready"], check
     wb.call("edit.undo", count=2)
 
+    # Scatter decoration: must respect the road and stay deterministic for a seed.
+    if trees:
+        objects_before = wb.call("map.info")["counts"]["objects"]
+        sc = wb.call("objects.scatter", templates=[trees[0]["name"]], count=25, seed=3, start_clearance=60)
+        assert 0 < sc["placed"] <= 25, sc
+        assert wb.call("map.info")["counts"]["objects"] == objects_before + sc["placed"]
+        wb.call("edit.undo")
+        assert wb.call("map.info")["counts"]["objects"] == objects_before
+
     # Symmetry: mirror the west half onto the east half, then undo.
     before_wp = len(wb.call("waypoints.list")["waypoints"])
     sym = wb.call("map.symmetrize", mode="mirror_x", source="west")
