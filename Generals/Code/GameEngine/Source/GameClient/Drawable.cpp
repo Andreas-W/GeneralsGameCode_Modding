@@ -1361,17 +1361,33 @@ void Drawable::applyPhysicsXform(Matrix3D* mtx)
 {
 	if (m_physicsXform != nullptr)
 	{
-		// TheSuperHackers @tweak Update the physics transform on every WW Sync only.
-		// All calculations are originally catered to a 30 fps logic step.
+		// TheSuperHackers @tweak Advance physics only on WW Sync frames.
 		if (WW3D::Get_Sync_Frame_Time() != 0)
 		{
+			m_physicsXform->setPrevTotals();
 			calcPhysicsXform(*m_physicsXform);
+
+			// New or previously undrawn objects have no result from the previous logic step.
+			if (m_physicsXform->m_syncTime != WW3D::Get_Previous_Sync_Time())
+			{
+				m_physicsXform->setPrevTotals();
+			}
+			m_physicsXform->m_syncTime = WW3D::Get_Sync_Time();
 		}
 
-		mtx->Translate(0.0f, 0.0f, m_physicsXform->m_totalZ);
-		mtx->Rotate_Y( m_physicsXform->m_totalPitch );
-		mtx->Rotate_X( -m_physicsXform->m_totalRoll );
-		mtx->Rotate_Z( m_physicsXform->m_totalYaw );
+		// TheSuperHackers @tweak bobtista 14/09/2026 Interpolate the rendered transform between
+		// logic frames, so the motion stays smooth when the render rate is above the logic rate.
+		const Real t = TheFramePacer->getLogicFramePhase();
+
+		const Real interpPitch = WWMath::Lerp(m_physicsXform->m_prevTotalPitch, m_physicsXform->m_totalPitch, t);
+		const Real interpRoll = WWMath::Lerp(m_physicsXform->m_prevTotalRoll, m_physicsXform->m_totalRoll, t);
+		const Real interpYaw = WWMath::Lerp(m_physicsXform->m_prevTotalYaw, m_physicsXform->m_totalYaw, t);
+		const Real interpZ = WWMath::Lerp(m_physicsXform->m_prevTotalZ, m_physicsXform->m_totalZ, t);
+
+		mtx->Translate(0.0f, 0.0f, interpZ);
+		mtx->Rotate_Y( interpPitch );
+		mtx->Rotate_X( -interpRoll );
+		mtx->Rotate_Z( interpYaw );
 	}
 }
 
