@@ -2,7 +2,7 @@
 
 Lets an MCP client (Claude Code, Claude Desktop, ...) edit the map that is open in Zero Hour
 WorldBuilder: terrain heights and textures, objects, players, waypoints, water and trigger areas,
-roads, map settings, save/load and 3D screenshots.
+roads, scripts and teams, map settings, save/load and 3D screenshots.
 
 ```
 MCP client  <-- stdio -->  server.py  <-- TCP 127.0.0.1:47800, JSON lines -->  WorldBuilderZH.exe -mcp
@@ -98,6 +98,32 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
 - **Skirmish AI.** `ai_skirmish_setup` creates what the AI looks up by name for every `Player_<N>_Start`. `ai_skirmish_check` reports what is missing.
   - Areas: `InnerPerimeter<N>` and `OuterPerimeter<N>`, plus a `CombatZone`.
   - Paths: approach paths into each base, labelled `Center<N>`, `Flank<N>` and `Backdoor<N>`.
+- **Scripts and teams.** The `scripts_*` tools do what the script editor (Edit > Scripts) does, without its window.
+  - `scripts_list` and `scripts_get` read; `scripts_add`, `scripts_update`, `scripts_delete` and `scripts_move` write. Groups have their own tools.
+  - A script is JSON: flags, `conditions` (a list of OR clauses, each a list of ANDed conditions), `actions` and `false_actions`.
+  - `scripts_list_actions` and `scripts_list_conditions` list the types with their parameter types. Parameters are given in order.
+  - `scripts_list_values` lists what a parameter accepts (upgrades, sciences, special powers, command buttons, object types, ...); `teams_list_properties` lists the team properties with their types.
+  - `scripts_copy`, `teams_copy` and `scripts_clone_player` duplicate; the last one derives a whole faction's scripts and teams from another, with name replacements.
+  - `scripts_rename` renames a script, group, team, flag, counter or any named value together with its references in scripts and teams.
+  - `scripts_build_order`, `scripts_trace` and `scripts_by_difficulty` read a set from one angle: what is built when, what a team or script sets in motion, what belongs to which difficulty.
+  - `objects_info` gives unit and structure stats (cost, KindOf, where it is built); `buildlist_*` edits the players' build lists.
+  - `scripts_list_templates` and `scripts_apply_template` create ready-made script and team combinations from `presets/script_templates.json`.
+  - `scripts_report` writes a Markdown report of one player's AI.
+  - `scripts_compare` shows how two players' scripts and teams differ, or how the map differs from a dump file.
+  - `scripts_set_values` and `teams_set_many` change one kind of value in many scripts or teams (set, add, multiply), with a dry run.
+  - `teams_summary` gives a faction's army in numbers: unit usage with costs, team sizes, priorities.
+  - `scripts_missing` groups broken references by the missing name and suggests the closest existing ones.
+  - `scripts_batch` runs many edits as one undo step, all or nothing.
+  - `scripts_dump` and `scripts_load` write and read everything as readable JSON, for review, diffs and bulk edits.
+  - `scripts_analyze` looks for dead logic: unused subroutines, flags and counters used one-sided, teams never built.
+  - `sides_set` and `sides_delete` change, rename and remove players.
+  - `scripts_find` searches inside scripts and team properties: by parameter value, wording, type or parameter type.
+  - `scripts_verify` runs the editor's checks for references to things that do not exist. Edits report the same warnings.
+  - `scripts_export` and `scripts_import` write and read `.scb` files with scripts, players and teams, and on request the waypoints, areas and units they need. An existing file is only replaced on request, and a dated backup is kept.
+  - AI script sets such as `SkirmishScripts.scb` are edited by importing them into a map, changing them and exporting again.
+  - `teams_list` shows teams in short form (units with counts, priority, the scripts they name); `teams_get`, `teams_set` and `teams_delete` edit team templates as property dicts.
+  - On large sets `scripts_list` reduces its detail by itself; `detail`, `player` and `group` control it.
+  - Like the editor, each edit replaces the whole sides list as one undo step. Edits are refused while the script editor window is open, because its OK would overwrite them.
 - **Procedural terrain.** A typical sequence is `terrain_generate`, then `terrain_limit_slope`, then `terrain_auto_texture`.
   - `terrain_generate` builds heights from layered, seeded Perlin noise. It can protect spots such as base locations.
   - `terrain_limit_slope` turns spikes into walkable slopes.

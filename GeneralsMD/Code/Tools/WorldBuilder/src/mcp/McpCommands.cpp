@@ -87,6 +87,10 @@ void registerAllCommands()
 	mcpRegisterRouteCommands();
 	mcpRegisterReplaceCommands();
 	mcpRegisterResizeCommands();
+	mcpRegisterScriptCommands();
+	mcpRegisterTeamCommands();
+	mcpRegisterScriptToolCommands();
+	mcpRegisterScriptViewCommands();
 }
 
 std::string makeErrorReply(const McpJson &id, const std::string &message)
@@ -120,6 +124,18 @@ void mcpRegisterCommand(const char *name, McpHandler handler, const char *help)
 	entry.handler = handler;
 	entry.help = help ? help : "";
 	commandTable()[name] = entry;
+}
+
+McpJson mcpRunCommand(const std::string &cmd, const McpJson &args)
+{
+	CommandTable::const_iterator it = commandTable().find(cmd);
+	if (it == commandTable().end()) {
+		mcpFail("unknown command '%s' (use list_commands)", cmd.c_str());
+	}
+	if (!args.isObject()) {
+		mcpFail("'args' must be an object");
+	}
+	return it->second.handler(args);
 }
 
 std::string mcpDispatch(const std::string &requestLine)

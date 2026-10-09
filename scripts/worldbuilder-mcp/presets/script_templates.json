@@ -1,0 +1,131 @@
+{
+  "_comment": "Script templates for scripts_apply_template. Each template is a list of bridge commands (as scripts_batch takes them) with ${name} placeholders. A string that is exactly \"${name}\" is replaced by the parameter's value with its type (number, list, ...); inside longer strings the value is inserted as text. Add your own templates here.",
+  "templates": [
+    {
+      "name": "build_structure",
+      "description": "A build-order step: build a structure once another structure exists and the player has more than a given amount of credits.",
+      "params": {
+        "player": {"description": "Owning player, e.g. SkirmishAmerica"},
+        "group": {"description": "Existing script group to add the script to"},
+        "name": {"description": "Script name"},
+        "structure": {"description": "Object type to build"},
+        "requires": {"description": "Object type that must have been built first"},
+        "min_credits": {"description": "Credits the player must exceed", "default": 2000}
+      },
+      "commands": [
+        {
+          "cmd": "scripts.add",
+          "args": {
+            "player": "${player}",
+            "group": "${group}",
+            "script": {
+              "name": "${name}",
+              "conditions": [[
+                {"type": "BUILT_BY_PLAYER", "params": ["${requires}", "<This Player>"]},
+                {"type": "PLAYER_HAS_CREDITS", "params": ["${min_credits}", "LESS_THAN", "<This Player>"]}
+              ]],
+              "actions": [{"type": "SKIRMISH_BUILD_BUILDING", "params": ["${structure}"]}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "attack_team",
+      "description": "A team the AI builds when it has enough credits and that hunts once it is complete. Creates the team, its production condition script '<name> Condition' and its on-create script '<name> Launch'.",
+      "params": {
+        "player": {"description": "Owning player"},
+        "group": {"description": "Existing script group for the two scripts"},
+        "name": {"description": "Team name; must be unique in the map"},
+        "units": {"description": "Unit slots: [{\"type\": ..., \"min\": n, \"max\": n}, ...] (up to 7)"},
+        "min_credits": {"description": "Credits the player must exceed before the team is built", "default": 2500},
+        "priority": {"description": "Production priority; the highest buildable team is built first", "default": 1000},
+        "max_instances": {"description": "How many copies may exist at once", "default": 1}
+      },
+      "commands": [
+        {
+          "cmd": "scripts.add",
+          "args": {
+            "player": "${player}",
+            "group": "${group}",
+            "script": {
+              "name": "${name} Condition",
+              "subroutine": true,
+              "one_shot": false,
+              "conditions": [[{"type": "PLAYER_HAS_CREDITS", "params": ["${min_credits}", "LESS_THAN", "<This Player>"]}]]
+            }
+          }
+        },
+        {
+          "cmd": "scripts.add",
+          "args": {
+            "player": "${player}",
+            "group": "${group}",
+            "script": {
+              "name": "${name} Launch",
+              "subroutine": true,
+              "conditions": [[{"type": "TEAM_CREATED", "params": ["<This Team>"]}]],
+              "actions": [{"type": "TEAM_HUNT", "params": ["<This Team>"]}]
+            }
+          }
+        },
+        {
+          "cmd": "teams.set",
+          "args": {
+            "name": "${name}",
+            "owner": "${player}",
+            "units": "${units}",
+            "properties": {
+              "teamProductionCondition": "${name} Condition",
+              "teamOnCreateScript": "${name} Launch",
+              "teamProductionPriority": "${priority}",
+              "teamMaxInstances": "${max_instances}",
+              "teamExecutesActionsOnCreate": true,
+              "teamAggressiveness": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "timer_loop",
+      "description": "A repeating timer: '<name> Start' starts it once, '<name> Tick' sets a flag every time it expires and restarts it. Other scripts wait for the flag and set it back to false.",
+      "params": {
+        "player": {"description": "Owning player"},
+        "group": {"description": "Existing script group"},
+        "name": {"description": "Base name of the two scripts and of the timer"},
+        "seconds": {"description": "Timer length in seconds", "default": 60},
+        "flag": {"description": "Flag set to true on every tick"}
+      },
+      "commands": [
+        {
+          "cmd": "scripts.add",
+          "args": {
+            "player": "${player}",
+            "group": "${group}",
+            "script": {
+              "name": "${name} Start",
+              "actions": [{"type": "SET_MILLISECOND_TIMER", "params": ["${name} Timer", "${seconds}"]}]
+            }
+          }
+        },
+        {
+          "cmd": "scripts.add",
+          "args": {
+            "player": "${player}",
+            "group": "${group}",
+            "script": {
+              "name": "${name} Tick",
+              "one_shot": false,
+              "conditions": [[{"type": "TIMER_EXPIRED", "params": ["${name} Timer"]}]],
+              "actions": [
+                {"type": "SET_FLAG", "params": ["${flag}", true]},
+                {"type": "SET_MILLISECOND_TIMER", "params": ["${name} Timer", "${seconds}"]}
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

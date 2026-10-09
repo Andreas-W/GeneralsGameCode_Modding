@@ -181,6 +181,204 @@ def main() -> int:
     water = wb.call("terrain.export_mask", kind="water")
     assert water["cells_set"] > 0, water
 
+    # Scripts: add, read back, update, groups, move, verify, team, export/import round trip.
+    owner = player["player"]
+    assert any(a["type"] == "SET_FLAG" for a in wb.call("scripts.list_actions", filter="SET_FLAG")["actions"])
+    assert wb.call("scripts.list_conditions", filter="CONDITION_TRUE")["total_matches"] >= 1
+    added = wb.call("scripts.add", player=owner, script={
+        "name": "McpIntro", "comment": "smoke test",
+        "actions": [{"type": "SET_FLAG", "params": ["McpFlag", True]}]})
+    assert added["warnings"] == [], added
+    got = wb.call("scripts.get", name="McpIntro")
+    assert got["player"] == owner and got["script"]["conditions"][0][0]["type"] == "CONDITION_TRUE", got
+    assert got["script"]["actions"][0]["params"] == [{"type": "FLAG", "value": "McpFlag"},
+                                                     {"type": "BOOLEAN", "value": True}], got
+    # What scripts.get reports is accepted back unchanged.
+    wb.call("scripts.update", name="McpIntro", script={"actions": got["script"]["actions"], "one_shot": False})
+    again = wb.call("scripts.get", name="McpIntro")["script"]
+    assert again["actions"] == got["script"]["actions"] and again["one_shot"] is False, again
+    made = wb.call("teams.set", name="McpStrike", owner=owner, units=[{"type": templates[0]["name"], "min": 0, "max": 2}],
+                   properties={"teamProductionPriority": 500, "teamDestroyedThreshold": 1,
+                               "teamOnCreateScript": "McpNoSuchScript"})
+    assert made["properties"]["teamUnitMaxCount1"] == 2 and made["units"][0]["max"] == 2, made
+    assert [w["property"] for w in made["warnings"]] == ["teamOnCreateScript"], made
+    wb.call("teams.set", name="McpStrike", properties={"teamOnCreateScript": None})
+    for bad in ({"teamProductionPriority": "high"}, {"teamProductionPriority": 1.5}, {"teamIsBaseDefense": 1},
+                {"teamUnitType8": "x"}, {"teamNoSuchKey": 1}):
+        try:
+            wb.call("teams.set", name="McpStrike", properties=bad)
+            raise AssertionError(f"team property {bad} must be rejected")
+        except WorldBuilderError:
+            pass
+    assert wb.call("teams.verify", name="McpStrike")["warnings"] == []
+    assert any(p["key"] == "teamGenericScriptHook<N>" and p["last"] == 15 for p in wb.call("teams.list_properties")["properties"])
+    assert wb.call("scripts.list_values", param_type="COMPARISON")["values"][0] == "LESS_THAN"
+    assert wb.call("scripts.list_values", param_type="UPGRADE")["total_matches"] > 10
+    assert "free_form" in wb.call("scripts.list_values", param_type="COORD3D")
+    assert "McpStrike" in wb.call("scripts.list_values", param_type="TEAM", filter="mcp")["values"]
+    wb.call("scripts.add_group", player=owner, name="McpGroup")
+    follow = wb.call("scripts.add", group="McpGroup", script={
+        "name": "McpFollowUp",
+        "conditions": [{"type": "FLAG", "params": ["McpFlag", True]}],
+        "actions": [{"type": "TEAM_HUNT", "params": ["McpStrike"]}, {"type": "ENABLE_SCRIPT", "params": ["McpMissing"]}]})
+    assert len(follow["warnings"]) == 1 and follow["warnings"][0]["where"] == "actions[1]", follow
+    try:
+        wb.call("scripts.add", player=owner, script={"name": "McpBad", "actions": [{"type": "SET_FLAG", "params": ["x"]}]})
+        raise AssertionError("a wrong parameter count must be rejected")
+    except WorldBuilderError:
+        pass
+    wb.call("scripts.move", name="McpIntro", to_group="McpGroup", index=0)
+    listed = wb.call("scripts.list", player=owner)["players"][0]
+    assert [s["name"] for s in listed["groups"][0]["scripts"]] == ["McpIntro", "McpFollowUp"], listed
+    compact = wb.call("scripts.list", player=owner, detail="groups")["players"][0]["groups"][0]
+    assert compact["script_count"] == 2 and "scripts" not in compact, compact
+    assert wb.call("scripts.list", player=owner, group="McpGroup", detail="names")["players"][0]["groups"][0]["scripts"] == ["McpIntro", "McpFollowUp"]
+    short = wb.call("teams.list", owner=owner, unit="barracks")["teams"]
+    assert len(short) == 1 and short[0]["name"] == "McpStrike" and short[0]["units"][0].startswith("0-2 "), short
+    assert len(wb.call("scripts.verify")["warnings"]) == 1
+    uses = wb.call("scripts.find", value="McpStrike", param_type="TEAM")
+    assert uses["total_scripts"] == 1 and uses["scripts"][0]["hits"][0]["where"] == "actions[0]", uses
+    flagged = wb.call("scripts.find", text="mcpflag")
+    assert flagged["total_scripts"] == 2 and flagged["total_hits"] == 2, flagged
+    assert wb.call("scripts.find", value=templates[0]["name"])["teams"][0]["key"] == "teamUnitType1"
+    # Copy, rename with references, clone to another player; then undo all of it.
+    wb.call("scripts.copy", name="McpIntro", new_name="McpIntro2")
+    wb.call("teams.copy", name="McpStrike", new_name="McpStrike2")
+    ren = wb.call("scripts.rename", kind="FLAG", **{"from": "McpFlag"}, to="McpFlagB")
+    assert ren["references_in_scripts"] == 3, ren
+    ren = wb.call("scripts.rename", kind="team", **{"from": "McpStrike"}, to="McpStrikeB")
+    assert ren["references_in_scripts"] == 1, ren
+    wb.call("teams.set", name="McpStrikeB", properties={"teamOnCreateScript": "McpIntro"})
+    ren = wb.call("scripts.rename", kind="script", **{"from": "McpIntro"}, to="McpStart")
+    assert ren["renamed"] == 1 and ren["references_in_teams"] == 1, ren
+    twin = wb.call("sides.add_player", faction="FactionChina")["player"]
+    try:
+        wb.call("scripts.clone_player", **{"from": owner}, to=twin)
+        raise AssertionError("cloning without renaming the teams must fail")
+    except WorldBuilderError:
+        pass
+    clone = wb.call("scripts.clone_player", **{"from": owner}, to=twin, replace={"Mcp": "Twin"})
+    assert clone["scripts"] == 3 and clone["groups"] == 1 and clone["teams"] == 2, clone
+    cloned = wb.call("scripts.get", name="TwinFollowUp", player=twin)["script"]
+    assert cloned["actions"][0]["params"][0]["value"] == "TwinStrikeB", cloned
+    assert wb.call("teams.get", name="TwinStrikeB")["properties"]["teamOnCreateScript"] == "TwinStart"
+    wb.call("edit.undo", count=8)
+    assert wb.call("scripts.get", name="McpIntro")["group"] == "McpGroup"
+    # Batch: one undo step, and nothing at all if a command fails.
+    count = wb.call("scripts.list")["script_count"]
+    add = lambda n: {"cmd": "scripts.add", "args": {"player": owner, "script": {"name": n}}}
+    try:
+        wb.call("scripts.batch", commands=[add("McpB1"), add("McpB1")])
+        raise AssertionError("a failing batch must be rejected")
+    except WorldBuilderError as exc:
+        assert "commands[1]" in str(exc), exc
+    assert wb.call("scripts.list")["script_count"] == count
+    batch = wb.call("scripts.batch", commands=[add("McpB1"), add("McpB2"),
+                                                 {"cmd": "teams.set", "args": {"name": "McpBTeam", "owner": owner}}])
+    assert batch["commands_run"] == 3 and wb.call("scripts.list")["script_count"] == count + 2
+    wb.call("edit.undo")
+    assert wb.call("scripts.list")["script_count"] == count
+    assert not wb.call("teams.list", filter="McpBTeam")["teams"]
+
+    # Dump and load are inverse.
+    doc = wb.call("scripts.dump")
+    wb.call("scripts.delete", name="McpFollowUp")
+    wb.call("teams.delete", name="McpStrike")
+    loaded = wb.call("scripts.load", data=doc)
+    assert loaded["scripts"] == 2 and loaded["teams"] == 1, loaded
+    assert wb.call("scripts.dump") == doc, "dump/load changed the scripts"
+    wb.call("edit.undo", count=3)
+
+    # Compare, bulk edits, team summary, missing references.
+    same = wb.call("scripts.compare", player=owner, with_data=doc)
+    assert same["scripts"]["identical"] == 2 and same["scripts"]["different"]["count"] == 0, same
+    assert same["teams"]["identical"] == 1 and same["teams"]["different"]["count"] == 0, same
+    wb.call("scripts.add", group="McpGroup", script={"name": "McpWait", "actions": [{"type": "SET_TIMER", "params": ["McpTimer", 100]}]})
+    dry = wb.call("scripts.set_values", param_type="INT", type="SET_TIMER", op="multiply", value=1.5, dry_run=True)
+    assert dry["parameters_changed"] == 1 and "150" in dry["samples"][0]["after"], dry
+    assert wb.call("scripts.get", name="McpWait")["script"]["actions"][0]["params"][1]["value"] == 100
+    wb.call("scripts.set_values", param_type="INT", type="SET_TIMER", op="multiply", value=1.5)
+    wb.call("scripts.set_values", param_type="BOOLEAN", type="SET_FLAG", value=False, player=owner)
+    diff = wb.call("scripts.compare", player=owner, with_data=doc)
+    assert diff["scripts"]["only_in_a"]["items"] == ["McpGroup / McpWait"] and diff["scripts"]["different"]["count"] == 1, diff
+    assert "FALSE" in diff["scripts"]["different"]["items"][0]["a"][0], diff
+    many = wb.call("teams.set_many", owner=owner, multiply={"teamUnitMaxCount*": 2}, add={"teamProductionPriority": 100})
+    assert many["teams_changed"] == 1 and many["samples"][0]["changes"]["teamUnitMaxCount1"] == [2, 4], many
+    summary = wb.call("teams.summary", owner=owner)["owners"][0]
+    assert summary["teams"] == 1 and summary["units"][0]["max_total"] == 4 and summary["team_size"]["max"] == 4, summary
+    assert summary["priorities"] == [{"priority": "600", "teams": 1}], summary
+    wb.call("teams.set", name="McpStrike", units=[{"type": templates[0]["name"] + "_Typo", "max": 1}])
+    miss = wb.call("scripts.missing")
+    by_name = {m["missing"]: m for m in miss["missing"]}
+    assert templates[0]["name"] in by_name[templates[0]["name"] + "_Typo"]["suggestions"], miss
+    assert by_name["McpMissing"]["rename_kind"] == "script_reference", miss
+    fixed = wb.call("scripts.rename", kind="script_reference", **{"from": "McpMissing"}, to="McpIntro")
+    assert fixed["references_in_scripts"] == 1, fixed
+    wb.call("edit.undo", count=6)
+    assert wb.call("scripts.compare", player=owner, with_data=doc)["scripts"]["different"]["count"] == 0
+
+    # Views: trace, build order, difficulty, unit stats, build lists, verify summary.
+    trace = wb.call("scripts.trace", name="McpIntro")
+    assert trace["trace"]["leads_to"][0]["script"] == "McpFollowUp" and "McpFlag" in trace["trace"]["leads_to"][0]["via"], trace
+    team_trace = wb.call("scripts.trace", name="McpStrike")
+    assert team_trace["team"] == "McpStrike" and team_trace["scripts"] == [], team_trace
+    wb.call("scripts.add", player=owner, script={"name": "McpBuild", "easy": False, "actions": [
+        {"type": "SKIRMISH_BUILD_BUILDING", "params": [templates[0]["name"]]}]})
+    order = wb.call("scripts.build_order", player=owner)
+    assert order["steps"][0]["script"] == "McpBuild" and order["steps"][0]["difficulty"] == "NH", order
+    assert order["totals"] == [{"what": templates[0]["name"], "build_actions": 1}], order
+    assert wb.call("scripts.build_order", player=owner, difficulty="E")["steps"] == []
+    switches = wb.call("scripts.by_difficulty", player=owner)["script_switches"]
+    assert any(s["runs_on"] == "NH" and s["names"] == ["McpBuild"] for s in switches), switches
+    stats = wb.call("objects.info", templates=[templates[0]["name"], "NoSuchThing"])
+    assert stats["templates"][0]["cost"] > 0 and "STRUCTURE" in stats["templates"][0]["kind_of"], stats
+    assert stats["unknown"] == ["NoSuchThing"]
+    wb.call("buildlist.add", player=owner, template=templates[0]["name"], x=400, y=400, angle_deg=90, rebuilds="unlimited")
+    wb.call("buildlist.add", player=owner, template=templates[0]["name"], x=500, y=400, name="Second")
+    wb.call("buildlist.update", player=owner, index=1, new_index=0, health=50)
+    entries = wb.call("buildlist.list", player=owner)["players"][0]["build_list"]
+    assert [e.get("name") for e in entries] == ["Second", None] and entries[0]["health"] == 50, entries
+    assert entries[1]["rebuilds"] == "unlimited" and abs(entries[1]["angle_deg"] - 90) < 0.01, entries
+    wb.call("buildlist.delete", player=owner, index=0)
+    assert len(wb.call("buildlist.list", player=owner)["players"][0]["build_list"]) == 1
+    brief = wb.call("scripts.verify", summary=True)
+    assert brief["warning_count"] == 1 and brief["warnings"][0]["count"] == 1, brief
+    wb.call("edit.undo", count=5)
+    assert wb.call("buildlist.list")["players"] == []
+
+    ana = wb.call("scripts.analyze")
+    assert ana["flags_read_never_set"]["count"] == 0 and ana["unused_subroutines"]["count"] == 0, ana
+
+    # Players: rename with references, delete.
+    extra = wb.call("sides.add_player", faction="FactionGLA")["player"]
+    wb.call("scripts.add", player=extra, script={"name": "McpSideTest", "actions": [{"type": "PLAYER_HUNT", "params": [extra]}]})
+    renamed = wb.call("sides.set", name=extra, new_name="McpRenamed", properties={"playerIsHuman": False})
+    assert renamed["references_in_scripts"] == 1 and renamed["properties"]["playerIsHuman"] is False, renamed
+    assert any(t["name"] == "teamMcpRenamed" for t in wb.call("sides.list")["teams"])
+    try:
+        wb.call("sides.delete", name="McpRenamed")
+        raise AssertionError("deleting a player with scripts needs force")
+    except WorldBuilderError:
+        pass
+    wb.call("sides.delete", name="McpRenamed", force=True)
+    assert all(p["playerName"] != "McpRenamed" for p in wb.call("sides.list")["players"])
+
+    scb = os.path.join(tempfile.mkdtemp(prefix="wb_mcp_"), "scripts.scb")
+    assert wb.call("scripts.export", path=scb)["scripts"] == 2
+    try:
+        wb.call("scripts.export", path=scb)
+        raise AssertionError("exporting over an existing file needs overwrite")
+    except WorldBuilderError:
+        pass
+    assert os.path.exists(wb.call("scripts.export", path=scb, overwrite=True)["backup"])
+    wb.call("scripts.delete_group", name="McpGroup", delete_scripts=True)
+    wb.call("teams.delete", name="McpStrike")
+    assert wb.call("scripts.list")["script_count"] == 0
+    imported = wb.call("scripts.import", path=scb)
+    assert imported["scripts_imported"] == 2 and imported["teams_added"] == 1, imported
+    assert wb.call("scripts.get", name="McpFollowUp")["group"] == "McpGroup"
+    print("scripts: ok")
+
     shot = wb.call("view.screenshot", x=400, y=400)
     print("screenshot:", shot["path"], shot["width"], "x", shot["height"])
 

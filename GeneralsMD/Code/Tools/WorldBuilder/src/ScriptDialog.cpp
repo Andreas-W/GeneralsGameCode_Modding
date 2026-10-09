@@ -307,6 +307,11 @@ ScriptGroup *ScriptDialog::getCurGroup()
 	return nullptr;
 }
 
+Bool ScriptDialog::isOpen()
+{
+	return m_staticThis != nullptr && m_staticThis->GetSafeHwnd() != nullptr && m_staticThis->IsWindowVisible();
+}
+
 /** Updates the warning flags in a script, & script conditions & actions. */
 void ScriptDialog::updateScriptWarning(Script *pScript)
 {

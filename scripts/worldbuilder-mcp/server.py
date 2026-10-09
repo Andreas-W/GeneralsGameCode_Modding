@@ -36,6 +36,24 @@ Workflow tips:
 - Skirmish maps: add Player_<N>_Start waypoints, then run ai_skirmish_setup (and ai_skirmish_check).
   The AI needs numbered names: InnerPerimeter1, OuterPerimeter1 and paths labeled Center1, Flank1,
   Backdoor1 leading into base 1, and so on per player. Plain "Center" labels are ignored.
+- Scripts (map scripts and AI scripts): scripts_list / scripts_get to read, scripts_add /
+  scripts_update to write, scripts_list_actions / scripts_list_conditions to find the types,
+  scripts_find to search what scripts contain (who uses a team, script, object type ...).
+  Scripts refer to each other, to teams, waypoints and areas by name. Teams are reviewed with
+  teams_list and edited with teams_get / teams_set. On AI script sets (thousands of scripts) start
+  with scripts_list detail="groups" and teams_list per owner.
+- Building or reworking a whole AI: look names up with scripts_list_values and
+  teams_list_properties instead of guessing; derive a faction with scripts_clone_player; rename
+  with scripts_rename (it updates references); put many edits into scripts_batch (one undo step,
+  all or nothing); keep a scripts_dump file as a readable backup; finish with scripts_verify and
+  scripts_analyze.
+- Understanding a set: scripts_build_order (what is built when), scripts_trace (what one team or
+  script sets in motion), scripts_by_difficulty, objects_info (unit stats), scripts_report (all of
+  it as a Markdown file).
+- Rebalancing: teams_summary and scripts_compare show what a faction has and how two differ;
+  scripts_set_values and teams_set_many change many values at once (try dry_run first);
+  scripts_missing groups broken references by cause and suggests the intended names. Run scripts_verify after a batch of changes. Script edits fail while
+  WorldBuilder's own script editor window is open.
 - Every edit is one WorldBuilder undo step (edit_undo reverts it). WorldBuilder keeps only 15.
 - Use view_screenshot to look at the result.
 """
@@ -653,6 +671,75 @@ def sides_list_factions() -> dict:
 
 
 @mcp.tool()
+def objects_info(templates: list[str] | None = None, filter: str | None = None, limit: int = 20) -> dict:
+    """Stats of object types (units, structures): build cost, owning side, display name, KindOf
+    flags, buildable status, energy, vision range, command set and `built_at`, the structures
+    that produce it. Pass the names as templates (up to 60; unknown ones come back in `unknown`),
+    or a name substring as filter. Use it to judge team compositions and build orders."""
+    return wb.call("objects.info", templates=templates, filter=filter, limit=limit)
+
+
+@mcp.tool()
+def buildlist_list(player: str | None = None) -> dict:
+    """The players' build lists (WorldBuilder's Build List tool): structures a player's AI
+    builds at fixed spots, or starts with, in order. Used by campaign and scripted-map AI;
+    skirmish AI sets usually build through scripts instead (see scripts_build_order)."""
+    return wb.call("buildlist.list", player=player)
+
+
+@mcp.tool()
+def buildlist_add(player: str, template: str, x: float, y: float, z: float = 0, angle_deg: float = 0,
+                  name: str | None = None, script: str | None = None, initially_built: bool | None = None,
+                  rebuilds: int | Literal["unlimited"] | None = None, health: int | None = None,
+                  whiner: bool | None = None, unsellable: bool | None = None, repairable: bool | None = None,
+                  index: int | None = None) -> dict:
+    """Adds a structure to a player's build list at world position x, y (index = position in the
+    list, default the end; the AI builds in list order). name lets scripts refer to the building,
+    script runs when it is built, initially_built makes it exist at game start, rebuilds is how
+    often the AI rebuilds it when destroyed, health its starting health in percent."""
+    return wb.call("buildlist.add", player=player, template=template, x=x, y=y, z=z, angle_deg=angle_deg, name=name,
+                   script=script, initially_built=initially_built, rebuilds=rebuilds, health=health, whiner=whiner,
+                   unsellable=unsellable, repairable=repairable, index=index)
+
+
+@mcp.tool()
+def buildlist_update(player: str, index: int, new_index: int | None = None, template: str | None = None,
+                     x: float | None = None, y: float | None = None, z: float | None = None,
+                     angle_deg: float | None = None, name: str | None = None, script: str | None = None,
+                     initially_built: bool | None = None, rebuilds: int | Literal["unlimited"] | None = None,
+                     health: int | None = None, whiner: bool | None = None, unsellable: bool | None = None,
+                     repairable: bool | None = None) -> dict:
+    """Changes the given fields of a build list entry (index from buildlist_list); new_index moves
+    it to another position in the list."""
+    return wb.call("buildlist.update", player=player, index=index, new_index=new_index, template=template, x=x, y=y,
+                   z=z, angle_deg=angle_deg, name=name, script=script, initially_built=initially_built,
+                   rebuilds=rebuilds, health=health, whiner=whiner, unsellable=unsellable, repairable=repairable)
+
+
+@mcp.tool()
+def buildlist_delete(player: str, index: int) -> dict:
+    """Deletes a build list entry."""
+    return wb.call("buildlist.delete", player=player, index=index)
+
+
+@mcp.tool()
+def sides_set(name: str, new_name: str | None = None, properties: dict[str, Any] | None = None) -> dict:
+    """Changes a player. properties are the player dict keys sides_list shows (playerFaction,
+    playerDisplayName, playerIsHuman, playerAllies, playerEnemies, ...). new_name renames the
+    player and what refers to the name: its teams' owner, its default team "team<name>", other
+    players' allies/enemies and player/team parameters in scripts. Renaming fails while map
+    objects belong to its teams."""
+    return wb.call("sides.set", name=name, new_name=new_name, properties=properties)
+
+
+@mcp.tool()
+def sides_delete(name: str, force: bool = False) -> dict:
+    """Deletes a player. With scripts or teams it needs force=true and deletes them too. Fails
+    while map objects belong to its teams."""
+    return wb.call("sides.delete", name=name, force=force)
+
+
+@mcp.tool()
 def sides_add_player(faction: str, name: str | None = None, display_name: str | None = None,
                      is_human: bool = True, allies: str | None = None, enemies: str | None = None) -> dict:
     """Adds a player (and its default team "team<name>"). allies/enemies are space separated player names."""
@@ -797,6 +884,633 @@ def ai_skirmish_check() -> dict:
     areas and the number of waypoints on its Center/Flank/Backdoor approach paths, plus a list of
     problems (missing areas or paths, path labels without a player number)."""
     return wb.call("ai.skirmish_check")
+
+
+# --------------------------------------------------------------------------------------------------
+# Scripts and teams
+# --------------------------------------------------------------------------------------------------
+
+@mcp.tool()
+def scripts_list(player: str | None = None, group: str | None = None, filter: str | None = None,
+                 detail: Literal["auto", "groups", "names", "full"] = "auto") -> dict:
+    """Scripts and script groups (folders) per player. Every script belongs to a player ("" is the
+    neutral player), either at the top level or in a group; they run in the listed order.
+    player and group ("" = the scripts outside of groups) narrow it; filter is a substring of the
+    script name. detail: "groups" = groups with script counts only, "names" = script names,
+    "full" = name, flags and comment per script. "auto" picks full for up to 120 matching scripts,
+    names up to 400 and groups beyond (AI script sets hold thousands), and says so in `note`.
+    Start with detail="groups" on a big set, then list one group."""
+    return wb.call("scripts.list", player=player, group=group, filter=filter, detail=detail)
+
+
+@mcp.tool()
+def scripts_find(text: str | None = None, value: str | None = None, type: str | None = None,
+                 param_type: str | None = None, player: str | None = None, limit: int = 50, offset: int = 0,
+                 max_hits_per_script: int = 10) -> dict:
+    """Searches inside scripts and returns the matching conditions and actions per script (with
+    `where`, e.g. actions[2], and the editor's wording). All given filters must hold for the same
+    condition or action:
+    - value: exact parameter value (case-insensitive), e.g. a team, script, waypoint, area, object
+      type, flag or counter name. Add param_type (TEAM, SCRIPT, OBJECT_TYPE, ...) to pin the kind.
+    - text: substring of the editor's wording, e.g. "begins hunting" or part of a name.
+    - type: condition or action type, e.g. TEAM_HUNT. param_type alone lists every use of that kind.
+    With only text/value it also matches script names and comments, and returns `teams`: team
+    properties holding that text (teams name scripts and unit types too). Use it before renaming
+    or deleting something to see who refers to it. total_scripts counts all matches; page with
+    limit/offset. Each script lists at most max_hits_per_script hits (hit_count has the real
+    number); teams are capped at limit (total_team_hits)."""
+    return wb.call("scripts.find", text=text, value=value, type=type, param_type=param_type, player=player,
+                   limit=limit, offset=offset, max_hits_per_script=max_hits_per_script)
+
+
+@mcp.tool()
+def scripts_get(name: str, player: str | None = None, group: str | None = None,
+                script_index: int | None = None) -> dict:
+    """One script in full, in the form scripts_add/scripts_update take, plus `text`, the script as
+    the editor words it. player, group ("" = not in a group) and script_index (position in its
+    list, as scripts_list orders them) are only needed when several scripts share the name; the
+    error then lists the candidates. The same selectors work on update, delete and move."""
+    return wb.call("scripts.get", name=name, player=player, group=group, script_index=script_index)
+
+
+@mcp.tool()
+def scripts_add(script: dict[str, Any], player: str | None = None, group: str | None = None,
+                index: int | None = None, allow_duplicate_name: bool = False) -> dict:
+    """Adds a script to a player's top level (player; "" = neutral) or to a script group (group).
+    index is the position in that list (default: at the end). script:
+      {"name": "...", "comment": "", "active": true, "one_shot": true, "subroutine": false,
+       "easy": true, "normal": true, "hard": true, "delay_seconds": 0,
+       "conditions": [[{"type": "CONDITION_TRUE"}]],
+       "actions": [{"type": "SET_FLAG", "params": ["MyFlag", true]}],
+       "false_actions": []}
+    Only name is required; the defaults are the ones shown. conditions is a list of OR clauses,
+    each a list of conditions that must all hold (a flat list is one clause). Types and their
+    parameters come from scripts_list_conditions / scripts_list_actions. params are given in
+    order, one value per parameter type:
+    - names (TEAM, SCRIPT, WAYPOINT, TRIGGER_AREA, SIDE, UNIT, OBJECT_TYPE, FLAG, COUNTER, ...): string.
+      Special names: "<This Team>", "<This Player>", "<Local Player>", "<This Player's Enemy>".
+    - INT, REAL: number. BOOLEAN: true/false. ANGLE: degrees. PERCENT: 0..100.
+    - COORD3D: [x, y, z]. COLOR: "#RRGGBB" or "#AARRGGBB".
+    - COMPARISON: LESS_THAN, LESS_EQUAL, EQUAL, GREATER_EQUAL, GREATER, NOT_EQUAL (or <, <=, ==, ...).
+    - RELATION: ENEMY, NEUTRAL, FRIEND. AI_MOOD: SLEEP, PASSIVE, NORMAL, ALERT, AGGRESSIVE.
+    - KIND_OF_PARAM, BUILDABLE, SURFACES_ALLOWED, SHAKE_INTENSITY, RADAR_EVENT_TYPE: the name.
+    Returns `warnings`: references the editor would flag (missing team, script, waypoint, ...).
+    The script is added anyway. A name must be new for that player unless allow_duplicate_name.
+    One undo step."""
+    return wb.call("scripts.add", script=script, player=player, group=group, index=index,
+                   allow_duplicate_name=allow_duplicate_name)
+
+
+@mcp.tool()
+def scripts_update(name: str, script: dict[str, Any], player: str | None = None, group: str | None = None,
+                   script_index: int | None = None, allow_duplicate_name: bool = False) -> dict:
+    """Changes a script. `script` holds only the keys to change (same keys as scripts_add, e.g.
+    {"active": false} or {"name": "NewName"}); conditions, actions and false_actions are each
+    replaced as a whole list, so start from scripts_get to change one entry. Renaming does not
+    update references in other scripts or teams; scripts_verify finds them. Returns `warnings`."""
+    return wb.call("scripts.update", name=name, script=script, player=player, group=group,
+                   script_index=script_index, allow_duplicate_name=allow_duplicate_name)
+
+
+@mcp.tool()
+def scripts_batch(commands: list[dict[str, Any]], results: Literal["summary", "full"] = "summary") -> dict:
+    """Runs many script and team edits as ONE undo step, all or nothing: if a command fails,
+    nothing is changed and the error names its index. Use it when building or reworking a set
+    (WorldBuilder keeps only 15 undo steps). commands: [{"cmd": "scripts.add", "args": {...}}, ...]
+    with the bridge names and arguments of the scripts_* / teams_* tools (dots instead of the
+    first underscore: scripts.add, scripts.update, scripts.add_group, scripts.rename,
+    scripts.clone_player with from/to, teams.set, teams.delete, sides.set, sides.delete).
+    Returns the warnings of all commands, each with its `command` index; results="full" also
+    returns every command's result."""
+    return wb.call("scripts.batch", commands=commands, results=results)
+
+
+def _strip_text(node: Any) -> None:
+    """Removes the editor wording from a scripts.dump document."""
+    if isinstance(node, dict):
+        if "type" in node and "params" in node:
+            node.pop("text", None)
+        for value in node.values():
+            _strip_text(value)
+    elif isinstance(node, list):
+        for value in node:
+            _strip_text(value)
+
+
+@mcp.tool()
+def scripts_dump(path: str, player: str | None = None, include_teams: bool = True, text: bool = True) -> dict:
+    """Writes all scripts, groups and teams (or one player's) to a readable JSON file: players
+    with their properties, scripts in full (as scripts_get shows them) and team property dicts.
+    Good for review, diffs, version control, backups and bulk edits; scripts_load reads it back.
+    text=false leaves out the editor's wording of each condition and action (smaller file)."""
+    doc = wb.call("scripts.dump", player=player, include_teams=include_teams)
+    if not text:
+        _strip_text(doc)
+    full = os.path.abspath(path)
+    with open(full, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(doc, f, indent=1, ensure_ascii=False)
+    return {"path": full, "players": [p["player"] for p in doc["players"]], "scripts": doc["script_count"],
+            "teams": len(doc.get("teams", [])), "bytes": os.path.getsize(full)}
+
+
+@mcp.tool()
+def scripts_load(path: str, create_players: bool = True) -> dict:
+    """Reads a scripts_dump JSON file and REPLACES, for every player in it, all of that player's
+    scripts and groups, and (if the file has `teams`) all of its teams, with the file's contents.
+    Players not in the file are untouched; players the map lacks are created from the file's
+    properties. The whole file is checked like scripts_add / teams_set and nothing is changed if
+    any part is invalid; the error names the player and script. One undo step. Run
+    scripts_verify afterwards."""
+    with open(os.path.abspath(path), encoding="utf-8") as f:
+        doc = json.load(f)
+    return wb.call("scripts.load", data=doc, create_players=create_players)
+
+
+@mcp.tool()
+def scripts_analyze(player: str | None = None, limit: int = 40) -> dict:
+    """Looks for dead logic that scripts_verify cannot see, per category with a count and up to
+    `limit` items: subroutines nothing calls, inactive scripts nothing enables, scripts without
+    actions, flags and counters/timers that are read but never set or set but never read, empty
+    groups, and teams that have no production condition and are named by no script. Findings are
+    hints, not errors: a few are intended (e.g. scripts kept switched off)."""
+    return wb.call("scripts.analyze", player=player, limit=limit)
+
+
+@mcp.tool()
+def scripts_trace(name: str, player: str | None = None, kind: Literal["auto", "script"] = "auto", depth: int = 4,
+                  max_scripts: int = 60) -> dict:
+    """Follows what a team or a script sets in motion, as a tree in the editor's wording. For a
+    team: every script it names (production condition, on create, on destroyed, hooks ...). For
+    each script: its conditions (`if`, one entry per OR clause), actions (`then` / `else`) and
+    `leads_to`: scripts its actions run or enable, and scripts of the same player whose conditions
+    wait for a flag, counter or timer it sets (`via` says which). A script already shown appears
+    as shown_above; missing ones as missing. For a script, `started_by` lists the scripts and
+    teams naming it. name is a team name or, with player (or kind="script"), a script name. AI
+    behavior is spread over many small scripts; this shows one behavior in one place."""
+    return wb.call("scripts.trace", name=name, player=player, kind=kind, depth=depth, max_scripts=max_scripts)
+
+
+@mcp.tool()
+def scripts_build_order(player: str, difficulty: Literal["E", "N", "H"] | None = None,
+                        include_inactive: bool = True) -> dict:
+    """A player's build order: every script that builds a structure or an upgrade (the
+    SKIRMISH_BUILD_* and AI_PLAYER_BUILD_* actions), in the order the scripts are evaluated, with
+    group, conditions (`if`, one entry per OR clause), what it builds, and whether it is inactive,
+    repeats or only runs on some difficulties (difficulty "NH" = normal and hard). `totals` counts
+    build actions per structure. difficulty keeps only steps that run on E, N or H."""
+    return wb.call("scripts.build_order", player=player, difficulty=difficulty, include_inactive=include_inactive)
+
+
+@mcp.tool()
+def scripts_by_difficulty(player: str, limit: int = 40) -> dict:
+    """A player's scripts and teams by difficulty. script_switches: how many scripts run on which
+    difficulties according to their easy/normal/hard switches, with the names of those that do
+    not run on all three. scripts_named / teams_named: scripts and teams whose name carries the
+    word E, N or H ("SCM E Attack Team 1", "CT Def H"), the convention these AI sets use to tie
+    things to a difficulty through their production conditions."""
+    return wb.call("scripts.by_difficulty", player=player, limit=limit)
+
+
+def _load_script_templates() -> list[dict[str, Any]]:
+    with open(os.path.join(_PRESET_DIR, "script_templates.json"), encoding="utf-8") as f:
+        return json.load(f)["templates"]
+
+
+def _fill_template(node: Any, values: dict[str, Any]) -> Any:
+    """Replaces ${name} placeholders; a string that is only a placeholder takes the value's type."""
+    if isinstance(node, dict):
+        return {key: _fill_template(value, values) for key, value in node.items()}
+    if isinstance(node, list):
+        return [_fill_template(value, values) for value in node]
+    if isinstance(node, str):
+        if node.startswith("${") and node.endswith("}") and node[2:-1] in values:
+            return values[node[2:-1]]
+        for key, value in values.items():
+            node = node.replace("${" + key + "}", str(value))
+    return node
+
+
+@mcp.tool()
+def scripts_list_templates() -> dict:
+    """Script templates for scripts_apply_template: ready-made combinations of scripts and teams
+    with parameters, such as a build-order step, an attack team with its condition and launch
+    scripts, or a repeating timer. They are defined in presets/script_templates.json, where more
+    can be added."""
+    return {"templates": [{"name": t["name"], "description": t["description"], "params": t["params"]}
+                          for t in _load_script_templates()]}
+
+
+@mcp.tool()
+def scripts_apply_template(template: str, params: dict[str, Any], dry_run: bool = False) -> dict:
+    """Creates the scripts and teams of a template (see scripts_list_templates) with the given
+    parameter values, as one undo step and all or nothing. Parameters without a default are
+    required. dry_run returns the commands it would run (they are scripts_batch commands, so they
+    can be adjusted and run with that instead). Returns the warnings of the created scripts and
+    teams, e.g. unit types or scripts that do not exist."""
+    found = [t for t in _load_script_templates() if t["name"] == template]
+    if not found:
+        raise ToolError(f"unknown template '{template}' (see scripts_list_templates)")
+    values = {name: spec["default"] for name, spec in found[0]["params"].items() if "default" in spec}
+    unknown = [name for name in params if name not in found[0]["params"]]
+    if unknown:
+        raise ToolError(f"template '{template}' has no parameter(s) {unknown}; it takes {list(found[0]['params'])}")
+    values.update(params)
+    missing = [name for name in found[0]["params"] if name not in values]
+    if missing:
+        raise ToolError(f"template '{template}' needs parameter(s) {missing}")
+    commands = _fill_template(found[0]["commands"], values)
+    if dry_run:
+        return {"dry_run": True, "commands": commands}
+    return wb.call("scripts.batch", commands=commands)
+
+
+@mcp.tool()
+def scripts_report(player: str, path: str) -> dict:
+    """Writes a Markdown report of one player's AI to a file: script groups with counts, the
+    build order, every team with units, priority and scripts, the army in numbers, scripts and
+    teams per difficulty, dead logic and broken references. For reading, reviewing with others
+    or keeping next to a scripts_dump as documentation of a state."""
+    groups = wb.call("scripts.list", player=player, detail="groups")["players"][0]
+    order = wb.call("scripts.build_order", player=player)
+    teams = wb.call("teams.list", owner=player, limit=1000)["teams"]
+    summary = wb.call("teams.summary", owner=player, limit=100)["owners"]
+    difficulty = wb.call("scripts.by_difficulty", player=player, limit=15)
+    analysis = wb.call("scripts.analyze", player=player, limit=15)
+    missing = wb.call("scripts.missing", player=player, limit=60)
+
+    def cell(text: Any) -> str:
+        return str(text).replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+
+    out = [f"# AI report: {player or '(neutral)'}", ""]
+    total = groups.get("script_count", 0) + sum(g["script_count"] for g in groups["groups"])
+    out += [f"{total} scripts in {len(groups['groups'])} groups, {len(teams)} teams.", ""]
+
+    out += ["## Script groups", "", "| Group | Scripts | Subroutines | Inactive |", "|---|---|---|---|"]
+    if groups.get("script_count"):
+        out.append(f"| (not in a group) | {groups['script_count']} | {groups.get('subroutines', 0)} | {groups.get('inactive', 0)} |")
+    for g in groups["groups"]:
+        flags = "" if g.get("active", True) else " (group off)"
+        out.append(f"| {cell(g['name'])}{flags} | {g['script_count']} | {g.get('subroutines', 0)} | {g.get('inactive', 0)} |")
+
+    out += ["", "## Build order", "", "| # | Script | Builds | When | Notes |", "|---|---|---|---|---|"]
+    for step in order["steps"]:
+        notes = [n for n in ("inactive" if step.get("active") is False else "", "repeats" if step.get("repeats") else "",
+                             f"difficulty {step['difficulty']}" if step.get("difficulty") else "") if n]
+        builds = ", ".join(b.get("what", b["action"]) for b in step["builds"])
+        out.append(f"| {step['step']} | {cell(step['script'])} | {cell(builds)} | {cell(' OR '.join(step['if']))} | {', '.join(notes)} |")
+
+    out += ["", "## Teams", "", "| Team | Units | Priority | Max | Built when | Scripts |", "|---|---|---|---|---|---|"]
+    for t in teams:
+        scripts = dict(t["scripts"])
+        condition = scripts.pop("ProductionCondition", "")
+        hooks = ", ".join(f"{k.replace('GenericScriptHook', 'hook ').replace('Script', '')}: {v}" for k, v in scripts.items())
+        out.append(f"| {cell(t['name'])} | {cell(', '.join(t['units']))} | {t.get('priority', '')} | {t.get('max_instances', '')} "
+                   f"| {cell(condition)} | {cell(hooks)} |")
+
+    for s in summary:
+        out += ["", "## Army in numbers", ""]
+        if "team_size" in s:
+            out.append(f"Team size {s['team_size']['min']} to {s['team_size']['max']} units (average {s['team_size']['average']:.1f}); "
+                       f"full team cost {s['team_cost']['min']} to {s['team_cost']['max']} (average {s['team_cost']['average']:.0f}).")
+            out.append("")
+        out += ["| Unit | Teams | Min total | Max total | Cost |", "|---|---|---|---|---|"]
+        for u in s["units"]:
+            out.append(f"| {cell(u['type'])} | {u['teams']} | {u['min_total']} | {u['max_total']} | {u.get('cost', 'unknown type')} |")
+        out += ["", "Production priorities: " + ", ".join(f"{p['priority']} ({p['teams']} teams)" for p in s["priorities"]) + "."]
+
+    out += ["", "## Difficulty", ""]
+    for s in difficulty["script_switches"]:
+        names = f": {', '.join(s['names'])}" if s.get("names") else ""
+        out.append(f"- Scripts running on {s['runs_on']}: {s['scripts']}{cell(names)}")
+    for tag in difficulty["teams_named"]:
+        out.append(f"- Teams named {tag['tag']}: {tag['teams']}")
+    out.append(f"- Teams without a difficulty word: {difficulty['teams_without_tag']}")
+
+    out += ["", "## Possible dead logic", ""]
+    for key, value in analysis.items():
+        if value["count"]:
+            names = ", ".join(i["name"] for i in value["items"])
+            more = " ..." if value["count"] > len(value["items"]) else ""
+            out.append(f"- {key.replace('_', ' ')}: {value['count']} ({cell(names)}{more})")
+
+    out += ["", "## Broken references", ""]
+    if not missing["missing"]:
+        out.append("None.")
+    else:
+        out += ["| Uses | Kind | Missing | Used by | Closest existing |", "|---|---|---|---|---|"]
+        for m in missing["missing"]:
+            out.append(f"| {m['uses']} | {m['kind']} | {cell(m['missing'])} | {cell('; '.join(m['used_by']))} "
+                       f"| {cell(', '.join(m.get('suggestions', [])))} |")
+
+    full = os.path.abspath(path)
+    with open(full, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(out) + "\n")
+    return {"path": full, "lines": len(out), "scripts": total, "teams": len(teams), "build_steps": len(order["steps"]),
+            "broken_references": missing["total_uses"]}
+
+
+@mcp.tool()
+def scripts_compare(player: str, with_player: str | None = None, with_file: str | None = None,
+                    replace: dict[str, str] | None = None, include_teams: bool = True, limit: int = 30) -> dict:
+    """Compares the scripts and teams of `player` (side a) with another player of the map
+    (with_player) or with a scripts_dump file (with_file; with_player then names the player inside
+    the file, default the same name), e.g. to see what your edits changed before exporting.
+    Returns per side what only it has, and for scripts both have, the conditions/actions/flags
+    that differ, in the editor's wording (lines only in a / only in b). Teams: which properties
+    differ as [a, b]. Factions name things with their own prefix; `replace` rewrites names of side
+    b before comparing so they line up, e.g. comparing SkirmishAmerica with the SuperWeapon
+    general: {"HTC ": "SCM ", "SupW_": ""}. Lists are capped at limit; the counts are complete."""
+    data = None
+    if with_file:
+        with open(os.path.abspath(with_file), encoding="utf-8") as f:
+            data = json.load(f)
+    return wb.call("scripts.compare", player=player, with_player=with_player, with_data=data, replace=replace,
+                   include_teams=include_teams, limit=limit)
+
+
+@mcp.tool()
+def scripts_set_values(param_type: str, value: Any, op: Literal["set", "add", "multiply"] = "set",
+                       player: str | None = None, group: str | None = None, script_filter: str | None = None,
+                       type: str | None = None, current: str | None = None, text: str | None = None,
+                       where: Literal["any", "conditions", "actions"] = "any", min: float | None = None,
+                       max: float | None = None, all_scripts: bool = False, dry_run: bool = False) -> dict:
+    """Changes one kind of parameter in many scripts at once. Picks parameters of param_type
+    (INT, REAL, OBJECT_TYPE, TEAM, ...) in the conditions/actions that match all given filters:
+    player, group, script_filter (substring of the script name), type (condition/action type, e.g.
+    PLAYER_HAS_CREDITS), current (the parameter's exact current value), text (substring of the
+    editor wording), where. op: "set" gives them `value`; "add" / "multiply" change numbers by
+    `value` (INT is rounded; min / max clamp the result). Examples: raise every credit threshold
+    of one faction's build scripts by 20%: param_type="INT", type="PLAYER_HAS_CREDITS",
+    group="SCM Base Main", op="multiply", value=1.2. Swap a unit everywhere: param_type=
+    "OBJECT_TYPE", current="OldName", value="NewName" (scripts_rename also covers teams).
+    At least one filter is required unless all_scripts. Use dry_run first: it returns the counts
+    and up to 15 before/after samples without changing anything. One undo step."""
+    return wb.call("scripts.set_values", param_type=param_type, value=value, op=op, player=player, group=group,
+                   script_filter=script_filter, type=type, current=current, text=text, min=min, max=max,
+                   all_scripts=all_scripts, dry_run=dry_run, **{"in": where})
+
+
+@mcp.tool()
+def scripts_missing(player: str | None = None, limit: int = 50, suggest: bool = True) -> dict:
+    """Everything scripts and teams refer to that does not exist, grouped by the missing name and
+    sorted by how often it is used: kind (OBJECT_TYPE, SCRIPT, TEAM, WAYPOINT, UPGRADE, ...), the
+    players and a few places using it, and `suggestions`, the closest existing names. One typo or
+    one removed unit usually causes dozens of scripts_verify / teams_verify warnings; this shows
+    the causes. Fix a group with scripts_rename(kind=rename_kind, from_name=missing, to_name=...)
+    which updates scripts and teams. exists_for_another_player marks scripts that were not copied
+    along with the teams or scripts using them."""
+    return wb.call("scripts.missing", player=player, limit=limit, suggest=suggest)
+
+
+@mcp.tool()
+def scripts_copy(name: str, new_name: str, player: str | None = None, group: str | None = None,
+                 script_index: int | None = None, to_player: str | None = None, to_group: str | None = None,
+                 index: int | None = None) -> dict:
+    """Duplicates a script under a new name. By default the copy goes to the end of the same list;
+    to_player / to_group ("" = top level) / index place it elsewhere."""
+    return wb.call("scripts.copy", name=name, new_name=new_name, player=player, group=group,
+                   script_index=script_index, to_player=to_player, to_group=to_group, index=index)
+
+
+@mcp.tool()
+def scripts_clone_player(from_player: str, to_player: str, replace: dict[str, str] | None = None,
+                         existing: Literal["fail", "replace", "append"] = "fail", include_teams: bool = True,
+                         dry_run: bool = False) -> dict:
+    """Copies every script, group and team of one player to another player, the way a new
+    faction's AI is derived from an existing one. `replace` is an ordered {"old text": "new text"}
+    list of substring replacements applied to script, group and team names, to every name inside
+    script parameters (teams, scripts, object types, flags, upgrades ...) and to the teams' string
+    properties, e.g. {"SCM ": "XYZ ", "AmericaTankCrusader": "XyzTankLion"}. Team names are unique
+    per map, so the replacements must change every team name (it fails otherwise and names some).
+    Player parameters naming the source player are switched to the target. existing: what to do
+    if the target already has scripts (replace also removes its teams). Returns counts, how often
+    each replacement hit, and how many warnings scripts_verify / teams_verify now give for the
+    target: those are the references still to adapt. dry_run reports without changing anything.
+    One undo step."""
+    return wb.call("scripts.clone_player", **{"from": from_player}, to=to_player, replace=replace, existing=existing,
+                   include_teams=include_teams, dry_run=dry_run)
+
+
+@mcp.tool()
+def scripts_rename(kind: str, from_name: str, to_name: str, player: str | None = None) -> dict:
+    """Renames something together with every reference to it. kind:
+    - "script" or "group": the script/group and all script parameters and team properties
+      (production condition, on-create, hooks ...) naming it. Without player it is done for every
+      player that has one, each within its own scripts and teams.
+    - "team": the team and all team parameters in scripts. Fails if map objects belong to it.
+    - a parameter type holding a name, e.g. FLAG, COUNTER, OBJECT_TYPE, UPGRADE, WAYPOINT,
+      TRIGGER_AREA, SCIENCE: every parameter of that type with that exact value; for OBJECT_TYPE
+      and WAYPOINT also the teams' unit types and waypoints.
+    - "script_reference" / "team_reference": only the references, for names that do not exist
+      (see scripts_missing); nothing has to be named from_name.
+    Returns how many references changed. One undo step."""
+    return wb.call("scripts.rename", kind=kind, **{"from": from_name}, to=to_name, player=player)
+
+
+@mcp.tool()
+def scripts_delete(name: str, player: str | None = None, group: str | None = None,
+                   script_index: int | None = None) -> dict:
+    """Deletes a script."""
+    return wb.call("scripts.delete", name=name, player=player, group=group, script_index=script_index)
+
+
+@mcp.tool()
+def scripts_move(name: str, player: str | None = None, group: str | None = None,
+                 script_index: int | None = None, to_player: str | None = None, to_group: str | None = None,
+                 index: int | None = None) -> dict:
+    """Moves a script. With only index it changes position in its list (scripts run top to bottom).
+    to_group moves it into that group, to_group "" out of its group to the player's top level,
+    to_player to another player. index defaults to the end."""
+    return wb.call("scripts.move", name=name, player=player, group=group, script_index=script_index,
+                   to_player=to_player, to_group=to_group, index=index)
+
+
+@mcp.tool()
+def scripts_add_group(player: str, name: str, active: bool = True, subroutine: bool = False,
+                      index: int | None = None) -> dict:
+    """Adds a script group (folder) to a player. An inactive group disables all its scripts."""
+    return wb.call("scripts.add_group", player=player, name=name, active=active, subroutine=subroutine,
+                   index=index)
+
+
+@mcp.tool()
+def scripts_update_group(name: str, player: str | None = None, new_name: str | None = None,
+                         active: bool | None = None, subroutine: bool | None = None,
+                         index: int | None = None, to_player: str | None = None) -> dict:
+    """Renames a script group, changes its flags, its position (index) or its player (to_player)."""
+    return wb.call("scripts.update_group", name=name, player=player, new_name=new_name, active=active,
+                   subroutine=subroutine, index=index, to_player=to_player)
+
+
+@mcp.tool()
+def scripts_delete_group(name: str, player: str | None = None, delete_scripts: bool = False) -> dict:
+    """Deletes a script group. A group that still holds scripts needs delete_scripts=true."""
+    return wb.call("scripts.delete_group", name=name, player=player, delete_scripts=delete_scripts)
+
+
+@mcp.tool()
+def scripts_list_actions(filter: str | None = None, limit: int = 50, offset: int = 0) -> dict:
+    """Script action types: `type` (the name to use), `ui_name` (the editor's menu path), `params`
+    (parameter types in order), `sentence` (how the editor words it) and `help`. There are several
+    hundred, so search with filter (matches type, ui_name and help), e.g. "TEAM_ATTACK" or "timer"."""
+    return wb.call("scripts.list_actions", filter=filter, limit=limit, offset=offset)
+
+
+@mcp.tool()
+def scripts_list_conditions(filter: str | None = None, limit: int = 50, offset: int = 0) -> dict:
+    """Script condition types, like scripts_list_actions."""
+    return wb.call("scripts.list_conditions", filter=filter, limit=limit, offset=offset)
+
+
+@mcp.tool()
+def scripts_list_values(param_type: str, filter: str | None = None, limit: int = 100, offset: int = 0) -> dict:
+    """The values a parameter type accepts, as the script editor's dropdown offers them: e.g.
+    UPGRADE, SCIENCE, SPECIAL_POWER, COMMAND_BUTTON, COMMANDBUTTON_ALL_ABILITIES, OBJECT_TYPE,
+    OBJECT_TYPE_LIST, KIND_OF_PARAM, OBJECT_STATUS, FACTION_NAME, SOUND, MUSIC, DIALOG, and the
+    names this map defines (TEAM, SIDE, SCRIPT, SCRIPT_SUBROUTINE, FLAG, COUNTER, WAYPOINT,
+    TRIGGER_AREA, ATTACK_PRIORITY_SET). filter is a substring; page with limit/offset. Types
+    without a list (INT, REAL, COORD3D, ...) return `free_form`, how to write the value. Look
+    names up here instead of guessing them."""
+    return wb.call("scripts.list_values", param_type=param_type, filter=filter, limit=limit, offset=offset)
+
+
+@mcp.tool()
+def scripts_verify(player: str | None = None, name: str | None = None, summary: bool = False) -> dict:
+    """Runs the script editor's checks on all scripts (or one player's, or one script): parameters
+    that name a script, team, player, waypoint, area, unit, object type, sound etc. that does not
+    exist. Also lists script names a player uses more than once (the same name under different
+    players is normal, e.g. in AI script sets), and `team_warnings` from teams_verify (not when
+    checking a single script). Takes a few seconds on maps with thousands of scripts.
+    summary=true returns each distinct warning once with a count and the players it occurs for
+    (most frequent first) instead of one entry per place; use it on big sets, then scripts_missing
+    for the causes."""
+    return wb.call("scripts.verify", player=player, name=name, summary=summary)
+
+
+@mcp.tool()
+def scripts_export(path: str, player: str | None = None, group: str | None = None, name: str | None = None,
+                   include_players: bool | None = None, include_waypoints: bool = False, include_areas: bool = False,
+                   include_units: bool = False, overwrite: bool = False, backup: bool = True) -> dict:
+    """Writes a script file (.scb) like the script editor's Export. Without a selection: all
+    scripts of all players, with the players and all teams. This is how an AI script set such as
+    SkirmishScripts.scb is produced. With player, group or name: only that player's scripts,
+    that group or that script, as one list that scripts_import puts into a player of choice, with
+    the teams those scripts refer to. Map data goes along on request, for moving map scripts to
+    another map: include_waypoints (all waypoints with their links; for a selection those its
+    scripts name, also by path label), include_areas (trigger areas, same rule; never water) and
+    include_units (the named units scripts refer to and the units of the teams they name). AI
+    script sets need none of these. An existing file is only replaced with overwrite=true, and
+    then a copy named <path>.bak-<date>-<time> is kept (backup=false skips it). Ask before
+    overwriting the mod's live SkirmishScripts.scb."""
+    return wb.call("scripts.export", path=_abspath(path), player=player, group=group, name=name,
+                   include_players=include_players, include_waypoints=include_waypoints,
+                   include_areas=include_areas, include_units=include_units, overwrite=overwrite, backup=backup)
+
+
+@mcp.tool()
+def scripts_import(path: str, player: str | None = None, map_data: bool = False) -> dict:
+    """Reads a script file (.scb) like the script editor's Import. Scripts go to the player of the
+    same name and are put in front of that player's existing scripts; players and teams the map
+    does not have are added (when the file carries them), existing ones are left alone. A file
+    with a single script list (a selection export) goes to `player`. map_data=true also adds the
+    waypoints (with links), trigger areas and units the file carries; ones the map already has
+    (same waypoint or area name, same object at the same spot) are kept as they are and reported
+    in `notes`. To edit an AI script set, import it into an empty map, edit, then scripts_export.
+    One undo step; with map data, object ids are invalidated."""
+    return wb.call("scripts.import", path=_abspath(path), player=player, map_data=map_data)
+
+
+@mcp.tool()
+def teams_list(owner: str | None = None, filter: str | None = None, unit: str | None = None,
+               script: str | None = None, include_default_teams: bool = False, limit: int = 100,
+               offset: int = 0) -> dict:
+    """Teams in short form, for reviewing many at once: `units` such as "3-6 AmericaTankCrusader"
+    (min-max per unit type), production `priority`, `max_instances` and `scripts`, every script
+    the team names by role (ProductionCondition, OnCreateScript, OnDestroyedScript,
+    GenericScriptHook0.., ...). owner = player name; filter = substring of the team name; unit =
+    substring of a unit type in the team; script = exact name of a script the team refers to.
+    Players' default teams are left out unless include_default_teams. teams_get has every property."""
+    return wb.call("teams.list", owner=owner, filter=filter, unit=unit, script=script,
+                   include_default_teams=include_default_teams, limit=limit, offset=offset)
+
+
+@mcp.tool()
+def teams_list_properties() -> dict:
+    """The team properties the game reads: key, type (bool / int / real / string), what a string
+    names (script, object_type, waypoint, player) and what it does. Numbered keys are shown as
+    teamUnitType<N> with their range."""
+    return wb.call("teams.list_properties")
+
+
+@mcp.tool()
+def teams_get(name: str) -> dict:
+    """One team (the team template dialog): `units` as [{type, min, max}] and every property:
+    owner, production condition and priority, scripts run on create/idle/destroyed, generic script
+    hooks, behavior, reinforcement settings."""
+    return wb.call("teams.get", name=name)
+
+
+@mcp.tool()
+def teams_set(name: str, owner: str | None = None, units: list[dict[str, Any]] | None = None,
+              properties: dict[str, Any] | None = None, allow_unknown_properties: bool = False) -> dict:
+    """Creates a team (owner = player name, required then) or changes an existing one.
+    units: [{"type": "AmericaTankCrusader", "min": 3, "max": 6}, ...] replaces all seven unit
+    slots (min defaults to max, max to 1). properties: team keys from teams_list_properties, e.g.
+    {"teamProductionCondition": "...", "teamProductionPriority": 1000, "teamMaxInstances": 1,
+    "teamOnCreateScript": "...", "teamGenericScriptHook0": "..."}; null removes a key. Values are
+    stored with the type the game reads (a wrong type would be ignored by the game), so a
+    mismatch or an unknown key is an error. Returns `warnings`: unit types, scripts or waypoints
+    the team names that do not exist."""
+    return wb.call("teams.set", name=name, owner=owner, units=units, properties=properties,
+                   allow_unknown_properties=allow_unknown_properties)
+
+
+@mcp.tool()
+def teams_copy(name: str, new_name: str, owner: str | None = None) -> dict:
+    """Duplicates a team under a new name, optionally for another owner."""
+    return wb.call("teams.copy", name=name, new_name=new_name, owner=owner)
+
+
+@mcp.tool()
+def teams_set_many(owner: str | None = None, filter: str | None = None, unit: str | None = None,
+                   script: str | None = None, properties: dict[str, Any] | None = None,
+                   multiply: dict[str, float] | None = None, add: dict[str, float] | None = None,
+                   all_teams: bool = False, dry_run: bool = False) -> dict:
+    """Changes every team matching the teams_list filters (owner, filter = name substring, unit,
+    script). properties sets values like teams_set (typed and checked). multiply / add change
+    numeric properties: {"teamProductionPriority": 0.8} or, with a trailing * for all numbered
+    keys of a prefix, {"teamUnitMaxCount*": 1.5} (whole numbers are rounded). Examples: lower the
+    priority of all "E Attack Team" teams of one faction; make every team of a faction 50% larger.
+    A filter is required unless all_teams. dry_run returns the counts and up to 15 samples of
+    {property: [old, new]} without changing anything. One undo step."""
+    return wb.call("teams.set_many", owner=owner, filter=filter, unit=unit, script=script, properties=properties,
+                   multiply=multiply, add=add, all_teams=all_teams, dry_run=dry_run)
+
+
+@mcp.tool()
+def teams_summary(owner: str | None = None, filter: str | None = None, unit: str | None = None,
+                  script: str | None = None, limit: int = 40) -> dict:
+    """A faction's army in numbers, per owner (all owners without one): how many teams use each
+    unit type, with the summed min/max counts and the unit's build cost; team sizes and full-team
+    build costs (min / max / average); how many teams sit at each production priority; which
+    production condition scripts gate how many teams. The filters are those of teams_list, e.g.
+    filter="Attack Team" for the attack forces only. Compare two factions by reading both."""
+    return wb.call("teams.summary", owner=owner, filter=filter, unit=unit, script=script, limit=limit)
+
+
+@mcp.tool()
+def teams_verify(owner: str | None = None, name: str | None = None) -> dict:
+    """Checks teams (all, one owner's, or one team): properties stored with a type the game does
+    not read, unknown properties, unit types that do not exist, min above max, and scripts or
+    waypoints they name that do not exist. Scripts are looked up under the team's own player."""
+    return wb.call("teams.verify", owner=owner, name=name)
+
+
+@mcp.tool()
+def teams_delete(name: str, force: bool = False) -> dict:
+    """Deletes a team. Default teams of players cannot be deleted; a team that still owns map
+    objects needs force=true."""
+    return wb.call("teams.delete", name=name, force=force)
 
 
 @mcp.tool()

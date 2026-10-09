@@ -43,6 +43,9 @@ typedef McpJson (*McpHandler)(const McpJson &args);
 
 void mcpRegisterCommand(const char *name, McpHandler handler, const char *help);
 
+/// Runs a registered command from inside another one. Fails like a handler does.
+McpJson mcpRunCommand(const std::string &cmd, const McpJson &args);
+
 /// Parses one request line, runs the command and returns the reply line (without newline).
 std::string mcpDispatch(const std::string &requestLine);
 
@@ -59,6 +62,10 @@ void mcpRegisterScatterCommands();
 void mcpRegisterRouteCommands();
 void mcpRegisterReplaceCommands();
 void mcpRegisterResizeCommands();
+void mcpRegisterScriptCommands();
+void mcpRegisterTeamCommands();
+void mcpRegisterScriptToolCommands();
+void mcpRegisterScriptViewCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers
