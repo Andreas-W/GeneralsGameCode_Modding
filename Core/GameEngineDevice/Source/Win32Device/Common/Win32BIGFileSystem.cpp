@@ -63,8 +63,19 @@ void Win32BIGFileSystem::init() {
     // load original Generals assets
     AsciiString installPath;
     GetStringFromGeneralsRegistry("", "InstallPath", installPath );
+    // Self-contained folders (mods, repacks) carry the Generals archives in a subfolder, which the
+    // scan above already loaded. A missing registry entry is no problem then. INI.big only exists
+    // in original Generals; Zero Hour's own is INIZH.big.
+    Bool hasGeneralsArchives = false;
+    for (ArchiveFileMap::const_iterator it = m_archiveFileMap.begin(); it != m_archiveFileMap.end(); ++it) {
+      const AsciiString& name = it->first;
+      if (name.compareNoCase("INI.big") == 0 || name.endsWithNoCase("\\INI.big") || name.endsWithNoCase("/INI.big")) {
+        hasGeneralsArchives = true;
+        break;
+      }
+    }
     //@todo this will need to be ramped up to a crash for release
-    DEBUG_ASSERTCRASH(!installPath.isEmpty(), ("Be 1337! Go install Generals!"));
+    DEBUG_ASSERTCRASH(!installPath.isEmpty() || hasGeneralsArchives, ("Be 1337! Go install Generals!"));
     if (!installPath.isEmpty())
       loadBigFilesFromDirectory(installPath, "*.big");
 #endif
