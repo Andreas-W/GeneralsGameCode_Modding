@@ -817,6 +817,7 @@ private:
 	Bool					m_isForbidden;								///< useful when overriding in <mapfile>.ini
 	Bool					m_armorCopiedFromDefault;
 	Bool					m_weaponsCopiedFromDefault;
+	Bool					m_prereqsCopiedFromExtended;	///< prerequisites came with ObjectExtend; the object's own replace them
 
 	// ---- Byte-sized things
 	Byte					m_radarPriority;						///< does object appear on radar, and if so at what priority
