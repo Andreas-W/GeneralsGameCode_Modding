@@ -628,6 +628,7 @@ public:
 
 	/// Used only by Skirmish AI. Everyone else should call calcCostToBuild.
 	Int friend_getBuildCost() const { return m_buildCost; }
+	Real friend_getBuildTime() const { return m_buildTime; }	///< seconds, before any player modifiers
 
 	const AsciiString& getDefaultOwningSide() const { return m_defaultOwningSide; }
 
@@ -665,6 +666,7 @@ public:
 	AsciiString getUpgradeCameoName( Int n)const{ return m_upgradeCameoUpgradeNames[n];	}
 
 	const WeaponTemplateSetVector& getWeaponTemplateSets() const {return m_weaponTemplateSets;}
+	const ArmorTemplateSetVector& getArmorTemplateSets() const {return m_armorTemplateSets;}
 
 	Int getMaxPathFindingCellRadius(void) const { return static_cast<Int>(m_maxPathfindingCellRadius); };
 

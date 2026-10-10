@@ -139,6 +139,11 @@ public:
 
 	void friend_setName(const AsciiString& n) { m_name = n; }
 
+	// Read access for tools.
+	const AsciiString& friend_getName() const { return m_name; }
+	Real friend_getMaxSpeed() const { return m_maxSpeed; }	///< distance per logic frame
+	LocomotorSurfaceTypeMask friend_getSurfaces() const { return m_surfaces; }
+
 	void validate();
 
 protected:
