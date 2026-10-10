@@ -1002,7 +1002,8 @@ def faction_generate(faction: str, directory: str | None = None) -> dict:
     - <Faction>.generated.json: the facts of faction_describe, cleaned and extended. Test,
       cinematic and unselectable types are dropped; every type gets `tier` (structures to build
       before it), `build_path` with `path_cost`, `unlocks`, `combat` (range, targets, damage per
-      second against infantry, vehicle, aircraft and structure armor, and per 1000 credits),
+      second against infantry, vehicle, aircraft, structure, ship and submarine armor, and
+      per 1000 credits), `naval` / `submarine` / `amphibious` for what moves on water,
       `role_guess`, `phase_guess`, and `unavailable` when its prerequisites cannot be met by
       the faction. Rewritten on every run; run it again after the game data changed.
     - <Faction>.overrides.yaml: the tuning, by hand: `slots` (abstract roles such as barracks,
@@ -1021,15 +1022,20 @@ def faction_generate(faction: str, directory: str | None = None) -> dict:
 
 
 @mcp.tool()
-def faction_get(faction: str, view: Literal["overview", "tree", "units", "unit", "upgrades", "sciences",
+def faction_get(faction: str, view: Literal["overview", "tree", "units", "naval", "unit", "upgrades", "sciences",
                                              "special_powers", "other_objects", "ai_data"] = "overview",
                 names: list[str] | None = None, directory: str | None = None) -> dict:
     """One view of a faction description made by faction_generate, with the overrides merged in
     (faction is the name used there, e.g. FactionChina). Start with the overview.
     - overview: starting set, slots, every type with role, phase, tier and cost, and the doctrine.
     - tree: per type what builds it, prerequisites, what it unlocks and builds, build path, cost.
-    - units: the combat table: health, speed, range, targets, damage per second by target kind,
-      stealth, detection, cargo, and the tuning notes. Structures with weapons under `defenses`.
+    - units: the combat table: health, speed, range, targets, damage per second by target kind
+      (infantry, vehicle, aircraft, structure, ship, submarine), stealth, detection, cargo, and
+      the tuning notes. Ships are under `ships`, structures with weapons under `defenses`.
+    - naval: the faction at sea: its shipyard (cost, tier, prerequisites, what it builds), its
+      ships with roles naval_battle, naval_anti_air, naval_siege, submarine, naval_transport or
+      naval_support, the naval slots, amphibious types, the types that hurt ships most per
+      cost (land and air included), and what a map needs for ships.
     - unit: everything about the types in `names`, with their weapons and armors.
     - upgrades, sciences, special_powers: cost, where researched, what they need and unlock.
     - other_objects: types of the side that nothing builds (spawned, AI-only, leftovers).

@@ -19,7 +19,7 @@ import yaml
 # Names of types that exist for cinematics, tests or as leftovers; never part of what a faction plays with.
 NOISE_NAME = re.compile(r"^(CINE_|TEST|Test_|GC_|SHELL_)|Cinematic|Parade|HighDef|(OLD|Old)$|Test[A-Z]")
 
-CATEGORIES = ("infantry", "vehicle", "aircraft", "structure")
+CATEGORIES = ("infantry", "vehicle", "aircraft", "structure", "ship", "submarine")
 
 # Structure roles by KindOf, first match wins.
 STRUCTURE_ROLES = (
@@ -40,11 +40,14 @@ STRUCTURE_ROLES = (
 
 # Slots that hold one type, and slots that hold a list.
 SINGLE_SLOTS = ("command_center", "builder", "supply_gatherer", "supply_center", "power", "barracks", "factory",
-                "airfield", "capture_unit", "hero")
+                "airfield", "shipyard", "capture_unit", "hero")
 LIST_SLOTS = ("tech", "base_defense", "superweapon", "income", "main_battle", "anti_air", "anti_infantry",
-              "anti_tank", "siege", "air_strike", "transport", "naval")
+              "anti_tank", "siege", "air_strike", "transport",
+              "naval_battle", "naval_anti_air", "naval_siege", "submarine", "naval_transport", "naval_support")
+NAVAL_ROLES = ("naval_battle", "naval_anti_air", "naval_siege", "submarine", "naval_transport", "naval_support")
 
 SIEGE_RANGE = 300.0
+NO_DAMAGE_TYPES = ("STATUS", "SURRENDER", "HACK", "DEPLOY", "DISARM", "HEALING", "KILL_PILOT", "PENALTY")
 
 OVERLAY_UNIT_KEYS = ("role", "phase", "ai_use", "weight", "counters", "countered_by", "micro", "team_hint", "notes")
 
@@ -75,6 +78,26 @@ def category_of(obj: dict[str, Any]) -> str | None:
     if "VEHICLE" in kinds:
         return "vehicle"
     return None
+
+
+def target_kind(obj: dict[str, Any]) -> str | None:
+    """The kind of target a type is: like category_of, but ships and submarines apart."""
+    if obj.get("naval") and category_of(obj) != "structure":
+        return "submarine" if "SUBMARINE" in obj["kind_of"] else "ship"
+    return category_of(obj)
+
+
+def is_naval(obj: dict[str, Any], shipyards: set[str]) -> bool:
+    """Ships by KindOf, by moving on water only, or by coming out of a shipyard."""
+    if category_of(obj) == "structure":
+        return False
+    surfaces = obj.get("locomotor", {}).get("surfaces", [])
+    if "SHIP" in obj["kind_of"] or "SUBMARINE" in obj["kind_of"]:
+        return True
+    if "WATER" in surfaces and "GROUND" not in surfaces and "AIR" not in surfaces:
+        return True
+    builders = obj.get("built_by", [])
+    return bool(builders) and all(b in shipyards for b in builders)
 
 
 def _noise_reason(obj: dict[str, Any], forced_in: set[str], forced_out: set[str]) -> str | None:
@@ -187,7 +210,9 @@ def _combat(obj: dict[str, Any], weapons: dict[str, dict[str, Any]], armors: dic
     if chosen is None:
         return None
     used = [weapons[n] for n in dict.fromkeys(chosen["weapons"].values()) if n in weapons]
-    used = [w for w in used if w.get("dps", 0) > 0.01]
+    # Weapons that disable, convert or heal deal no damage in the sense of these numbers.
+    used = [w for w in used if w.get("dps", 0) > 0.01 and not w["damage_type"].startswith("SUBDUAL")
+            and w["damage_type"] not in NO_DAMAGE_TYPES]
     if not used:
         return None
     ground = [w for w in used if "GROUND" in w["anti"]]
@@ -203,6 +228,8 @@ def _combat(obj: dict[str, Any], weapons: dict[str, dict[str, Any]], armors: dic
         result["range_air"] = max(w["range"] for w in air)
     dps_vs: dict[str, float] = {}
     for cat in CATEGORIES:
+        if cat not in reference:
+            continue
         pool = air if cat == "aircraft" else ground
         factors = armors.get(reference.get(cat, ""), {}).get("damage_taken", {})
         best = max((w["dps"] * factors.get(w["damage_type"], 1.0) for w in pool), default=0.0)
@@ -219,12 +246,22 @@ def _guess_role(obj: dict[str, Any], naval: set[str]) -> str:
     combat = obj.get("combat")
     if category_of(obj) == "structure":
         built = [b["object"] for b in obj.get("builds", [])]
-        if built and sum(n in naval for n in built) * 2 > len(built):
+        if "SHIPYARD" in kinds or (built and sum(n in naval for n in built) * 2 > len(built)):
             return "shipyard"
         for kind, role in STRUCTURE_ROLES:
             if kind in kinds:
                 return role
         return "production" if obj.get("builds") else "structure"
+    if obj.get("naval"):
+        if "SUBMARINE" in kinds:
+            return "submarine"
+        if combat is None:
+            return "naval_transport" if obj.get("contain", {}).get("slots") else "naval_support"
+        dps = combat["dps_vs"]
+        ground = max(dps.get("vehicle", 0), dps.get("infantry", 0), dps.get("structure", 0), dps.get("ship", 0))
+        if combat["targets"] == ["air"] or dps.get("aircraft", 0) > 3 * ground:
+            return "naval_anti_air"
+        return "naval_siege" if combat.get("range", 0) >= SIEGE_RANGE else "naval_battle"
     if "DOZER" in kinds:
         return "builder"
     if "HARVESTER" in kinds or obj.get("supply_boxes"):
@@ -254,15 +291,17 @@ def _guess_slots(objects: dict[str, dict[str, Any]]) -> dict[str, Any]:
         role = obj["role_guess"]
         if obj.get("unavailable"):
             continue
-        if obj.get("naval") or role == "shipyard":
-            slots.setdefault("naval", []).append(obj["name"])
-            continue
         if role in SINGLE_SLOTS:
             slots.setdefault(role, obj["name"])
         elif role in LIST_SLOTS:
             slots.setdefault(role, []).append(obj["name"])
         if "HARVESTER" in obj["kind_of"] or obj.get("supply_boxes"):
             slots.setdefault("supply_gatherer", obj["name"])
+        if obj.get("naval"):
+            # Ships fill the naval slots only: a land team cannot use them.
+            if "air" in (obj.get("combat") or {}).get("targets", []) and role != "naval_anti_air":
+                slots.setdefault("naval_anti_air", []).append(obj["name"])
+            continue
         if "air" in (obj.get("combat") or {}).get("targets", []) and role != "anti_air" and category_of(obj) != "structure":
             slots.setdefault("anti_air", []).append(obj["name"])
         buttons = [b["button"] for b in obj.get("abilities", []) + obj.get("special_powers", [])]
@@ -328,13 +367,24 @@ def derive(raw: dict[str, Any], overlay: dict[str, Any], ai_data: dict[str, Any]
               if n in objects and (n == faction["starting_building"] or not objects[n].get("built_by"))]
     tier = _tiers(objects, starts)
 
+    # Ships, by what the game data says of them and by where they are built.
+    shipyards = {n for n, o in objects.items() if category_of(o) == "structure" and "SHIPYARD" in o["kind_of"]}
+    for obj in objects.values():
+        if is_naval(obj, shipyards):
+            obj["naval"] = True
+            if "SUBMARINE" in obj["kind_of"]:
+                obj["submarine"] = True
+        surfaces = obj.get("locomotor", {}).get("surfaces", [])
+        if "WATER" in surfaces and "GROUND" in surfaces:
+            obj["amphibious"] = True
+
     # Armor a weapon is most likely to meet, per kind of target: the commonest default armor.
     reference: dict[str, str] = {}
     for cat in CATEGORIES:
         counts = Counter()
         for obj in objects.values():
             chosen = _default_set(obj.get("armor_sets", []))
-            if chosen and category_of(obj) == cat:
+            if chosen and target_kind(obj) == cat:
                 counts[chosen["armor"]] += 1
         if counts:
             reference[cat] = counts.most_common(1)[0][0]
@@ -346,10 +396,6 @@ def derive(raw: dict[str, Any], overlay: dict[str, Any], ai_data: dict[str, Any]
                 unlocks.setdefault(needed, []).append(obj["name"])
 
     top = max(tier.values(), default=0)
-    for obj in objects.values():
-        surfaces = obj.get("locomotor", {}).get("surfaces", [])
-        if "WATER" in surfaces and "GROUND" not in surfaces and "AIR" not in surfaces:
-            obj["naval"] = True
     naval = {n for n, o in objects.items() if o.get("naval")}
     for name, obj in objects.items():
         obj["category"] = category_of(obj)
@@ -368,6 +414,29 @@ def derive(raw: dict[str, Any], overlay: dict[str, Any], ai_data: dict[str, Any]
             obj["combat"] = combat
         obj["role_guess"] = _guess_role(obj, naval)
 
+    # Ships in one place: what there is, what it needs, and what else can fight ships.
+    ships = sorted((o for o in objects.values() if o.get("naval")), key=lambda o: (o.get("tier", 99), o["cost"], o["name"]))
+    hunters = sorted((o for o in objects.values() if (o.get("combat") or {}).get("dps_per_1000", {}).get("ship")),
+                     key=lambda o: -o["combat"]["dps_per_1000"]["ship"])
+    notes = []
+    for obj in ships:
+        if "SHIP" not in obj["kind_of"] and "SUBMARINE" not in obj["kind_of"]:
+            notes.append(f"{obj['name']} is built by a shipyard or moves on water only but lacks KindOf SHIP")
+    for name in sorted(shipyards):
+        if objects[name].get("unavailable"):
+            notes.append(f"{name} cannot be built: {objects[name]['unavailable']}")
+    naval_summary = {
+        "shipyards": sorted(shipyards),
+        "ships": [o["name"] for o in ships],
+        "amphibious": sorted(n for n, o in objects.items() if o.get("amphibious")),
+        "best_against_ships": [{"type": o["name"], "dps_per_1000": o["combat"]["dps_per_1000"]["ship"], "range": o["combat"].get("range"),
+                                "naval": bool(o.get("naval"))}
+                               for o in hunters[:8]],
+        "needs_of_a_map": "EnableShips in map.ini (condition SKIRMISH_SHIPS_ENABLED), waypoints Shipyard<player>_<n> for "
+                          "SKIRMISH_BUILD_SHIPYARD, area NavalPerimeter<player>, paths Naval<player> and NavalFlank<player>",
+        "notes": notes,
+    }
+
     used_weapons = {n for o in objects.values() for s in o.get("weapon_sets", []) for n in s["weapons"].values()}
     used_armors = {s["armor"] for o in objects.values() for s in o.get("armor_sets", [])}
     return {
@@ -380,6 +449,7 @@ def derive(raw: dict[str, Any], overlay: dict[str, Any], ai_data: dict[str, Any]
         },
         "faction": faction,
         "slots_guess": _guess_slots(objects),
+        "naval": naval_summary,
         "objects": objects,
         "other_objects": others,
         "weapons": {n: w for n, w in weapons.items() if n in used_weapons},
@@ -406,6 +476,8 @@ def overlay_skeleton(doc: dict[str, Any]) -> str:
         f"# The facts are in {name}.generated.json. Everything below was guessed from them: review it.",
         "#",
         "# slots   abstract roles -> the types that fill them; script templates refer to these.",
+        "#         Ships have slots of their own (shipyard, naval_battle, naval_anti_air, naval_siege,",
+        "#         submarine, naval_transport, naval_support) and are in no land slot.",
         "# units   per type, any of: role, phase (early|mid|late), ai_use (normal|limited|never; default",
         "#         normal), weight, counters, countered_by, micro, team_hint, notes.",
         "# exclude / include   types to drop from, or keep in, the description on the next generate.",
@@ -528,7 +600,7 @@ def _unit_row(obj: dict[str, Any]) -> dict[str, Any]:
     if combat:
         row.update({k: combat[k] for k in ("targets", "range", "range_air", "dps_vs") if k in combat})
     for key in ("stealth", "detector_range", "counters", "countered_by", "micro", "team_hint", "notes", "variants",
-                "unavailable", "naval"):
+                "unavailable", "naval", "submarine", "amphibious"):
         if key in obj:
             row[key] = obj[key]
     if obj.get("contain", {}).get("slots"):
@@ -553,8 +625,22 @@ def view(doc: dict[str, Any], what: str, names: list[str] | None = None) -> dict
         return {"objects": [_tree_row(o) for o in ordered]}
     if what == "units":
         return {"reference_armor": doc["meta"]["reference_armor"],
-                "units": [_unit_row(o) for o in ordered if o["category"] != "structure"],
+                "units": [_unit_row(o) for o in ordered if o["category"] != "structure" and not o.get("naval")],
+                "ships": [_unit_row(o) for o in ordered if o.get("naval")],
                 "defenses": [_unit_row(o) for o in ordered if o["category"] == "structure" and o.get("combat")]}
+    if what == "naval":
+        summary = doc.get("naval", {})
+        slots = {k: v for k, v in doc["slots"].items() if k == "shipyard" or k in NAVAL_ROLES}
+        return {"shipyards": [_tree_row(objects[n]) for n in summary.get("shipyards", []) if n in objects],
+                "ships": [dict(_unit_row(objects[n]), build_time=objects[n]["build_time"],
+                               prerequisites=objects[n].get("prerequisites"), build_path=objects[n].get("build_path"))
+                          for n in summary.get("ships", []) if n in objects],
+                "slots": slots,
+                "amphibious": summary.get("amphibious", []),
+                "best_against_ships": summary.get("best_against_ships", []),
+                "reference_armor": {k: v for k, v in doc["meta"]["reference_armor"].items() if k in ("ship", "submarine")},
+                "needs_of_a_map": summary.get("needs_of_a_map"),
+                "notes": summary.get("notes", [])}
     if what == "unit":
         if not names:
             raise ValueError("view \"unit\" needs names")
@@ -575,7 +661,7 @@ def view(doc: dict[str, Any], what: str, names: list[str] | None = None) -> dict
     if what in ("upgrades", "sciences", "special_powers", "other_objects"):
         values = doc[what]
         return {what: list(values.values()) if isinstance(values, dict) else values}
-    raise ValueError("view must be overview, tree, units, unit, upgrades, sciences, special_powers, other_objects or ai_data")
+    raise ValueError("view must be overview, tree, units, naval, unit, upgrades, sciences, special_powers, other_objects or ai_data")
 
 
 #-------------------------------------------------------------------------------------------------
@@ -822,7 +908,8 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
             if obj["role"] not in row["roles"]:
                 row["roles"].append(obj["role"])
             hits_air = hits_air or "air" in (obj.get("combat") or {}).get("targets", [])
-            naval.add(bool(obj.get("naval")))
+            # An amphibious transport belongs with the land units it carries.
+            naval.add(bool(obj.get("naval")) and not obj.get("amphibious"))
             if obj["category"] != "aircraft" and obj.get("locomotor", {}).get("speed", 0) > 0:
                 speeds.append(obj["locomotor"]["speed"])
         row["anti_air"] = hits_air

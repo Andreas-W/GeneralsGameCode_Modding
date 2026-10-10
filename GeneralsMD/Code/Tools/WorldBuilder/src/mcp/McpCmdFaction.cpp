@@ -461,13 +461,25 @@ void describeModules(const ThingTemplate *tt, McpJson &j)
 			const AIUpdateModuleData *ai = static_cast<const AIUpdateModuleData *>(data);
 			const LocomotorTemplateVector *locos = ai->findLocomotorTemplateVector(LOCOMOTORSET_NORMAL);
 			if (locos && !locos->empty() && (*locos)[0]) {
+				// The first locomotor names the unit's movement; the surfaces are those of all of them,
+				// as an amphibious unit has one for land and one for water.
 				const LocomotorTemplate *loco = (*locos)[0];
+				Int allSurfaces = 0;
+				McpJson others = McpJson::makeArray();
+				for (size_t l = 0; l < locos->size(); l++) {
+					if ((*locos)[l] == nullptr) continue;
+					allSurfaces |= (*locos)[l]->friend_getSurfaces();
+					if (l > 0) others.push(McpJson((*locos)[l]->friend_getName().str()));
+				}
 				McpJson surfaces = McpJson::makeArray();
 				for (Int bit = 0; TheLocomotorSurfaceTypeNames[bit]; bit++) {
-					if (loco->friend_getSurfaces() & (1 << bit)) surfaces.push(McpJson(TheLocomotorSurfaceTypeNames[bit]));
+					if (allSurfaces & (1 << bit)) surfaces.push(McpJson(TheLocomotorSurfaceTypeNames[bit]));
 				}
-				j.set("locomotor", McpJson::makeObject().set("name", loco->friend_getName().str())
-					.set("speed", num(loco->friend_getMaxSpeed() * (double)LOGICFRAMES_PER_SECOND)).set("surfaces", surfaces));
+				McpJson locomotor = McpJson::makeObject();
+				locomotor.set("name", loco->friend_getName().str())
+					.set("speed", num(loco->friend_getMaxSpeed() * (double)LOGICFRAMES_PER_SECOND)).set("surfaces", surfaces);
+				if (others.size() > 0) locomotor.set("also", others);
+				j.set("locomotor", locomotor);
 			}
 			if (const SupplyTruckAIUpdateModuleData *truck = dynamic_cast<const SupplyTruckAIUpdateModuleData *>(data)) {
 				j.set("supply_boxes", truck->m_maxBoxesData);
