@@ -627,6 +627,43 @@ McpJson cmdAddBuildList(const McpJson &args)
 	return j;
 }
 
+/// Replaces the whole build list of a player, as one undo step.
+McpJson cmdSetBuildList(const McpJson &args)
+{
+	mcpDoc();
+	requireScriptEditorClosed();
+	SidesList sides = *TheSidesList;
+	const Int side = requireSide(sides, mcpArgString(args, "player"));
+	const McpJson &entries = mcpArgArray(args, "entries");
+	SidesInfo *info = sides.getSideInfo(side);
+
+	Int removed = 0;
+	while (BuildListInfo *old = info->getBuildList()) {
+		info->removeFromBuildList(old);
+		// Deleting an entry deletes what is linked behind it.
+		old->setNextBuildList(nullptr);
+		deleteInstance(old);
+		removed++;
+	}
+	for (size_t i = 0; i < entries.size(); i++) {
+		const McpJson &fields = entries.at(i);
+		if (!fields.isObject()) {
+			mcpFail("entries[%d] must be an object with the fields of buildlist.add", (int)i);
+		}
+		mcpArgString(fields, "template");
+		mcpArgNumber(fields, "x");
+		mcpArgNumber(fields, "y");
+		BuildListInfo *entry = newInstance(BuildListInfo);
+		Coord3D loc;
+		loc.x = loc.y = loc.z = 0;
+		entry->setLocation(loc);
+		info->addToBuildList(entry, (Int)i);
+		applyBuildListArgs(entry, fields);
+	}
+	commitSides(sides);
+	return McpJson::makeObject().set("player", sideName(sides, side).str()).set("entries", (int)entries.size()).set("replaced", removed);
+}
+
 McpJson cmdUpdateBuildList(const McpJson &args)
 {
 	mcpDoc();
@@ -689,6 +726,7 @@ void mcpRegisterScriptViewCommands()
 	mcpRegisterCommand("objects.info", cmdObjectInfo, "{templates:[names] | filter,limit?=20} Cost, side, KindOf, energy, vision, command set and producing structures of object types.");
 	mcpRegisterCommand("buildlist.list", cmdListBuildList, "{player?} The players' build lists (structures the AI builds or starts with).");
 	mcpRegisterCommand("buildlist.add", cmdAddBuildList, "{player,template,x,y,z?,angle_deg?,name?,script?,initially_built?,rebuilds?,health?,whiner?,unsellable?,repairable?,index?} Adds a build list entry.");
+	mcpRegisterCommand("buildlist.set", cmdSetBuildList, "{player,entries:[{template,x,y,...fields of buildlist.add}]} Replaces a player's whole build list in one undo step.");
 	mcpRegisterCommand("buildlist.update", cmdUpdateBuildList, "{player,index,new_index?,...fields of buildlist.add} Changes or reorders a build list entry.");
 	mcpRegisterCommand("buildlist.delete", cmdDeleteBuildList, "{player,index} Deletes a build list entry.");
 }

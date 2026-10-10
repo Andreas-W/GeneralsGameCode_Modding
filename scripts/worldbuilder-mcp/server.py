@@ -14,6 +14,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 import yaml
 
+import aidata as ai_data_file
 import faction as faction_data
 import framework as framework_data
 import scaffold as scaffold_data
@@ -64,6 +65,10 @@ Workflow tips:
   cannot be built and must not be put into teams or build orders. After writing or changing an
   AI, run faction_check on the player: it finds teams and build orders the faction cannot
   fulfil.
+- Where the skirmish AI builds is not in the scripts: SKIRMISH_BUILD_BUILDING takes the place
+  from the side's SkirmishBuildList in AIData.ini (aidata_get). A structure without an entry
+  there is never built. buildlist_from_aidata loads that layout into a map player to look at and
+  edit, buildlist_export writes it back as an INI block.
 - AI sets repeat one skeleton per faction. ai_framework_generate finds it from the players of
   the open map; ai_framework_get shows which scripts, flags, timers, team names, hooks and
   object lists every faction is expected to have, and where the factions differ.
@@ -754,6 +759,122 @@ def _faction_dir(directory: str | None) -> str:
     return os.path.join(_exe_dir, override or FACTION_FOLDER)
 
 
+def _read_ai_data() -> dict[str, Any]:
+    """AIData.ini as the game reads it: the default file, then the one that overrides it."""
+    data: dict[str, Any] = {"settings": {}, "sides": {}, "build_lists": {}, "files": []}
+    for path in ai_data_file.FILES:
+        found = wb.call("game.read_file", path=path)
+        if found.get("exists"):
+            ai_data_file.merge(data, ai_data_file.parse(found["text"]))
+            data["files"].append(path)
+    return data
+
+
+def _side_of(player: str, side: str | None) -> str:
+    if side:
+        return side
+    wanted = _player_faction(player)
+    for entry in wb.call("sides.list_factions")["factions"]:
+        if entry["name"] == wanted:
+            return entry["side"]
+    raise ToolError(f"faction '{wanted}' of player '{player}' is unknown; pass side")
+
+
+@mcp.tool()
+def aidata_get(side: str | None = None, entries: bool = False) -> dict:
+    """AIData.ini, the skirmish AI's settings outside of the scripts, read the way the game
+    reads it. Without side: the global settings (build and team intervals, wealthy and poor
+    thresholds, guard ranges ...) and per side the number of build list entries. With side
+    (China, ChinaTankGeneral ...; the side of a faction, see sides_list_factions):
+    - gatherers: how many supply gatherers the AI keeps per difficulty;
+    - base_defense: the structure SKIRMISH_BUILD_BASE_DEFENSE_* actions place;
+    - skill_sets: up to five priority lists for spending General's points. A skirmish AI
+      takes one at random unless a script chooses with PLAYER_SELECT_SKILLSET, then buys the
+      first sciences of the list it is able to buy whenever it has points. Without any, the AI
+      buys no sciences;
+    - build_list: the SkirmishBuildList, the base layout: per structure how many places it
+      has. A build script (SKIRMISH_BUILD_BUILDING) only says what to build; the place comes
+      from here, relative to the command center, and a structure without an entry is never
+      built. entries=true lists every entry with position, angle and rebuilds."""
+    data = _read_ai_data()
+    if not data["files"]:
+        raise ToolError("the game data has no AIData.ini")
+    if side is None:
+        return {"files": data["files"], "settings": data["settings"],
+                "sides": {name: {"build_list_entries": len(data["build_lists"].get(name, [])), **info["gatherers"]}
+                          for name, info in data["sides"].items()},
+                "build_lists_without_side_info": [n for n in data["build_lists"] if n not in data["sides"]]}
+    result = ai_data_file.for_side(data, side)
+    if len(result) == 1:
+        raise ToolError(f"AIData.ini has nothing for side '{side}'; sides: {', '.join(sorted(set(data['sides']) | set(data['build_lists'])))}")
+    if entries:
+        result["entries"] = next((v for n, v in data["build_lists"].items() if n.lower() == side.lower()), [])
+    return result
+
+
+@mcp.tool()
+def buildlist_from_aidata(player: str, side: str | None = None, command_center_at: list[float] | None = None) -> dict:
+    """Puts the SkirmishBuildList of a side from AIData.ini into the build list of a player of
+    the open map, REPLACING that list (one undo step), so that the base layout can be seen and
+    edited with WorldBuilder's Build List tool or the buildlist_* tools. side defaults to the
+    side of the player's faction. The layout keeps the coordinates it was made with (around
+    500, 500), so the map should be about 1000 units wide; command_center_at=[x, y] moves it
+    so that the command center lies there. Write it back with buildlist_export."""
+    side = _side_of(player, side)
+    data = _read_ai_data()
+    found = next((v for n, v in data["build_lists"].items() if n.lower() == side.lower()), None)
+    if found is None:
+        raise ToolError(f"AIData.ini has no SkirmishBuildList for side '{side}'")
+    dx = dy = 0.0
+    if command_center_at is not None:
+        centers = wb.call("objects.info", templates=[e["template"] for e in found][:60])["templates"]
+        names = {t["template"] for t in centers if "COMMANDCENTER" in t["kind_of"]}
+        center = next((e for e in found if e["template"] in names), found[0])
+        dx, dy = command_center_at[0] - center["x"], command_center_at[1] - center["y"]
+    placed = [{k: v for k, v in dict(e, x=e["x"] + dx, y=e["y"] + dy).items() if k != "automatically_build"} for e in found]
+    result = wb.call("buildlist.set", player=player, entries=placed)
+    result["side"] = side
+    return result
+
+
+@mcp.tool()
+def buildlist_export(player: str, side: str | None = None, path: str | None = None, replace_in: str | None = None) -> dict:
+    """The build list of a player of the open map as a SkirmishBuildList block for AIData.ini,
+    as WorldBuilder's Build List export writes it. side is the name the block gets (default:
+    the side of the player's faction). Positions are written as they are in the map; the game
+    takes them relative to the command center entry, which the list must contain. Returns the
+    text; path also writes it to a file. replace_in names an AIData.ini to change: the side's
+    block is replaced there (or added inside the AIData block) and the old file kept as
+    <name>.bak. The game and WorldBuilder read AIData.ini at startup."""
+    side = _side_of(player, side)
+    lists = wb.call("buildlist.list", player=player)["players"]
+    entries = lists[0]["build_list"] if lists else []
+    if not entries:
+        raise ToolError(f"player '{player}' has no build list entries")
+    text = ai_data_file.format_build_list(side, entries)
+    result: dict[str, Any] = {"side": side, "entries": len(entries), "text": text}
+    try:
+        if path:
+            full = os.path.abspath(path)
+            with open(full, "w", encoding="latin-1", newline="\r\n") as f:
+                f.write(text)
+            result["path"] = full
+        if replace_in:
+            target = os.path.abspath(replace_in)
+            with open(target, encoding="latin-1", newline="") as f:
+                old = f.read()
+            new, replaced = ai_data_file.replace_build_list(old, side, text)
+            with open(target + ".bak", "w", encoding="latin-1", newline="") as f:
+                f.write(old)
+            with open(target, "w", encoding="latin-1", newline="") as f:
+                f.write(new)
+            result.update(changed=target, backup=target + ".bak", block="replaced" if replaced else "added")
+            del result["text"]
+    except OSError as e:
+        raise ToolError(str(e)) from e
+    return result
+
+
 @mcp.tool()
 def faction_generate(faction: str, directory: str | None = None) -> dict:
     """Writes the description of a faction that AI scripts and teams are planned from, into the
@@ -774,14 +895,15 @@ def faction_generate(faction: str, directory: str | None = None) -> dict:
     after INI changes."""
     raw = wb.call("faction.describe", faction=faction, scope="side")
     try:
-        return faction_data.generate(raw, raw["faction"]["name"], _faction_dir(directory))
+        return faction_data.generate(raw, raw["faction"]["name"], _faction_dir(directory),
+                                     ai_data_file.for_side(_read_ai_data(), raw["faction"]["side"]))
     except (ValueError, OSError, yaml.YAMLError) as e:
         raise ToolError(str(e)) from e
 
 
 @mcp.tool()
 def faction_get(faction: str, view: Literal["overview", "tree", "units", "unit", "upgrades", "sciences",
-                                             "special_powers", "other_objects"] = "overview",
+                                             "special_powers", "other_objects", "ai_data"] = "overview",
                 names: list[str] | None = None, directory: str | None = None) -> dict:
     """One view of a faction description made by faction_generate, with the overrides merged in
     (faction is the name used there, e.g. FactionChina). Start with the overview.
@@ -792,6 +914,8 @@ def faction_get(faction: str, view: Literal["overview", "tree", "units", "unit",
     - unit: everything about the types in `names`, with their weapons and armors.
     - upgrades, sciences, special_powers: cost, where researched, what they need and unlock.
     - other_objects: types of the side that nothing builds (spawned, AI-only, leftovers).
+    - ai_data: what AIData.ini gives the side: places per structure in its base layout
+      (SkirmishBuildList), gatherers, base defense, science skill sets.
     Damage per second is against the faction's commonest armor of each kind (`reference_armor`)."""
     try:
         return faction_data.view(faction_data.load(faction, _faction_dir(directory)), view, names)
@@ -810,7 +934,9 @@ def faction_check(player: str, faction: str | None = None, include_teams: bool =
       types nothing builds, more units than the build limit allows, minimum above maximum;
     - teams and build scripts that need a structure no build script builds;
     - build scripts for types that are unavailable or no structures; upgrades whose research
-      structure is never built.
+      structure is never built;
+    - build scripts for structures that have no place in the side's SkirmishBuildList in
+      AIData.ini (the action then does nothing), or a list without a command center.
     Warnings want a look: types, upgrades, sciences, special powers and command buttons of
     other factions, types marked ai_use: never, ships mixed with land units. Infos are
     judgement calls: combat teams without anti-air, large speed differences, a power deficit,

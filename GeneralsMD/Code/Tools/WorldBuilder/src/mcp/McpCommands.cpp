@@ -27,6 +27,8 @@
 #include "WHeightMapEdit.h"
 #include "WorldBuilderDoc.h"
 #include "Common/Dict.h"
+#include "Common/file.h"
+#include "Common/FileSystem.h"
 #include "Common/NameKeyGenerator.h"
 #include "Common/ThingTemplate.h"
 #include "Common/WellKnownKeys.h"
@@ -82,6 +84,37 @@ McpJson cmdAppInfo(const McpJson &)
 	return McpJson::makeObject().set("exe_path", exePath).set("exe_dir", exeDir).set("working_dir", workDir);
 }
 
+/// The text of a game data file as the game sees it, whether it lies in a folder or in an archive.
+McpJson cmdReadGameFile(const McpJson &args)
+{
+	const std::string path = mcpArgString(args, "path");
+	const Int maxBytes = mcpArgInt(args, "max_bytes", 4 * 1024 * 1024);
+	// Game data only: nothing outside of the Data folder.
+	if (_strnicmp(path.c_str(), "Data\\", 5) != 0 && _strnicmp(path.c_str(), "Data/", 5) != 0) {
+		mcpFail("path must start with Data\\ (a game data file, e.g. Data\\INI\\Default\\AIData.ini)");
+	}
+	if (path.find("..") != std::string::npos || path.find(':') != std::string::npos) {
+		mcpFail("path must not contain '..' or ':'");
+	}
+	File *file = TheFileSystem->openFile(path.c_str(), File::READ | File::BINARY);
+	if (file == nullptr) {
+		return McpJson::makeObject().set("path", path).set("exists", false);
+	}
+	std::string text;
+	char buffer[16384];
+	for (;;) {
+		const Int got = file->read(buffer, sizeof(buffer));
+		if (got <= 0) break;
+		text.append(buffer, got);
+		if ((Int)text.size() > maxBytes) {
+			file->close();
+			mcpFail("'%s' is larger than max_bytes (%d)", path.c_str(), maxBytes);
+		}
+	}
+	file->close();
+	return McpJson::makeObject().set("path", path).set("exists", true).set("bytes", (int)text.size()).set("text", text);
+}
+
 void registerAllCommands()
 {
 	static bool registered = false;
@@ -91,6 +124,7 @@ void registerAllCommands()
 	registered = true;
 	mcpRegisterCommand("list_commands", cmdListCommands, "Lists all bridge commands.");
 	mcpRegisterCommand("app.info", cmdAppInfo, "Path and folder of the WorldBuilder executable and its working directory.");
+	mcpRegisterCommand("game.read_file", cmdReadGameFile, "{path,max_bytes?} Text of a game data file under Data\\, read the way the game does (folders and archives).");
 	mcpRegisterMapCommands();
 	mcpRegisterTerrainCommands();
 	mcpRegisterObjectCommands();

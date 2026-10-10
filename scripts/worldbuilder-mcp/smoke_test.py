@@ -388,6 +388,34 @@ def main() -> int:
     notes = {s["name"]: s.get("note") for s in skeleton["symbols"]}
     assert notes == {"Done": "written but never read", "Ready": "read but never written by a script"}, notes
     assert skeleton["teams"][0]["name"] == "<TAG> Squad" and skeleton["team_hooks"][0]["script_class"] == "framework", skeleton["teams"]
+    import aidata as ai_data_file
+    ini = ("AIData\n  TeamSeconds = 15.0 ; comment\n  SideInfo One\n    ResourceGatherersEasy = 2\n"
+           "    BaseDefenseStructure1 = Tower\n    SkillSet1\n      Science = S1\n      Science = S2\n    End\n  End\n"
+           "SkirmishBuildList One\n  Structure Hall\n    Location = X:500.00 Y:520.50\n    Rebuilds = -1\n    Angle = 90.00\n"
+           "    InitiallyBuilt = No\n    AutomaticallyBuild = No\n  END ;Structure Hall\nEND ;SkirmishBuildList One\nEnd\n")
+    parsed = ai_data_file.parse(ini)
+    assert parsed["settings"] == {"TeamSeconds": 15} and parsed["sides"]["One"]["skill_sets"] == [["S1", "S2"]], parsed
+    assert parsed["build_lists"]["One"] == [{"template": "Hall", "x": 500.0, "y": 520.5, "angle_deg": 90.0, "rebuilds": "unlimited",
+                                             "initially_built": False}], parsed["build_lists"]
+    block = ai_data_file.format_build_list("One", parsed["build_lists"]["One"] * 2)
+    changed, was_there = ai_data_file.replace_build_list(ini, "one", block)
+    assert was_there and len(ai_data_file.parse(changed)["build_lists"]["One"]) == 2 and changed.rstrip().endswith("End"), changed
+    added, was_there = ai_data_file.replace_build_list(ini, "Two", ai_data_file.format_build_list("Two", parsed["build_lists"]["One"]))
+    assert not was_there and sorted(ai_data_file.parse(added)["build_lists"]) == ["One", "Two"] and added.rstrip().endswith("End"), added
+    assert ai_data_file.for_side(parsed, "ONE")["build_list"] == {"Hall": 1}
+    game_file = wb.call("game.read_file", path="Data\\INI\\Default\\AIData.ini")
+    assert game_file["exists"] and "AIData" in game_file["text"], game_file.get("exists")
+    assert not wb.call("game.read_file", path="Data\\INI\\NoSuchFile.ini")["exists"]
+    try:
+        wb.call("game.read_file", path="C:\\Windows\\win.ini")
+        raise AssertionError("game.read_file must refuse paths outside of Data")
+    except WorldBuilderError:
+        pass
+    wb.call("buildlist.set", player=owner, entries=[{"template": templates[0]["name"], "x": 300, "y": 300, "rebuilds": "unlimited"},
+                                                    {"template": templates[0]["name"], "x": 350, "y": 300, "angle_deg": 45}])
+    replaced_list = wb.call("buildlist.list", player=owner)["players"][0]["build_list"]
+    assert [(e["x"], e["rebuilds"]) for e in replaced_list] == [(300, "unlimited"), (350, 0)], replaced_list
+    wb.call("edit.undo")
     import scaffold as scaffold_data
     assert scaffold_data.base_name("Z_SpecW_ChinaTankGattling") == "ChinaTankGattling"
 

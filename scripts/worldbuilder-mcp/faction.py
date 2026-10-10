@@ -276,7 +276,7 @@ def _guess_slots(objects: dict[str, dict[str, Any]]) -> dict[str, Any]:
     return slots
 
 
-def derive(raw: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+def derive(raw: dict[str, Any], overlay: dict[str, Any], ai_data: dict[str, Any] | None = None) -> dict[str, Any]:
     """The description of a faction from the raw faction.describe output."""
     forced_in = set(overlay.get("include") or [])
     forced_out = set(overlay.get("exclude") or [])
@@ -388,6 +388,7 @@ def derive(raw: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
         "sciences": {s["name"]: s for s in raw["sciences"]},
         "special_powers": {p["name"]: p for p in raw["special_powers"]},
         "buttons": all_buttons,
+        "ai_data": ai_data or {},
     }
 
 
@@ -441,12 +442,12 @@ def doctrine_skeleton(doc: dict[str, Any]) -> str:
             "## General powers and upgrades (priority)\n\n## Per difficulty\n\n## Do not\n")
 
 
-def generate(raw: dict[str, Any], faction: str, directory: str) -> dict[str, Any]:
+def generate(raw: dict[str, Any], faction: str, directory: str, ai_data: dict[str, Any] | None = None) -> dict[str, Any]:
     """Writes the generated description and, the first time, the overrides and doctrine skeletons."""
     where = paths(faction, directory)
     os.makedirs(os.path.dirname(where["generated"]), exist_ok=True)
     overlay = load_overlay(where["overlay"])
-    doc = derive(raw, overlay)
+    doc = derive(raw, overlay, ai_data)
     with open(where["generated"], "w", encoding="utf-8", newline="\n") as f:
         json.dump(doc, f, indent=1, ensure_ascii=False)
 
@@ -458,6 +459,7 @@ def generate(raw: dict[str, Any], faction: str, directory: str) -> dict[str, Any
         "dropped": len(doc["meta"]["dropped"]),
         "max_tier": doc["meta"]["max_tier"],
         "slots_guess": doc["slots_guess"],
+        "build_list_entries": doc["ai_data"].get("build_list_entries", 0),
     }
     if overlay:
         known = set(overlay.get("units") or {})
@@ -567,10 +569,13 @@ def view(doc: dict[str, Any], what: str, names: list[str] | None = None) -> dict
             full["armors"] = {s["armor"]: doc["armors"][s["armor"]] for s in obj.get("armor_sets", []) if s["armor"] in doc["armors"]}
             found.append(full)
         return {"objects": found, "unknown": unknown}
+    if what == "ai_data":
+        return {"ai_data": doc.get("ai_data", {}),
+                "note": "build_list: how many places the side's SkirmishBuildList has per structure; a structure without one is never built"}
     if what in ("upgrades", "sciences", "special_powers", "other_objects"):
         values = doc[what]
         return {what: list(values.values()) if isinstance(values, dict) else values}
-    raise ValueError("view must be overview, tree, units, unit, upgrades, sciences, special_powers or other_objects")
+    raise ValueError("view must be overview, tree, units, unit, upgrades, sciences, special_powers, other_objects or ai_data")
 
 
 #-------------------------------------------------------------------------------------------------
@@ -578,6 +583,8 @@ def view(doc: dict[str, Any], what: str, names: list[str] | None = None) -> dict
 #-------------------------------------------------------------------------------------------------
 
 BUILD_UPGRADE_ACTIONS = ("AI_PLAYER_BUILD_UPGRADE",)
+# Build actions that take the place of the structure from the side's SkirmishBuildList.
+BUILD_LIST_ACTIONS = ("SKIRMISH_BUILD_BUILDING",)
 COMMAND_BUTTON_PARAMS = ("COMMANDBUTTON", "COMMANDBUTTON_ABILITY", "COMMANDBUTTON_ALL_ABILITIES")
 COMBAT_ROLES = ("main_battle", "siege", "anti_infantry", "anti_tank")
 SEVERITIES = ("error", "warning", "info")
@@ -653,6 +660,7 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
     # ---- what the build scripts build
     built: dict[str, str] = {}
     researched: dict[str, str] = {}
+    from_list: dict[str, str] = {}
     for step in build_order.get("steps", []):
         for build in step["builds"]:
             what = build.get("what")
@@ -662,6 +670,8 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
                 researched.setdefault(what, step["script"])
             else:
                 built.setdefault(what, step["script"])
+                if build["action"] in BUILD_LIST_ACTIONS:
+                    from_list.setdefault(what, step["script"])
     has_build_scripts = bool(built)
     standing = set(built) | {start}
 
@@ -699,6 +709,41 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
         energy = sum(objects[n].get("energy", 0) for n in standing if n in objects)
         if energy < 0 and doc["slots"].get("power"):
             issues.add("info", "power_deficit", f"building each structure once leaves power at {energy}", "build order")
+
+    # ---- the base layout and side settings of AIData.ini
+    ai_data = doc.get("ai_data") or {}
+    places = ai_data.get("build_list")
+    side = ai_data.get("side", doc["faction"].get("side", ""))
+    unplaced: list[str] = []
+    if ai_data:
+        if places is None:
+            if from_list:
+                issues.add("error", "build_list_missing", f"AIData.ini has no SkirmishBuildList for side {side}: build scripts have nowhere to build",
+                           "AIData.ini")
+        else:
+            for what, script in from_list.items():
+                if what not in places:
+                    issues.add("error", "build_no_place", f"{what} has no place in SkirmishBuildList {side}, so the build action does nothing",
+                               f"script {script}")
+            if not any("COMMANDCENTER" in objects.get(n, {}).get("kind_of", []) for n in places):
+                issues.add("error", "build_list_no_command_center",
+                           f"SkirmishBuildList {side} has no command center; the layout cannot be moved to the start position", "AIData.ini")
+            for name in places:
+                obj = objects.get(name)
+                if obj is None:
+                    issues.add("warning", "build_list_foreign_type", f"SkirmishBuildList {side}: " + _describe_unknown(doc, name)[1], "AIData.ini")
+                elif obj.get("unavailable"):
+                    issues.add("warning", "build_list_unavailable", f"SkirmishBuildList {side}: {name} cannot be built: {obj['unavailable']}", "AIData.ini")
+            unplaced = sorted(n for n in places if n not in built) if has_build_scripts else []
+        defense = ai_data.get("base_defense")
+        if defense and defense not in objects:
+            issues.add("warning", "side_base_defense_foreign", f"SideInfo {side}: base defense " + _describe_unknown(doc, defense)[1], "AIData.ini")
+        if "skill_sets" not in ai_data:
+            issues.add("warning", "side_info_missing", f"AIData.ini has no SideInfo for side {side} (gatherers, base defense, skill sets)", "AIData.ini")
+        for number, sciences in enumerate(ai_data.get("skill_sets", []), 1):
+            for science in sciences:
+                if science not in doc["sciences"]:
+                    issues.add("warning", "skill_set_foreign_science", f"{science} is not a science of the faction", f"SideInfo {side}, SkillSet{number}")
 
     # ---- teams
     used_types: set[str] = set()
@@ -796,7 +841,7 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
         "issue_counts": counts,
         "issues": listed,
         "unused": {"combat_units_in_no_team": unused_units, "structures_never_built": never_built,
-                   "upgrades_never_mentioned": unused_upgrades},
+                   "upgrades_never_mentioned": unused_upgrades, "build_list_places_never_used": unplaced},
     }
     if not has_build_scripts:
         result["note"] = "No script of the player builds structures, so nothing was checked against a build order."
