@@ -31,6 +31,7 @@
 #include "Common/FramePacer.h"
 #include "Common/GameEngine.h"
 #include "Common/ReplaySimulation.h"
+#include "GameLogic/AIMatch.h"
 
 
 /**
@@ -48,6 +49,10 @@ Int GameMain()
 	if (!TheGlobalData->m_simulateReplays.empty())
 	{
 		exitcode = ReplaySimulation::simulateReplays(TheGlobalData->m_simulateReplays, TheGlobalData->m_simulateReplayJobs);
+	}
+	else if (TheAIMatch && TheGlobalData->m_headless)
+	{
+		exitcode = TheAIMatch->runHeadless();
 	}
 	else
 	{

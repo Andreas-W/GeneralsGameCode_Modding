@@ -32,6 +32,7 @@
 //   -aiMatchScripts <file>       AI scripts to use instead of Data\Scripts\SkirmishScripts.scb
 //   -aiMatchAIData <file>        an AIData.ini read on top of the game's, to try out changes to it
 //   -seed <n>                    random seed, for a repeatable match
+//   -headless                    no window, graphics or sound: only the game logic runs, as fast as it can
 
 #pragma once
 
@@ -59,6 +60,9 @@ public:
 
 	/// Called once per logic frame.
 	void update();
+
+	/// Runs the match without the game client, as replays are simulated. Returns the process exit code.
+	Int runHeadless();
 
 	/// A script ran its actions (or its false actions).
 	void scriptFired(const AsciiString &scriptName, Bool conditionsTrue);
@@ -118,6 +122,7 @@ private:
 	FILE *m_log;
 	Bool m_started;
 	Bool m_finished;
+	Bool m_failed;
 	std::map<Int, PlayerState> m_state;																///< by player index
 	std::map<std::string, std::map<std::string, ScriptUse> > m_scripts;	///< by player name, then script name
 	std::map<std::pair<std::string, std::string>, ScriptUse> m_messages;	///< by player name and text

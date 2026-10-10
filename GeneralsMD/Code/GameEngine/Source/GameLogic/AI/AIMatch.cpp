@@ -132,6 +132,7 @@ AIMatch::AIMatch() :
 	m_log(nullptr),
 	m_started(FALSE),
 	m_finished(FALSE),
+	m_failed(FALSE),
 	m_aiPlayer(nullptr),
 	m_askingForPlayer(FALSE)
 {
@@ -218,6 +219,7 @@ void AIMatch::fail(const char *reason)
 		fflush(m_log);
 	}
 	m_finished = TRUE;
+	m_failed = TRUE;
 	TheGameEngine->setQuitting(TRUE);
 }
 
@@ -227,6 +229,7 @@ void AIMatch::start()
 	m_log = fopen(m_logPath.str(), "w");
 	if (m_log == nullptr) {
 		m_finished = TRUE;
+		m_failed = TRUE;
 		TheGameEngine->setQuitting(TRUE);
 		return;
 	}
@@ -349,11 +352,35 @@ void AIMatch::start()
 	TheSkirmishGameInfo->startGame(0);
 	InitRandom(seed);
 
-	GameMessage *msg = TheMessageStream->appendMessage(GameMessage::MSG_NEW_GAME);
+	// Without the client nobody carries messages from the stream to the logic, so the message
+	// goes to the logic's command list directly, as it does when a replay is simulated.
+	GameMessage *msg;
+	if (TheGlobalData->m_headless) {
+		msg = newInstance(GameMessage)(GameMessage::MSG_NEW_GAME);
+		TheCommandList->appendMessage(msg);
+	} else {
+		msg = TheMessageStream->appendMessage(GameMessage::MSG_NEW_GAME);
+	}
 	msg->appendIntegerArgument(GAME_SKIRMISH);
 	msg->appendIntegerArgument(DIFFICULTY_NORMAL);
 	msg->appendIntegerArgument(0);
 	msg->appendIntegerArgument(1000);	// no frame rate limit: the match runs as fast as the machine allows
+}
+
+//-------------------------------------------------------------------------------------------------
+Int AIMatch::runHeadless()
+{
+	// Only the logic is updated; the match ends itself in update().
+	UnsignedInt framesNotInGame = 0;
+	while (!m_finished && !TheGameEngine->getQuitting()) {
+		TheGameLogic->UPDATE();
+		if (TheGameLogic->isInGame()) {
+			framesNotInGame = 0;
+		} else if (++framesNotInGame > 300) {
+			fail(m_started ? "the game ended by itself" : "the game did not start");
+		}
+	}
+	return m_failed ? 1 : 0;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -540,9 +567,9 @@ void AIMatch::finish(const char *reason)
 	fclose(m_log);
 	m_log = nullptr;
 
-	// Leave as the main menu's quit button does.
+	// Leave as the main menu's quit button does. Without the client there is nothing to tell.
 	TheGameEngine->setQuitting(TRUE);
-	if (TheGameLogic->isInGame()) {
+	if (TheGameLogic->isInGame() && !TheGlobalData->m_headless) {
 		TheGameLogic->exitGame();
 	}
 }
