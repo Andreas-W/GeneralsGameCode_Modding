@@ -156,7 +156,11 @@ inline Bool ignoringAsserts()
 	if (TheGlobalData && TheGlobalData->m_headless)
 		return true;
 #ifdef DEBUG_CRASHING
+	// Remembered, so that asserts raised during shutdown (after the global data is gone) are ignored too.
+	static Bool ignoreAssertsWasSet = false;
 	if (TheGlobalData && TheGlobalData->m_debugIgnoreAsserts)
+		ignoreAssertsWasSet = true;
+	if (ignoreAssertsWasSet)
 		return true;
 #endif
 
