@@ -22,8 +22,10 @@ RANK_SCIENCE = re.compile(r"^SCIENCE_Rank\d+$")
 
 
 def command_line(map_name: str, players: list[str], log: str, minutes: float, seed: int, interval: float,
-                 cash: int | None, width: int, height: int, scripts: str | None = None, ai_data: str | None = None) -> list[str]:
-    args = ["-win", "-xres", str(width), "-yres", str(height), "-noaudio", "-quickstart", "-ignoreAsserts",
+                 cash: int | None, width: int, height: int, scripts: str | None = None, ai_data: str | None = None,
+                 headless: bool = False) -> list[str]:
+    screen = ["-headless"] if headless else ["-win", "-xres", str(width), "-yres", str(height)]
+    args = screen + ["-noaudio", "-quickstart", "-ignoreAsserts",
             "-aiMatch", map_name, "-aiPlayers", ",".join(players), "-aiMatchLog", log,
             "-aiMatchMinutes", str(minutes), "-aiMatchInterval", str(interval), "-seed", str(seed)]
     if cash:
@@ -37,7 +39,7 @@ def command_line(map_name: str, players: list[str], log: str, minutes: float, se
 
 def run(game_dir: str, map_name: str, players: list[str], log: str, minutes: float = 15, seed: int = 1,
         interval: float = 10, cash: int | None = None, wait_seconds: float = 240, width: int = 1024,
-        height: int = 768, scripts: str | None = None, ai_data: str | None = None) -> dict[str, Any]:
+        height: int = 768, scripts: str | None = None, ai_data: str | None = None, headless: bool = True) -> dict[str, Any]:
     """Starts a match and waits up to wait_seconds for it to end."""
     exe = os.path.join(game_dir, GAME_EXE)
     if not os.path.exists(exe):
@@ -48,8 +50,8 @@ def run(game_dir: str, map_name: str, players: list[str], log: str, minutes: flo
     for label, path in (("script file", scripts), ("AIData file", ai_data)):
         if path and not os.path.exists(path):
             raise FileNotFoundError(f"{label} {path} not found")
-    process = subprocess.Popen([exe] + command_line(map_name, players, log, minutes, seed, interval, cash, width, height, scripts, ai_data),
-                               cwd=game_dir)
+    process = subprocess.Popen([exe] + command_line(map_name, players, log, minutes, seed, interval, cash, width, height, scripts, ai_data,
+                                                    headless), cwd=game_dir)
     started = time.time()
     result: dict[str, Any] = {"log": log, "pid": process.pid}
     try:

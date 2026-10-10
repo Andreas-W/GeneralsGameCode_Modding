@@ -431,7 +431,9 @@ def main() -> int:
     import match as match_data
     args = match_data.command_line("some map", ["FactionChina:hard", "FactionGLA:easy:1"], "log.jsonl", 5, 7, 10, 20000, 800, 600)
     assert args[args.index("-aiPlayers") + 1] == "FactionChina:hard,FactionGLA:easy:1" and "-aiMatchCash" in args, args
-    assert "-aiMatchScripts" not in args and "-aiMatchAIData" not in args, args
+    assert "-aiMatchScripts" not in args and "-aiMatchAIData" not in args and args[:5] == ["-win", "-xres", "800", "-yres", "600"], args
+    quiet = match_data.command_line("m", ["A:hard", "B:hard"], "l", 5, 7, 10, None, 800, 600, headless=True)
+    assert quiet[0] == "-headless" and "-win" not in quiet, quiet
     more = match_data.command_line("m", ["A:hard", "B:hard"], "l", 5, 7, 10, None, 800, 600, scripts="s.scb", ai_data="a.ini")
     assert more[-4:] == ["-aiMatchScripts", "s.scb", "-aiMatchAIData", "a.ini"], more
     snap = {"alive": True, "money": 500, "power": [5, 3], "rank": 1, "science_points": 0,

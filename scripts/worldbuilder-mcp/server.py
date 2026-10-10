@@ -1241,11 +1241,12 @@ def _game_dir() -> str:
 @mcp.tool()
 def ai_match_run(map: str, players: list[str], minutes: float = 15, seed: int = 1, interval_seconds: float = 10,
                  starting_cash: int | None = None, wait_seconds: float = 240, log: str | None = None,
-                 scripts: str | Literal["open"] | None = None, ai_data: str | None = None) -> dict:
+                 scripts: str | Literal["open"] | None = None, ai_data: str | None = None, headless: bool = True) -> dict:
     """Lets the game play a skirmish between AI players by itself and write down what happens.
-    It starts generalszh.exe from WorldBuilder's folder in a window (it takes the screen while
-    it runs), with the local player as observer, no frame rate limit and no sound; the game
-    closes when one side is left or after `minutes` of game time.
+    It starts generalszh.exe from WorldBuilder's folder without a window: only the game logic
+    runs, with the local player as observer, as fast as the machine allows; the game closes
+    when one side is left or after `minutes` of game time. headless=false shows the match in
+    a window instead (slower, and it takes the screen), to watch what the AI does.
     - map: name of a skirmish map or part of its path ("armed neighbors").
     - players: two or more of "Faction:difficulty[:team]", e.g. ["FactionChina:hard",
       "FactionGLA:hard"]; difficulty easy, normal or hard; players with the same team number
@@ -1279,7 +1280,7 @@ def ai_match_run(map: str, players: list[str], minutes: float = 15, seed: int = 
     try:
         result = match_data.run(game_dir, map, players, log, minutes, seed, interval_seconds, starting_cash, wait_seconds,
                                 scripts=os.path.abspath(scripts) if scripts else None,
-                                ai_data=os.path.abspath(ai_data) if ai_data else None)
+                                ai_data=os.path.abspath(ai_data) if ai_data else None, headless=headless)
     except OSError as e:
         raise ToolError(str(e)) from e
     if scripts:
