@@ -403,6 +403,18 @@ def main() -> int:
     added, was_there = ai_data_file.replace_build_list(ini, "Two", ai_data_file.format_build_list("Two", parsed["build_lists"]["One"]))
     assert not was_there and sorted(ai_data_file.parse(added)["build_lists"]) == ["One", "Two"] and added.rstrip().endswith("End"), added
     assert ai_data_file.for_side(parsed, "ONE")["build_list"] == {"Hall": 1}
+    noted = ini.replace("      Science = S1\n", "      ;first\n      Science = S1 ; keep\n")
+    assert ai_data_file.edit_side_info(noted, "One", skill_sets={1: ["S1", "S2"]}, gatherers={"easy": 2})["text"] == noted
+    edit = ai_data_file.edit_side_info(noted, "one", gatherers={"hard": 3}, base_defense="Fort", skill_sets={1: ["S0", "S1", "S3"], 2: ["T"]})
+    after_edit = ai_data_file.parse(edit["text"])["sides"]["One"]
+    assert after_edit == {"gatherers": {"easy": 2, "normal": 0, "hard": 3}, "base_defense": "Fort",
+                          "skill_sets": [["S0", "S1", "S3"], ["T"]]}, after_edit
+    assert "      ;first\n      Science = S0\n      Science = S1 ; keep\n      Science = S3\n" in edit["text"], edit["text"]
+    assert ai_data_file.parse(edit["text"])["build_lists"] == parsed["build_lists"] and not edit["created"]
+    fresh = ai_data_file.edit_side_info(noted, "Two", copy_from="One", base_defense="Wall")
+    made_sides = ai_data_file.parse(fresh["text"])["sides"]
+    assert fresh["created"] and made_sides["Two"]["base_defense"] == "Wall" and made_sides["One"] == parsed["sides"]["One"], made_sides
+    assert ";first" in fresh["block"] and fresh["text"].rstrip().endswith("End")
     game_file = wb.call("game.read_file", path="Data\\INI\\Default\\AIData.ini")
     assert game_file["exists"] and "AIData" in game_file["text"], game_file.get("exists")
     assert not wb.call("game.read_file", path="Data\\INI\\NoSuchFile.ini")["exists"]
@@ -416,6 +428,35 @@ def main() -> int:
     replaced_list = wb.call("buildlist.list", player=owner)["players"][0]["build_list"]
     assert [(e["x"], e["rebuilds"]) for e in replaced_list] == [(300, "unlimited"), (350, 0)], replaced_list
     wb.call("edit.undo")
+    import match as match_data
+    args = match_data.command_line("some map", ["FactionChina:hard", "FactionGLA:easy:1"], "log.jsonl", 5, 7, 10, 20000, 800, 600)
+    assert args[args.index("-aiPlayers") + 1] == "FactionChina:hard,FactionGLA:easy:1" and "-aiMatchCash" in args, args
+    snap = {"alive": True, "money": 500, "power": [5, 3], "rank": 1, "science_points": 0,
+            "score": {"units_built": 1, "units_lost": 0, "units_destroyed": 0, "buildings_built": 1, "buildings_lost": 0,
+                      "buildings_destroyed": 0, "money_earned": 0, "money_spent": 900}}
+    played = [
+        {"t": "setup", "map": "m", "seed": 7, "frames_per_second": 30},
+        {"t": "start", "frame": 2, "players": [{"name": "player1", "side": "S", "faction": "F", "difficulty": "hard", "team": -1, "start_position": 0}]},
+        {"t": "team", "frame": 90, "player": "player1", "team": "Squad0"},
+        {"t": "snap", "frame": 300, "players": [dict(snap, name="player1", objects={"Hall": 1}, teams={"teamSkirmishOne0": 1, "Squad0": 1})]},
+        {"t": "snap", "frame": 600, "players": [dict(snap, name="player1", objects={"Hall": 1, "Tank": 2}, teams={"teamSkirmishOne0": 1})]},
+        {"t": "end", "frame": 600, "reason": "time_limit", "winners": [],
+         "players": [{"name": "player1", "alive": True, "score": snap["score"], "built": {"Hall": 1, "Tank": 2}, "lost": {"Tank": 1}}]},
+        {"t": "scripts", "player": "player1", "scripts": {"Go0": [3, 10, 500]}},
+        {"t": "messages", "messages": [{"player": "player1", "text": "Error - could not find building for Squad0", "count": 4, "first": 30, "last": 90},
+                                        {"player": "", "text": "***Unexpected null player:***", "count": 9, "first": 3, "last": 90},
+                                        {"player": "player1", "text": "all fine", "count": 1, "first": 5, "last": 5}]}]
+    one_script = {"name": "Go", "actions": [{"type": "NO_OP", "params": []}]}
+    played_dump = {"players": [{"player": "SkirmishOne", "scripts": [one_script, dict(one_script, name="Idle"), dict(one_script, name="Soft", hard=False)],
+                                "groups": []}],
+                   "teams": [{"teamName": "Squad", "teamOwner": "SkirmishOne"}, {"teamName": "Reserve", "teamOwner": "SkirmishOne"}]}
+    told = match_data.report(played, played_dump)
+    seen_player = told["players"][0]
+    assert told["status"] == "finished" and told["game_minutes"] == 0.3 and seen_player["scripts_of"] == "SkirmishOne", told
+    assert seen_player["teams"] == [{"team": "Squad", "started": 1, "first_at": 3.0}], seen_player["teams"]
+    assert seen_player["never_ran"]["scripts_first"] == [{"script": "Idle", "group": ""}] and seen_player["never_ran"]["teams_first"] == ["Reserve"], seen_player["never_ran"]
+    assert seen_player["trouble"] == [{"text": "Error - could not find building for Squad", "count": 4, "first_at": 1.0}], seen_player["trouble"]
+    assert told["trouble"] == [{"text": "***Unexpected null player:***", "count": 9, "first_at": 0.1}], told["trouble"]
     import scaffold as scaffold_data
     assert scaffold_data.base_name("Z_SpecW_ChinaTankGattling") == "ChinaTankGattling"
 

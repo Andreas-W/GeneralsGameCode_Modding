@@ -150,7 +150,7 @@ def format_build_list(side: str, entries: list[dict[str, Any]]) -> str:
 def replace_build_list(text: str, side: str, block: str) -> tuple[str, bool]:
     """The INI text with the build list of a side replaced, or added at the end. Returns (text, replaced)."""
     newline = "\r\n" if "\r\n" in text else "\n"
-    lines = text.splitlines()
+    lines = text.split(newline)
     start = end = None
     depth = 0
     for index, raw in enumerate(lines):
@@ -175,9 +175,163 @@ def replace_build_list(text: str, side: str, block: str) -> tuple[str, bool]:
         # Build lists are part of the AIData block: a new one goes in front of the End that closes it.
         closing = next((i for i in range(len(lines) - 1, -1, -1) if lines[i].split(";", 1)[0].strip().lower() == "end"), None)
         if closing is None:
-            return newline.join(lines + [""] + new_lines) + newline, False
-        return newline.join(lines[:closing] + new_lines + [""] + lines[closing:]) + newline, False
+            return newline.join(lines + [""] + new_lines + [""]), False
+        return newline.join(lines[:closing] + new_lines + [""] + lines[closing:]), False
     # The comment line the export writes above the block belongs to it.
     if start > 0 and lines[start - 1].strip().lower().startswith(";skirmish ai build list"):
         start -= 1
-    return newline.join(lines[:start] + new_lines + lines[end + 1:]) + newline, True
+    return newline.join(lines[:start] + new_lines + lines[end + 1:]), True
+
+
+#-------------------------------------------------------------------------------------------------
+# Editing a SideInfo block in place
+#-------------------------------------------------------------------------------------------------
+
+GATHERER_KEYS = {"easy": "ResourceGatherersEasy", "normal": "ResourceGatherersNormal", "hard": "ResourceGatherersHard"}
+MAX_SKILL_SETS = 5
+MAX_SKILL_SET_SCIENCES = 35     # MAX_AI_UPGRADES of the engine: the slots of the science purchase screens
+SCIENCE_LINE = re.compile(r"^(\s*)Science(\s*)=(\s*)(\S+)(.*)$", re.IGNORECASE)
+
+
+def _code(line: str) -> str:
+    return line.split(";", 1)[0].strip()
+
+
+def _find_block(lines: list[str], name: str, arg: str | None, first: int, last: int) -> tuple[int, int] | None:
+    """Line numbers of the header and the End of a block inside lines[first:last], or None."""
+    index = first
+    while index < last:
+        parts = _code(lines[index]).split()
+        if parts and "=" not in _code(lines[index]) and parts[0].lower() == name.lower() and (
+                arg is None or (len(parts) > 1 and parts[1].lower() == arg.lower())):
+            depth = 1
+            for end in range(index + 1, last):
+                code = _code(lines[end])
+                if not code or "=" in code:
+                    continue
+                depth += -1 if code.lower() == "end" else 1
+                if depth == 0:
+                    return index, end
+            return None
+        index += 1
+    return None
+
+
+def _indent(line: str) -> str:
+    return line[:len(line) - len(line.lstrip())]
+
+
+def _set_field(lines: list[str], start: int, end: int, key: str, value: Any) -> int:
+    """Sets a field of the block lines[start:end], keeping the line's layout and comment. Returns the lines added."""
+    pattern = re.compile(r"^(\s*" + re.escape(key) + r"\s*=\s*)(\S+)(.*)$", re.IGNORECASE)
+    last_field = start
+    depth = 0
+    for index in range(start + 1, end):
+        code = _code(lines[index])
+        if depth == 0:
+            match = pattern.match(lines[index])
+            if match and not lines[index].lstrip().startswith(";"):
+                # Keep a comment where it was when the value changes its length.
+                tail = match.group(3)
+                pad = len(match.group(2)) - len(str(value))
+                if tail.strip() and pad > 0:
+                    tail = " " * pad + tail
+                lines[index] = f"{match.group(1)}{value}{tail}"
+                return 0
+            if "=" in code:
+                last_field = index
+        if code and "=" not in code:
+            depth += -1 if code.lower() == "end" else 1
+    indent = _indent(lines[last_field]) if last_field > start else _indent(lines[start]) + "  "
+    lines.insert(last_field + 1, f"{indent}{key} = {value}")
+    return 1
+
+
+def _set_sciences(lines: list[str], start: int, end: int, wanted: list[str]) -> None:
+    """Brings the Science lines of the block lines[start:end] to the wanted list with the fewest line changes."""
+    import difflib
+
+    positions = [i for i in range(start + 1, end) if SCIENCE_LINE.match(lines[i]) and not lines[i].lstrip().startswith(";")]
+    current = [SCIENCE_LINE.match(lines[i]).group(4) for i in positions]
+    indent = _indent(lines[positions[0]]) if positions else _indent(lines[start]) + "  "
+    remove: list[int] = []
+    insert: list[tuple[int, list[str]]] = []      # (after this line, new lines)
+    for op, a1, a2, b1, b2 in difflib.SequenceMatcher(None, current, wanted, autojunk=False).get_opcodes():
+        if op == "equal":
+            continue
+        reuse = min(a2 - a1, b2 - b1) if op == "replace" else 0
+        for k in range(reuse):
+            match = SCIENCE_LINE.match(lines[positions[a1 + k]])
+            # The comment on the line described the science that stood there.
+            lines[positions[a1 + k]] = f"{match.group(1)}Science{match.group(2)}={match.group(3)}{wanted[b1 + k]}"
+        remove.extend(positions[a1 + reuse:a2])
+        added = [f"{indent}Science = {name}" for name in wanted[b1 + reuse:b2]]
+        if added:
+            if a1 + reuse > 0:
+                anchor = positions[a1 + reuse - 1]
+            else:
+                # In front of the first science, below the comments that head the list.
+                anchor = positions[0] - 1 if positions else start
+            insert.append((anchor, added))
+    for anchor, added in sorted(insert, reverse=True):
+        lines[anchor + 1:anchor + 1] = added
+        remove = [r + len(added) if r > anchor else r for r in remove]
+    for index in sorted(remove, reverse=True):
+        del lines[index]
+
+
+def edit_side_info(text: str, side: str, gatherers: dict[str, int] | None = None, base_defense: str | None = None,
+                   skill_sets: dict[int, list[str]] | None = None, copy_from: str | None = None) -> dict[str, Any]:
+    """Changes the SideInfo of a side in an AIData.ini text line by line, so that comments and
+    layout stay. A side without a block gets a new one, copied from copy_from if given.
+    Returns {text, block, created}."""
+    newline = "\r\n" if "\r\n" in text else "\n"
+    # Split on the file's own line ending, so that every untouched line comes back as it was.
+    lines = text.split(newline)
+    found = _find_block(lines, "SideInfo", side, 0, len(lines))
+    created = False
+    if found is None:
+        created = True
+        if copy_from:
+            source = _find_block(lines, "SideInfo", copy_from, 0, len(lines))
+            if source is None:
+                raise ValueError(f"AIData.ini has no SideInfo {copy_from} to copy from")
+            block = lines[source[0]:source[1] + 1]
+            block[0] = re.sub(r"(?i)(SideInfo\s+)\S+", lambda m: m.group(1) + side, block[0], count=1)
+        else:
+            block = ["  SideInfo " + side, "    ResourceGatherersEasy = 2", "    ResourceGatherersNormal = 2",
+                     "    ResourceGatherersHard = 2", "  End"]
+        # After the last SideInfo; without any, in front of the End that closes AIData.
+        after = None
+        position = 0
+        while True:
+            other = _find_block(lines, "SideInfo", None, position, len(lines))
+            if other is None:
+                break
+            after, position = other[1], other[1] + 1
+        if after is None:
+            closing = next((i for i in range(len(lines) - 1, -1, -1) if _code(lines[i]).lower() == "end"), len(lines))
+            after = closing - 1
+        lines[after + 1:after + 1] = [""] + block
+        found = _find_block(lines, "SideInfo", side, 0, len(lines))
+
+    start, end = found
+    for level, value in (gatherers or {}).items():
+        if level not in GATHERER_KEYS:
+            raise ValueError("gatherers takes easy, normal and hard")
+        end += _set_field(lines, start, end, GATHERER_KEYS[level], int(value))
+    if base_defense is not None:
+        end += _set_field(lines, start, end, "BaseDefenseStructure1", base_defense)
+    for number, wanted in sorted((skill_sets or {}).items()):
+        number = int(number)
+        if not 1 <= number <= MAX_SKILL_SETS:
+            raise ValueError(f"skill sets are numbered 1 to {MAX_SKILL_SETS}")
+        start, end = _find_block(lines, "SideInfo", side, 0, len(lines))
+        inner = _find_block(lines, f"SkillSet{number}", None, start + 1, end)
+        if inner is None:
+            indent = _indent(lines[start]) + "  "
+            lines[end:end] = [f"{indent}SkillSet{number}", f"{indent}End"]
+            inner = (end, end + 1)
+        _set_sciences(lines, inner[0], inner[1], list(wanted))
+    start, end = _find_block(lines, "SideInfo", side, 0, len(lines))
+    return {"text": newline.join(lines), "block": "\n".join(lines[start:end + 1]) + "\n", "created": created}

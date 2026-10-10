@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Literal
 
 from mcp.server.mcpserver import Image, MCPServer
@@ -17,6 +18,7 @@ import yaml
 import aidata as ai_data_file
 import faction as faction_data
 import framework as framework_data
+import match as match_data
 import scaffold as scaffold_data
 from wb_bridge import WorldBuilderBridge, WorldBuilderError
 
@@ -68,7 +70,12 @@ Workflow tips:
 - Where the skirmish AI builds is not in the scripts: SKIRMISH_BUILD_BUILDING takes the place
   from the side's SkirmishBuildList in AIData.ini (aidata_get). A structure without an entry
   there is never built. buildlist_from_aidata loads that layout into a map player to look at and
-  edit, buildlist_export writes it back as an INI block.
+  edit, buildlist_export writes it back as an INI block. aidata_set_side changes a side's
+  gatherer counts, base defense and science skill sets in place, keeping the file's comments.
+- Whether an AI really plays is found out by letting it: ai_match_run starts the game for a
+  skirmish between AI players and logs it, ai_match_report says what each one built when, what
+  it never built, which scripts and teams never ran and what the script engine complained
+  about. The match uses the installed scripts, not the ones open in WorldBuilder.
 - AI sets repeat one skeleton per faction. ai_framework_generate finds it from the players of
   the open map; ai_framework_get shows which scripts, flags, timers, team names, hooks and
   object lists every faction is expected to have, and where the factions differ.
@@ -812,6 +819,107 @@ def aidata_get(side: str | None = None, entries: bool = False) -> dict:
     return result
 
 
+def _faction_of_side(side: str) -> str | None:
+    for entry in wb.call("sides.list_factions")["factions"]:
+        if entry["side"].lower() == side.lower():
+            return entry["name"]
+    return None
+
+
+@mcp.tool()
+def aidata_set_side(side: str, gatherers: dict[str, int] | None = None, base_defense: str | None = None,
+                    skill_sets: dict[str, list[str]] | None = None, copy_from: str | None = None,
+                    replace_in: str | None = None, path: str | None = None, allow_unknown: bool = False,
+                    directory: str | None = None) -> dict:
+    """Changes the SideInfo block of a side in AIData.ini: what the skirmish AI is given outside
+    of its scripts (see aidata_get). Only what is passed changes:
+    - gatherers: {"easy": n, "normal": n, "hard": n}, gatherers kept per supply center;
+    - base_defense: the structure the "build base defense" script actions place;
+    - skill_sets: {"1": [sciences in buying order], ...} for sets 1 to 5; a list replaces the
+      whole set, [] empties it. At most 35 sciences per set.
+    The file is edited line by line: comments, spacing and every line that does not change stay
+    as they are; a removed science takes its line with it, a new one goes next to its
+    neighbour in the list. A side without a block gets one after the last SideInfo; copy_from
+    names a side whose block (with its comments) it starts from.
+    Checked against the faction description (faction_generate): the base defense must be a
+    structure of the faction, every science one it can purchase. allow_unknown skips that.
+    Without replace_in nothing is written: the result holds the new block and a diff against
+    the game's AIData.ini. path writes the whole edited text to a new file. replace_in names
+    the AIData.ini to change (the old file is kept as <name>.bak). The game and WorldBuilder
+    read AIData.ini at startup."""
+    sets: dict[int, list[str]] = {}
+    for key, wanted in (skill_sets or {}).items():
+        if not str(key).isdigit() or not 1 <= int(key) <= ai_data_file.MAX_SKILL_SETS:
+            raise ToolError(f"skill sets are numbered 1 to {ai_data_file.MAX_SKILL_SETS}")
+        if len(wanted) > ai_data_file.MAX_SKILL_SET_SCIENCES:
+            raise ToolError(f"skill set {key} has {len(wanted)} sciences; the game keeps {ai_data_file.MAX_SKILL_SET_SCIENCES}")
+        if len(set(wanted)) != len(wanted):
+            raise ToolError(f"skill set {key} lists a science twice")
+        sets[int(key)] = list(wanted)
+
+    if not allow_unknown and (base_defense is not None or sets):
+        faction = _faction_of_side(side)
+        try:
+            doc = faction_data.load(faction, _faction_dir(directory)) if faction else None
+        except (OSError, ValueError, yaml.YAMLError):
+            doc = None
+        if doc is None:
+            raise ToolError(f"no faction description for side '{side}' to check against; run faction_generate or pass allow_unknown")
+        problems = []
+        if base_defense is not None:
+            obj = doc["objects"].get(base_defense)
+            if obj is None or obj["category"] != "structure":
+                problems.append(f"{base_defense} is not a structure of {doc['meta']['faction']}")
+            elif obj.get("unavailable"):
+                problems.append(f"{base_defense} cannot be built: {obj['unavailable']}")
+        for number, wanted in sets.items():
+            for science in wanted:
+                info = doc["sciences"].get(science)
+                if info is None:
+                    problems.append(f"skill set {number}: {science} is not a science of {doc['meta']['faction']}")
+                elif not info.get("point_cost"):
+                    problems.append(f"skill set {number}: {science} cannot be purchased")
+        if problems:
+            raise ToolError("; ".join(problems[:12]) + (f"; and {len(problems) - 12} more" if len(problems) > 12 else ""))
+
+    try:
+        if replace_in:
+            target = os.path.abspath(replace_in)
+            with open(target, encoding="latin-1", newline="") as f:
+                old = f.read()
+        else:
+            target = None
+            old = wb.call("game.read_file", path=ai_data_file.FILES[0]).get("text")
+            if old is None:
+                raise ToolError("the game data has no " + ai_data_file.FILES[0])
+        edited = ai_data_file.edit_side_info(old, side, gatherers, base_defense, sets, copy_from)
+        newline = "\r\n" if "\r\n" in old else "\n"
+        import difflib
+        diff = [line for line in difflib.unified_diff(old.split(newline), edited["text"].split(newline), lineterm="", n=1)][2:]
+        result: dict[str, Any] = {"side": side, "created": edited["created"], "changed_lines": sum(1 for d in diff if d[:1] in "+-"),
+                                  "diff": diff[:200], "block": edited["block"]}
+        if len(diff) > 200:
+            result["diff_truncated"] = len(diff)
+        if path:
+            full = os.path.abspath(path)
+            with open(full, "w", encoding="latin-1", newline="") as f:
+                f.write(edited["text"])
+            result["path"] = full
+        if target:
+            if edited["text"] != old:
+                with open(target + ".bak", "w", encoding="latin-1", newline="") as f:
+                    f.write(old)
+                with open(target, "w", encoding="latin-1", newline="") as f:
+                    f.write(edited["text"])
+                result.update(changed=target, backup=target + ".bak")
+            else:
+                result["changed"] = None
+            del result["block"]
+        return result
+    except (OSError, ValueError) as e:
+        raise ToolError(str(e)) from e
+
+
 @mcp.tool()
 def buildlist_from_aidata(player: str, side: str | None = None, command_center_at: list[float] | None = None) -> dict:
     """Puts the SkirmishBuildList of a side from AIData.ini into the build list of a player of
@@ -1063,8 +1171,11 @@ def ai_scaffold(player: str, faction: str, like_player: str, tag: str, overrides
     weakest translations. dry_run (the default) changes nothing; path writes the result as a
     scripts_dump file to review or edit and load with scripts_load. With dry_run=false the
     player is created if missing and ALL its scripts and teams are replaced (one undo step);
-    the result then includes faction_check. The outcome is a starting point: work through
-    unmapped and the check, then fill in what makes the faction its own."""
+    the result then includes faction_check. `side_info` says whether AIData.ini has a SideInfo
+    and a base layout for the new side, and holds ready arguments for aidata_set_side with the
+    source side's gatherers, base defense and science skill sets translated; without a
+    SideInfo the AI buys no sciences. The outcome is a starting point: work through unmapped
+    and the check, then fill in what makes the faction its own."""
     try:
         folder = _faction_dir(directory)
         src = faction_data.load(_player_faction(like_player), folder)
@@ -1077,6 +1188,33 @@ def ai_scaffold(player: str, faction: str, like_player: str, tag: str, overrides
         raise ToolError(str(e)) from e
     report = made["report"]
     report["mapping"] = mapping["summary"]
+    # What the new side needs in AIData.ini, derived from the source side the same way.
+    ai_data = _read_ai_data()
+    source_side, new_side = src["faction"]["side"], dst["faction"]["side"]
+    source_info = ai_data_file.for_side(ai_data, source_side)
+    new_info = ai_data_file.for_side(ai_data, new_side)
+    side_report: dict[str, Any] = {"side": new_side, "has_side_info": "skill_sets" in new_info,
+                                   "has_build_list": "build_list" in new_info}
+    if "skill_sets" in source_info:
+        no_counterpart = []
+
+        def science(name: str) -> str | None:
+            found = mapping["sciences"].get(name, {}).get("to") or (name if name in dst["sciences"] else None)
+            if found is None and name not in no_counterpart:
+                no_counterpart.append(name)
+            return found
+
+        proposal: dict[str, Any] = {"side": new_side, "gatherers": source_info["gatherers"],
+                                    "skill_sets": {str(i + 1): list(dict.fromkeys(s for s in map(science, names) if s))
+                                                   for i, names in enumerate(source_info["skill_sets"])}}
+        defense = mapping["objects"].get(source_info.get("base_defense", ""), {}).get("to")
+        if defense:
+            proposal["base_defense"] = defense
+        if "skill_sets" not in new_info:
+            proposal["copy_from"] = source_side
+        side_report["aidata_set_side"] = proposal
+        side_report["sciences_without_counterpart"] = no_counterpart
+    report["side_info"] = side_report
     if path:
         full = os.path.abspath(path)
         with open(full, "w", encoding="utf-8", newline="\n") as f:
@@ -1091,6 +1229,97 @@ def ai_scaffold(player: str, faction: str, like_player: str, tag: str, overrides
     report["check"] = {"issue_counts": checked["issue_counts"],
                        "errors": [i for i in checked["issues"] if i["severity"] == "error"]}
     return report
+
+
+def _game_dir() -> str:
+    _faction_dir(None)
+    return _exe_dir or ""
+
+
+@mcp.tool()
+def ai_match_run(map: str, players: list[str], minutes: float = 15, seed: int = 1, interval_seconds: float = 10,
+                 starting_cash: int | None = None, wait_seconds: float = 240, log: str | None = None) -> dict:
+    """Lets the game play a skirmish between AI players by itself and write down what happens.
+    It starts generalszh.exe from WorldBuilder's folder in a window (it takes the screen while
+    it runs), with the local player as observer, no frame rate limit and no sound; the game
+    closes when one side is left or after `minutes` of game time.
+    - map: name of a skirmish map or part of its path ("armed neighbors").
+    - players: two or more of "Faction:difficulty[:team]", e.g. ["FactionChina:hard",
+      "FactionGLA:hard"]; difficulty easy, normal or hard; players with the same team number
+      are allies. Start positions are random, fixed by seed.
+    - seed: the same seed gives the same match as long as scripts and game data are the same.
+    The AI the game uses is the installed one (Data/Scripts/SkirmishScripts.scb and
+    AIData.ini), not the scripts open in WorldBuilder: export them first to test changes.
+    A match runs several times faster than real time. The call waits up to wait_seconds; if
+    the match is still going it returns status "running" and ai_match_report can be asked
+    later. The log (JSON lines) goes to worldbuilder_factions/matches unless log names a file."""
+    game_dir = _game_dir()
+    if log is None:
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        name = "".join(c if c.isalnum() else "_" for c in map)[:30]
+        log = os.path.join(_faction_dir(None), "matches", f"{stamp}_{name}_seed{seed}.jsonl")
+    try:
+        result = match_data.run(game_dir, map, players, os.path.abspath(log), minutes, seed, interval_seconds, starting_cash, wait_seconds)
+    except OSError as e:
+        raise ToolError(str(e)) from e
+    if os.path.exists(result["log"]):
+        brief = match_data.report(match_data.read(result["log"]))
+        result.update({k: brief[k] for k in ("status", "reason", "winners", "game_minutes") if k in brief})
+        if brief.get("status") == "error":
+            result["error"] = brief["reason"]
+    elif result["status"] == "finished":
+        result["status"] = "error"
+        result["error"] = "the game ended without writing a log (did it start?)"
+    return result
+
+
+@mcp.tool()
+def ai_match_report(log: str | None = None, player: str | None = None, compare_scripts: bool = True, limit: int = 25) -> dict:
+    """What happened in an AI match (ai_match_run), from its log; log defaults to the newest
+    one. Per player (or the one named by match name, faction, or script player such as
+    SkirmishChina):
+    - score, money at the end, rank; economy (money range, earned, spent, when power ran short);
+    - structures and units in the order they first appeared, with seconds of game time and
+      how many were built and lost;
+    - never_built: structures and combat units of the faction that never appeared (needs the
+      faction description);
+    - longest_pause: the longest time in which nothing was built;
+    - teams the AI started, with counts and first time; sciences and upgrades in order;
+    - never_ran (compare_scripts, needs the same AI set open in WorldBuilder): scripts that
+      could have run on this difficulty and never did, and teams that were never started.
+    Each player's `trouble` lists what its scripts and its AI complained about, most frequent
+    first ("Dozer unable to build - money or technology missing", "could not find building ...
+    in the building template list", scripts not defined ...); `trouble` at the top holds what
+    was reported outside of any player. Times are game seconds. A match that hit the time
+    limit has no winner; compare scores instead."""
+    try:
+        if log is None:
+            folder = os.path.join(_faction_dir(None), "matches")
+            logs = sorted((os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".jsonl")), key=os.path.getmtime) \
+                if os.path.isdir(folder) else []
+            if not logs:
+                raise ToolError("no match logs yet; run ai_match_run")
+            log = logs[-1]
+        records = match_data.read(os.path.abspath(log))
+        factions: dict[str, Any] = {}
+        for record in records:
+            if record["t"] == "start":
+                for entry in record["players"]:
+                    try:
+                        factions[entry["faction"]] = faction_data.load(entry["faction"], _faction_dir(None))
+                    except (OSError, ValueError, yaml.YAMLError):
+                        pass
+        dump = None
+        if compare_scripts:
+            try:
+                dump = wb.call("scripts.dump", include_teams=True)
+            except ToolError:
+                dump = None
+        result = match_data.report(records, dump, factions, player, limit)
+        result["log"] = os.path.abspath(log)
+        return result
+    except OSError as e:
+        raise ToolError(str(e)) from e
 
 
 @mcp.tool()
