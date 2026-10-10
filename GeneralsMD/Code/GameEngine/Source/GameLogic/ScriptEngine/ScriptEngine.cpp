@@ -54,6 +54,7 @@
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/ScriptActions.h"
 #include "GameLogic/ScriptConditions.h"
+#include "GameLogic/AIMatch.h"
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/SidesList.h"
 
@@ -8515,6 +8516,9 @@ void ScriptEngine::forceUnfreezeTime()
 
 void ScriptEngine::AppendDebugMessage(const AsciiString& strToAdd, Bool forcePause)
 {
+	if (TheAIMatch) {
+		TheAIMatch->scriptMessage(strToAdd);
+	}
 #ifdef INTENSE_DEBUG
 	DEBUG_LOG(("-SCRIPT- %d %s", TheGameLogic->getFrame(), strToAdd.str()));
 #endif
@@ -9380,6 +9384,9 @@ void ScriptEngine::markMPLocalDefeatWindowShown()
 
 void _appendMessage(const AsciiString& str, Bool isTrueMessage, Bool shouldPause)
 {
+	if (TheAIMatch) {
+		TheAIMatch->scriptFired(str, isTrueMessage);
+	}
 	typedef void (*funcptr)(const char*);
 
 	AsciiString msg;

@@ -165,6 +165,21 @@ Int ScoreKeeper::getTotalUnitsBuilt( KindOfMaskType validMask, KindOfMaskType in
 	return count;
 }
 
+void ScoreKeeper::friend_countObjects( std::map<std::string, Int>& built, std::map<std::string, Int>& lost ) const
+{
+	for (ObjectCountMap::const_iterator it = m_objectsBuilt.begin(); it != m_objectsBuilt.end(); ++it)
+	{
+		if (it->first && it->second > 0)
+			built[it->first->getName().str()] += it->second;
+	}
+	for (ObjectCountMap::const_iterator it = m_objectsLost.begin(); it != m_objectsLost.end(); ++it)
+	{
+		if (it->first && it->second > 0)
+			lost[it->first->getName().str()] += it->second;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 Int ScoreKeeper::getTotalObjectsBuilt( const ThingTemplate *pTemplate )
 {
 	Int count = 0;

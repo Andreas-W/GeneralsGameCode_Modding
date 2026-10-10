@@ -233,6 +233,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/AIGuardRetaliate.h
 #    Include/GameLogic/AIPathfind.h
     Include/GameLogic/AIPlayer.h
+    Include/GameLogic/AIMatch.h
     Include/GameLogic/AISkirmishPlayer.h
     Include/GameLogic/AIStateMachine.h
     Include/GameLogic/AITNGuard.h
@@ -830,6 +831,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/AI/AIGuardRetaliate.cpp
 #    Source/GameLogic/AI/AIPathfind.cpp
     Source/GameLogic/AI/AIPlayer.cpp
+    Source/GameLogic/AI/AIMatch.cpp
     Source/GameLogic/AI/AISkirmishPlayer.cpp
     Source/GameLogic/AI/AIStates.cpp
     Source/GameLogic/AI/AITNGuard.cpp
