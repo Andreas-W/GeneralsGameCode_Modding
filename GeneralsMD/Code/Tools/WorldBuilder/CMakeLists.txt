@@ -214,6 +214,7 @@ set(WORLDBUILDER_SRC
     "src/mcp/McpCmdScripts.cpp"
     "src/mcp/McpCmdScriptTools.cpp"
     "src/mcp/McpCmdScriptViews.cpp"
+    "src/mcp/McpCmdFaction.cpp"
     "src/mcp/McpCmdSkirmish.cpp"
     "src/mcp/McpCmdSymmetry.cpp"
     "src/mcp/McpCmdTeams.cpp"

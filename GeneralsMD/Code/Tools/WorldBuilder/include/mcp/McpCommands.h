@@ -66,6 +66,7 @@ void mcpRegisterScriptCommands();
 void mcpRegisterTeamCommands();
 void mcpRegisterScriptToolCommands();
 void mcpRegisterScriptViewCommands();
+void mcpRegisterFactionCommands();
 
 //-------------------------------------------------------------------------------------------------
 // Helpers

@@ -333,6 +333,92 @@ def main() -> int:
     stats = wb.call("objects.info", templates=[templates[0]["name"], "NoSuchThing"])
     assert stats["templates"][0]["cost"] > 0 and "STRUCTURE" in stats["templates"][0]["kind_of"], stats
     assert stats["unknown"] == ["NoSuchThing"]
+    faction_name = "FactionAmerica"
+    described = wb.call("faction.describe", faction=faction_name, scope="tree")
+    assert described["faction"]["name"] == faction_name, described["faction"]
+    assert described["counts"]["objects"] == len(described["objects"]) == described["counts"]["in_tech_tree"], described["counts"]
+    if described["objects"]:
+        first = described["objects"][0]
+        assert first["in_tech_tree"] and "kind_of" in first and "modules" in first, first
+        narrowed = wb.call("faction.describe", faction=faction_name, templates=[first["name"]], sections=["objects"])
+        assert [o["name"] for o in narrowed["objects"]] == [first["name"]] and "weapons" not in narrowed, narrowed
+    import faction as faction_data
+    faction_dir = tempfile.mkdtemp(prefix="wb_mcp_faction_")
+    made = faction_data.generate(wb.call("faction.describe", faction=faction_name), faction_name, faction_dir)
+    assert made["objects"] > 0 and os.path.exists(made["overrides_created"]), made
+    again = faction_data.generate(wb.call("faction.describe", faction=faction_name), faction_name, faction_dir)
+    assert again["new_in_game_data"] == [] and again["no_longer_in_game_data"] == [] and again["unknown_in_slots"] == [], again
+    merged = faction_data.load(faction_name, faction_dir)
+    overview = faction_data.view(merged, "overview")
+    assert overview["slots"].get("command_center") == described["faction"]["starting_building"], overview["slots"]
+    assert all("role" in o for o in overview["objects"]), overview["objects"][:3]
+    one = faction_data.view(merged, "unit", [overview["objects"][0]["name"], "NoSuchThing"])
+    assert len(one["objects"]) == 1 and one["unknown"] == ["NoSuchThing"], one
+    structure = next(o["name"] for o in merged["objects"].values() if o["category"] == "structure" and o.get("build_path"))
+    soldier = next(o["name"] for o in merged["objects"].values()
+                   if o["category"] == "infantry" and o.get("build_path") and o.get("built_by"))
+    fake_dump = {"players": [], "teams": [
+        {"teamName": "Good", "teamOwner": "P", "teamUnitType1": soldier, "teamUnitMinCount1": 1, "teamUnitMaxCount1": 2},
+        {"teamName": "Bad", "teamOwner": "P", "teamUnitType1": "NoSuchThing", "teamUnitMinCount1": 3, "teamUnitMaxCount1": 1,
+         "teamUnitType2": structure, "teamUnitMinCount2": 1, "teamUnitMaxCount2": 1}]}
+    fake_order = {"steps": [{"script": "B", "builds": [{"action": "SKIRMISH_BUILD_BUILDING", "what": structure}]}]}
+    checked = faction_data.check(merged, "P", fake_dump, fake_order, include_teams=True)
+    kinds = {i["kind"] for i in checked["issues"]}
+    assert {"team_unknown_type", "team_min_over_max", "team_structure", "build_prerequisite_never_built"} <= kinds, kinds
+    assert checked["checked"]["teams"] == 2 and checked["teams"][0]["cost_max"] > 0, checked
+    import framework as framework_data
+
+    def fake_player(name, tag, unit, extra):
+        common = {"name": "Go", "conditions": [[{"type": "FLAG", "params": [{"type": "FLAG", "value": "Ready"}]}]],
+                  "actions": [{"type": "SET_FLAG", "params": [{"type": "FLAG", "value": "Done"}, {"type": "BOOLEAN", "value": True}]}]}
+        build = {"name": "Build", "conditions": [[]],
+                 "actions": [{"type": "SKIRMISH_BUILD_BUILDING", "params": [{"type": "OBJECT_TYPE", "value": unit}]}]}
+        own = {"name": tag + " Own", "conditions": [[]], "actions": [{"type": extra, "params": []}]}
+        return {"player": name, "scripts": [], "groups": [{"name": tag + " Scripts", "scripts": [common, build, own]}]}
+
+    fake_set = {"players": [fake_player("A", "AAA", "TypeA", "NO_OP"), fake_player("B", "BBB", "TypeB", "DEBUG_STOP")],
+                "teams": [{"teamName": "AAA Squad", "teamOwner": "A", "teamOnCreateScript": "Go"},
+                          {"teamName": "BBB Squad", "teamOwner": "B", "teamOnCreateScript": "Go"}]}
+    skeleton = framework_data.extract(fake_set)
+    assert skeleton["meta"]["tags"] == {"A": "AAA", "B": "BBB"}, skeleton["meta"]
+    assert skeleton["scripts"]["Go"]["class"] == "framework" and skeleton["scripts"]["<TAG> Own"]["class"] == "divergent", skeleton["scripts"]
+    varying = skeleton["scripts"]["Build"]
+    assert varying["class"] == "parameterized" and varying["varies"][0]["values"] == {"A": "TypeA", "B": "TypeB"}, varying
+    assert varying["template"]["actions"][0]["params"][0]["value"] == "${0}", varying["template"]
+    notes = {s["name"]: s.get("note") for s in skeleton["symbols"]}
+    assert notes == {"Done": "written but never read", "Ready": "read but never written by a script"}, notes
+    assert skeleton["teams"][0]["name"] == "<TAG> Squad" and skeleton["team_hooks"][0]["script_class"] == "framework", skeleton["teams"]
+    import scaffold as scaffold_data
+    assert scaffold_data.base_name("Z_SpecW_ChinaTankGattling") == "ChinaTankGattling"
+
+    def fake_faction(name, prefix):
+        objects = {prefix + "Barracks": {"role": "barracks", "category": "structure", "cost": 500, "tier": 0},
+                   prefix + "Tank": {"role": "main_battle", "category": "vehicle", "cost": 900, "tier": 2}}
+        return {"meta": {"faction": name}, "objects": objects, "other_objects": [], "slots": {"barracks": prefix + "Barracks"},
+                "upgrades": {}, "sciences": {}, "special_powers": {}, "buttons": []}
+
+    one, two = fake_faction("F1", "A_"), fake_faction("F2", "B_")
+    one["objects"]["A_Odd"] = {"role": "siege", "category": "vehicle", "cost": 1, "tier": 1}
+    pairs = scaffold_data.map_names(one, two)
+    assert pairs["objects"]["A_Tank"] == {"to": "B_Tank", "by": "name"} and pairs["unmapped"][0]["name"] == "A_Odd", pairs
+    source = {"players": [{"player": "A", "properties": {"playerName": "A", "playerFaction": "F1"}, "scripts": [], "groups": [
+        {"name": "AAA Scripts", "scripts": [
+            {"name": "Lists", "conditions": [[]], "actions": [{"type": "NO_OP", "params": [{"type": "OBJECT_TYPE", "value": "A_Tank"}]}]},
+            {"name": "AAA Make", "conditions": [[]], "actions": [
+                {"type": "SKIRMISH_BUILD_BUILDING", "params": [{"type": "OBJECT_TYPE", "value": "A_Barracks"}]},
+                {"type": "ENABLE_SCRIPT", "params": [{"type": "SCRIPT", "value": "AAA Make"}]},
+                {"type": "NO_OP", "params": [{"type": "OBJECT_TYPE", "value": "A_Odd"}]}]}]}]}],
+        "teams": [{"teamName": "AAA Squad", "teamOwner": "A", "teamUnitType1": "A_Tank", "teamUnitMinCount1": 1,
+                   "teamUnitMaxCount1": 2, "teamOnCreateScript": "AAA Make"}]}
+    shared = {"meta": {"tags": {"A": "AAA"}}, "scripts": {"Lists": {"class": "framework"}}}
+    derived = scaffold_data.scaffold(source, shared, one, two, "A", "N", "NNN", pairs)
+    new_scripts = derived["document"]["players"][0]["groups"][0]["scripts"]
+    assert new_scripts[0]["actions"][0]["params"][0]["value"] == "A_Tank", new_scripts[0]
+    assert [a["params"][0]["value"] for a in new_scripts[1]["actions"]] == ["B_Barracks", "NNN Make", "A_Odd"], new_scripts[1]
+    new_team = derived["document"]["teams"][0]
+    assert (new_team["teamName"], new_team["teamOwner"], new_team["teamUnitType1"], new_team["teamOnCreateScript"]) == \
+        ("NNN Squad", "N", "B_Tank", "NNN Make"), new_team
+    assert [u["name"] for u in derived["report"]["unmapped"]] == ["A_Odd"], derived["report"]
     wb.call("buildlist.add", player=owner, template=templates[0]["name"], x=400, y=400, angle_deg=90, rebuilds="unlimited")
     wb.call("buildlist.add", player=owner, template=templates[0]["name"], x=500, y=400, name="Second")
     wb.call("buildlist.update", player=owner, index=1, new_index=0, health=50)

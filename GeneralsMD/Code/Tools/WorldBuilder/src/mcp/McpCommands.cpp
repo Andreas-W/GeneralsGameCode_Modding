@@ -67,6 +67,21 @@ McpJson cmdListCommands(const McpJson &)
 	return McpJson::makeObject().set("commands", list);
 }
 
+/// Where WorldBuilder runs, so that clients can keep their files with the game data it loaded.
+McpJson cmdAppInfo(const McpJson &)
+{
+	char exePath[MAX_PATH];
+	exePath[0] = 0;
+	::GetModuleFileNameA(nullptr, exePath, sizeof(exePath));
+	std::string exeDir = exePath;
+	const size_t slash = exeDir.find_last_of("\\/");
+	if (slash != std::string::npos) exeDir.erase(slash);
+	char workDir[MAX_PATH];
+	workDir[0] = 0;
+	::GetCurrentDirectoryA(sizeof(workDir), workDir);
+	return McpJson::makeObject().set("exe_path", exePath).set("exe_dir", exeDir).set("working_dir", workDir);
+}
+
 void registerAllCommands()
 {
 	static bool registered = false;
@@ -75,6 +90,7 @@ void registerAllCommands()
 	}
 	registered = true;
 	mcpRegisterCommand("list_commands", cmdListCommands, "Lists all bridge commands.");
+	mcpRegisterCommand("app.info", cmdAppInfo, "Path and folder of the WorldBuilder executable and its working directory.");
 	mcpRegisterMapCommands();
 	mcpRegisterTerrainCommands();
 	mcpRegisterObjectCommands();
@@ -91,6 +107,7 @@ void registerAllCommands()
 	mcpRegisterTeamCommands();
 	mcpRegisterScriptToolCommands();
 	mcpRegisterScriptViewCommands();
+	mcpRegisterFactionCommands();
 }
 
 std::string makeErrorReply(const McpJson &id, const std::string &message)

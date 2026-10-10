@@ -12,6 +12,11 @@ from typing import Any, Literal
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+import yaml
+
+import faction as faction_data
+import framework as framework_data
+import scaffold as scaffold_data
 from wb_bridge import WorldBuilderBridge, WorldBuilderError
 
 INSTRUCTIONS = """\
@@ -50,6 +55,21 @@ Workflow tips:
 - Understanding a set: scripts_build_order (what is built when), scripts_trace (what one team or
   script sets in motion), scripts_by_difficulty, objects_info (unit stats), scripts_report (all of
   it as a Markdown file).
+- What a faction can build and how strong its units are: faction_describe (tech tree,
+  prerequisites, cost, health, armor, weapons, upgrades, sciences, special powers from the game
+  data). Write it to a file with path, or ask for single sections or templates.
+- Planning an AI for a faction: faction_generate once (and after game data changes), then
+  faction_get: overview first, then tree, units, or single types. Roles, slots and phases there
+  are guesses until someone has reviewed the faction's overrides file; `unavailable` types
+  cannot be built and must not be put into teams or build orders. After writing or changing an
+  AI, run faction_check on the player: it finds teams and build orders the faction cannot
+  fulfil.
+- AI sets repeat one skeleton per faction. ai_framework_generate finds it from the players of
+  the open map; ai_framework_get shows which scripts, flags, timers, team names, hooks and
+  object lists every faction is expected to have, and where the factions differ.
+- A new faction AI: ai_scaffold derives it from the AI of a related faction (dry run first; it
+  keeps the shared scripts, translates the rest through faction_map and lists what has no
+  counterpart). Then work through its `unmapped` list and faction_check.
 - Rebalancing: teams_summary and scripts_compare show what a faction has and how two differ;
   scripts_set_values and teams_set_many change many values at once (try dry_run first);
   scripts_missing groups broken references by cause and suggests the intended names. Run scripts_verify after a batch of changes. Script edits fail while
@@ -677,6 +697,274 @@ def objects_info(templates: list[str] | None = None, filter: str | None = None, 
     that produce it. Pass the names as templates (up to 60; unknown ones come back in `unknown`),
     or a name substring as filter. Use it to judge team compositions and build orders."""
     return wb.call("objects.info", templates=templates, filter=filter, limit=limit)
+
+
+@mcp.tool()
+def faction_describe(faction: str, path: str | None = None, scope: Literal["side", "tree"] = "side",
+                     sections: list[str] | None = None, templates: list[str] | None = None) -> dict:
+    """A faction as the game data defines it, read from the loaded templates (inheritance, reskins
+    and module overrides resolved). faction is a faction name from sides_list_factions
+    (FactionChina) or its side (China). No map is needed. Sections of the result:
+    - faction: starting building and units, start money, intrinsic sciences, science command
+      sets, cost and build time multipliers of single types.
+    - objects: per unit and structure name, side, in_tech_tree, kind_of, cost, build_time
+      (seconds), energy, max_simultaneous, vision, health, locomotor (speed per second,
+      surfaces), contain, stealth, detector_range, supply_boxes, modules, weapon_sets and
+      armor_sets by condition, prerequisites, built_by, and from its command sets: builds,
+      upgrades, special_powers, abilities (button names as script actions take them).
+      `prerequisites` are all required: one type out of every group in `objects`, and every
+      science in `sciences`. `stealth` is set for innate stealth only.
+    - weapons: damage, damage_radius, damage_type, range, shot_delay and clip_reload (seconds),
+      clip_size, anti (what it may target), projectile, and dps: sustained damage per second on
+      one target before armor (wrong for weapons that deal their damage through spawned objects).
+    - armors: damage_taken per damage type as a factor (types at 1.0 left out).
+    - upgrades: type, cost, build_time, researched_at.
+    - sciences: point_cost, prerequisites, purchase_rank, what they unlock.
+    - special_powers: type, reload_time (seconds), required_science, used_by.
+    scope "side" adds the unit and structure types of the side that nothing in the tech tree
+    builds (in_tech_tree false; often AI-only variants); "tree" leaves them out. templates
+    narrows objects, weapons and armors to the named types. The whole description is large
+    (hundreds of KB): give path to write it to a JSON file and get only the counts back, or ask
+    for single sections / templates."""
+    doc = wb.call("faction.describe", faction=faction, scope=scope, sections=sections, templates=templates)
+    if path is None:
+        return doc
+    full = os.path.abspath(path)
+    with open(full, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(doc, f, indent=1, ensure_ascii=False)
+    result = {"path": full, "bytes": os.path.getsize(full), "counts": doc["counts"]}
+    if "unknown_templates" in doc:
+        result["unknown_templates"] = doc["unknown_templates"]
+    return result
+
+
+FACTION_FOLDER = "worldbuilder_factions"
+_exe_dir: str | None = None
+
+
+def _faction_dir(directory: str | None) -> str:
+    """The folder of the faction files: next to the WorldBuilder executable, which runs in the
+    folder of the game data it describes. A relative directory is taken from there as well."""
+    global _exe_dir
+    override = directory or os.environ.get("WB_MCP_FACTION_DIR")
+    if override and os.path.isabs(override):
+        return override
+    if _exe_dir is None:
+        _exe_dir = wb.call("app.info")["exe_dir"]
+    return os.path.join(_exe_dir, override or FACTION_FOLDER)
+
+
+@mcp.tool()
+def faction_generate(faction: str, directory: str | None = None) -> dict:
+    """Writes the description of a faction that AI scripts and teams are planned from, into the
+    `worldbuilder_factions` folder next to the WorldBuilder executable, i.e. in the game or mod
+    folder (directory or WB_MCP_FACTION_DIR name another one; relative to the executable):
+    - <Faction>.generated.json: the facts of faction_describe, cleaned and extended. Test,
+      cinematic and unselectable types are dropped; every type gets `tier` (structures to build
+      before it), `build_path` with `path_cost`, `unlocks`, `combat` (range, targets, damage per
+      second against infantry, vehicle, aircraft and structure armor, and per 1000 credits),
+      `role_guess`, `phase_guess`, and `unavailable` when its prerequisites cannot be met by
+      the faction. Rewritten on every run; run it again after the game data changed.
+    - <Faction>.overrides.yaml: the tuning, by hand: `slots` (abstract roles such as barracks,
+      main_battle, anti_air -> types), per unit role, phase, ai_use, weight, counters, micro and
+      notes, plus `exclude` / `include` lists for the next run. Written once from the guesses,
+      then never touched; later runs report types that are new or gone.
+    - <Faction>.doctrine.md: free text on how the faction should play. A skeleton, written once.
+    Read the result with faction_get. WorldBuilder reads the game data at startup: restart it
+    after INI changes."""
+    raw = wb.call("faction.describe", faction=faction, scope="side")
+    try:
+        return faction_data.generate(raw, raw["faction"]["name"], _faction_dir(directory))
+    except (ValueError, OSError, yaml.YAMLError) as e:
+        raise ToolError(str(e)) from e
+
+
+@mcp.tool()
+def faction_get(faction: str, view: Literal["overview", "tree", "units", "unit", "upgrades", "sciences",
+                                             "special_powers", "other_objects"] = "overview",
+                names: list[str] | None = None, directory: str | None = None) -> dict:
+    """One view of a faction description made by faction_generate, with the overrides merged in
+    (faction is the name used there, e.g. FactionChina). Start with the overview.
+    - overview: starting set, slots, every type with role, phase, tier and cost, and the doctrine.
+    - tree: per type what builds it, prerequisites, what it unlocks and builds, build path, cost.
+    - units: the combat table: health, speed, range, targets, damage per second by target kind,
+      stealth, detection, cargo, and the tuning notes. Structures with weapons under `defenses`.
+    - unit: everything about the types in `names`, with their weapons and armors.
+    - upgrades, sciences, special_powers: cost, where researched, what they need and unlock.
+    - other_objects: types of the side that nothing builds (spawned, AI-only, leftovers).
+    Damage per second is against the faction's commonest armor of each kind (`reference_armor`)."""
+    try:
+        return faction_data.view(faction_data.load(faction, _faction_dir(directory)), view, names)
+    except (ValueError, OSError, yaml.YAMLError) as e:
+        raise ToolError(str(e)) from e
+
+
+@mcp.tool()
+def faction_check(player: str, faction: str | None = None, include_teams: bool = False, max_where: int = 8,
+                  directory: str | None = None) -> dict:
+    """Checks the scripts and teams of a player in the open map against what its faction can
+    do, using the description made by faction_generate. faction defaults to the player's
+    faction. Equal findings are folded into one entry with `count` and the first `max_where`
+    places. Errors are things that cannot work:
+    - teams with types the faction does not have, cannot build (`unavailable`), structures,
+      types nothing builds, more units than the build limit allows, minimum above maximum;
+    - teams and build scripts that need a structure no build script builds;
+    - build scripts for types that are unavailable or no structures; upgrades whose research
+      structure is never built.
+    Warnings want a look: types, upgrades, sciences, special powers and command buttons of
+    other factions, types marked ai_use: never, ships mixed with land units. Infos are
+    judgement calls: combat teams without anti-air, large speed differences, a power deficit,
+    core structures never built. `unused` lists combat units in no team, structures never
+    built and upgrades never mentioned: what the AI leaves on the table.
+    include_teams adds a row per team: cost range, tier, roles, structures needed, anti-air.
+    This checks what can be built, not whether scripts refer to things that exist
+    (scripts_verify, scripts_missing) or whether the AI plays well."""
+    if faction is None:
+        for side in wb.call("sides.list")["players"]:
+            if side.get("playerName") == player:
+                faction = side.get("playerFaction")
+        if not faction:
+            raise ToolError(f"player '{player}' has no faction set; pass faction")
+    dump = wb.call("scripts.dump", player=player, include_teams=True)
+    order = wb.call("scripts.build_order", player=player)
+    try:
+        doc = faction_data.load(faction, _faction_dir(directory))
+        return faction_data.check(doc, player, dump, order, include_teams, max_where)
+    except (ValueError, OSError, yaml.YAMLError) as e:
+        raise ToolError(str(e)) from e
+
+
+@mcp.tool()
+def ai_framework_generate(players: list[str] | None = None, directory: str | None = None) -> dict:
+    """Finds the skeleton the AI players of the open map share, by comparing their scripts and
+    teams with each other, and writes it to ai_framework.generated.json in the faction folder
+    (see faction_generate). players defaults to those whose name starts with "Skirmish", or
+    all players with scripts. Names are compared with what is particular to a player taken
+    out: its name becomes <PLAYER>, the word its own teams and groups start with <TAG>.
+    It records: the group layout; every script with a class (framework: identical in all
+    players; parameterized: same structure, some parameters differ, kept as a template with
+    ${n} holes and the value per player; partial: only some players; divergent: same name,
+    different structure; specific: one player); flags, counters and timers with the scripts
+    that write and read them; the scripts teams hook into; the team roster with units per
+    player; object lists with members per player; the waypoint paths and areas the scripts
+    expect of a map; attack priority sets. ai_framework.notes.md is written once as a skeleton
+    for what only a person can say. Read the result with ai_framework_get; run again after the
+    scripts changed."""
+    dump = wb.call("scripts.dump", include_teams=True)
+    if players is None:
+        with_scripts = [e["player"] for e in dump["players"] if e.get("scripts") or any(g.get("scripts") for g in e.get("groups", []))]
+        skirmish = [p for p in with_scripts if p.startswith("Skirmish")]
+        players = skirmish if len(skirmish) >= 2 else with_scripts
+    try:
+        return framework_data.generate(dump, _faction_dir(directory), players)
+    except (ValueError, OSError) as e:
+        raise ToolError(str(e)) from e
+
+
+@mcp.tool()
+def ai_framework_get(view: Literal["overview", "groups", "scripts", "script", "symbols", "teams", "team_hooks",
+                                   "script_calls", "object_lists", "map_names", "attack_priority_sets"] = "overview",
+                     filter: str | None = None, names: list[str] | None = None, directory: str | None = None) -> dict:
+    """One view of the AI framework found by ai_framework_generate. Without filter the larger
+    views are summaries; with one they are complete for what matches.
+    - overview: players and their tags, group layout, counts per script class, the notes.
+    - groups: every group with its script count per player.
+    - scripts: counts per group and class; filter by a class, a group or part of a name.
+    - script: the scripts in `names` in full: flags, template, and per varying parameter the
+      value each player uses (these are the places a new faction fills in).
+    - symbols: flags, counters and timers shared by all players, and ones written but never
+      read or read but never written; filter for the scripts that write and read.
+    - teams: the roster all players share (name, priority, hooks); filter for all settings and
+      the units per player.
+    - team_hooks: scripts that teams run (production condition, on create, generic hooks ...).
+    - script_calls: scripts that other scripts call, enable or disable.
+    - object_lists: the named type lists and how many types each holds; filter for members.
+    - map_names: waypoint paths and areas the scripts expect in every map.
+    A new faction AI should keep the framework and parameterized scripts, the shared symbols,
+    the shared team names and hooks, and fill the object lists with its own types."""
+    try:
+        return framework_data.view(framework_data.load(_faction_dir(directory)), view, filter, names)
+    except (ValueError, OSError) as e:
+        raise ToolError(str(e)) from e
+
+
+def _player_faction(player: str) -> str:
+    for side in wb.call("sides.list")["players"]:
+        if side.get("playerName") == player and side.get("playerFaction"):
+            return side["playerFaction"]
+    raise ToolError(f"the map has no player '{player}' with a faction")
+
+
+@mcp.tool()
+def faction_map(from_faction: str, to_faction: str, overrides: dict[str, str] | None = None, full: bool = False,
+                directory: str | None = None) -> dict:
+    """Counterparts in one faction for the types, upgrades, sciences, special powers and command
+    buttons of another, from their descriptions (faction_generate). Each is found by, in order:
+    an override (the argument, or `counterparts` in the target's overrides file); the same
+    name; the same name without the general's prefix (Tank_ChinaBarracks -> Nuke_ChinaBarracks);
+    the same single slot (barracks -> barracks); for types, the nearest type with the same role
+    and category by tier and cost; for buttons, the button on the counterpart type that builds,
+    researches or fires the counterpart thing. Returns the count per method, the role matches
+    (the weakest: review them) and what has no counterpart; full adds every pair."""
+    try:
+        folder = _faction_dir(directory)
+        mapping = scaffold_data.map_names(faction_data.load(from_faction, folder), faction_data.load(to_faction, folder), overrides)
+    except (ValueError, OSError, yaml.YAMLError) as e:
+        raise ToolError(str(e)) from e
+    if full:
+        return mapping
+    return {"from": mapping["from"], "to": mapping["to"], "summary": mapping["summary"],
+            "by_role": {name: m["to"] for name, m in mapping["objects"].items() if m["by"] == "role"},
+            "by_slot": {name: m["to"] for name, m in mapping["objects"].items() if m["by"] == "slot"},
+            "unmapped": mapping["unmapped"]}
+
+
+@mcp.tool()
+def ai_scaffold(player: str, faction: str, like_player: str, tag: str, overrides: dict[str, str] | None = None,
+                drop_unmapped: bool = False, dry_run: bool = True, path: str | None = None,
+                directory: str | None = None) -> dict:
+    """Derives the AI of `player` (faction `faction`) from the scripts and teams of
+    `like_player`, an AI player of the open map, preferably of a related faction. Needs the
+    descriptions of both factions (faction_generate) and the framework (ai_framework_generate).
+    - Scripts all players share are copied unchanged, their lists of enemy types included.
+    - Scripts that differ between players only in some parameters get those parameters
+      translated; all other scripts get every type, upgrade, science, special power and command
+      button of the source faction translated (see faction_map for how; overrides adds pairs).
+    - Teams are copied with their units translated. `tag` (2-8 letters) replaces the source
+      player's tag in team, group and script names; team names without it get it in front.
+    What has no counterpart is left as it is and listed in `unmapped` with where it is used;
+    drop_unmapped leaves those scripts and teams out instead. `mapped_by_role_only` are the
+    weakest translations. dry_run (the default) changes nothing; path writes the result as a
+    scripts_dump file to review or edit and load with scripts_load. With dry_run=false the
+    player is created if missing and ALL its scripts and teams are replaced (one undo step);
+    the result then includes faction_check. The outcome is a starting point: work through
+    unmapped and the check, then fill in what makes the faction its own."""
+    try:
+        folder = _faction_dir(directory)
+        src = faction_data.load(_player_faction(like_player), folder)
+        dst = faction_data.load(faction, folder)
+        skeleton = framework_data.load(folder)
+        dump = wb.call("scripts.dump", include_teams=True)
+        mapping = scaffold_data.map_names(src, dst, overrides)
+        made = scaffold_data.scaffold(dump, skeleton, src, dst, like_player, player, tag, mapping, drop_unmapped)
+    except (ValueError, OSError, yaml.YAMLError) as e:
+        raise ToolError(str(e)) from e
+    report = made["report"]
+    report["mapping"] = mapping["summary"]
+    if path:
+        full = os.path.abspath(path)
+        with open(full, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(made["document"], f, indent=1, ensure_ascii=False)
+        report["path"] = full
+    if dry_run:
+        report["dry_run"] = True
+        return report
+    report["load"] = wb.call("scripts.load", data=made["document"], create_players=True)
+    checked = faction_data.check(dst, player, wb.call("scripts.dump", player=player, include_teams=True),
+                                 wb.call("scripts.build_order", player=player))
+    report["check"] = {"issue_counts": checked["issue_counts"],
+                       "errors": [i for i in checked["issues"] if i["severity"] == "error"]}
+    return report
 
 
 @mcp.tool()
