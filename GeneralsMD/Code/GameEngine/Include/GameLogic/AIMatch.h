@@ -29,6 +29,8 @@
 //   -aiMatchMinutes <n>          game time after which the match is stopped (default 30)
 //   -aiMatchInterval <seconds>   game time between snapshots (default 10)
 //   -aiMatchCash <n>             starting cash (default: the game's)
+//   -aiMatchScripts <file>       AI scripts to use instead of Data\Scripts\SkirmishScripts.scb
+//   -aiMatchAIData <file>        an AIData.ini read on top of the game's, to try out changes to it
 //   -seed <n>                    random seed, for a repeatable match
 
 #pragma once
@@ -67,6 +69,9 @@ public:
 	/// The player whose AI is at work, so that what it reports can be put down to it. Null when none is.
 	void setAIPlayer(Player *player) { m_aiPlayer = player; }
 
+	/// The script file the skirmish players get their AI from; empty for the game's own.
+	const AsciiString &getScriptFile() const { return m_scriptFile; }
+
 private:
 	struct Entrant
 	{
@@ -103,6 +108,8 @@ private:
 
 	AsciiString m_map;
 	AsciiString m_logPath;
+	AsciiString m_scriptFile;
+	AsciiString m_aiDataFile;
 	std::vector<Entrant> m_entrants;
 	UnsignedInt m_maxFrames;
 	UnsignedInt m_snapshotFrames;

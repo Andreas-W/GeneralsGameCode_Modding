@@ -24,7 +24,9 @@
 #include "GameLogic/AIMatch.h"
 
 #include "Common/Energy.h"
+#include "Common/FileSystem.h"
 #include "Common/GameEngine.h"
+#include "Common/INI.h"
 #include "Common/GlobalData.h"
 #include "Common/KindOf.h"
 #include "Common/MessageStream.h"
@@ -168,6 +170,10 @@ AIMatch *AIMatch::createFromCommandLine()
 			match->m_snapshotFrames = (UnsignedInt)(atof(value) * (Real)LOGICFRAMES_PER_SECOND);
 		} else if (match && stricmp(arg, "-aiMatchCash") == 0) {
 			match->m_startingCash = atoi(value);
+		} else if (match && stricmp(arg, "-aiMatchScripts") == 0) {
+			match->m_scriptFile = value;
+		} else if (match && stricmp(arg, "-aiMatchAIData") == 0) {
+			match->m_aiDataFile = value;
 		}
 	}
 	if (match == nullptr) {
@@ -245,6 +251,26 @@ void AIMatch::start()
 		mapKey = found;
 	}
 	const MapMetaData *mapData = TheMapCache->findMap(mapKey);
+
+	// Files that stand in for the game's own, to try changes without installing them.
+	if (m_scriptFile.isNotEmpty() && !TheFileSystem->doesFileExist(m_scriptFile.str())) {
+		AsciiString reason;
+		reason.format("script file '%s' not found", m_scriptFile.str());
+		fail(reason.str());
+		return;
+	}
+	if (m_aiDataFile.isNotEmpty()) {
+		if (!TheFileSystem->doesFileExist(m_aiDataFile.str())) {
+			AsciiString reason;
+			reason.format("AIData file '%s' not found", m_aiDataFile.str());
+			fail(reason.str());
+			return;
+		}
+		// Read over what the game has loaded: its settings, side infos and build lists replace those of the same name.
+		INI ini;
+		ini.load(m_aiDataFile, INI_LOAD_OVERWRITE, nullptr);
+	}
+
 	if (m_entrants.size() < 2) {
 		fail("-aiPlayers needs at least two players (Faction:difficulty,Faction:difficulty)");
 		return;
@@ -311,8 +337,10 @@ void AIMatch::start()
 		TheSkirmishGameInfo->setStartingCash(TheGlobalData->m_defaultStartingCash);
 	}
 
-	fprintf(m_log, "{\"t\":\"setup\",\"map\":%s,\"seed\":%d,\"max_frames\":%u,\"snapshot_frames\":%u,\"frames_per_second\":%d}\n",
-		quoted(mapKey).c_str(), seed, m_maxFrames, m_snapshotFrames, (Int)LOGICFRAMES_PER_SECOND);
+	fprintf(m_log, "{\"t\":\"setup\",\"map\":%s,\"seed\":%d,\"max_frames\":%u,\"snapshot_frames\":%u,\"frames_per_second\":%d,"
+		"\"scripts\":%s,\"ai_data\":%s}\n",
+		quoted(mapKey).c_str(), seed, m_maxFrames, m_snapshotFrames, (Int)LOGICFRAMES_PER_SECOND,
+		quoted(m_scriptFile).c_str(), quoted(m_aiDataFile).c_str());
 	fflush(m_log);
 
 	// From here on as the skirmish menu starts a game.
