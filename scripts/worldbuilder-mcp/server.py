@@ -75,7 +75,9 @@ Workflow tips:
 - Whether an AI really plays is found out by letting it: ai_match_run starts the game for a
   skirmish between AI players and logs it, ai_match_report says what each one built when, what
   it never built, which scripts and teams never ran and what the script engine complained
-  about. The match uses the installed scripts, not the ones open in WorldBuilder.
+  about. The match uses the installed scripts unless told otherwise: scripts="open" plays
+  with what is open in WorldBuilder, ai_data with a changed AIData.ini. With the same seed, a
+  match before and after a change shows what the change did.
 - AI sets repeat one skeleton per faction. ai_framework_generate finds it from the players of
   the open map; ai_framework_get shows which scripts, flags, timers, team names, hooks and
   object lists every faction is expected to have, and where the factions differ.
@@ -1238,7 +1240,8 @@ def _game_dir() -> str:
 
 @mcp.tool()
 def ai_match_run(map: str, players: list[str], minutes: float = 15, seed: int = 1, interval_seconds: float = 10,
-                 starting_cash: int | None = None, wait_seconds: float = 240, log: str | None = None) -> dict:
+                 starting_cash: int | None = None, wait_seconds: float = 240, log: str | None = None,
+                 scripts: str | Literal["open"] | None = None, ai_data: str | None = None) -> dict:
     """Lets the game play a skirmish between AI players by itself and write down what happens.
     It starts generalszh.exe from WorldBuilder's folder in a window (it takes the screen while
     it runs), with the local player as observer, no frame rate limit and no sound; the game
@@ -1248,8 +1251,15 @@ def ai_match_run(map: str, players: list[str], minutes: float = 15, seed: int = 
       "FactionGLA:hard"]; difficulty easy, normal or hard; players with the same team number
       are allies. Start positions are random, fixed by seed.
     - seed: the same seed gives the same match as long as scripts and game data are the same.
-    The AI the game uses is the installed one (Data/Scripts/SkirmishScripts.scb and
-    AIData.ini), not the scripts open in WorldBuilder: export them first to test changes.
+    By default the game uses the installed AI (Data/Scripts/SkirmishScripts.scb and
+    AIData.ini). To try changes without installing them:
+    - scripts="open" plays with the scripts and teams open in WorldBuilder right now (they
+      are exported to a file next to the log; the open map must hold the whole AI set, i.e.
+      the Skirmish... players), or scripts=<path of a .scb file> plays with that file;
+    - ai_data=<path> reads that AIData.ini on top of the game's: its settings, SideInfo
+      blocks and build lists replace those of the same name (see aidata_set_side and
+      buildlist_export with path).
+    The report names the files a match used.
     A match runs several times faster than real time. The call waits up to wait_seconds; if
     the match is still going it returns status "running" and ai_match_report can be asked
     later. The log (JSON lines) goes to worldbuilder_factions/matches unless log names a file."""
@@ -1258,10 +1268,22 @@ def ai_match_run(map: str, players: list[str], minutes: float = 15, seed: int = 
         stamp = time.strftime("%Y%m%d_%H%M%S")
         name = "".join(c if c.isalnum() else "_" for c in map)[:30]
         log = os.path.join(_faction_dir(None), "matches", f"{stamp}_{name}_seed{seed}.jsonl")
+    log = os.path.abspath(log)
+    if scripts == "open":
+        owners = [p["playerName"] for p in wb.call("sides.list")["players"] if p.get("playerName", "").startswith("Skirmish")]
+        if not owners:
+            raise ToolError("the open map has no Skirmish... players: import the AI script set first, or pass a .scb path")
+        scripts = os.path.splitext(log)[0] + ".scb"
+        os.makedirs(os.path.dirname(scripts), exist_ok=True)
+        wb.call("scripts.export", path=scripts, include_players=True, overwrite=True, backup=False)
     try:
-        result = match_data.run(game_dir, map, players, os.path.abspath(log), minutes, seed, interval_seconds, starting_cash, wait_seconds)
+        result = match_data.run(game_dir, map, players, log, minutes, seed, interval_seconds, starting_cash, wait_seconds,
+                                scripts=os.path.abspath(scripts) if scripts else None,
+                                ai_data=os.path.abspath(ai_data) if ai_data else None)
     except OSError as e:
         raise ToolError(str(e)) from e
+    if scripts:
+        result["scripts"] = os.path.abspath(scripts)
     if os.path.exists(result["log"]):
         brief = match_data.report(match_data.read(result["log"]))
         result.update({k: brief[k] for k in ("status", "reason", "winners", "game_minutes") if k in brief})

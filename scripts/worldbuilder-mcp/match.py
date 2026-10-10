@@ -22,18 +22,22 @@ RANK_SCIENCE = re.compile(r"^SCIENCE_Rank\d+$")
 
 
 def command_line(map_name: str, players: list[str], log: str, minutes: float, seed: int, interval: float,
-                 cash: int | None, width: int, height: int) -> list[str]:
+                 cash: int | None, width: int, height: int, scripts: str | None = None, ai_data: str | None = None) -> list[str]:
     args = ["-win", "-xres", str(width), "-yres", str(height), "-noaudio", "-quickstart", "-ignoreAsserts",
             "-aiMatch", map_name, "-aiPlayers", ",".join(players), "-aiMatchLog", log,
             "-aiMatchMinutes", str(minutes), "-aiMatchInterval", str(interval), "-seed", str(seed)]
     if cash:
         args += ["-aiMatchCash", str(cash)]
+    if scripts:
+        args += ["-aiMatchScripts", scripts]
+    if ai_data:
+        args += ["-aiMatchAIData", ai_data]
     return args
 
 
 def run(game_dir: str, map_name: str, players: list[str], log: str, minutes: float = 15, seed: int = 1,
         interval: float = 10, cash: int | None = None, wait_seconds: float = 240, width: int = 1024,
-        height: int = 768) -> dict[str, Any]:
+        height: int = 768, scripts: str | None = None, ai_data: str | None = None) -> dict[str, Any]:
     """Starts a match and waits up to wait_seconds for it to end."""
     exe = os.path.join(game_dir, GAME_EXE)
     if not os.path.exists(exe):
@@ -41,7 +45,11 @@ def run(game_dir: str, map_name: str, players: list[str], log: str, minutes: flo
     os.makedirs(os.path.dirname(log), exist_ok=True)
     if os.path.exists(log):
         os.remove(log)
-    process = subprocess.Popen([exe] + command_line(map_name, players, log, minutes, seed, interval, cash, width, height), cwd=game_dir)
+    for label, path in (("script file", scripts), ("AIData file", ai_data)):
+        if path and not os.path.exists(path):
+            raise FileNotFoundError(f"{label} {path} not found")
+    process = subprocess.Popen([exe] + command_line(map_name, players, log, minutes, seed, interval, cash, width, height, scripts, ai_data),
+                               cwd=game_dir)
     started = time.time()
     result: dict[str, Any] = {"log": log, "pid": process.pid}
     try:
@@ -116,6 +124,9 @@ def report(records: list[dict[str, Any]], dump: dict[str, Any] | None = None, fa
     end = by_type.get("end", [None])[0]
     result: dict[str, Any] = {"status": "finished" if end else ("running" if "start" in by_type else "starting"),
                               "map": setup["map"], "seed": setup["seed"]}
+    for key in ("scripts", "ai_data"):
+        if setup.get(key):
+            result[key] = setup[key]
     if not snaps or "start" not in by_type:
         return result
     last_frame = end["frame"] if end else snaps[-1]["frame"]
