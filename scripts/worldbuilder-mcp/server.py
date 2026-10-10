@@ -44,6 +44,12 @@ Workflow tips:
 - Skirmish maps: add Player_<N>_Start waypoints, then run ai_skirmish_setup (and ai_skirmish_check).
   The AI needs numbered names: InnerPerimeter1, OuterPerimeter1 and paths labeled Center1, Flank1,
   Backdoor1 leading into base 1, and so on per player. Plain "Center" labels are ignored.
+- Ships: a map is meant for ships when its map.ini sets EnableShips (map_info: ships_enabled;
+  map_set_info sets it). Scripts test that with the condition SKIRMISH_SHIPS_ENABLED and build
+  shipyards with SKIRMISH_BUILD_SHIPYARD, which uses the waypoints Shipyard<player>_<n>. Naval
+  teams keep to the area [Skirmish]MyNavalPerimeter and attack along Naval / NavalFlank paths.
+  ai_skirmish_check lists what a map has of these; faction_check wants shipyard scripts and
+  ship teams to ask SKIRMISH_SHIPS_ENABLED.
 - Scripts (map scripts and AI scripts): scripts_list / scripts_get to read, scripts_add /
   scripts_update to write, scripts_list_actions / scripts_list_conditions to find the types,
   scripts_find to search what scripts contain (who uses a team, script, object type ...).
@@ -153,9 +159,12 @@ def map_save(path: str | None = None) -> dict:
 @mcp.tool()
 def map_set_info(name: str | None = None,
                  time_of_day: Literal["MORNING", "AFTERNOON", "EVENING", "NIGHT"] | None = None,
-                 weather: Literal["NORMAL", "SNOWY"] | None = None) -> dict:
-    """Changes the map name, time of day or weather."""
-    return wb.call("map.set_info", name=name, time_of_day=time_of_day, weather=weather)
+                 weather: Literal["NORMAL", "SNOWY"] | None = None, ships_enabled: bool | None = None) -> dict:
+    """Changes the map name, time of day or weather. ships_enabled sets EnableShips in the
+    map.ini next to the map (the map must have been saved): it tells the AI scripts that this
+    map is meant for ships (condition SKIRMISH_SHIPS_ENABLED). map_info shows it; see
+    ai_skirmish_check for what such a map needs."""
+    return wb.call("map.set_info", name=name, time_of_day=time_of_day, weather=weather, ships_enabled=ships_enabled)
 
 
 @mcp.tool()
@@ -1046,7 +1055,11 @@ def faction_check(player: str, faction: str | None = None, include_teams: bool =
     - build scripts for types that are unavailable or no structures; upgrades whose research
       structure is never built;
     - build scripts for structures that have no place in the side's SkirmishBuildList in
-      AIData.ini (the action then does nothing), or a list without a command center.
+      AIData.ini (the action then does nothing), or a list without a command center;
+    - shipyards built with SKIRMISH_BUILD_BUILDING instead of SKIRMISH_BUILD_SHIPYARD, or the
+      other way round.
+    Shipyard scripts and teams of ships that do not ask SKIRMISH_SHIPS_ENABLED are listed as
+    infos: they are tried on maps without ships too.
     Warnings want a look: types, upgrades, sciences, special powers and command buttons of
     other factions, types marked ai_use: never, ships mixed with land units. Infos are
     judgement calls: combat teams without anti-air, large speed differences, a power deficit,
@@ -1548,7 +1561,13 @@ def ai_skirmish_setup(inner_radius: float = 350, outer_radius: float = 600, flan
 def ai_skirmish_check() -> dict:
     """Checks whether the map has what the skirmish AI needs: per start position the perimeter
     areas and the number of waypoints on its Center/Flank/Backdoor approach paths, plus a list of
-    problems (missing areas or paths, path labels without a player number)."""
+    problems (missing areas or paths, path labels without a player number).
+    Ships: `ships_enabled` is EnableShips of the map.ini. Per player, `naval` holds the number
+    of shipyard waypoints (Shipyard<player>_<n>, numbered from 1 without gaps; the AI builds
+    its shipyards there), whether the area NavalPerimeter<player> exists, and the waypoints on
+    paths labeled Naval<player> and NavalFlank<player>. `naval_problems` lists what a map with
+    ships lacks, or that a map has naval markers but no EnableShips; `naval_ready` is true when
+    ships are enabled and nothing is missing."""
     return wb.call("ai.skirmish_check")
 
 

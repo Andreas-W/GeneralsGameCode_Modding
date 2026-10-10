@@ -366,6 +366,28 @@ def main() -> int:
     kinds = {i["kind"] for i in checked["issues"]}
     assert {"team_unknown_type", "team_min_over_max", "team_structure", "build_prerequisite_never_built"} <= kinds, kinds
     assert checked["checked"]["teams"] == 2 and checked["teams"][0]["cost_max"] > 0, checked
+    yard = next((o["name"] for o in merged["objects"].values() if "SHIPYARD" in o["kind_of"]), None)
+    ship = next((o["name"] for o in merged["objects"].values() if o.get("naval") and o.get("tier") is not None), None)
+    if yard and ship:
+        on_land = next(o["name"] for o in merged["objects"].values()
+                       if o["category"] == "structure" and "SHIPYARD" not in o["kind_of"])
+        guard = {"name": "ShipsOk", "conditions": [[{"type": "SKIRMISH_SHIPS_ENABLED", "params": []}]], "actions": []}
+        plain = {"name": "Always", "conditions": [[{"type": "CONDITION_TRUE", "params": []}]], "actions": []}
+        naval_dump = {"players": [{"player": "P", "scripts": [guard, plain, dict(guard, name="YardGuarded"), dict(plain, name="YardPlain")],
+                                   "groups": []}],
+                      "teams": [{"teamName": "Fleet", "teamOwner": "P", "teamUnitType1": ship, "teamUnitMinCount1": 1, "teamUnitMaxCount1": 1,
+                                 "teamProductionCondition": "ShipsOk"},
+                                {"teamName": "Lost", "teamOwner": "P", "teamUnitType1": ship, "teamUnitMinCount1": 1, "teamUnitMaxCount1": 1,
+                                 "teamProductionCondition": "Always"}]}
+        naval_order = {"steps": [{"script": "YardGuarded", "builds": [{"action": "SKIRMISH_BUILD_SHIPYARD", "what": yard}]},
+                                 {"script": "YardPlain", "builds": [{"action": "SKIRMISH_BUILD_BUILDING", "what": yard}]},
+                                 {"script": "YardPlain", "builds": [{"action": "SKIRMISH_BUILD_SHIPYARD", "what": on_land}]}]}
+        at_sea = faction_data.check(merged, "P", naval_dump, naval_order)
+        found_at_sea = {(i["kind"], tuple(i["where"])) for i in at_sea["issues"]}
+        assert ("team_ships_unguarded", ("team Lost",)) in found_at_sea, found_at_sea
+        assert ("build_shipyard_wrong_action", ("script YardPlain",)) in found_at_sea, found_at_sea
+        assert ("build_shipyard_wrong_type", ("script YardPlain",)) in found_at_sea, found_at_sea
+        assert not any(kind == "build_shipyard_unguarded" and "script YardGuarded" in where for kind, where in found_at_sea), found_at_sea
     import framework as framework_data
 
     def fake_player(name, tag, unit, extra):
@@ -418,6 +440,9 @@ def main() -> int:
     game_file = wb.call("game.read_file", path="Data\\INI\\Default\\AIData.ini")
     assert game_file["exists"] and "AIData" in game_file["text"], game_file.get("exists")
     assert not wb.call("game.read_file", path="Data\\INI\\NoSuchFile.ini")["exists"]
+    sea = wb.call("ai.skirmish_check")
+    assert sea["ships_enabled"] is False and sea["naval_ready"] is False and sea["naval_problems"] == [], sea
+    assert wb.call("map.info")["ships_enabled"] is False
     try:
         wb.call("game.read_file", path="C:\\Windows\\win.ini")
         raise AssertionError("game.read_file must refuse paths outside of Data")

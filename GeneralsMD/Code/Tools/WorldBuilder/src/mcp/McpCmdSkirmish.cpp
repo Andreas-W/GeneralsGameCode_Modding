@@ -33,6 +33,7 @@
 #include "PointerTool.h"
 #include "WHeightMapEdit.h"
 #include "WorldBuilderDoc.h"
+#include "Common/MapData.h"
 #include "Common/WellKnownKeys.h"
 #include "GameLogic/PolygonTrigger.h"
 #include "GameLogic/Scripts.h"
@@ -253,9 +254,89 @@ McpJson cmdSkirmishCheck(const McpJson &)
 		if (!findArea(outer)) { AsciiString m; m.format("missing area %s", outer.str()); problems.push(McpJson(m.str())); }
 		players.push(p);
 	}
+	// Ships: the AI builds shipyards at waypoints Shipyard<player>_<n> (n from 1, without gaps), keeps its
+	// fleet by the area NavalPerimeter<player> and attacks along paths labeled Naval<player> and
+	// NavalFlank<player>. Scripts ask for all of it only when the map.ini says EnableShips.
+	const bool shipsEnabled = TheMapData->m_enableShips != 0;
+	McpJson navalProblems = McpJson::makeArray();
+	bool anyNaval = false;
+	for (size_t i = 0; i < starts.size(); i++) {
+		const Int n = starts[i].number;
+		Int shipyards = 0;
+		bool gap = false;
+		for (Int index = 1; index <= 10; index++) {
+			AsciiString wanted;
+			wanted.format("%s%d_%d", SKIRMISH_SHIPYARD, n, index);
+			bool found = false;
+			for (MapObject *obj = MapObject::getFirstMapObject(); obj && !found; obj = obj->getNext()) {
+				found = obj->isWaypoint() && obj->getWaypointName().compareNoCase(wanted.str()) == 0;
+			}
+			if (found) {
+				// The AI stops looking at the first missing number.
+				if (index > shipyards + 1) gap = true;
+				shipyards = index;
+			}
+		}
+		Int navalPath = 0, navalFlank = 0;
+		for (MapObject *obj = MapObject::getFirstMapObject(); obj; obj = obj->getNext()) {
+			if (!obj->isWaypoint()) continue;
+			const NameKeyType keys[3] = { TheKey_waypointPathLabel1, TheKey_waypointPathLabel2, TheKey_waypointPathLabel3 };
+			for (Int k = 0; k < 3; k++) {
+				Bool exists = false;
+				const AsciiString label = obj->getProperties()->getAsciiString(keys[k], &exists);
+				AsciiString path, flank;
+				path.format("Naval%d", n);
+				flank.format("NavalFlank%d", n);
+				if (exists && label.compareNoCase(path.str()) == 0) navalPath++;
+				if (exists && label.compareNoCase(flank.str()) == 0) navalFlank++;
+			}
+		}
+		AsciiString perimeter;
+		perimeter.format("%s%d", NAVAL_PERIMETER, n);
+		const bool hasPerimeter = findArea(perimeter) != nullptr;
+		anyNaval = anyNaval || shipyards > 0 || hasPerimeter || navalPath > 0 || navalFlank > 0;
+
+		McpJson p = McpJson::makeObject();
+		p.set("shipyard_waypoints", shipyards).set("naval_perimeter", hasPerimeter);
+		p.set("naval_waypoints", navalPath).set("naval_flank_waypoints", navalFlank);
+		for (size_t k = 0; k < players.size(); k++) {
+			if ((Int)players.at(k).get("player").asNumber() == n) {
+				McpJson merged = players.at(k);
+				merged.set("naval", p);
+				McpJson rebuilt = McpJson::makeArray();
+				for (size_t m = 0; m < players.size(); m++) rebuilt.push(m == k ? merged : players.at(m));
+				players = rebuilt;
+			}
+		}
+		if (shipsEnabled) {
+			AsciiString msg;
+			if (shipyards == 0) {
+				msg.format("player %d has no waypoint %s%d_1: its AI cannot build a shipyard", n, SKIRMISH_SHIPYARD, n);
+				navalProblems.push(McpJson(msg.str()));
+			}
+			if (gap) {
+				msg.format("player %d: the %s%d_<n> waypoints have a gap; the AI stops at the first missing number", n, SKIRMISH_SHIPYARD, n);
+				navalProblems.push(McpJson(msg.str()));
+			}
+			if (!hasPerimeter) {
+				msg.format("missing area %s", perimeter.str());
+				navalProblems.push(McpJson(msg.str()));
+			}
+			if (navalPath == 0) {
+				msg.format("player %d has no Naval%d approach path", n, n);
+				navalProblems.push(McpJson(msg.str()));
+			}
+		}
+	}
+	if (!shipsEnabled && anyNaval) {
+		navalProblems.push(McpJson("the map has shipyard waypoints, naval areas or naval paths, but its map.ini does not set EnableShips: scripts will not use them (map.set_info ships_enabled)"));
+	}
+
 	McpJson j = McpJson::makeObject();
 	j.set("players", players).set("combat_zone", findArea(COMBAT_ZONE_NAME) != nullptr);
 	j.set("problems", problems).set("ready", problems.size() == 0);
+	j.set("ships_enabled", shipsEnabled).set("naval_problems", navalProblems);
+	j.set("naval_ready", shipsEnabled && navalProblems.size() == 0);
 	return j;
 }
 
@@ -642,5 +723,5 @@ void mcpRegisterSkirmishCommands()
 {
 	mcpRegisterCommand("ai.skirmish_setup", cmdSkirmishSetup, "{inner_radius?=350, outer_radius?=600, flank_angle?=70, backdoor_angle?=70, path_points?=5, combat_zone?=true, replace?=true} Creates perimeters and Center/Flank/Backdoor approach paths for every Player_<N>_Start.");
 	mcpRegisterCommand("map.generate_starts", cmdGenerateStarts, "{players, base_radius?=300, edge_margin?, angle_deg?, distance?=1, flatten?=true, flatten_feather?=150, replace?=true} Places Player_<N>_Start waypoints evenly around the map center and levels the bases.");
-	mcpRegisterCommand("ai.skirmish_check", cmdSkirmishCheck, "Reports which skirmish AI areas and approach paths each start position has, and what is missing.");
+	mcpRegisterCommand("ai.skirmish_check", cmdSkirmishCheck, "Reports which skirmish AI areas and approach paths each start position has, and what is missing; for maps with EnableShips also the shipyard waypoints, naval areas and naval paths.");
 }

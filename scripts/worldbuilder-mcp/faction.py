@@ -585,6 +585,10 @@ def view(doc: dict[str, Any], what: str, names: list[str] | None = None) -> dict
 BUILD_UPGRADE_ACTIONS = ("AI_PLAYER_BUILD_UPGRADE",)
 # Build actions that take the place of the structure from the side's SkirmishBuildList.
 BUILD_LIST_ACTIONS = ("SKIRMISH_BUILD_BUILDING",)
+# Shipyards go to the map's Shipyard<player>_<n> waypoints instead.
+BUILD_SHIPYARD_ACTIONS = ("SKIRMISH_BUILD_SHIPYARD",)
+# The condition that is true on maps whose map.ini sets EnableShips.
+SHIPS_ENABLED = "SKIRMISH_SHIPS_ENABLED"
 COMMAND_BUTTON_PARAMS = ("COMMANDBUTTON", "COMMANDBUTTON_ABILITY", "COMMANDBUTTON_ALL_ABILITIES")
 COMBAT_ROLES = ("main_battle", "siege", "anti_infantry", "anti_tank")
 SEVERITIES = ("error", "warning", "info")
@@ -661,6 +665,7 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
     built: dict[str, str] = {}
     researched: dict[str, str] = {}
     from_list: dict[str, str] = {}
+    as_shipyard: dict[str, str] = {}
     for step in build_order.get("steps", []):
         for build in step["builds"]:
             what = build.get("what")
@@ -672,6 +677,33 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
                 built.setdefault(what, step["script"])
                 if build["action"] in BUILD_LIST_ACTIONS:
                     from_list.setdefault(what, step["script"])
+                elif build["action"] in BUILD_SHIPYARD_ACTIONS:
+                    as_shipyard.setdefault(what, step["script"])
+
+    # Scripts by name, and which of them ask whether the map has ships.
+    scripts_by_name: dict[str, dict[str, Any]] = {}
+    for entry in dump.get("players", []):
+        if entry.get("player") == player:
+            for script in entry.get("scripts", []) + [s for g in entry.get("groups", []) for s in g.get("scripts", [])]:
+                scripts_by_name.setdefault(script["name"], script)
+
+    def asks_for_ships(script_name: str) -> bool:
+        script = scripts_by_name.get(script_name)
+        return bool(script) and any(c.get("type") == SHIPS_ENABLED for clause in script.get("conditions", []) for c in clause)
+
+    for what, script in as_shipyard.items():
+        obj = objects.get(what)
+        if obj is not None and "SHIPYARD" not in obj["kind_of"]:
+            issues.add("error", "build_shipyard_wrong_type", f"{what} is no shipyard (KindOf SHIPYARD); SKIRMISH_BUILD_SHIPYARD does not build it",
+                       f"script {script}")
+        if not asks_for_ships(script):
+            issues.add("info", "build_shipyard_unguarded",
+                       f"builds a shipyard without the condition {SHIPS_ENABLED}; on maps without ships the action finds no place",
+                       f"script {script}")
+    for what, script in from_list.items():
+        if "SHIPYARD" in objects.get(what, {}).get("kind_of", []):
+            issues.add("error", "build_shipyard_wrong_action",
+                       f"{what} is a shipyard: SKIRMISH_BUILD_BUILDING has no place for it, use SKIRMISH_BUILD_SHIPYARD", f"script {script}")
     has_build_scripts = bool(built)
     standing = set(built) | {start}
 
@@ -794,6 +826,13 @@ def check(doc: dict[str, Any], player: str, dump: dict[str, Any], build_order: d
             if obj["category"] != "aircraft" and obj.get("locomotor", {}).get("speed", 0) > 0:
                 speeds.append(obj["locomotor"]["speed"])
         row["anti_air"] = hits_air
+        if True in naval:
+            row["naval"] = True
+            # A team of ships can only be built on maps with ships; its production condition should say so.
+            condition = team.get("teamProductionCondition", "")
+            if not asks_for_ships(condition):
+                issues.add("info", "team_ships_unguarded",
+                           f"team of ships whose production condition does not ask {SHIPS_ENABLED}; it is tried on every map", where)
         if len(naval) > 1:
             issues.add("warning", "team_land_and_sea", "mixes ships with land or air units", where)
         if sum(high for _, _, high in units) >= 4 and not hits_air and any(r in COMBAT_ROLES for r in row["roles"]):

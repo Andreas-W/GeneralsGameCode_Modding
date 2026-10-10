@@ -36,6 +36,8 @@
 #include "GameLogic/PolygonTrigger.h"
 
 #include <math.h>
+#include <string>
+#include <vector>
 
 namespace
 {
@@ -53,6 +55,8 @@ McpJson cmdMapInfo(const McpJson &)
 	j.set("title", (LPCTSTR)doc->GetTitle());
 	j.set("modified", doc->IsModified() != 0);
 	j.set("map_name", MapObject::getWorldDict()->getAsciiString(TheKey_mapName).str());
+	// EnableShips from the map.ini next to the map: whether the AI is to use ships here (SKIRMISH_SHIPS_ENABLED).
+	j.set("ships_enabled", (bool)(TheMapData->m_enableShips != 0));
 
 	McpJson grid = McpJson::makeObject();
 	grid.set("x_extent", xExtent).set("y_extent", yExtent).set("border", border);
@@ -186,9 +190,72 @@ McpJson cmdMapSave(const McpJson &args)
 	return McpJson::makeObject().set("path", (LPCTSTR)doc->GetPathName());
 }
 
+/// Sets a field of the MapData block in the map.ini next to the map, keeping the rest of the file.
+void setMapIniField(const char *key, const char *value)
+{
+	CString mapPath = mcpDoc()->GetPathName();
+	const int slash = mapPath.ReverseFind('\\');
+	if (mapPath.IsEmpty() || slash < 0) {
+		mcpFail("save the map first: %s is kept in the map.ini next to it", key);
+	}
+	const std::string iniPath = std::string((LPCTSTR)mapPath.Left(slash + 1)) + "map.ini";
+
+	std::vector<std::string> lines;
+	if (FILE *in = fopen(iniPath.c_str(), "r")) {
+		char buffer[1024];
+		while (fgets(buffer, sizeof(buffer), in)) {
+			std::string line = buffer;
+			while (!line.empty() && (line[line.size() - 1] == '\n' || line[line.size() - 1] == '\r')) line.erase(line.size() - 1);
+			lines.push_back(line);
+		}
+		fclose(in);
+	}
+
+	// Find the MapData block and the field in it.
+	const std::string newLine = std::string("  ") + key + " = " + value;
+	int blockStart = -1, blockEnd = -1, field = -1;
+	for (size_t i = 0; i < lines.size(); i++) {
+		std::string code = lines[i].substr(0, lines[i].find(';'));
+		const size_t first = code.find_first_not_of(" \t");
+		code = first == std::string::npos ? "" : code.substr(first);
+		while (!code.empty() && (code[code.size() - 1] == ' ' || code[code.size() - 1] == '\t')) code.erase(code.size() - 1);
+		if (blockStart < 0) {
+			if (_stricmp(code.c_str(), "MapData") == 0) blockStart = (int)i;
+		} else if (_stricmp(code.c_str(), "End") == 0) {
+			blockEnd = (int)i;
+			break;
+		} else if (_strnicmp(code.c_str(), key, strlen(key)) == 0 && code.find('=') != std::string::npos) {
+			field = (int)i;
+		}
+	}
+	if (field >= 0) {
+		lines[field] = newLine;
+	} else if (blockStart >= 0 && blockEnd >= 0) {
+		lines.insert(lines.begin() + blockEnd, newLine);
+	} else {
+		lines.push_back("MapData");
+		lines.push_back(newLine);
+		lines.push_back("End");
+	}
+
+	FILE *out = fopen(iniPath.c_str(), "w");
+	if (out == nullptr) {
+		mcpFail("cannot write %s", iniPath.c_str());
+	}
+	for (size_t i = 0; i < lines.size(); i++) {
+		fprintf(out, "%s\n", lines[i].c_str());
+	}
+	fclose(out);
+}
+
 McpJson cmdMapSetInfo(const McpJson &args)
 {
 	mcpDoc();
+	if (args.has("ships_enabled")) {
+		const bool enable = mcpArgBool(args, "ships_enabled", false);
+		setMapIniField("EnableShips", enable ? "Yes" : "No");
+		TheWriteableMapData->m_enableShips = enable;
+	}
 	if (args.has("name")) {
 		MapObject::getWorldDict()->setAsciiString(TheKey_mapName, AsciiString(mcpArgString(args, "name").c_str()));
 	}
@@ -368,7 +435,7 @@ void mcpRegisterMapCommands()
 	mcpRegisterCommand("map.new", cmdMapNew, "{width,height,initial_height,border,discard_changes} Creates a new map (sizes in cells, excluding border).");
 	mcpRegisterCommand("map.open", cmdMapOpen, "{path,discard_changes} Opens a .map file.");
 	mcpRegisterCommand("map.save", cmdMapSave, "{path?} Saves the map; path required for untitled maps.");
-	mcpRegisterCommand("map.set_info", cmdMapSetInfo, "{name?,time_of_day?,weather?} Changes map settings.");
+	mcpRegisterCommand("map.set_info", cmdMapSetInfo, "{name?,time_of_day?,weather?,ships_enabled?} Changes map settings. ships_enabled writes EnableShips to the map.ini next to the saved map.");
 	mcpRegisterCommand("edit.undo", cmdUndo, "{count?} Undoes the last edits.");
 	mcpRegisterCommand("edit.redo", cmdRedo, "{count?} Redoes undone edits.");
 	mcpRegisterCommand("view.set_camera", cmdSetCamera, "{x?,y?,angle_deg?,pitch?,zoom?,reset?} Moves the 3D camera. pitch: 1 default, larger = more top-down. zoom: wheel offset, negative zooms out.");
