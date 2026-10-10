@@ -34,6 +34,7 @@
 #include "Common/GameType.h"
 #include "GameLogic/Damage.h"
 #include "Common/STLTypedefs.h"
+#include "Common/SciencePurchaseSlots.h"
 
 class AIGroup;
 class AttackPriorityInfo;
@@ -88,7 +89,8 @@ enum
 	// If we want to consider the inner radius, we will specify guard inner. Otherwise, use guard outer.
 	AI_VISIONFACTOR_GUARDINNER = 0x04,
 };
-enum {MAX_AI_UPGRADES = 20};
+// A skill set can list every science a player can purchase.
+enum {MAX_AI_UPGRADES = MAX_PURCHASE_SCIENCES};
 
 typedef struct {
 	Int	m_numSkills;
