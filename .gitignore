@@ -52,7 +52,6 @@ thumbs.db
 
 ## AI assistant config (user-specific)
 /.claude/
-/CLAUDE.md
 
 ## IntelliJ, CLion, etc.
 /.idea
