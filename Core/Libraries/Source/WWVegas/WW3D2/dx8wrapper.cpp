@@ -316,7 +316,11 @@ bool DX8Wrapper::Init(void * hwnd, bool lite)
 
 			Direct3DCreate8Ptr = (Direct3DCreate8Type) GetProcAddress(D3D8Lib, "Direct3DCreate8");
 		}
-		if (Direct3DCreate8Ptr == nullptr) return false;
+		if (Direct3DCreate8Ptr == nullptr)
+		{
+			Shutdown();
+			return false;
+		}
 
 		/*
 		** Create the D3D interface object
@@ -330,6 +334,7 @@ bool DX8Wrapper::Init(void * hwnd, bool lite)
 			D3DInterface = Direct3DCreate8Ptr(D3D_SDK_VERSION);		// TODO: handle failure cases...
 		}
 		if (D3DInterface == nullptr) {
+			Shutdown();
 			return(false);
 		}
 		IsInitted = true;
