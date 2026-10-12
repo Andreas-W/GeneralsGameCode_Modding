@@ -1226,6 +1226,11 @@ void ParticleSystemInfo::validate()
 #endif
 
 	validateAlphaKeyframes(m_alphaKey, ARRAY_SIZE(m_alphaKey));
+
+#if !ENABLE_TERRAIN_CONFORMING_PARTICLES
+	if (m_particleAlignment == PARTICLE_ALIGNMENT_CONFORMING)
+		m_particleAlignment = PARTICLE_ALIGNMENT_XYPLANAR;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
