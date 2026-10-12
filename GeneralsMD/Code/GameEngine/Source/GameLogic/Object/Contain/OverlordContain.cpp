@@ -55,6 +55,7 @@ OverlordContainModuleData::OverlordContainModuleData()
 {
 //	m_initialPayload.count = 0;
 	m_experienceSinkForRider = TRUE;
+	m_addOnBoneName = "FIREPOINT";
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -67,6 +68,7 @@ void OverlordContainModuleData::buildFieldParse(MultiIniFieldParse& p)
 	{
     { "PayloadTemplateName",  INI::parseAsciiStringVectorAppend, nullptr, offsetof(OverlordContainModuleData, m_payloadTemplateNameData) },
     { "ExperienceSinkForRider",  INI::parseBool, nullptr, offsetof(OverlordContainModuleData, m_experienceSinkForRider) },
+    { "AddOnBoneName",  INI::parseAsciiString, nullptr, offsetof(OverlordContainModuleData, m_addOnBoneName) },
 
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -595,6 +597,56 @@ const ContainedItemsList* OverlordContain::getAddOnList() const
 
 ContainedItemsList* OverlordContain::getAddOnList() {
 	return &m_containList;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Place each rider on the bone of its own slot. The rider's draw module (W3DDependencyModelDraw)
+	* attaches to <bone><slot+1> in list order, so logic has to use the same bone, or turret aiming
+	* and projectile launch positions are computed from a different mount than the one drawn. */
+//-------------------------------------------------------------------------------------------------
+void OverlordContain::redeployOccupants()
+{
+	const OverlordContainModuleData* d = getOverlordContainModuleData();
+	const Object* me = getObject();
+
+	short slot = 0;
+	for (ContainedItemsList::const_iterator it = m_containList.begin(); it != m_containList.end(); ++it, ++slot)
+	{
+		Object* rider = *it;
+
+		AsciiString boneName;
+		boneName.format("%s%02d", d->m_addOnBoneName.str(), slot + 1);
+
+		Matrix3D matrix;
+		Bool found = FALSE;
+		if (d->m_passengersInTurret)
+		{
+			found = me->getSingleLogicalBonePositionOnTurret(TURRET_MAIN, boneName.str(), nullptr, &matrix);
+		}
+		else
+		{
+			found = me->getSingleLogicalBonePosition(boneName.str(), nullptr, &matrix);
+			// same fallback as the draw module: the bone name without a slot number
+			if (!found)
+				found = me->getSingleLogicalBonePosition(d->m_addOnBoneName.str(), nullptr, &matrix);
+		}
+
+		// no bone in the art, so ride on the container itself (keeps our orientation in sync too)
+		if (!found)
+			matrix = *me->getTransformMatrix();
+
+		if (isEnclosingContainerFor(rider))
+		{
+			Vector3 vectorPos = matrix.Get_Translation();
+			Coord3D pos;
+			pos.set(vectorPos.X, vectorPos.Y, vectorPos.Z);
+			rider->setPosition(&pos);
+		}
+		else
+		{
+			rider->setTransformMatrix(&matrix);
+		}
+	}
 }
 
 short OverlordContain::getRiderSlot(ObjectID riderID) const {

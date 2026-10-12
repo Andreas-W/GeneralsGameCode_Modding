@@ -46,6 +46,7 @@ public:
 
 	TemplateNameList m_payloadTemplateNameData;
 	Bool m_experienceSinkForRider;
+	AsciiString m_addOnBoneName;	///< bone prefix our riders sit on; must match the riders' AttachToBoneInContainer
 
 
 	static void buildFieldParse(MultiIniFieldParse& p);
@@ -111,6 +112,8 @@ public:
 
 	virtual Bool getContainerPipsToShow(Int& numTotal, Int& numFull) override;
 	virtual void createPayload() override;
+
+	virtual void redeployOccupants() override;	///< place each rider on the bone of its own slot, same as the rider's draw module
 
 	virtual short getRiderSlot(ObjectID riderID) const;
 	virtual short getPortableSlot(ObjectID portableID) const;
