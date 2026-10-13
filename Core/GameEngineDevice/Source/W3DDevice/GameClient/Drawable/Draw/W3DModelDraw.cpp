@@ -2097,7 +2097,9 @@ W3DModelDraw::~W3DModelDraw()
 //-------------------------------------------------------------------------------------------------
 void W3DModelDraw::doStartOrStopParticleSys()
 {
-	Bool hidden = getDrawable()->isDrawableEffectivelyHidden() || m_fullyObscuredByShroud;
+	const Drawable* draw = getDrawable();
+	Bool hidden = (draw->isDrawableEffectivelyHidden() && !draw->testDrawableStatus(DRAWABLE_STATUS_KEEP_PARTICLES_WHEN_HIDDEN))
+		|| m_fullyObscuredByShroud;
 
 	for (std::vector<ParticleSysTrackerType>::const_iterator it = m_particleSystemIDs.begin(); it != m_particleSystemIDs.end(); ++it)
 	//for (std::vector<ParticleSystemID>::const_iterator it = m_particleSystemIDs.begin(); it != m_particleSystemIDs.end(); ++it)
@@ -3088,7 +3090,8 @@ void W3DModelDraw::recalcBonesForClientParticleSystems()
 						// important: mark it as do-not-save, since we'll just re-create it when we reload.
 						sys->setSaveable(FALSE);
 
-						if (drawable->isDrawableEffectivelyHidden() || m_fullyObscuredByShroud)
+						if ((drawable->isDrawableEffectivelyHidden() && !drawable->testDrawableStatus(DRAWABLE_STATUS_KEEP_PARTICLES_WHEN_HIDDEN))
+							|| m_fullyObscuredByShroud)
 						{
 							sys->stop(); // don't start the systems for drawables that are hidden.
 						}
