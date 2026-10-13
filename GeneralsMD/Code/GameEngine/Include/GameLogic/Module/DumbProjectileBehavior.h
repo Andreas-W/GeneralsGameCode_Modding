@@ -91,6 +91,8 @@ public:
 
 	// UpdateModuleInterface
 	virtual UpdateSleepTime update() override;
+	// we hold ourselves (DISABLED_HELD) while lingering after detonation (KillSelfDelay) and must keep updating to die
+	virtual DisabledMaskType getDisabledTypesToProcess() const override { return MAKE_DISABLED_MASK( DISABLED_HELD ); }
 	virtual ProjectileUpdateInterface* getProjectileUpdateInterface() override { return this; }
 
 	// ProjectileUpdateInterface
