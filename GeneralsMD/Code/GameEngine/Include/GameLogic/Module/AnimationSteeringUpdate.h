@@ -33,6 +33,8 @@
 #include "GameLogic/Module/UpdateModule.h"
 
 enum PhysicsTurningType CPP_11(: Int);
+class Drawable;
+class PhysicsBehavior;
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -52,6 +54,8 @@ public:
 			{ "MinTransitionTime", INI::parseDurationUnsignedInt, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_transitionFrames ) },
 			{ "MinAngle", INI::parseAngleReal, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_minAngle ) },
 			{ "SkipCenteringAnims", INI::parseBool, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_skipCenteringAnims ) },
+			{ "BackwardsCondition", INI::parseBool, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_backwardsCondition ) },
+			{ "BackwardsTurnAnims", INI::parseBool, nullptr, offsetof( AnimationSteeringUpdateModuleData, m_backwardsTurnAnims ) },
 			{ 0, 0, 0, 0 }
 		};
     p.add(dataFieldParse);
@@ -61,6 +65,8 @@ public:
 	UnsignedInt m_transitionFrames;
 	Real m_minAngle;
 	Bool m_skipCenteringAnims;
+	Bool m_backwardsCondition;	///< set MOVING_BACKWARDS while the unit reverses
+	Bool m_backwardsTurnAnims;	///< while reversing, keep the turn conditions (otherwise they are suppressed)
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -80,6 +86,8 @@ public:
 	virtual UpdateSleepTime update() override; ///< Here's the actual work of Upgrading
 
 protected:
+
+	Bool updateBackwardsCondition( Drawable *draw, PhysicsBehavior *physics, UnsignedInt now );	///< returns true while reversing
 
   ModelConditionFlagType m_currentTurnAnim;
 	UnsignedInt m_nextTransitionFrame;

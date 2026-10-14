@@ -47,6 +47,8 @@ AnimationSteeringUpdateModuleData::AnimationSteeringUpdateModuleData()
 	m_transitionFrames = 0;
 	m_minAngle = 0.0f;
 	m_skipCenteringAnims = false;
+	m_backwardsCondition = false;
+	m_backwardsTurnAnims = false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +72,49 @@ AnimationSteeringUpdate::~AnimationSteeringUpdate()
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Mirror "physically moving backwards" onto the drawable as MOVING_BACKWARDS (BackwardsCondition).
+	* The drawable's flag is the state (it's saved with the drawable), so nothing extra needs xfer. */
+//-------------------------------------------------------------------------------------------------
+Bool AnimationSteeringUpdate::updateBackwardsCondition( Drawable *draw, PhysicsBehavior *physics, UnsignedInt now )
+{
+	const AnimationSteeringUpdateModuleData *data = getAnimationSteeringUpdateModuleData();
+
+	// hysteresis (dist/frame), so collision nudges or a slowly decaying speed don't flicker the state
+	const Real BACKWARDS_START_SPEED = -0.05f;
+	const Real BACKWARDS_STOP_SPEED = -0.025f;
+
+	const Bool wasBackwards = draw->getModelConditionFlags().test( MODELCONDITION_MOVING_BACKWARDS );
+	const Real speed = physics->getForwardSpeed2D();
+	const Bool isBackwards = wasBackwards ? (speed < BACKWARDS_STOP_SPEED) : (speed < BACKWARDS_START_SPEED);
+
+	if( isBackwards != wasBackwards )
+	{
+		if( isBackwards )
+		{
+			if( !data->m_backwardsTurnAnims )
+			{
+				// no turn anims while reversing
+				draw->clearAndSetModelConditionFlags(
+					MAKE_MODELCONDITION_MASK4( MODELCONDITION_CENTER_TO_LEFT, MODELCONDITION_CENTER_TO_RIGHT, MODELCONDITION_LEFT_TO_CENTER, MODELCONDITION_RIGHT_TO_CENTER ),
+					MAKE_MODELCONDITION_MASK( MODELCONDITION_MOVING_BACKWARDS ) );
+				m_currentTurnAnim = MODELCONDITION_INVALID;
+				m_nextTransitionFrame = now;
+			}
+			else
+			{
+				draw->setModelConditionState( MODELCONDITION_MOVING_BACKWARDS );
+			}
+		}
+		else
+		{
+			draw->clearModelConditionFlags( MAKE_MODELCONDITION_MASK( MODELCONDITION_MOVING_BACKWARDS ) );
+		}
+	}
+
+	return isBackwards;
+}
+
+//-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 UpdateSleepTime AnimationSteeringUpdate::update()
 {
@@ -79,13 +124,22 @@ UpdateSleepTime AnimationSteeringUpdate::update()
 	Drawable *draw = getObject()->getDrawable();
 	UnsignedInt now = TheGameLogic->getFrame();
 
+	Bool isMovingBackwards = false;
+	if( data->m_backwardsCondition && physics && draw )
+	{
+		isMovingBackwards = updateBackwardsCondition( draw, physics, now );
+
+		// turn anims are suppressed while reversing unless BackwardsTurnAnims is set
+		if( isMovingBackwards && !data->m_backwardsTurnAnims )
+			return UPDATE_SLEEP_NONE;
+	}
+
 	if( physics && draw && now >= m_nextTransitionFrame )
 	{
 		PhysicsTurningType currentTurn = physics->getTurning();
 
-		if (data->m_minAngle > 0 && m_currentTurnAnim == MODELCONDITION_INVALID) {
-			AIUpdateInterface* ai = getObject()->getAI();
-
+		AIUpdateInterface* ai = getObject()->getAI();
+		if (data->m_minAngle > 0 && m_currentTurnAnim == MODELCONDITION_INVALID && ai != nullptr) {
 			const Coord3D* targetPos;
 			if (ai->getGoalObject() != nullptr)
 				targetPos = ai->getGoalObject()->getPosition();
@@ -95,6 +149,9 @@ UpdateSleepTime AnimationSteeringUpdate::update()
 			if (targetPos != nullptr) {
 				// get angle between object and target
 				Real angleRel = ThePartitionManager->getRelativeAngle2D(getObject(), targetPos);
+				// when reversing, the goal is behind us; measure against our rear instead
+				if (isMovingBackwards)
+					angleRel = stdAngleDiff(angleRel, PI);
 				//DEBUG_LOG((">>> ASU: RelativeAngle = %f", angleRel * 180.0 / PI));
 
 				if (abs(angleRel) < data->m_minAngle) {
