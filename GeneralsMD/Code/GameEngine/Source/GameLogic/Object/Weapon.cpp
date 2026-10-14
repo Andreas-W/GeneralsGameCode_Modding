@@ -3559,6 +3559,19 @@ Object* Weapon::forceFireWeapon( const Object *source, const Coord3D *pos)
 }
 
 //-------------------------------------------------------------------------------------------------
+void Weapon::holdFiringUntil( UnsignedInt frameNum )
+{
+	if( m_whenWeCanFireAgain >= frameNum )
+		return;
+
+	// getStatus() keeps returning a cached READY_TO_FIRE until m_whenWeCanFireAgain, so the status
+	// must change too (same as shared reload time). Reloading / out of ammo keep their status.
+	if( getStatus() == READY_TO_FIRE )
+		setStatus( BETWEEN_FIRING_SHOTS );
+	m_whenWeCanFireAgain = frameNum;
+}
+
+//-------------------------------------------------------------------------------------------------
 WeaponStatus Weapon::getStatus() const
 {
 	UnsignedInt now = TheGameLogic->getFrame();

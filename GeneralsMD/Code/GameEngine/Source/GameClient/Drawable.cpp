@@ -4948,6 +4948,23 @@ void Drawable::setDrawableHidden( Bool hidden )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Allow model-condition particle systems to keep emitting while the drawable is hidden */
+//-------------------------------------------------------------------------------------------------
+void Drawable::setKeepParticlesWhenHidden( Bool keep )
+{
+	if (keep == testDrawableStatus(DRAWABLE_STATUS_KEEP_PARTICLES_WHEN_HIDDEN))
+		return;
+
+	if (keep)
+		setDrawableStatus(DRAWABLE_STATUS_KEEP_PARTICLES_WHEN_HIDDEN);
+	else
+		clearDrawableStatus(DRAWABLE_STATUS_KEEP_PARTICLES_WHEN_HIDDEN);
+
+	// let the draw modules re-evaluate whether their particle systems run
+	updateHiddenStatus();
+}
+
+//-------------------------------------------------------------------------------------------------
 void Drawable::updateDrawableClipStatus( UnsignedInt shotsRemaining, UnsignedInt maxShots, WeaponSlotType slot )
 {
 	for (DrawModule** dm = getDrawModulesNonDirty(); *dm; ++dm)
