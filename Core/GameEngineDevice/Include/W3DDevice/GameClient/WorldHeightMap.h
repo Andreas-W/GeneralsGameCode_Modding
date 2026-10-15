@@ -245,6 +245,7 @@ public:  // height map info.
 	static Int getMinHeightValue() {return K_MIN_HEIGHT;}
 	/// Highest value a height sample can have: K_MAX_HEIGHT times the HeightMapScale of the map.
 	static Int getMaxHeightValue();
+	static Bool isValidMapSize(Int width, Int height, Int borderSize); ///< Within MAX_MAP_DIMENSION and MAX_MAP_AREA, width and height include the border
 
 	HeightSampleType *getDataPtr() {return m_data;}
 
