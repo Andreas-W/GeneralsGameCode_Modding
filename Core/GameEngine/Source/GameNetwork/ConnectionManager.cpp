@@ -2247,6 +2247,8 @@ void ConnectionManager::sendDisconnectChat(UnicodeString text) {
 
 	sendLocalCommandDirect(msg, 0xff ^ (1 << m_localSlot));
 	processDisconnectChat(msg);
+
+	msg->detach();
 }
 
 UnsignedShort ConnectionManager::sendFileAnnounce(AsciiString path, UnsignedByte playerMask)
