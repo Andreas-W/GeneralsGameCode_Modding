@@ -244,7 +244,7 @@ public:
 
 	void locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalPos,
 		Real onPathDistToGoal, Real desiredSpeed, Bool *blocked);
-	void locoUpdate_moveTowardsAngle(Object* obj, Real angle);
+	void locoUpdate_moveTowardsAngle(Object* obj, Real angle, Bool turnByReversing = false);	///< turnByReversing: back up to turn (needs CanMoveBackwards)
 	/**
 		Kill any current (2D) velocity (but stay at current position, or as close as possible)
 
@@ -456,7 +456,8 @@ private:
 		DOING_THREE_POINT_TURN,	// If we are doing a 3 pt turn.
 		CLIMBING,								// If we are in the process of climbing.
 		IS_CLOSE_ENOUGH_DIST_3D,
-		OFFSET_INCREASING
+		OFFSET_INCREASING,
+		REVERSE_TO_TURN				// transient (set/cleared within locoUpdate_moveTowardsAngle): force reversing to turn
 	};
 
 	Bool getFlag(LocoFlag f) const { return (m_flags & (1 << f)) != 0; }

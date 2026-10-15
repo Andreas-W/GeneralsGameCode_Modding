@@ -949,7 +949,7 @@ Real Locomotor::getMaxLift(BodyDamageType condition) const
 }
 
 //-------------------------------------------------------------------------------------------------
-void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
+void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle, Bool turnByReversing)
 {
 	setFlag(MAINTAIN_POS_IS_VALID, false);
 
@@ -991,10 +991,11 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
 	}
 	else
 	{
-		if (m_template->m_requiresMoveToTurn)
+		const Bool reverseToTurn = turnByReversing && m_template->m_canMoveBackward;
+		if (m_template->m_requiresMoveToTurn || reverseToTurn)
 		{
-			// can't pivot in place: drive forward toward the goal angle so the appearance-specific
-			// mover (e.g. moveTowardsPositionWheels) applies MinTurnSpeed / reversing / 3-point turns.
+			// can't pivot in place (or asked to turn by reversing): move toward/away from the goal angle so
+			// the appearance-specific mover (e.g. moveTowardsPositionWheels) applies MinTurnSpeed / reversing.
 			// Once aligned, fall through to the in-place path (no-op rotation).
 			const Real ALIGNED_THRESH = 0.035f;	// ~2 degrees, same as AI aim/face REL_THRESH
 			Real relAngle = stdAngleDiff(goalAngle, obj->getOrientation());
@@ -1010,12 +1011,25 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle)
 					speed = maxSpeed;
 
 				Coord3D desiredPos = *obj->getPosition();
-				desiredPos.x += Cos(goalAngle) * 1000.0f;
-				desiredPos.y += Sin(goalAngle) * 1000.0f;
+				if (reverseToTurn)
+				{
+					// back up toward a point opposite the goal angle: the reversing mover swings our nose to goalAngle.
+					desiredPos.x -= Cos(goalAngle) * 1000.0f;
+					desiredPos.y -= Sin(goalAngle) * 1000.0f;
+				}
+				else
+				{
+					desiredPos.x += Cos(goalAngle) * 1000.0f;
+					desiredPos.y += Sin(goalAngle) * 1000.0f;
+				}
 				// huge "dist to goal" so we don't brake as if nearing a destination
+				// (forced reversing never does a 3-point turn, so this is fine for reverseToTurn too)
 				const Real onPathDistToGoal = 99999.0f;
 				Bool blocked = false;
+				// REVERSE_TO_TURN makes the movers reverse right away, even while still rolling forward
+				setFlag(REVERSE_TO_TURN, reverseToTurn);
 				locoUpdate_moveTowardsPosition(obj, desiredPos, onPathDistToGoal, speed, &blocked);
+				setFlag(REVERSE_TO_TURN, false);
 				return;
 			}
 		}
@@ -1301,9 +1315,10 @@ Bool Locomotor::shouldMoveBackwards(Object* obj, PhysicsBehavior *physics, Real 
 	// (Still gated on CanMoveBackwards by the check above.) Unless ReverseMoveIgnoreAngleThreshold
 	// is set, we still require the goal to be behind us (same angle gate as automatic reversing),
 	// so a reverse order only engages when the current heading allows it.
-	if (obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards()
+	if (getFlag(REVERSE_TO_TURN)
+		|| (obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards()
 			&& (TheGlobalData->m_reverseMoveIgnoreAngleThreshold
-					|| fabs(relAngle) > m_template->m_backwardsMoveAngleThreshold))
+					|| fabs(relAngle) > m_template->m_backwardsMoveAngleThreshold)))
 	{
 		setFlag(MOVING_BACKWARDS, true);
 		return true;
@@ -1512,10 +1527,13 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 	// A REVERSE_MOVE order forces reversing along the whole path (no three-point turn). Unless
 	// ReverseMoveIgnoreAngleThreshold is set, we still require the goal to be behind us (same angle
 	// gate as automatic reversing), so a reverse order only engages when the heading allows it.
+	// REVERSE_TO_TURN (AimByReversing) also forces it: we must back up even while still rolling forward,
+	// otherwise we'd drive forward toward the goal behind us and turn the wrong way.
 	const Bool forceBackwards = m_template->m_canMoveBackward
-		&& obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards()
-		&& (TheGlobalData->m_reverseMoveIgnoreAngleThreshold
-				|| fabs(relAngle) > backwardsAngleThreshold);
+		&& (getFlag(REVERSE_TO_TURN)
+			|| (obj->getAIUpdateInterface() && obj->getAIUpdateInterface()->isForcedMoveBackwards()
+				&& (TheGlobalData->m_reverseMoveIgnoreAngleThreshold
+						|| fabs(relAngle) > backwardsAngleThreshold)));
 	if (forceBackwards) {
 		setFlag(MOVING_BACKWARDS, true);
 		setFlag(DOING_THREE_POINT_TURN, false);
@@ -1594,6 +1612,11 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 		{
 			targetAngle += turnAmount;
 		}
+		// When turning by reversing (AimByReversing), we travel backwards: project behind us.
+		const Bool reverseToTurn = moveBackwards && getFlag(REVERSE_TO_TURN);
+		if (reverseToTurn)
+			distance = -distance;
+
 		Coord3D offset;
 		offset.x = Cos(targetAngle)*distance;
 		offset.y = Sin(targetAngle)*distance;
@@ -1616,7 +1639,14 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 		if (!TheAI->pathfinder()->validMovementTerrain(obj->getLayer(), this, &halfPos) ||
 			!TheAI->pathfinder()->validMovementTerrain(obj->getLayer(), this, &nextPos))
 		{
-			PhysicsTurningType rotating = rotateTowardsPosition(obj, goalPos);
+			Coord3D faceTowards = goalPos;
+			if (reverseToTurn)
+			{
+				// goalPos is behind us; turn the nose toward its mirror point (the goal angle) instead
+				faceTowards.x = 2*obj->getPosition()->x - goalPos.x;
+				faceTowards.y = 2*obj->getPosition()->y - goalPos.y;
+			}
+			PhysicsTurningType rotating = rotateTowardsPosition(obj, faceTowards);
 			physics->setTurning(rotating);
 
 			// apply a zero force to object so that it acts "driven"

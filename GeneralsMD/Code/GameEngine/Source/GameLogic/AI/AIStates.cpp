@@ -5328,8 +5328,59 @@ StateReturnType AIAttackAimAtTargetState::update()
 			{
 				if (fabs(relAngle) > aimDelta)
 				{
+					// AimByReversing: target in front and a forward turn would carry us into our minimum range ->
+					// turn by backing away from it instead. The reversing mover swings the nose toward the target
+					// while the distance grows (see MinRangeRetreatStraight).
 					Real desiredAngle = source->getOrientation() + relAngle;
-					sourceAI->setLocomotorGoalOrientation(desiredAngle);
+
+					Bool turnByReversing = false;
+					Locomotor* curLoco = sourceAI->getCurLocomotor();
+					Real minRange = weapon ? weapon->getTemplate()->getMinimumAttackRange() : 0.0f;
+					if (sourceAI->isAimByReversing() && curLoco && curLoco->canMoveBackwards()
+						&& minRange > 0.0f && fabs(relAngle) < sourceAI->getAimByReversingMaxAngle())
+					{
+						// edge-to-edge distance, same measure as the min/max attack range checks
+						Real edgeDistSqr = m_isAttackingObject
+							? ThePartitionManager->getDistanceSquared(source, victim, FROM_BOUNDINGSPHERE_2D)
+							: ThePartitionManager->getDistanceSquared(source, getMachineGoalPosition(), FROM_BOUNDINGSPHERE_2D);
+						Real edgeDist = sqrtf(edgeDistSqr);
+						Real maxRange = weapon->getAttackRange(source);
+
+						// don't back out of max range while turning
+						if (edgeDist < maxRange - 2*PATHFIND_CELL_SIZE_F)
+						{
+							// (the locomotor flag can be stale after stopping, so also require actual backwards motion)
+							const PhysicsBehavior* physics = source->getPhysics();
+							if (curLoco->isMovingBackwards() && physics && physics->getForwardSpeed2D() < 0.0f)
+							{
+								// already backing up: keep reversing until aligned (no reverse/forward flip-flop)
+								turnByReversing = true;
+							}
+							else
+							{
+								// A forward turn of angle a on turn radius R closes in on the target by about R*sin(a).
+								// Turn radius mirrors the turn speed clamp in moveTowardsPositionWheels.
+								BodyDamageType bdt = source->getBodyModule()->getDamageState();
+								Real maxSpeed = curLoco->getMaxSpeedForCondition(bdt);
+								Real turnSpeed = curLoco->getMinTurnSpeed();
+								if (turnSpeed < maxSpeed/4.0f)
+									turnSpeed = maxSpeed/4.0f;
+								if (turnSpeed > maxSpeed)
+									turnSpeed = maxSpeed;
+								Real turnRate = curLoco->getMaxTurnRate(bdt);
+								Real turnRadius = (turnRate > 0.0f) ? turnSpeed / turnRate : 0.0f;
+								// AimByReversingTurnFactor scales this crude estimate (the real arc depends on current speed)
+								Real closing = turnRadius * Sin(fabs(relAngle)) * sourceAI->getAimByReversingTurnFactor();
+
+								turnByReversing = (edgeDist - closing) < (minRange + sourceAI->getAimByReversingMargin());
+							}
+						}
+					}
+
+					if (turnByReversing)
+						sourceAI->setLocomotorGoalOrientationByReversing(desiredAngle);
+					else
+						sourceAI->setLocomotorGoalOrientation(desiredAngle);
 					m_setLocomotor = true;
 				}
 			}

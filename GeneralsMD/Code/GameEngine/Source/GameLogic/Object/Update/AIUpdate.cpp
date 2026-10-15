@@ -92,6 +92,11 @@ AIUpdateModuleData::AIUpdateModuleData()
 	m_useAttackAngle = FALSE;
 	m_attackAngles.clear();
 	//m_attackAngleMirrored = FALSE;
+	m_minRangeRetreatStraight = FALSE;
+	m_aimByReversing = FALSE;
+	m_aimByReversingMaxAngle = PI/2;
+	m_aimByReversingMargin = PATHFIND_CELL_SIZE_F;
+	m_aimByReversingTurnFactor = 1.0f;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -156,6 +161,11 @@ struct AttackAngleData
     { "ForbidPlayerCommands",				INI::parseBool,										nullptr, offsetof(AIUpdateModuleData, m_forbidPlayerCommands) },
     { "TurretsLinked",							INI::parseBool,										nullptr, offsetof( AIUpdateModuleData, m_turretsLinked ) },
 		{ "PreferredAttackAngle",				AIUpdateModuleData::parseAttackAngle,					NULL, NULL },
+		{ "MinRangeRetreatStraight",		INI::parseBool,										nullptr, offsetof( AIUpdateModuleData, m_minRangeRetreatStraight ) },
+		{ "AimByReversing",							INI::parseBool,										nullptr, offsetof( AIUpdateModuleData, m_aimByReversing ) },
+		{ "AimByReversingMaxAngle",			INI::parseAngleReal,							nullptr, offsetof( AIUpdateModuleData, m_aimByReversingMaxAngle ) },
+		{ "AimByReversingMargin",				INI::parseReal,										nullptr, offsetof( AIUpdateModuleData, m_aimByReversingMargin ) },
+		{ "AimByReversingTurnFactor",		INI::parseReal,										nullptr, offsetof( AIUpdateModuleData, m_aimByReversingTurnFactor ) },
 
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -335,6 +345,7 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_curLocomotor = nullptr;
 	m_curLocomotorSet = LOCOMOTORSET_INVALID;
 	m_locomotorGoalType = NONE;
+	m_locomotorGoalTurnByReversing = FALSE;
 	m_locomotorGoalData.zero();
 	for (i = 0; i < MAX_TURRETS; i++)
 		m_turretAI[i] = nullptr;
@@ -2080,6 +2091,62 @@ Bool AIUpdateInterface::computeAttackPath( PathfindServicesInterface *pathServic
 
 	localVictimPos.z = TheTerrainLogic->getLayerHeight( localVictimPos.x, localVictimPos.y, victimLayer );
 
+	// MinRangeRetreatStraight: we're inside our minimum range. Back off straight away from the target,
+	// just far enough, instead of letting the pathfinder pick the nearest valid cell (often to the side,
+	// which is a long arc for slow-turning vehicles and leaves us facing the wrong way).
+	if (isMinRangeRetreatStraight() && landBound && !source->isAboveTerrain()
+		&& (victim ? weapon->isTooClose(source, victim) : weapon->isTooClose(source, &localVictimPos)))
+	{
+		const Coord3D* srcPos = source->getPosition();
+		Coord3D dir;
+		dir.set(srcPos->x - localVictimPos.x, srcPos->y - localVictimPos.y, 0.0f);
+		Real curDist = dir.length();
+		if (curDist < 0.01f)
+		{
+			// on top of the target: back off along our reversed heading
+			const Coord3D* fwd = source->getUnitDirectionVector2D();
+			dir.set(-fwd->x, -fwd->y, 0.0f);
+			curDist = 0.0f;
+		}
+		else
+		{
+			dir.x /= curDist;
+			dir.y /= curDist;
+		}
+
+		// attack range is measured between bounding circles (ATTACK_RANGE_IS_2D), plus a margin of one cell
+		Real wantedDist = weapon->getTemplate()->getMinimumAttackRange() + PATHFIND_CELL_SIZE_F
+			+ source->getGeometryInfo().getBoundingCircleRadius();
+		if (victim && !victim->isKindOf(KINDOF_BRIDGE))
+			wantedDist += victim->getGeometryInfo().getBoundingCircleRadius();
+
+		Coord3D goal;
+		goal.x = srcPos->x + dir.x * (wantedDist - curDist);
+		goal.y = srcPos->y + dir.y * (wantedDist - curDist);
+		goal.z = TheTerrainLogic->getLayerHeight(goal.x, goal.y, source->getLayer());
+
+		if (TheAI->pathfinder()->isValidAttackGoal(source, m_locomotorSet, goal, victim, &localVictimPos, weapon))
+		{
+			destroyPath();
+			m_path = newInstance(Path);
+			m_path->prependNode(&goal, source->getLayer());
+			Coord3D pos = *srcPos;
+			m_path->prependNode(&pos, source->getLayer());
+			m_path->getFirstNode()->setNextOptimized(m_path->getFirstNode()->getNext());
+			if (TheGlobalData->m_debugAI == AI_DEBUG_PATHS)
+			{
+				TheAI->pathfinder()->setDebugPath(m_path);
+			}
+			TheAI->pathfinder()->updateGoal(source, &goal, source->getLayer());
+
+			m_pathTimestamp = TheGameLogic->getFrame();
+			m_blockedFrames = 0;
+			m_isBlockedAndStuck = FALSE;
+			return TRUE;
+		}
+		// blocked: fall through to the normal attack pathfinding
+	}
+
 	if (getObject()->isAboveTerrain() && !landBound)
 	{
 		// for now, airborne objects don't pathfind
@@ -2441,7 +2508,7 @@ UpdateSleepTime AIUpdateInterface::doLocomotor()
 
 				case ANGLE:
 					{
-						m_curLocomotor->locoUpdate_moveTowardsAngle(getObject(), m_locomotorGoalData.x);
+						m_curLocomotor->locoUpdate_moveTowardsAngle(getObject(), m_locomotorGoalData.x, m_locomotorGoalTurnByReversing);
 						m_doFinalPosition = FALSE;
 					}
 					break;
@@ -2538,6 +2605,22 @@ void AIUpdateInterface::setLocomotorGoalOrientation(Real angle)
 {
 	m_locomotorGoalType = ANGLE;
 	m_locomotorGoalData.x = angle;
+	m_locomotorGoalTurnByReversing = FALSE;
+#ifdef RTS_DEBUG
+if (_isnan(m_locomotorGoalData.x) || _isnan(m_locomotorGoalData.y) || _isnan(m_locomotorGoalData.z))
+{
+	DEBUG_CRASH(("NAN in setLocomotorGoalOrientation"));
+}
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+void AIUpdateInterface::setLocomotorGoalOrientationByReversing(Real angle)
+{
+	m_locomotorGoalType = ANGLE;
+	m_locomotorGoalData.x = angle;
+	// Not saved/CRC'd (keeps retail CRC): the aim state re-issues this goal every update.
+	m_locomotorGoalTurnByReversing = TRUE;
 #ifdef RTS_DEBUG
 if (_isnan(m_locomotorGoalData.x) || _isnan(m_locomotorGoalData.y) || _isnan(m_locomotorGoalData.z))
 {
@@ -2550,6 +2633,7 @@ if (_isnan(m_locomotorGoalData.x) || _isnan(m_locomotorGoalData.y) || _isnan(m_l
 void AIUpdateInterface::setLocomotorGoalNone()
 {
 	m_locomotorGoalType = NONE;
+	m_locomotorGoalTurnByReversing = FALSE;
 }
 
 //-------------------------------------------------------------------------------------------------

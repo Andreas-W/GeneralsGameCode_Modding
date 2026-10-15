@@ -213,6 +213,12 @@ public:
 	//Bool m_attackAngleMirrored;
 	std::vector<AttackAngleData> m_attackAngles;
 
+	Bool m_minRangeRetreatStraight;	///< when inside weapon min range, back off straight away from the target, just far enough
+	Bool m_aimByReversing;					///< no-turret aiming at a target in front: turn by backing up instead of driving forward
+	Real m_aimByReversingMaxAngle;	///< only reverse to aim if the target is at most this far off the nose (radians)
+	Real m_aimByReversingMargin;		///< safety margin added to the min range in the "would a forward turn get too close" test
+	Real m_aimByReversingTurnFactor;	///< scales the forward-turn closing estimate (turn radius * sin(angle))
+
 
   AIUpdateModuleData();
 	virtual ~AIUpdateModuleData() override;
@@ -349,6 +355,11 @@ public:
 
 	//Real getAttackAngle() const { return getAIUpdateModuleData()->m_attackAngle; }
 	Bool useAttackAngle() const { return getAIUpdateModuleData()->m_useAttackAngle; }
+	Bool isMinRangeRetreatStraight() const { return getAIUpdateModuleData()->m_minRangeRetreatStraight; }
+	Bool isAimByReversing() const { return getAIUpdateModuleData()->m_aimByReversing; }
+	Real getAimByReversingMaxAngle() const { return getAIUpdateModuleData()->m_aimByReversingMaxAngle; }
+	Real getAimByReversingMargin() const { return getAIUpdateModuleData()->m_aimByReversingMargin; }
+	Real getAimByReversingTurnFactor() const { return getAIUpdateModuleData()->m_aimByReversingTurnFactor; }
 	//Bool isAttackAngleMirrored() const { return getAIUpdateModuleData()->m_attackAngleMirrored; }
 
 	// this is present solely for some transports to override, so that they can land before 
@@ -434,6 +445,7 @@ public:
 	virtual void setLocomotorGoalPositionOnPath();
 	virtual void setLocomotorGoalPositionExplicit(const Coord3D& newPos);
 	virtual void setLocomotorGoalOrientation(Real angle);
+	void setLocomotorGoalOrientationByReversing(Real angle);	///< like setLocomotorGoalOrientation, but turn by backing up (AimByReversing)
 	virtual void setLocomotorGoalNone();
 	virtual Bool isDoingGroundMovement() const;  ///< True if moving along ground.
 
@@ -798,6 +810,7 @@ private:
 	LocomotorSetType	m_curLocomotorSet;
 	LocoGoalType			m_locomotorGoalType;
 	Coord3D						m_locomotorGoalData;
+	Bool							m_locomotorGoalTurnByReversing;	///< ANGLE goal: turn by backing up (AimByReversing). Not saved.
 
 	// Turrets -------------------------------------------------------------------------------------------------
 	TurretAI*					m_turretAI[MAX_TURRETS];		// ai for our turret (or null if no turret)
