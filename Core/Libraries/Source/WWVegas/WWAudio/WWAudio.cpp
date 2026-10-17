@@ -1004,7 +1004,7 @@ WWAudioClass::Create_Instant_Sound
 	if (sound != nullptr) {
 
 		if (sound->Get_Loop_Count () == INFINITE_LOOPS) {
-			WWDEBUG_SAY (("Audio Error:  Creating an instant sound %s with an infinite loop count!",sound->Get_Definition()->Get_Name()));
+			WWDEBUG_SAY (("Audio Error:  Creating an instant sound %d with an infinite loop count!",definition_id));
 		}
 
 		sound_id = sound->Get_ID ();
@@ -1071,7 +1071,7 @@ WWAudioClass::Create_Instant_Sound
 	if (sound != nullptr) {
 
 		if (sound->Get_Loop_Count () == INFINITE_LOOPS) {
-			WWDEBUG_SAY (("Audio Error:  Creating an instant sound %s with an infinite loop count!",sound->Get_Definition()->Get_Name()));
+			WWDEBUG_SAY (("Audio Error:  Creating an instant sound %s with an infinite loop count!",def_name));
 		}
 
 		sound_id = sound->Get_ID ();
