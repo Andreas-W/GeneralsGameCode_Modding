@@ -270,6 +270,8 @@ const char* const ModelConditionFlags::s_bitNameList[] =
 	"RIDER15",
 	"RIDER16",
 
+	"MOVING_BACKWARDS",
+
 	"RESERVED_UNIQUE_SIZE_PAD",
 
 	nullptr

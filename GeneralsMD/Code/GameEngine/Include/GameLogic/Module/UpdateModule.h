@@ -267,6 +267,7 @@ public:
 	virtual void setFramesTillCountermeasureDiversionOccurs( UnsignedInt frames ) = 0; ///< Number of frames till missile diverts to countermeasures.
 	virtual void projectileNowJammed() = 0;
 	virtual Bool projectileShouldCollideWithWater() const { return false; };
+	virtual Bool projectileIsLingering() const { return false; }					///< true while detonated but kept alive (hidden) so attached particles can catch up
 
 	virtual Object* getTargetObject() = 0;
 	virtual const Coord3D* getTargetPosition() = 0;

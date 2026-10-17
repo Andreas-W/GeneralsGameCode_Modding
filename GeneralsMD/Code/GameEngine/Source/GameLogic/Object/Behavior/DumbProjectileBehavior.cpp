@@ -70,7 +70,9 @@ DumbProjectileBehaviorModuleData::DumbProjectileBehaviorModuleData() :
 	m_flightPathAdjustDistPerFrame(0.0f),
 	m_applyLauncherBonus(FALSE),
 	m_dynamicHeightMinScale(1.0),
-	m_dynamicHeightMinRange(1.0)
+	m_dynamicHeightMinRange(1.0),
+	m_linearFlightPath(FALSE),
+	m_killSelfDelay(0)
 {
 }
 
@@ -103,6 +105,9 @@ void DumbProjectileBehaviorModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "DynamicHeightMinScale", INI::parseReal,  NULL, offsetof(DumbProjectileBehaviorModuleData, m_dynamicHeightMinScale) },
 		{ "DynamicHeightMinRange", INI::parseReal,  NULL, offsetof(DumbProjectileBehaviorModuleData, m_dynamicHeightMinRange) },
 
+		{ "LinearFlightPath", INI::parseBool, nullptr, offsetof(DumbProjectileBehaviorModuleData, m_linearFlightPath) },
+		{ "KillSelfDelay", INI::parseDurationUnsignedInt, nullptr, offsetof(DumbProjectileBehaviorModuleData, m_killSelfDelay) },
+
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 
@@ -132,6 +137,7 @@ DumbProjectileBehavior::DumbProjectileBehavior( Thing *thing, const ModuleData* 
 	m_exhaustID = INVALID_PARTICLE_SYSTEM_ID;
 
   m_hasDetonated = FALSE;
+	m_killSelfFrame = 0;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -448,6 +454,45 @@ Bool DumbProjectileBehavior::calcFlightPath(Bool recalcNumSegments)
 		return false;
 	}
 
+	if (d->m_linearFlightPath)
+	{
+		// Straight line at constant speed: evenly spaced points from start to end (inclusive),
+		// same sampling convention as BezierSegment::getSegmentPoints.
+		Coord3D delta;
+		delta.x = controlPoints[3].x - controlPoints[0].x;
+		delta.y = controlPoints[3].y - controlPoints[0].y;
+		delta.z = controlPoints[3].z - controlPoints[0].z;
+
+		if (recalcNumSegments)
+		{
+			m_flightPathSegments = ceil( delta.length() / m_flightPathSpeed );
+		}
+
+		m_flightPath.clear();
+		m_flightPath.resize(m_flightPathSegments);
+		if (m_flightPathSegments == 1)
+		{
+			m_flightPath[0] = controlPoints[3];
+		}
+		else
+		{
+			for (Int i = 0; i < m_flightPathSegments; ++i)
+			{
+				Real t = (Real)i / (Real)(m_flightPathSegments - 1);
+				m_flightPath[i].x = controlPoints[0].x + delta.x * t;
+				m_flightPath[i].y = controlPoints[0].y + delta.y * t;
+				m_flightPath[i].z = controlPoints[0].z + delta.z * t;
+			}
+		}
+
+#if defined(RTS_DEBUG)
+		if( TheGlobalData->m_debugProjectilePath )
+			displayFlightPath();
+#endif
+
+		return true;
+	}
+
 	// X and Y for inner points are along the line between us, so normalize and scale a vector between us, but
 	// only use the x and y of the result
 	Vector3 targetVector;// 0 origin vector between me and him
@@ -584,7 +629,51 @@ void DumbProjectileBehavior::detonate()
 	if (m_detonationWeaponTmpl)
 	{
 		TheWeaponStore->handleProjectileDetonation(m_detonationWeaponTmpl, obj, obj->getPosition(), m_extraBonusFlags);
+	}
 
+	const UnsignedInt killSelfDelay = getDumbProjectileBehaviorModuleData()->m_killSelfDelay;
+	if (killSelfDelay > 0)
+	{
+		// Linger hidden at the impact point for a few frames so attached particle trails
+		// (weapon exhaust and model-condition particle systems) can catch up before we die.
+		m_killSelfFrame = TheGameLogic->getFrame() + killSelfDelay;
+		obj->setStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_NO_COLLISIONS ) );
+
+		// Freeze in place: Physics has been accumulating gravity while our flight path overrode the
+		// position each frame. Clear it, and hold the object so physics doesn't move it while lingering.
+		if (PhysicsBehavior* physics = obj->getPhysics())
+			physics->resetDynamicPhysics();
+		obj->setDisabled( DISABLED_HELD );
+
+		if (Drawable* draw = obj->getDrawable())
+		{
+			draw->setKeepParticlesWhenHidden(true);
+			draw->setDrawableHidden(true);
+		}
+	}
+	else
+	{
+		doDetonationDeath();
+
+		if (obj->getDrawable())
+			obj->getDrawable()->setDrawableHidden(true);
+	}
+
+  m_hasDetonated = TRUE;
+
+}
+
+//-------------------------------------------------------------------------------------------------
+void DumbProjectileBehavior::doDetonationDeath()
+{
+	Object* obj = getObject();
+
+	// stop any particle systems we kept alive while lingering
+	if (Drawable* draw = obj->getDrawable())
+		draw->setKeepParticlesWhenHidden(false);
+
+	if (m_detonationWeaponTmpl)
+	{
 		if ( getDumbProjectileBehaviorModuleData()->m_detonateCallsKill )
 		{
 			// don't call kill(); do it manually, so we can specify DEATH_DETONATED
@@ -611,12 +700,6 @@ void DumbProjectileBehavior::detonate()
 		damageInfo.in.m_amount = obj->getBodyModule()->getMaxHealth();
 		obj->attemptDamage( &damageInfo );
 	}
-
-	if (obj->getDrawable())
-		obj->getDrawable()->setDrawableHidden(true);
-
-  m_hasDetonated = TRUE;
-
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -626,6 +709,18 @@ void DumbProjectileBehavior::detonate()
 UpdateSleepTime DumbProjectileBehavior::update()
 {
 	const DumbProjectileBehaviorModuleData* d = getDumbProjectileBehaviorModuleData();
+
+	if (m_hasDetonated && d->m_killSelfDelay > 0)
+	{
+		// lingering at the impact point after detonation (KillSelfDelay); die once the delay is up.
+		// (without KillSelfDelay we keep the original behavior below)
+		if (m_killSelfFrame != 0 && TheGameLogic->getFrame() >= m_killSelfFrame)
+		{
+			m_killSelfFrame = 0;
+			doDetonationDeath();
+		}
+		return UPDATE_SLEEP_NONE;
+	}
 
 	if (m_lifespanFrame != 0 && TheGameLogic->getFrame() >= m_lifespanFrame)
 	{
@@ -816,17 +911,18 @@ void DumbProjectileBehavior::crc( Xfer *xfer )
 	* Version Info:
 	* 1: Initial version
 	* 2: TheSuperHackers @bugfix Added m_currentFlightPathStep for mid-flight save/load.
+	*    Also added m_launchVeterancy (for veterancy FX/OCL selection)
+	* 3: Added m_hasDetonated and m_killSelfFrame (KillSelfDelay lingering)
 	*/
 // ------------------------------------------------------------------------------------------------
 void DumbProjectileBehavior::xfer( Xfer *xfer )
 {
 
 	// version
-	// 2: Added m_launchVeterancy (for veterancy FX/OCL selection)
 #if RETAIL_COMPATIBLE_XFER_SAVE
 	XferVersion currentVersion = 1;
 #else
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 #endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
@@ -897,6 +993,12 @@ void DumbProjectileBehavior::xfer( Xfer *xfer )
 	if( version >= 2 )
 	{
 		xfer->xferInt( &m_currentFlightPathStep );
+	}
+
+	if( version >= 3 )
+	{
+		xfer->xferBool( &m_hasDetonated );
+		xfer->xferUnsignedInt( &m_killSelfFrame );
 	}
 
 }

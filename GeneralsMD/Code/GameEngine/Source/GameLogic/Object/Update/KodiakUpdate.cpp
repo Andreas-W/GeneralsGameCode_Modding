@@ -73,6 +73,9 @@ KodiakUpdateModuleData::KodiakUpdateModuleData()
   m_numAATurrets = 0;
   m_turretRecenterFramesBeforeExit = 0;
   m_initialAttackDelayFrames = 0;
+
+  m_mainTurretsFireInSequence = FALSE;
+  m_mainTurretSequenceDelay = 0;
 }
 
 static Real zero = 0.0f;
@@ -104,6 +107,8 @@ static Real zero = 0.0f;
     { "MissileScatterRadius",	        INI::parseReal,		NULL, offsetof(KodiakUpdateModuleData, m_missileScatterRadius) },
     { "TurretRecenterTimeBeforeExit", INI::parseDurationUnsignedInt,		NULL, offsetof(KodiakUpdateModuleData, m_turretRecenterFramesBeforeExit) },
     { "InitialAttackDelay",           INI::parseDurationUnsignedInt,		NULL, offsetof(KodiakUpdateModuleData, m_initialAttackDelayFrames) },
+    { "MainTurretsFireInSequence",    INI::parseBool,		NULL, offsetof(KodiakUpdateModuleData, m_mainTurretsFireInSequence) },
+    { "MainTurretSequenceDelay",      INI::parseDurationUnsignedInt,		NULL, offsetof(KodiakUpdateModuleData, m_mainTurretSequenceDelay) },
 
 
     { 0, 0, 0, 0 }
@@ -135,6 +140,8 @@ KodiakUpdate::KodiakUpdate( Thing *thing, const ModuleData* moduleData ) : Speci
 	m_attackAreaDecal.clear();
 	m_targetingReticleDecal.clear();
   m_orbitEscapeFrame = 0;
+  m_seqTurretIndex = 0;
+  m_seqHolderShotFrame = 0;
 	m_afterburnerSound = *(getObject()->getTemplate()->getPerUnitSound("Afterburner"));
 
 #if defined TRACKERS
@@ -455,6 +462,7 @@ UpdateSleepTime KodiakUpdate::update()
         {
           setLogicalStatus( GUNSHIP_STATUS_ORBITING );
           m_orbitEscapeFrame = TheGameLogic->getFrame() + data->m_orbitFrames;
+          resetMainTurretSequence( turrets );
 
           AIUpdateInterface *shipAI = gunship->getAIUpdateInterface();
           if ( shipAI)
@@ -517,6 +525,10 @@ UpdateSleepTime KodiakUpdate::update()
         }
         else
         {
+          if (data->m_mainTurretsFireInSequence)
+          {
+            updateMainTurretSequence( turrets );
+          }
 
           // ONLY EVERY FEW FRAMES DO WE RE_EVALUATE THE TARGET OBJECT
           if ( TheGameLogic->getFrame() %data->m_mainTargetingRate < ONE )
@@ -841,6 +853,82 @@ Bool KodiakUpdate::isFairDistanceFromShip( Object *target )
 
 }
 
+//-------------------------------------------------------------------------------------------------
+// Main turret firing sequence (MainTurretsFireInSequence)
+//-------------------------------------------------------------------------------------------------
+static UnsignedInt getTurretLastShotFrame(const Object* turret)
+{
+  UnsignedInt lastShot = 0;
+  for (Int slot = 0; slot < WEAPONSLOT_COUNT; ++slot)
+  {
+    const Weapon* weapon = turret->getWeaponInWeaponSlot((WeaponSlotType)slot);
+    if (weapon && weapon->getLastShotFrame() > lastShot)
+      lastShot = weapon->getLastShotFrame();
+  }
+  return lastShot;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Keep all weapons of the turret from firing before untilFrame (same approach as shared reload time). */
+static void holdTurretWeapons(Object* turret, UnsignedInt untilFrame)
+{
+  for (Int slot = 0; slot < WEAPONSLOT_COUNT; ++slot)
+  {
+    Weapon* weapon = turret->getWeaponInWeaponSlot((WeaponSlotType)slot);
+    if (weapon)
+      weapon->holdFiringUntil(untilFrame);
+  }
+}
+
+//-------------------------------------------------------------------------------------------------
+void KodiakUpdate::resetMainTurretSequence(const std::vector<Object*>& turrets)
+{
+  m_seqTurretIndex = 0;
+  m_seqHolderShotFrame = turrets.empty() ? 0 : getTurretLastShotFrame(turrets.front());
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Main turrets take turns: only the turn holder may fire; once it fired, the turn passes on. */
+void KodiakUpdate::updateMainTurretSequence(const std::vector<Object*>& turrets)
+{
+  const KodiakUpdateModuleData* data = getKodiakUpdateModuleData();
+
+  UnsignedInt numMain = data->m_numMainTurrets;
+  if (numMain > turrets.size())
+    numMain = turrets.size();
+  if (numMain < 2)
+    return;
+
+  if (m_seqTurretIndex >= numMain)
+  {
+    m_seqTurretIndex = 0;
+    m_seqHolderShotFrame = getTurretLastShotFrame(turrets[0]);
+  }
+
+  const UnsignedInt now = TheGameLogic->getFrame();
+
+  // Did the turn holder fire? Then pass the turn to the next main turret.
+  UnsignedInt holderShot = getTurretLastShotFrame(turrets[m_seqTurretIndex]);
+  if (holderShot != m_seqHolderShotFrame)
+  {
+    m_seqTurretIndex = (m_seqTurretIndex + 1) % numMain;
+    Object* nextHolder = turrets[m_seqTurretIndex];
+    m_seqHolderShotFrame = getTurretLastShotFrame(nextHolder);
+
+    // never in the same frame as the previous shot, and respect the sequence delay
+    UnsignedInt delay = data->m_mainTurretSequenceDelay > 1 ? data->m_mainTurretSequenceDelay : 1;
+    holdTurretWeapons(nextHolder, holderShot + delay);
+  }
+
+  // Everyone else waits. now+2 covers the rest of this frame and the next one regardless of
+  // whether the turrets update before or after us; we refresh this every frame.
+  for (UnsignedInt i = 0; i < numMain; ++i)
+  {
+    if (i != m_seqTurretIndex)
+      holdTurretWeapons(turrets[i], now + 2);
+  }
+}
+
 
 
 
@@ -952,6 +1040,7 @@ void KodiakUpdate::crc( Xfer *xfer )
 	* Version Info:
 	* 1: Initial version
 	* 2: Can't flat-save decals, that's a hella crash (they aren't saved (no memory) and they have a pointer in them).  And half the class wasn't saved.
+	* 3: Added main turret firing sequence state (m_seqTurretIndex, m_seqHolderShotFrame)
 */
 // ------------------------------------------------------------------------------------------------
 void KodiakUpdate::xfer( Xfer *xfer )
@@ -959,7 +1048,7 @@ void KodiakUpdate::xfer( Xfer *xfer )
 //	const SpectreGunshipUpdateModuleData *data = getSpectreGunshipUpdateModuleData();
 
 	// version
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -993,6 +1082,12 @@ void KodiakUpdate::xfer( Xfer *xfer )
 	if( version >= 2 )
 	{
 		xfer->xferCoord3D( &m_positionToShootAt );
+	}
+
+	if( version >= 3 )
+	{
+		xfer->xferUnsignedInt( &m_seqTurretIndex );
+		xfer->xferUnsignedInt( &m_seqHolderShotFrame );
 	}
 
 }  // end xfer

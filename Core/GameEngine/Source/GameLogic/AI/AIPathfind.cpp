@@ -11261,6 +11261,42 @@ Path *Pathfinder::patchPath( const Object *obj, const LocomotorSet& locomotorSet
 }
 
 
+/** True if obj can stand at goalPos (on its current layer) and attack the victim from there.
+	* Same checks as the "quick check" in findAttackPath. */
+Bool Pathfinder::isValidAttackGoal( const Object *obj, const LocomotorSet& locomotorSet, const Coord3D& goalPos,
+		const Object *victim, const Coord3D* victimPos, const Weapon *weapon )
+{
+	if (!m_isMapReady || obj == nullptr || weapon == nullptr)
+		return false;
+
+	Bool isCrusher = obj->getCrusherLevel() > 0;
+	Short requiredBridgeHeight = obj->getRequiredBridgeHeight();
+	Int radius;
+	Bool centerInCell;
+	getRadiusAndCenter(obj, radius, centerInCell);
+
+	ICoord2D cellNdx;
+	worldToCell(&goalPos, &cellNdx);
+	PathfindCell *aCell = getCell(obj->getLayer(), cellNdx.x, cellNdx.y);
+	if (!aCell)
+		return false;
+
+	if (!validMovementPosition(isCrusher, locomotorSet.getValidSurfaces(), locomotorSet.getRequiredWaterLevel(), requiredBridgeHeight, aCell))
+		return false;
+
+	if (!checkDestination(obj, cellNdx.x, cellNdx.y, obj->getLayer(), radius, centerInCell))
+		return false;
+
+	if (!weapon->isGoalPosWithinAttackRange(obj, &goalPos, victim, victimPos))
+		return false;
+
+	if (isAttackViewBlockedByObstacle(obj, goalPos, victim, *victimPos))
+		return false;
+
+	return true;
+}
+
+
 /** Find a short, valid path to a location that obj can attack victim from.  */
 Path *Pathfinder::findAttackPath( const Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from,
 		const Object *victim, const Coord3D* victimPos, const Weapon *weapon )

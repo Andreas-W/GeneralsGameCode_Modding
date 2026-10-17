@@ -25,12 +25,17 @@ on:
         default: false
         type: boolean
         description: "Build extras"
+      targets:
+        required: false
+        default: ""
+        type: string
+        description: "Space-separated CMake targets to build (empty = build all)"
 
 jobs:
   build:
     name: ${{ inputs.preset }}${{ inputs.tools && '+t' || '' }}${{ inputs.extras && '+e' || '' }}
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     env:
       VCPKG_FILE_CACHE: ${{ github.workspace }}\vcpkg-bincache
@@ -174,7 +179,13 @@ jobs:
       - name: Build ${{ inputs.game }} with CMake Using ${{ inputs.preset }}${{ inputs.tools && '+t' || '' }}${{ inputs.extras && '+e' || '' }} Preset
         shell: pwsh
         run: |
-          cmake --build --preset ${{ inputs.preset }}
+          $targets = "${{ inputs.targets }}".Trim()
+          if ($targets) {
+            Write-Host "Building targets: $targets"
+            cmake --build --preset ${{ inputs.preset }} --target $($targets -split '\s+')
+          } else {
+            cmake --build --preset ${{ inputs.preset }}
+          }
 
       - name: Save vcpkg binary cache
         # Only one job should save to avoid "Unable to reserve cache" conflicts.

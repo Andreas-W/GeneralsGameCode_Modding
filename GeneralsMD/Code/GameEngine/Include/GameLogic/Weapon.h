@@ -732,6 +732,7 @@ public:
 
 	// do not ever use this unless you are weaponset.cpp
 	void setPossibleNextShotFrame( UnsignedInt frameNum ) { m_whenWeCanFireAgain = frameNum; }
+	void holdFiringUntil( UnsignedInt frameNum );	///< don't fire before frameNum (never shortens an existing delay)
 	void setPreAttackFinishedFrame( UnsignedInt frameNum ) { m_whenPreAttackFinished = frameNum; }
 	void setLastReloadStartedFrame( UnsignedInt frameNum ) { m_whenLastReloadStarted = frameNum; }
 	void setNextPreAttackFXFrame(UnsignedInt frameNum) { m_nextPreAttackFXFrame = frameNum; }

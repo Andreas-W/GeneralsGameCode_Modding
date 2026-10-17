@@ -161,6 +161,16 @@ void PointDefenseLaserUpdate::fireWhenReady()
 
 	//Track our target
 	Object *target = TheGameLogic->findObjectByID( m_bestTargetID );
+	if( target && target->isKindOf( KINDOF_PROJECTILE ) )
+	{
+		// Our target detonated and only lingers for its trail (DumbProjectile KillSelfDelay); drop it.
+		const ProjectileUpdateInterface* pui = target->getProjectileUpdateInterface();
+		if( pui && pui->projectileIsLingering() )
+		{
+			target = nullptr;
+			m_bestTargetID = INVALID_ID;
+		}
+	}
 	if( target )
 	{
 		WeaponBonus bonus;
@@ -288,6 +298,14 @@ Object* PointDefenseLaserUpdate::scanClosestTarget()
 		{
 			//We can't see it.
 			continue;
+		}
+
+		if( other->isKindOf( KINDOF_PROJECTILE ) )
+		{
+			// Already detonated, only lingering (hidden) for its trail (DumbProjectile KillSelfDelay).
+			const ProjectileUpdateInterface* pui = other->getProjectileUpdateInterface();
+			if( pui && pui->projectileIsLingering() )
+				continue;
 		}
 
 		Real fDist = sqrt( ThePartitionManager->getDistanceSquared( me, other, FROM_CENTER_2D ) );
