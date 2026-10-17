@@ -80,6 +80,7 @@
 #include "GameClient/GameWindowTransitions.h"
 
 #include "GameLogic/AI.h"
+#include "GameLogic/AIMatch.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/CaveSystem.h"
 #include "GameLogic/CrateSystem.h"
@@ -3741,6 +3742,10 @@ void GameLogic::update()
 	// update (execute) scripts
 	{
 		TheScriptEngine->UPDATE();
+	}
+
+	if (TheAIMatch) {
+		TheAIMatch->update();
 	}
 
 	// TheSuperHackers @info Updates the frozen time status because it may have changed after the script engine update.

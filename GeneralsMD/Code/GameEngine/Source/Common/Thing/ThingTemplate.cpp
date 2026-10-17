@@ -747,8 +747,10 @@ void ThingTemplate::parsePrerequisites( INI* ini, void *instance, void *store, c
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 
-	if (ini->getLoadType() == INI_LOAD_CREATE_OVERRIDES)
+	// An extended object that states prerequisites means those, not the ones of the object it extends in addition.
+	if (ini->getLoadType() == INI_LOAD_CREATE_OVERRIDES || self->m_prereqsCopiedFromExtended)
 	{
+		self->m_prereqsCopiedFromExtended = FALSE;
 		self->m_prereqInfo.clear();
 	}
 
@@ -1125,6 +1127,7 @@ ThingTemplate::ThingTemplate() :
 	//m_defaultOwningSide = "";	// unnecessary
 	m_isBuildFacility = FALSE;
 	m_isPrerequisite = FALSE;
+	m_prereqsCopiedFromExtended = FALSE;
 	m_placementViewAngle = 0.0f;
 	m_factoryExitWidth = 0.0f;
 	m_factoryExtraBibWidth = 0.0f;
@@ -1354,6 +1357,7 @@ void ThingTemplate::setCopiedFromDefaultExtended()
 	// cannot be removed with RemoveModule
 	m_armorCopiedFromDefault = true;
 	m_weaponsCopiedFromDefault = true;
+	m_prereqsCopiedFromExtended = true;
 	//m_behaviorModuleInfo.setCopiedFromDefault(true);
 	//m_drawModuleInfo.setCopiedFromDefault(true);
 	//m_clientUpdateModuleInfo.setCopiedFromDefault(true);

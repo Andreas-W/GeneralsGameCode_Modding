@@ -79,7 +79,7 @@ protected:
 	void drawMyTexture(CDC *pDc, CRect *pRect, Int width, UnsignedByte *rgbData);
 
 	/// Get a color for a height value.
-	DWORD getColorForHeight(UnsignedByte ht);
+	DWORD getColorForHeight(Int height);
 
 	/// Draw the contours for the height map in the dc.
 	void drawContours(CDC *pDc, CRgn *pRgn, Int minX, Int maxX, Int minY, Int maxY);

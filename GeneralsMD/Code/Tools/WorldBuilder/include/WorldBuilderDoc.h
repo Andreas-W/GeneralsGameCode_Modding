@@ -149,6 +149,11 @@ public:
 
 	void autoSave();
 	void validate();
+
+	/// Makes the next OnNewDocument use these settings instead of asking with the New Map dialog.
+	static void setNewMapOverride(Int xExtent, Int yExtent, Int initialHeight, Int border);
+	/// Makes MFC treat the next open of the same file as a new document, so it is read again.
+	void forgetPathName() { m_strPathName.Empty(); }
 // Operations
 public:
 

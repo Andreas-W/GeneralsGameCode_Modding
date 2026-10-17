@@ -57,6 +57,20 @@ typedef struct
 } TGlobalTextureClass;
 
 
+/// Describes a mirror or rotation for WorldHeightMapEdit::copyTransformedFrom by mapping destination
+/// vertices and cells back to their source.
+class HeightMapTransform
+{
+public:
+	virtual ~HeightMapTransform() {}
+	/// Returns false to leave the destination vertex unchanged.
+	virtual Bool sourceVertex(Int x, Int y, Int *srcX, Int *srcY) const = 0;
+	/// Same for cells; a cell is addressed by its lower left vertex.
+	virtual Bool sourceCell(Int x, Int y, Int *srcX, Int *srcY) const = 0;
+	/// Maps a direction (components -1, 0 or 1) from source to destination orientation for a destination cell.
+	virtual void mapDirection(Int x, Int y, Int *dx, Int *dy) const = 0;
+};
+
 class WorldHeightMapEdit : public WorldHeightMap
 {
 protected:
@@ -116,10 +130,21 @@ public: // Editing methods.
 	void blendTile(Int xIndex, Int yIndex, Int srcXIndex, Int srcYIndex, Int srcClass, Int edgeClass);
 	void autoBlendOut(Int xIndex, Int yIndex, Int edgeIndex = -1);
 	Int getTextureClass(Int xIndex, Int yIndex, Bool baseClass=false);
-	void setHeight(Int xIndex, Int yIndex, UnsignedByte height);
+	/// Sets a height, limited to the valid range and snapped with snapHeight().
+	void setHeight(Int xIndex, Int yIndex, Int height);
+	/// Heights are saved as bytes and multiplied by the map's HeightMapScale when loaded, so only
+	/// multiples of the scale survive a save. Returns the nearest such height in the valid range.
+	/// A height exactly between two steps moves away from currentHeight, so that a small change
+	/// has an effect in both directions.
+	static Int snapHeight(Int height, Int currentHeight);
 	void setCliff(Int xIndex, Int yIndex, Bool impassable) {setCliffState(xIndex, yIndex, impassable);}
 	Bool setTileNdx(Int xIndex, Int yIndex, Int textureClass, Bool singleTile);
-	Bool floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace);
+	Bool floodFill(Int xIndex, Int yIndex, Int textureClass, Bool doReplace, Bool askToConfirm = true);
+	/// Copies heights, textures (including blends) and passability from a same-sized map through a
+	/// mirror or rotation. Cliff texture mapping is reset on the copied cells.
+	void copyTransformedFrom(WorldHeightMapEdit *src, const HeightMapTransform &xf, Bool heights, Bool textures, Bool passability);
+	/// Removes both blend layers from the cells in the inclusive index range.
+	void clearBlends(Int x0, Int y0, Int x1, Int y1);
 	static Int getNumTexClasses() {return m_numGlobalTextureClasses;};
 	static AsciiString getTexClassName(int ndx) {return m_globalTextureClasses[ndx].name;}
 	static AsciiString getTexClassUiName(int ndx) ;
@@ -143,6 +168,11 @@ public: // Editing methods.
 
 	Bool resize(Int newXSize, Int newYSize, Int newHeight, Int newBorder, Bool anchorTop, Bool anchorBottom,
 							Bool anchorLeft, Bool anchorRight, Coord3D *pObjOffset);
+	/// Changes the map size by adding cells on each side (negative values remove cells). New cells
+	/// continue the old edge: its height (or fillHeight if that is not negative) and its base texture
+	/// (or fillTextureClass if that is not negative).
+	/// Unlike resize() it keeps manual passability and updates the boundaries. Never shows a dialog.
+	Bool resizeBySides(Int addLeft, Int addBottom, Int addRight, Int addTop, Int newBorder, Int fillHeight, Int fillTextureClass);
 	Bool remapTextures(); ///< returns true if the operation had an effect.
 	void reloadTextures(); ///< Reloads textures from disk.
 	void resetResources(); ///< Releases textures in preparation for device reset.

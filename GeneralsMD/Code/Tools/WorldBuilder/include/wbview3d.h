@@ -189,6 +189,10 @@ private:
 	Bool										m_showWireframe;
 	Bool										m_ww3dInited;
 	Bool										m_needToLoadRoads;
+	const char							*m_capturePath;		///< When set, render() writes the frame to this image file.
+	Bool										m_captureOk;
+	Int											m_captureWidth;
+	Int											m_captureHeight;
 	LightClass							*m_globalLight[MAX_GLOBAL_LIGHTS];
 	RenderObjClass						*m_lightFeedbackMesh[MAX_GLOBAL_LIGHTS];
 
@@ -265,6 +269,12 @@ public:
 	Vector3 getCameraSource() { return m_cameraSource; }
 	Vector3 getCameraTarget() { return m_cameraTarget; }
 	Real getCameraAngle() { return m_cameraAngle; }
+	void setCameraAngle(Real angle) { m_cameraAngle = angle; }
+	Real getZoomOffset() { return m_mouseWheelOffset; }
+	void setZoomOffset(Real offset) { m_mouseWheelOffset = offset; }
+	/// Renders one frame and writes it to an image file before it is presented (see mcpSetScreenshotOptions).
+	/// Returns false if the view could not render.
+	Bool captureToFile(const char *path, Int *width, Int *height);
 	CPoint getActualWinSize() {return m_actualWinSize;}
 
 	virtual MapObject *picked3dObjectInView(CPoint viewPt) override;

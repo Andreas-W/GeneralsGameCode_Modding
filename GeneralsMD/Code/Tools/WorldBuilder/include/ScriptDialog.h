@@ -86,6 +86,9 @@ public:
 	static void patchScriptParametersForGC(Script *pScript);
 	static void checkParametersForGC();
 
+	/// True while the script editor window is shown. It then edits its own copy of the sides list.
+	static Bool isOpen();
+
 
 	/// To allow CSDTreeCtrl access to these member functions of ScriptDialog
 	Script *friend_getCurScript();

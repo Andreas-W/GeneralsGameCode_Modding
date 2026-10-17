@@ -124,6 +124,16 @@ public:
 	// do not use it in RTS!
 	std::vector<AsciiString> friend_getScienceNames() const;
 
+	/// The sciences that must be owned before this one can be purchased. For tools.
+	Bool friend_getPrereqSciences(ScienceType st, ScienceVec& prereqs) const
+	{
+		const ScienceInfo* info = findScienceInfo(st);
+		if (info == nullptr)
+			return false;
+		prereqs = info->m_prereqSciences;
+		return true;
+	}
+
 
 private:
 

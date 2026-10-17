@@ -202,6 +202,17 @@ void WBDocUndoable::Undo()
 **                             AddObjectUndoable
 ***************************************************************************/
 //
+// Returns the number at the end of an object's unique ID ("TreePalm1 12"), or -1 if it has none.
+//
+static Int getUniqueIDIndex(MapObject *pObj)
+{
+	Bool exists;
+	AsciiString uniqueID = pObj->getProperties()->getAsciiString(TheKey_uniqueID, &exists);
+	const char *lastSpace = uniqueID.reverseFind(' ');
+	return lastSpace ? atoi(lastSpace) : -1;
+}
+
+//
 // AddObjectUndoable - destructor.
 //
 AddObjectUndoable::~AddObjectUndoable()
@@ -251,6 +262,21 @@ void AddObjectUndoable::Do()
 	if (pLast==nullptr) {
 		return;
 	}
+
+	// validate() only looks at the object that follows in the list when it picks an ID, so every
+	// object after the first in a chain added at once would get the same one. Number the chain here,
+	// counting on from the highest ID already in the map.
+	Int highestIndex = -1;
+	for (pCur = MapObject::getFirstMapObject(); pCur; pCur = pCur->getNext()) {
+		if (pCur->isWaypoint()) {
+			continue;
+		}
+		Int index = getUniqueIDIndex(pCur);
+		if (index > highestIndex) {
+			highestIndex = index;
+		}
+	}
+
 	pLast->setNextMap(MapObject::getFirstMapObject());
 
 	MapObject::TheMapObjectListPtr	= m_objectToAdd;
@@ -262,6 +288,16 @@ void AddObjectUndoable::Do()
 		pCur->validate();
 		Dict *props = pCur->getProperties();
 		Bool dontCare;
+		if (!pCur->isWaypoint()) {
+			AsciiString uniqueID = props->getAsciiString(TheKey_uniqueID, &dontCare);
+			const char *lastSpace = uniqueID.reverseFind(' ');
+			if (lastSpace) {
+				AsciiString newID;
+				uniqueID.truncateTo(lastSpace - uniqueID.str());
+				newID.format("%s %d", uniqueID.str(), ++highestIndex);
+				props->setAsciiString(TheKey_uniqueID, newID);
+			}
+		}
 		TheLayersList->addMapObjectToLayersList(pCur, props->getAsciiString(TheKey_objectLayer, &dontCare));
 
 		m_pDoc->invalObject(pCur);

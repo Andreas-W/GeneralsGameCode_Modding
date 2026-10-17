@@ -1,0 +1,32 @@
+{
+  "_comment": "Terrain layouts for terrain_generate. 'default' is the Genesis MapLayouts.xml layout (Height=base_height; Elevation=amplitude, Jaggedness=frequency per vertex, Ruggedness=persistence, LevelOfDetail=octaves). Layer values are clamped noise (0..1, or -1..1 when signed) times height, in raw height units.",
+  "default": {
+    "base_height": 40,
+    "layers": [
+      {"name": "Hills", "height": 200, "amplitude": 1.3, "frequency": 0.005, "persistence": 0.25, "octaves": 3},
+      {"name": "Depressions", "height": -40, "amplitude": 1.22, "frequency": 0.014, "persistence": 0.7, "octaves": 2},
+      {"name": "Bumps", "height": 13, "amplitude": 0.79, "frequency": 0.038, "persistence": 0.8, "octaves": 3}
+    ]
+  },
+  "rolling": {
+    "base_height": 40,
+    "layers": [
+      {"name": "Swells", "height": 30, "amplitude": 1.0, "frequency": 0.012, "persistence": 0.5, "octaves": 3, "signed": true},
+      {"name": "Bumps", "height": 6, "amplitude": 0.8, "frequency": 0.05, "persistence": 0.6, "octaves": 2, "signed": true}
+    ]
+  },
+  "mountains": {
+    "base_height": -40,
+    "layers": [
+      {"name": "Ridges", "height": 140, "amplitude": 1.1, "frequency": 0.008, "persistence": 0.5, "octaves": 4, "ridged": true},
+      {"name": "Valleys", "height": -30, "amplitude": 1.2, "frequency": 0.01, "persistence": 0.5, "octaves": 2},
+      {"name": "Bumps", "height": 8, "amplitude": 0.8, "frequency": 0.045, "persistence": 0.7, "octaves": 2}
+    ]
+  },
+  "flat_bumpy": {
+    "base_height": 40,
+    "layers": [
+      {"name": "Bumps", "height": 8, "amplitude": 0.9, "frequency": 0.04, "persistence": 0.6, "octaves": 3, "signed": true}
+    ]
+  }
+}

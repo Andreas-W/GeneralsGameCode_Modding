@@ -194,7 +194,7 @@ void WaterTool::mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBui
 	REF_PTR_RELEASE(m_poly_moveUndoable); // belongs to pDoc now.
 }
 
-inline static Real mapZtoHeight(UnsignedByte mapZ) {
+inline static Real mapZtoHeight(Int mapZ) {
 	return (mapZ * MAP_HEIGHT_SCALE)+0.01f;
 }
 

@@ -117,6 +117,7 @@ set(GAMEENGINE_SRC
 #    Include/Common/StackDump.h
 #    Include/Common/StateMachine.h
 #    Include/Common/StatsCollector.h
+    Include/Common/SciencePurchaseSlots.h
     Include/Common/STLTypedefs.h
     Include/Common/StreamingArchiveFile.h
     Include/Common/SubsystemInterface.h

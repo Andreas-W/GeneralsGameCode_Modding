@@ -5,6 +5,7 @@
 !.gitattributes
 !.github
 !.gitmodules
+!.mcp.json
 
 *.user
 *.ncb
@@ -51,7 +52,6 @@ thumbs.db
 
 ## AI assistant config (user-specific)
 /.claude/
-/CLAUDE.md
 
 ## IntelliJ, CLion, etc.
 /.idea
@@ -67,3 +67,4 @@ build.ninja
 ## Python
 __pycache__/
 *.pyc
+.venv/

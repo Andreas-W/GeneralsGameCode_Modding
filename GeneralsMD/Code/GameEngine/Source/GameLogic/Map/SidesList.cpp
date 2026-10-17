@@ -51,6 +51,7 @@
 #include "Common/WellKnownKeys.h"
 #include "Common/Xfer.h"
 #include "GameLogic/AI.h"
+#include "GameLogic/AIMatch.h"
 #include "GameLogic/Scripts.h"
 #include "GameLogic/SidesList.h"
 
@@ -518,6 +519,9 @@ void SidesList::prepareForMP_or_Skirmish()
 	}
 	if (!gotScripts) {
 		AsciiString path = "data\\Scripts\\SkirmishScripts.scb";
+		if (TheAIMatch && TheAIMatch->getScriptFile().isNotEmpty()) {
+			path = TheAIMatch->getScriptFile();
+		}
 		DEBUG_LOG(("Skirmish map using standard scripts"));
 		m_skirmishTeamrec.clear();
 		CachedFileInputStream theInputStream;

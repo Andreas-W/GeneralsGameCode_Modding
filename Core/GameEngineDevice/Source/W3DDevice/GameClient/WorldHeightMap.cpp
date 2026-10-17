@@ -2254,6 +2254,13 @@ Bool WorldHeightMap::setDrawArea(const DrawArea& area)
 	return false;
 }
 
+Int WorldHeightMap::getMaxHeightValue()
+{
+	// Heights are stored as bytes in the map file and multiplied by the scale when loaded.
+	const Real scale = TheMapData ? TheMapData->m_HeightmapScale : 1.0f;
+	return (Int)std::round(K_MAX_HEIGHT * scale);
+}
+
 Bool WorldHeightMap::setDrawOrg(Int xOrg, Int yOrg)
 {
 	return setDrawArea(createDrawArea(xOrg, yOrg));

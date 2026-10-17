@@ -54,6 +54,9 @@
 //-----------------------------------------------------------------------------
 #include "Common/Snapshot.h"
 
+#include <map>
+#include <string>
+
 //-----------------------------------------------------------------------------
 // FORWARD REFERENCES /////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
@@ -92,6 +95,9 @@ public:
 	Int getTotalTechBuildingsCaptured() { return m_totalTechBuildingsCaptured; }
 	Int getTotalFactionBuildingsCaptured() { return m_totalFactionBuildingsCaptured; }
 	Int getTotalObjectsBuilt( const ThingTemplate *pTemplate ); // get a count of objects built matching a specific thing template
+
+	/// Everything built and lost so far, by template name. For logs and tools.
+	void friend_countObjects( std::map<std::string, Int>& built, std::map<std::string, Int>& lost ) const;
 
 	// for battle honor calculation.  done once at the end of each online game
 	Int getTotalUnitsBuilt( KindOfMaskType validMask, KindOfMaskType invalidMask );

@@ -195,6 +195,36 @@ set(WORLDBUILDER_SRC
     "include/WorldBuilder.h"
     "include/WorldBuilderDoc.h"
     "include/WorldBuilderView.h"
+    "include/mcp/McpCommands.h"
+    "include/mcp/McpJson.h"
+    "include/mcp/McpNoise.h"
+    "include/mcp/McpScriptsShared.h"
+    "include/mcp/McpShape.h"
+    "include/mcp/McpUndoables.h"
+    "include/mcp/McpScreenshot.h"
+    "include/mcp/McpServer.h"
+    "src/mcp/McpCmdGenerate.cpp"
+    "src/mcp/McpCmdImage.cpp"
+    "src/mcp/McpCmdMap.cpp"
+    "src/mcp/McpCmdObjects.cpp"
+    "src/mcp/McpCmdReplace.cpp"
+    "src/mcp/McpCmdResize.cpp"
+    "src/mcp/McpCmdRoute.cpp"
+    "src/mcp/McpCmdScatter.cpp"
+    "src/mcp/McpCmdScripts.cpp"
+    "src/mcp/McpCmdScriptTools.cpp"
+    "src/mcp/McpCmdScriptViews.cpp"
+    "src/mcp/McpCmdFaction.cpp"
+    "src/mcp/McpCmdSkirmish.cpp"
+    "src/mcp/McpCmdSymmetry.cpp"
+    "src/mcp/McpCmdTeams.cpp"
+    "src/mcp/McpCmdTerrain.cpp"
+    "src/mcp/McpCmdWaypoints.cpp"
+    "src/mcp/McpCommands.cpp"
+    "src/mcp/McpJson.cpp"
+    "src/mcp/McpNoise.cpp"
+    "src/mcp/McpScreenshot.cpp"
+    "src/mcp/McpServer.cpp"
 )
 
 add_executable(z_worldbuilder WIN32)
@@ -224,6 +254,8 @@ target_link_libraries(z_worldbuilder PRIVATE
     z_gameengine
     z_gameenginedevice
     zi_always
+    stb
+    ws2_32
 )
 
 if(WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows")

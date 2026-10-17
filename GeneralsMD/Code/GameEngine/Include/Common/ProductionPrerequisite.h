@@ -97,6 +97,12 @@ public:
 
 	Int getAllPossibleBuildFacilityTemplates(const ThingTemplate* tmpls[], Int maxtmpls) const;
 
+	// Read access to the raw prerequisite data, for tools.
+	Int getUnitPrereqCount() const { return (Int)m_prereqUnits.size(); }
+	const ThingTemplate* getNthUnitPrereq(Int i) const { return m_prereqUnits[i].unit; }	///< null if the name was not found
+	Bool isNthUnitPrereqOrWithPrevious(Int i) const { return (m_prereqUnits[i].flags & UNIT_OR_WITH_PREV) != 0; }
+	const ScienceVec& getSciencePrereqs() const { return m_prereqSciences; }
+
 private:
 
 	enum

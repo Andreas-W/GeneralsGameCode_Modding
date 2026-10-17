@@ -80,6 +80,7 @@
 #include "GameClient/GameText.h"
 
 #include "GameLogic/AI.h"
+#include "GameLogic/AIMatch.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/AISkirmishPlayer.h"
 #include "GameLogic/ExperienceTracker.h"
@@ -702,7 +703,13 @@ void Player::addToPriorityBuildList(AsciiString templateName, Coord3D *pos, Real
 void Player::update()
 {
 	if (m_ai)
+	{
+		if (TheAIMatch)
+			TheAIMatch->setAIPlayer(this);
 		m_ai->update();
+		if (TheAIMatch)
+			TheAIMatch->setAIPlayer(nullptr);
+	}
 
 	// Allow the teams this player owns to update themselves.
 	for( PlayerTeamList::iterator it = m_playerTeamPrototypes.begin(); it != m_playerTeamPrototypes.end(); ++it )
@@ -1591,7 +1598,13 @@ void Player::onUnitCreated( Object *factory, Object *unit )
 
 	// ai notification callback
 	if( m_ai )
+	{
+		if (TheAIMatch)
+			TheAIMatch->setAIPlayer(this);
 		m_ai->onUnitProduced( factory, unit );
+		if (TheAIMatch)
+			TheAIMatch->setAIPlayer(nullptr);
+	}
 }
 
 
@@ -1699,7 +1712,13 @@ void Player::onStructureConstructionComplete(Object* builder, Object* structure,
 
 	// ai notification callback
 	if (m_ai)
+	{
+		if (TheAIMatch)
+			TheAIMatch->setAIPlayer(this);
 		m_ai->onStructureProduced(builder, structure);
+		if (TheAIMatch)
+			TheAIMatch->setAIPlayer(nullptr);
+	}
 
 	// the GUI needs to re-evaluate the information being displayed to the user now
 	if (TheControlBar)

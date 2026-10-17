@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "worldbuilder": {
+      "command": "uv",
+      "args": ["run", "--directory", "scripts/worldbuilder-mcp", "server.py"]
+    }
+  }
+}

@@ -23,6 +23,7 @@
 #include "WorldBuilder.h"
 #include "WorldBuilderDoc.h"
 #include "MeshMoldOptions.h"
+#include "WHeightMapEdit.h"
 #include "Common/FileSystem.h"
 
 /////////////////////////////////////////////////////////////////////////////
@@ -182,7 +183,7 @@ void MeshMoldOptions::GetPopSliderInfo(const long sliderID, long *pMin, long *pM
 
 		case IDC_HEIGHT_POPUP:
 			*pMin = MIN_HEIGHT;
-			*pMax = MAX_HEIGHT;
+			*pMax = max((Int)MAX_HEIGHT, WorldHeightMap::getMaxHeightValue());
 			*pInitial = floor(m_currentHeight/MAP_HEIGHT_SCALE+0.5f);
 			*pLineSize = 1;
 			break;

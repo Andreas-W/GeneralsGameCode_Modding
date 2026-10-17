@@ -25,6 +25,7 @@
 #include "brushoptions.h"
 #include "WorldBuilderView.h"
 #include "BrushTool.h"
+#include "WHeightMapEdit.h"
 
 BrushOptions *BrushOptions::m_staticThis = nullptr;
 Int BrushOptions::m_currentWidth = 0;
@@ -196,7 +197,7 @@ void BrushOptions::GetPopSliderInfo(const long sliderID, long *pMin, long *pMax,
 
 		case IDC_HEIGHT_POPUP:
 			*pMin = 0;
-			*pMax = 255;
+			*pMax = WorldHeightMap::getMaxHeightValue();
 			*pInitial = m_currentHeight;
 			*pLineSize = 1;
 			break;

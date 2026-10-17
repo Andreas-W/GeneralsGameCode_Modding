@@ -96,6 +96,8 @@
 
 #include <d3dx8.h>
 
+#include "mcp/McpScreenshot.h"
+
 
 // ----------------------------------------------------------------------------
 // Misc. Forward Declarations
@@ -385,6 +387,10 @@ WbView3d::WbView3d() :
 	m_time(0),
 	m_updateCount(0),
 	m_needToLoadRoads(0),
+	m_capturePath(nullptr),
+	m_captureOk(false),
+	m_captureWidth(0),
+	m_captureHeight(0),
 	m_timer(0),
 	m_drawObject(nullptr),
 	m_layer(nullptr),
@@ -2085,6 +2091,18 @@ void WbView3d::redraw()
 }
 
 // ----------------------------------------------------------------------------
+Bool WbView3d::captureToFile(const char *path, Int *width, Int *height)
+{
+	m_capturePath = path;
+	m_captureOk = false;
+	redraw();
+	m_capturePath = nullptr;
+	if (width) *width = m_captureWidth;
+	if (height) *height = m_captureHeight;
+	return m_captureOk;
+}
+
+// ----------------------------------------------------------------------------
 void WbView3d::render()
 {
 	++m_updateCount;
@@ -2143,6 +2161,9 @@ void WbView3d::render()
 			drawLabels(nullptr);
 		}
 
+		if (m_capturePath) {
+			m_captureOk = mcpWriteBackBufferImage(m_capturePath, &m_captureWidth, &m_captureHeight);
+		}
 
 		WW3D::End_Render();
 	}

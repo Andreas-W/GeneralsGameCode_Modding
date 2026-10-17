@@ -1,0 +1,14 @@
+WorldBuilder MCP server
+
+This component includes software and data derived from Genesis - CWC Map Generator,
+Copyright 2013 The CWC Team (http://www.cold-war-crisis.de), licensed under the
+Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0):
+
+- GeneralsMD/Code/Tools/WorldBuilder/src/mcp/McpNoise.cpp: Perlin noise, based on
+  Genesis/Math/PerlinNoise.cs.
+- scripts/worldbuilder-mcp/presets/layouts.json and sceneries.json: terrain layout and
+  scenery presets from Genesis.UI/MapLayouts.xml, Genesis.UI/Sceneries/*.xml and
+  MapTools/MapTools.cs.
+
+The terrain generation, texturing and symmetry commands follow the design of the Genesis
+processors and map tools.

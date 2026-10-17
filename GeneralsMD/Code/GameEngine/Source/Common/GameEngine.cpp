@@ -104,6 +104,7 @@
 #include "GameClient/Drawable.h"
 #include "GameClient/GUICallbacks.h"
 
+#include "GameLogic/AIMatch.h"
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/WOLBrowser/WebBrowser.h"
 #include "GameNetwork/LANAPI.h"
@@ -282,6 +283,9 @@ GameEngine::~GameEngine()
 
 	delete TheSkirmishGameInfo;
 	TheSkirmishGameInfo = nullptr;
+
+	delete TheAIMatch;
+	TheAIMatch = nullptr;
 
 	delete TheChallengeGameInfo;
 	TheChallengeGameInfo = nullptr;
@@ -737,6 +741,13 @@ void GameEngine::init()
 				msg->appendIntegerArgument(0);
 				InitRandom(0);
 			}
+		}
+
+		// A skirmish between AI players, asked for on the command line.
+		TheAIMatch = AIMatch::createFromCommandLine();
+		if (TheAIMatch)
+		{
+			TheAIMatch->start();
 		}
 
 		//

@@ -183,6 +183,8 @@ public:
 	AcademyClassificationType getAcademyClassificationType() const { return m_academyClassificationType; }
 
 	const Bool isSilentCompletion(void) const { return m_silentCompletion; }
+	Real friend_getBuildTime() const { return m_buildTime; }	///< seconds, before any player modifiers
+	Int friend_getBuildCost() const { return m_cost; }
 
 	/// inventory pictures
 	void cacheButtonImage();

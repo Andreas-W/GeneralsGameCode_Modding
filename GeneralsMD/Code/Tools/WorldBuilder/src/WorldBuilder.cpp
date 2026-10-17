@@ -29,6 +29,7 @@
 #include "WorldBuilderView.h"
 #include "WBFrameWnd.h"
 #include "wbview3d.h"
+#include "mcp/McpServer.h"
 
 //#include <wsys/StdFileSystem.h>
 #include "W3DDevice/GameClient/W3DFileSystem.h"
@@ -335,7 +336,19 @@ BOOL CWorldBuilderApp::InitInstance()
 
 	INI ini;
 
-	initSubsystem(TheWritableGlobalData, new GlobalData(), "Data\\INI\\Default\\GameData", "Data\\INI\\GameData");
+	// -ignoreAsserts works like in the game: asserts are only logged instead of opening a blocking dialog.
+	// It must be set before GameData.ini is parsed, since mod data can already assert there.
+	Bool ignoreAsserts = false;
+	for (Int arg = 1; arg < __argc; arg++) {
+		if (_stricmp(__argv[arg], "-ignoreAsserts") == 0) {
+			ignoreAsserts = true;
+		}
+	}
+	GlobalData *globalData = new GlobalData();
+#ifdef DEBUG_CRASHING
+	globalData->m_debugIgnoreAsserts = ignoreAsserts;
+#endif
+	initSubsystem(TheWritableGlobalData, globalData, "Data\\INI\\Default\\GameData", "Data\\INI\\GameData");
 	initSubsystem(TheWriteableMapData, new MapData());
 
 	TheFramePacer = new FramePacer();
@@ -345,7 +358,7 @@ BOOL CWorldBuilderApp::InitInstance()
 #endif
 
 #ifdef DEBUG_CRASHING
-	TheWritableGlobalData->m_debugIgnoreAsserts = false;
+	TheWritableGlobalData->m_debugIgnoreAsserts = ignoreAsserts;
 #endif
 
 	DEBUG_LOG(("TheWritableGlobalData %x", TheWritableGlobalData));
@@ -469,6 +482,14 @@ BOOL CWorldBuilderApp::InitInstance()
 
 	CString openDir = this->GetProfileString(APP_SECTION, OPEN_FILE_DIR);
 	m_currentDirectory = openDir;
+
+	// Optional localhost command bridge used by the WorldBuilder MCP server (scripts/worldbuilder-mcp).
+	Int mcpPort = McpServer::getRequestedPort();
+	if (mcpPort > 0 && !McpServer::start(mcpPort)) {
+		CString msg;
+		msg.Format("Could not start the MCP bridge on port %d. Is another WorldBuilder already using it?", mcpPort);
+		::AfxMessageBox(msg, MB_OK | MB_ICONEXCLAMATION);
+	}
 
 	return TRUE;
 }
@@ -629,6 +650,7 @@ void CWorldBuilderApp::OnAppAbout()
 
 int CWorldBuilderApp::ExitInstance()
 {
+	McpServer::stop();
 
 	WriteProfileString(APP_SECTION, OPEN_FILE_DIR, m_currentDirectory.str());
 	m_currentDirectory.clear();
