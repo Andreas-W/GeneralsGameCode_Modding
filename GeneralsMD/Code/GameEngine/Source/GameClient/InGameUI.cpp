@@ -4242,6 +4242,12 @@ void InGameUI::postDraw()
 				{
 					SuperweaponInfo *info = *listIt;
 					DEBUG_ASSERTCRASH(info, ("No superweapon info!"));
+					// Owner-only timers are drawn only for the player they belong to.
+					if (info && info->getSpecialPowerTemplate()->isOwnerOnlyTimer() &&
+							(ThePlayerList->getLocalPlayer() == nullptr || i != ThePlayerList->getLocalPlayer()->getPlayerIndex()))
+					{
+						continue;
+					}
 					if (info && !info->m_hiddenByScript && !info->m_hiddenByScience)
 					{
 						//enforce bottom margin of tactical view
@@ -4375,6 +4381,9 @@ void InGameUI::postDraw()
                     info->m_evaReadyPlayed = false; // Reset Eva for next time
                 }
 
+                // A flashing timer is drawn like a ready one while it counts down.
+                const Bool drawReady = isReady || module->getSpecialPowerTemplate()->isFlashingTimer();
+
                 // draw the text
                 if ( !m_superweaponHiddenByScript && !marginExceeded )
                 {
@@ -4382,7 +4391,7 @@ void InGameUI::postDraw()
  								  Bool changeBolding = (readySecs != info->m_timestamp) || (isReady != info->m_ready) || info->m_forceUpdateText;
  								  if (changeBolding)
  								  {
- 									  if (isReady)
+ 									  if (drawReady)
 									  {
 										  // go bold - we're good to go
 										  info->setFont( m_superweaponReadyFont, m_superweaponReadyPointSize, m_superweaponReadyBold );
@@ -4410,7 +4419,7 @@ void InGameUI::postDraw()
                     info->setText(name, time);
                   }
 
-                  if (isReady)
+                  if (drawReady)
 								  {
 									  if ( m_superweaponFlashDuration != 0.0f )
 									  {

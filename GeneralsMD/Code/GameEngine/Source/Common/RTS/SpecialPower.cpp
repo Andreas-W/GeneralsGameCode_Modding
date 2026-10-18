@@ -225,6 +225,7 @@ const char* const SpecialPowerMaskType::s_bitNameList[] =
 	 "SPECIAL_JUMPJET",
 
 	 "SPECIAL_ALL_BATTLE_PLANS",
+	 "SPECIAL_ALL_BATTLE_PLANS_ACTIVE",
 
 	nullptr
 };
@@ -293,6 +294,8 @@ void SpecialPowerStore::parseSpecialPowerDefinition( INI *ini )
 	{ "InitiateSound",						INI::parseAudioEventRTS,					nullptr,	offsetof( SpecialPowerTemplate, m_initiateSound ) },
 	{ "InitiateAtLocationSound",	INI::parseAudioEventRTS,					nullptr,	offsetof( SpecialPowerTemplate, m_initiateAtLocationSound ) },
 	{ "PublicTimer",							INI::parseBool,										nullptr, offsetof( SpecialPowerTemplate, m_publicTimer ) },
+	{ "OwnerOnlyTimer",						INI::parseBool,										nullptr, offsetof( SpecialPowerTemplate, m_ownerOnlyTimer ) },
+	{ "FlashingTimer",						INI::parseBool,										nullptr, offsetof( SpecialPowerTemplate, m_flashingTimer ) },
 	{ "Enum",											INI::parseIndexList,							SpecialPowerMaskType::getBitNames(), offsetof( SpecialPowerTemplate, m_type ) },
 	{ "DetectionTime",						INI::parseDurationUnsignedInt,		nullptr,	offsetof( SpecialPowerTemplate, m_detectionTime ) },
 	{ "SharedSyncedTimer",				INI::parseBool,										nullptr, offsetof( SpecialPowerTemplate, m_sharedNSync ) },
@@ -326,6 +329,8 @@ SpecialPowerTemplate::SpecialPowerTemplate()
 	m_reloadTime = 0;
 	m_requiredScience = SCIENCE_INVALID;
 	m_publicTimer = FALSE;
+	m_ownerOnlyTimer = FALSE;
+	m_flashingTimer = FALSE;
 	m_detectionTime = DEFAULT_DEFECTION_DETECTION_PROTECTION_TIME_LIMIT;
 	m_sharedNSync = FALSE;
 	m_viewObjectDuration = 0;
