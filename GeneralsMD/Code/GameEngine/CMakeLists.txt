@@ -66,6 +66,7 @@ set(GAMEENGINE_SRC
 #    Include/Common/LocalFileSystem.h
 #    Include/Common/MapObject.h
     Include/Common/MapReaderWriterInfo.h
+    Include/Common/McpJson.h
 #    Include/Common/MessageStream.h
 #    Include/Common/MiniLog.h
 #    Include/Common/MiscAudio.h
@@ -572,6 +573,7 @@ set(GAMEENGINE_SRC
     Source/Common/GameLOD.cpp
     Source/Common/GameMain.cpp
     Source/Common/GlobalData.cpp
+    Source/Common/McpJson.cpp
 #    Source/Common/INI/INI.cpp
 #    Source/Common/INI/INIAiData.cpp
 #    Source/Common/INI/INIAnimation.cpp
