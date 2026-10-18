@@ -44,7 +44,7 @@ Zero Hour targets are prefixed `z_` (Generals uses `g_`):
 
 ### Key build options (`cmake/config-build.cmake`)
 
-`RTS_BUILD_ZEROHOUR` (default ON), `RTS_BUILD_GENERALS` (turn OFF to skip original Generals), `RTS_BUILD_OPTION_DEBUG`, `RTS_BUILD_OPTION_PROFILE`, `RTS_DEBUG_LOGGING`, `RTS_DEBUG_CRASHING`, `RTS_DEBUG_STACKTRACE`, `RTS_BUILD_OPTION_FFMPEG`. Debug defines: `RTS_DEBUG WWDEBUG DEBUG`; Release: `RTS_RELEASE NDEBUG`.
+`RTS_BUILD_ZEROHOUR` (default ON), `RTS_BUILD_GENERALS` (turn OFF to skip original Generals), `RTS_BUILD_OPTION_DEBUG`, `RTS_BUILD_OPTION_PROFILE`, `RTS_DEBUG_LOGGING`, `RTS_DEBUG_CRASHING`, `RTS_DEBUG_STACKTRACE`, `RTS_BUILD_OPTION_FFMPEG`, `RTS_BUILD_OPTION_GAME_MCP` (default ON; the game MCP bridge, see below). Debug defines: `RTS_DEBUG WWDEBUG DEBUG`; Release: `RTS_RELEASE NDEBUG`.
 
 ## Architecture
 
@@ -155,3 +155,22 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 - Server tools: `scripts/worldbuilder-mcp/server.py`; logic that needs no bridge is in `faction.py`, `framework.py`, `scaffold.py`, `aidata.py`, `match.py`.
 - AI matches are an engine feature (`GameLogic/AIMatch.h`): `generalszh.exe -aiMatch <map> -aiPlayers Faction:difficulty,... -aiMatchLog <file> [-headless]`.
 - After a change: build `z_worldbuilder`, copy `WorldBuilderZH.exe` to the mod folder, restart it with `-mcp -ignoreAsserts`, run `python scripts/worldbuilder-mcp/smoke_test.py` (it replaces the open map with a test map) and extend that test for new commands.
+
+## Game MCP
+
+A second MCP server drives the running game itself, so features can be tested by playing: start a skirmish as the local player (alone in a sandbox or against AI), pause, step frames, inspect every object and player, give orders, spawn and change things, run scripts, take screenshots. Use its tools (`mcp__game__*`) for that. Full reference: the game section of `scripts/worldbuilder-mcp/README.md`.
+
+```
+Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.1:47801 -->  generalszh.exe -mcp
+```
+
+- The bridge exists only in builds with `RTS_BUILD_OPTION_GAME_MCP` and only listens when the game is started with `-mcp`. Without the flag nothing changes for normal play.
+- `game_launch` starts `generalszh.exe` from the mod folder (`GAME_DIR`, default `F:\Operation-Firestorm-2.0`; `GAME_EXE` picks another exe name) with `-mcpGame <map> -mcpPlayers <Faction>[,<AIFaction>:<difficulty>...] [-mcpStartPaused] [-headless]`. Only one faction = sandbox (no victory check).
+- Logic runs 30 frames per second. Orders (`orders_*`) go through the normal command messages and take effect on the next frame: give them while paused, then `game_step`. `objects_spawn` / `objects_set` / `players_set` change the game directly and are not in the replay.
+- Headless runs only the logic (fast, no `view_*`). Windowed must not be minimized (the engine sleeps while iconic).
+
+### Working on the game MCP
+
+- C++: `GeneralsMD/Code/GameEngine/Source/Common/Mcp/` (`GameMcp.cpp` command line and main-thread side, `GameMcpServer.cpp` socket thread, `GameMcpCmd*.cpp` commands registered with `gameMcpRegisterCommand`, failing with `gameMcpFail`). Every hook in other files is inside `#ifdef RTS_GAME_MCP`. Handlers run on the main thread between logic frames (polled in `GameEngine::update`, or in `GameMcp::runHeadless`).
+- Skirmish setup without the menu is shared with AI matches: `GameLogic/SkirmishLaunch.h`.
+- After a change: build `z_generals`, copy `generalszh.exe` to the mod folder under another name and run `python scripts/worldbuilder-mcp/game_smoke_test.py --exe <name>` (add `--windowed` for the view commands); extend it for new commands.

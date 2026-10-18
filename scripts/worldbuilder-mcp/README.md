@@ -142,3 +142,56 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Heightmaps have one pixel per heightmap vertex, and the pixel value is the raw height. 16-bit images are accepted on import.
   - Masks have one pixel per cell.
   - Relative paths are resolved by the Python server, not by WorldBuilder.
+
+# Game MCP server
+
+`game_server.py` drives the running game the same way: Claude starts a skirmish as the local
+player, alone in a sandbox or against AI players, pauses and steps it, looks at every object and
+player, gives orders, changes things for a test and takes screenshots.
+
+```
+MCP client  <-- stdio -->  game_server.py  <-- TCP 127.0.0.1:47801, JSON lines -->  generalszh.exe -mcp
+```
+
+The C++ side lives in `GeneralsMD/Code/GameEngine/Source/Common/Mcp/`. It is compiled only with the
+CMake option `RTS_BUILD_OPTION_GAME_MCP` (default ON) and listens only when the game is started with
+`-mcp`. Commands run on the game's main thread between two logic frames.
+
+## Starting the game
+
+`game_launch` starts `generalszh.exe` from `GAME_DIR` (default `F:\Operation-Firestorm-2.0`; set
+`GAME_EXE` for another executable name) and waits until the map has loaded. By hand:
+
+```
+generalszh.exe -mcp -mcpGame "armed neighbors" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts
+```
+
+| Option | Meaning |
+|---|---|
+| `-mcp` / `-mcpport:N` | Enable the bridge on port 47801 / N. |
+| `-mcpGame <map>` | Start a skirmish on that map (map name or part of its path). |
+| `-mcpPlayers <list>` | `Faction[:team]` of the local player (or `Observer`), then AI players as `Faction:difficulty[:team]`. Only the local player: a sandbox in which nobody wins or loses. |
+| `-mcpCash <n>` | Starting money. |
+| `-mcpStartPaused` | Pause as soon as the game has started. |
+| `-seed <n>` | Random seed (start positions, everything random). |
+| `-headless` | Only the game logic: no window, no screenshots, as fast as allowed by `game_set_speed`. |
+
+`-mcp` also works with `-aiMatch` (to look into an AI match) or a game started from the menu.
+
+## Tools
+
+- **Time:** `game_status`, `game_pause`, `game_resume`, `game_step` (frames or seconds, then pause; waits until done), `game_set_speed` (30 = normal, 0 = as fast as possible), `game_quit`.
+- **Looking:** `objects_list` (filter by player, template, kindof, status, area), `objects_get` (status, disabled, kindof, veterancy, AI state, weapons, upgrades, special powers, production, passengers, behavior modules, model conditions), `objects_templates`, `players_list`, `players_get`, `game_messages` (what the script engine and the AI reported).
+- **Orders** (as the owning player would click them; recorded in the replay; carried out on the next logic frame): `orders_move`, `orders_attack`, `orders_stop`, `orders_guard`, `orders_sell`, `orders_build`, `orders_produce`, `orders_upgrade`, `orders_special_power`, `orders_purchase_science`.
+- **Test changes** (direct, not in the replay): `objects_spawn`, `objects_destroy`, `objects_set` (health, position, veterancy, upgrade, status), `players_set` (money, rank, points, sciences, upgrades, instant build, special power delays).
+- **Scripts:** `scripts_run`, `scripts_set_active`, `scripts_flags`, `scripts_counters`.
+- **View** (window only, not minimized): `view_camera`, `view_screenshot`.
+- `game_command` runs any bridge command; `list_commands` lists them.
+
+## Checking the bridge without MCP
+
+```
+python game_smoke_test.py --exe generalszh.exe [--windowed]
+```
+
+It starts the game headless in a sandbox and goes through every command area, then closes it.

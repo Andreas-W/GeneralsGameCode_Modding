@@ -1,7 +1,8 @@
-"""TCP client for the WorldBuilder MCP command bridge.
+"""TCP client for the MCP command bridges of WorldBuilder and the game.
 
-WorldBuilderZH.exe started with ``-mcp`` (or ``-mcpport:N``) listens on 127.0.0.1 and accepts one
-JSON object per line: ``{"id": 1, "cmd": "map.info", "args": {}}``. It answers with
+WorldBuilderZH.exe (port 47800) and generalszh.exe (port 47801) started with ``-mcp`` (or
+``-mcpport:N``) listen on 127.0.0.1 and accept one JSON object per line:
+``{"id": 1, "cmd": "map.info", "args": {}}``. They answer with
 ``{"id": 1, "ok": true, "result": {...}}`` or ``{"id": 1, "ok": false, "error": "..."}``.
 """
 
@@ -19,14 +20,18 @@ DEFAULT_PORT = 47800
 
 
 class WorldBuilderError(RuntimeError):
-    """Raised when WorldBuilder rejects a command or cannot be reached."""
+    """Raised when WorldBuilder (or the game) rejects a command or cannot be reached."""
 
 
 class WorldBuilderBridge:
-    def __init__(self, host: str | None = None, port: int | None = None, timeout: float = 150.0):
-        self.host = host or os.environ.get("WB_MCP_HOST", DEFAULT_HOST)
-        self.port = int(port or os.environ.get("WB_MCP_PORT", DEFAULT_PORT))
+    def __init__(self, host: str | None = None, port: int | None = None, timeout: float = 150.0,
+                 label: str = "WorldBuilder", env_prefix: str = "WB_MCP", default_port: int = DEFAULT_PORT,
+                 start_hint: str = "Start WorldBuilderZH.exe with the -mcp command line flag."):
+        self.host = host or os.environ.get(f"{env_prefix}_HOST", DEFAULT_HOST)
+        self.port = int(port or os.environ.get(f"{env_prefix}_PORT", default_port))
         self.timeout = timeout
+        self.label = label
+        self.start_hint = start_hint
         self._sock: socket.socket | None = None
         self._reader = None
         self._lock = threading.Lock()
@@ -37,8 +42,7 @@ class WorldBuilderBridge:
             sock = socket.create_connection((self.host, self.port), timeout=5.0)
         except OSError as exc:
             raise WorldBuilderError(
-                f"Cannot reach WorldBuilder on {self.host}:{self.port} ({exc}). "
-                "Start WorldBuilderZH.exe with the -mcp command line flag."
+                f"Cannot reach {self.label} on {self.host}:{self.port} ({exc}). {self.start_hint}"
             ) from exc
         sock.settimeout(self.timeout)
         self._sock = sock
@@ -59,7 +63,7 @@ class WorldBuilderBridge:
         self._sock.sendall(line.encode("utf-8"))
         reply = self._reader.readline()
         if not reply:
-            raise ConnectionError("WorldBuilder closed the connection")
+            raise ConnectionError(f"{self.label} closed the connection")
         return reply
 
     def call(self, cmd: str, **args: Any) -> Any:
@@ -71,13 +75,13 @@ class WorldBuilderBridge:
             try:
                 reply = self._roundtrip(line)
             except (OSError, ConnectionError):
-                # WorldBuilder may have been restarted; reconnect once.
+                # The program may have been restarted; reconnect once.
                 self.close()
                 try:
                     reply = self._roundtrip(line)
                 except (OSError, ConnectionError) as exc:
                     self.close()
-                    raise WorldBuilderError(f"Lost connection to WorldBuilder: {exc}") from exc
+                    raise WorldBuilderError(f"Lost connection to {self.label}: {exc}") from exc
         message = json.loads(reply)
         if not message.get("ok"):
             raise WorldBuilderError(message.get("error", "unknown error"))
