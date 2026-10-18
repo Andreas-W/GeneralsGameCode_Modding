@@ -17,7 +17,7 @@
 */
 
 // GameMcpCmdState.cpp
-// Game state commands of the MCP bridge: status, pause, frame steps, speed, messages, quit.
+// Game state commands of the MCP bridge: status, pause, frame steps, speed, messages, save, load, quit.
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
@@ -28,6 +28,7 @@
 #include "Common/FramePacer.h"
 #include "Common/GameEngine.h"
 #include "Common/GameMcp.h"
+#include "Common/GameState.h"
 #include "Common/GlobalData.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
@@ -155,6 +156,99 @@ McpJson cmdMessages(const McpJson &args)
 	return McpJson::makeObject().set("messages", list).set("next_serial", TheGameMcp->getNextMessageSerial());
 }
 
+const char *saveCodeName(SaveCode code)
+{
+	switch (code) {
+		case SC_OK: return "ok";
+		case SC_NO_FILE_AVAILABLE: return "no file name available";
+		case SC_FILE_NOT_FOUND: return "file not found";
+		case SC_UNABLE_TO_OPEN_FILE: return "unable to open file";
+		case SC_INVALID_XFER: return "invalid xfer";
+		case SC_UNKNOWN_BLOCK: return "unknown block";
+		case SC_INVALID_DATA: return "invalid data";
+		case SC_ERROR: return "error";
+		default: return "invalid";
+	}
+}
+
+/// A save file name is a leaf in the save directory: no folders, and .sav is added when missing.
+AsciiString saveFileArg(const McpJson &args)
+{
+	AsciiString filename = gameMcpArgString(args, "filename", "").c_str();
+	if (filename.isEmpty()) {
+		return filename;
+	}
+	if (strpbrk(filename.str(), "/\\:") != nullptr) {
+		gameMcpFail("filename must be a plain file name in the save directory, without folders");
+	}
+	if (!filename.endsWithNoCase(".sav")) {
+		filename.concat(".sav");
+	}
+	return filename;
+}
+
+/// Save files also hold the client side (terrain visuals, particles), which a headless game does not have.
+void requireWindow()
+{
+	if (TheGlobalData->m_headless) {
+		gameMcpFail("saving and loading need the window; launch the game without headless");
+	}
+}
+
+McpJson cmdSave(const McpJson &args)
+{
+	requirePausable();
+	requireWindow();
+	const AsciiString filename = saveFileArg(args);
+	UnicodeString desc;
+	desc.translate(AsciiString(gameMcpArgString(args, "description", "MCP save").c_str()));
+	const SaveResult result = TheGameState->saveGame(filename, desc, SAVE_FILE_TYPE_NORMAL);
+	if (result.saveCode != SC_OK) {
+		gameMcpFail("saving failed: %s", saveCodeName(result.saveCode));
+	}
+	return McpJson::makeObject().set("filename", result.filename.str())
+		.set("path", TheGameState->getFilePathInSaveDirectory(result.filename).str()).set("frame", TheGameLogic->getFrame());
+}
+
+McpJson cmdLoad(const McpJson &args)
+{
+	gameMcpRequireGame();
+	requireWindow();
+	if (TheGameLogic->isInMultiplayerGame()) {
+		gameMcpFail("a multiplayer game cannot be loaded over");
+	}
+	AvailableGameInfo info;
+	info.filename = saveFileArg(args);
+	info.next = info.prev = nullptr;
+	if (info.filename.isEmpty()) {
+		gameMcpFail("filename is required");
+	}
+	if (!TheGameState->doesSaveGameExist(info.filename)) {
+		gameMcpFail("no save file %s in %s", info.filename.str(), TheGameState->getSaveDirectory().str());
+	}
+	// Unlike loadGame, this reads from a full path, and it throws on a broken file.
+	Bool readable = TRUE;
+	try {
+		TheGameState->getSaveGameInfoFromFile(TheGameState->getFilePathInSaveDirectory(info.filename), &info.saveGameInfo);
+	} catch (...) {
+		readable = FALSE;
+	}
+	if (!readable) {
+		gameMcpFail("save file %s could not be read", info.filename.str());
+	}
+
+	// Same as loading from the in-game menu: the engine is reset and the saved game replaces this one.
+	const SaveCode code = TheGameState->loadGame(info);
+	if (code != SC_OK) {
+		gameMcpFail("loading failed: %s", saveCodeName(code));
+	}
+	if (gameMcpArgBool(args, "paused", true)) {
+		TheGameLogic->setGamePaused(TRUE, FALSE, FALSE);
+	}
+	return McpJson::makeObject().set("filename", info.filename.str()).set("frame", TheGameLogic->getFrame())
+		.set("paused", TheGameLogic->isGamePaused() != FALSE);
+}
+
 McpJson cmdQuit(const McpJson &)
 {
 	// Leave as the main menu's quit button does. Without the client there is nothing to tell.
@@ -176,6 +270,10 @@ void gameMcpRegisterStateCommands()
 	gameMcpRegisterCommand("game.step", cmdStep, "{frames=1} Runs that many logic frames, then pauses.");
 	gameMcpRegisterCommand("game.set_speed", cmdSetSpeed, "{fps} Logic frames per second: 30 is normal speed, 0 as fast as possible.");
 	gameMcpRegisterCommand("game.messages", cmdMessages, "{since?, contains?, limit?} What the script engine and the AI reported (serial > since).");
+	gameMcpRegisterCommand("game.save", cmdSave,
+		"{filename?, description?} Saves the game in the save directory, windowed only (filename is a plain name, .sav is added; none: a new numbered file).");
+	gameMcpRegisterCommand("game.load", cmdLoad,
+		"{filename, paused=true} Loads a save from the save directory as the in-game load menu does (windowed only), then pauses.");
 	gameMcpRegisterCommand("game.quit", cmdQuit, "Ends the game and closes it.");
 }
 

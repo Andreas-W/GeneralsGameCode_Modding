@@ -37,6 +37,7 @@ Time:
   frames and pauses again (it waits until they are done). game_set_speed changes how fast it runs
   (0 = as fast as possible).
 - Orders take effect on the next logic frame: give them while paused, then game_step.
+- game_save / game_load write and read save files like the in-game menu (not headless; load pauses afterwards).
 
 Looking:
 - objects_list (filters: player, template, kindof, status, area) gives ids, positions, health;
@@ -199,6 +200,21 @@ def game_messages(since: int = 0, contains: str | None = None, limit: int = 200)
     """What the script engine and the AI reported (script debug messages, warnings), newest last.
     Pass next_serial of the last call as since to get only new ones."""
     return game.call("game.messages", since=since, contains=contains, limit=limit)
+
+
+@mcp.tool()
+def game_save(filename: str | None = None, description: str | None = None) -> dict:
+    """Saves the running game like the in-game save menu, into the save directory (not headless:
+    a save also holds the client side). filename is a plain file name (.sav is added); without
+    one a new numbered file is created. Returns the file name and path."""
+    return game.call("game.save", filename=filename, description=description)
+
+
+@mcp.tool()
+def game_load(filename: str, paused: bool = True) -> dict:
+    """Loads a save file from the save directory like the in-game load menu: the running game is
+    replaced by the saved one, at the saved frame. Not headless. Pauses afterwards unless paused=false."""
+    return game.call("game.load", filename=filename, paused=paused)
 
 
 @mcp.tool()

@@ -180,7 +180,7 @@ generalszh.exe -mcp -mcpGame "armed neighbors" -mcpPlayers FactionAmerica,Factio
 
 ## Tools
 
-- **Time:** `game_status`, `game_pause`, `game_resume`, `game_step` (frames or seconds, then pause; waits until done), `game_set_speed` (30 = normal, 0 = as fast as possible), `game_quit`.
+- **Time:** `game_status`, `game_pause`, `game_resume`, `game_step` (frames or seconds, then pause; waits until done), `game_set_speed` (30 = normal, 0 = as fast as possible), `game_save` / `game_load` (save files in the save directory, like the in-game menu; windowed games only; load pauses), `game_quit`.
 - **Looking:** `objects_list` (filter by player, template, kindof, status, area), `objects_get` (status, disabled, kindof, veterancy, AI state, weapons, upgrades, bonuses such as weapon bonus conditions and armor/sight/speed scalars, special powers, production, passengers, behavior modules, model conditions), `objects_templates`, `players_list`, `players_get` (also battle plan counts), `game_messages` (what the script engine and the AI reported).
 - **Orders** (as the owning player would click them; recorded in the replay; carried out on the next logic frame): `orders_move`, `orders_attack`, `orders_stop`, `orders_guard`, `orders_sell`, `orders_build`, `orders_produce`, `orders_upgrade`, `orders_special_power`, `orders_purchase_science`.
 - **Test changes** (direct, not in the replay): `objects_spawn`, `objects_destroy`, `objects_set` (health, position, veterancy, upgrade, status), `players_set` (money, rank, points, sciences, upgrades, instant build, special power delays).
