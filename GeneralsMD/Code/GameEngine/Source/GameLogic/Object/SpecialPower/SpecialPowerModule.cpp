@@ -151,6 +151,19 @@ SpecialPowerModule::SpecialPowerModule( Thing *thing, const ModuleData *moduleDa
 																 getSpecialPowerModuleData()->m_specialPowerTemplate );
 	}
 
+	// An owner-only timer is shown for any object that carries the power, not only for structures,
+	// e.g. an object that shows its owner how long a temporary effect still lasts.
+	if( m_pausedCount == 0 &&
+			getSpecialPowerTemplate()->isSharedNSync() == FALSE &&
+			getSpecialPowerTemplate()->hasPublicTimer() == TRUE &&
+			getSpecialPowerTemplate()->isOwnerOnlyTimer() == TRUE &&
+			getObject()->getControllingPlayer() )
+	{
+		TheInGameUI->addSuperweapon( getObject()->getControllingPlayer()->getPlayerIndex(),
+																 getPowerName(),
+																 getObject()->getID(),
+																 getSpecialPowerModuleData()->m_specialPowerTemplate );
+	}
 
 }
 

@@ -59,18 +59,9 @@ struct ScreenshotWrittenMessage
 };
 static MPSCIntrusiveQueue<ScreenshotWrittenMessage> s_screenshotWrittenQueue;
 
-static DWORD WINAPI screenshotThreadFunc(LPVOID param)
+// Converts the captured pixels and writes them to a file. Returns non-zero on success.
+static int writeScreenshotImage(const ScreenshotThreadData* data, const char* pathname)
 {
-	ScreenshotThreadData* data = static_cast<ScreenshotThreadData*>(param);
-
-	// TheSuperHackers @feature bobtista 08/07/2026 Save screenshots into a Screenshots subfolder
-	// to keep the user data root folder tidy.
-	char pathname[_MAX_PATH];
-	strlcpy(pathname, data->userDataDirectory, ARRAY_SIZE(pathname));
-	strlcat(pathname, "Screenshots\\", ARRAY_SIZE(pathname));
-	CreateDirectory(pathname, nullptr);
-	strlcat(pathname, data->leafname, ARRAY_SIZE(pathname));
-
 	const unsigned int width = data->width;
 	const unsigned int height = data->height;
 
@@ -121,6 +112,25 @@ static DWORD WINAPI screenshotThreadFunc(LPVOID param)
 			break;
 	}
 
+	delete[] image;
+
+	return success;
+}
+
+static DWORD WINAPI screenshotThreadFunc(LPVOID param)
+{
+	ScreenshotThreadData* data = static_cast<ScreenshotThreadData*>(param);
+
+	// TheSuperHackers @feature bobtista 08/07/2026 Save screenshots into a Screenshots subfolder
+	// to keep the user data root folder tidy.
+	char pathname[_MAX_PATH];
+	strlcpy(pathname, data->userDataDirectory, ARRAY_SIZE(pathname));
+	strlcat(pathname, "Screenshots\\", ARRAY_SIZE(pathname));
+	CreateDirectory(pathname, nullptr);
+	strlcat(pathname, data->leafname, ARRAY_SIZE(pathname));
+
+	const int success = writeScreenshotImage(data, pathname);
+
 	if (success)
 	{
 		ScreenshotWrittenMessage* message = new ScreenshotWrittenMessage;
@@ -132,7 +142,6 @@ static DWORD WINAPI screenshotThreadFunc(LPVOID param)
 		DEBUG_LOG(("Failed to write screenshot %s", pathname));
 	}
 
-	delete[] image;
 	delete data;
 
 	return success;
@@ -152,20 +161,9 @@ void W3D_UpdateScreenshotMessages()
 	}
 }
 
-void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
+// Copies the back buffer. Returns null if its format is not supported.
+static ScreenshotThreadData* captureBackBuffer(ScreenshotFormat format, Int jpegQuality)
 {
-	static constexpr const char* const ScreenshotFormatExtensions[] = { "jpg", "png" };
-	static_assert(ARRAY_SIZE(ScreenshotFormatExtensions) == SCREENSHOT_FORMAT_COUNT, "Incorrect array size");
-
-	// The filename is created here so the timestamp matches the capture time.
-	char leafname[_MAX_FNAME];
-	const char* extension = ScreenshotFormatExtensions[format];
-
-	SYSTEMTIME st;
-	GetLocalTime(&st);
-	sprintf(leafname, "sshot_%04d%02d%02d_%02d%02d%02d_%03d.%s",
-		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds, extension);
-
 	// TheSuperHackers @bugfix xezon 21/05/2025 Get the back buffer and create a copy of the surface.
 	// Originally this code took the front buffer and tried to lock it. This does not work when the
 	// render view clips outside the desktop boundaries. It crashed the game.
@@ -182,7 +180,7 @@ void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
 	{
 		DEBUG_LOG(("Screenshot does not support back buffer format %d", (int)surfaceDesc.Format));
 		surface->Release_Ref();
-		return;
+		return nullptr;
 	}
 
 	SurfaceClass* surfaceCopy = NEW_REF(SurfaceClass, (DX8Wrapper::_Create_DX8_Surface(surfaceDesc.Width, surfaceDesc.Height, surfaceDesc.Format)));
@@ -201,7 +199,7 @@ void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
 	if (lrect.pBits == nullptr)
 	{
 		surfaceCopy->Release_Ref();
-		return;
+		return nullptr;
 	}
 
 	ScreenshotThreadData* threadData = new ScreenshotThreadData();
@@ -211,8 +209,6 @@ void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
 	threadData->is16Bit = is16Bit;
 	threadData->quality = jpegQuality;
 	threadData->format = format;
-	strlcpy(threadData->userDataDirectory, TheGlobalData->getPath_UserData().str(), ARRAY_SIZE(threadData->userDataDirectory));
-	strlcpy(threadData->leafname, leafname, ARRAY_SIZE(threadData->leafname));
 
 	// Copy the locked surface with a single memcpy, including any row padding. The pixel
 	// conversion and all file operations are done on the screenshot thread to keep the
@@ -224,6 +220,31 @@ void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
 	surfaceCopy->Release_Ref();
 	surfaceCopy = nullptr;
 
+	return threadData;
+}
+
+void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
+{
+	static constexpr const char* const ScreenshotFormatExtensions[] = { "jpg", "png" };
+	static_assert(ARRAY_SIZE(ScreenshotFormatExtensions) == SCREENSHOT_FORMAT_COUNT, "Incorrect array size");
+
+	// The filename is created here so the timestamp matches the capture time.
+	char leafname[_MAX_FNAME];
+	const char* extension = ScreenshotFormatExtensions[format];
+
+	SYSTEMTIME st;
+	GetLocalTime(&st);
+	sprintf(leafname, "sshot_%04d%02d%02d_%02d%02d%02d_%03d.%s",
+		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds, extension);
+
+	ScreenshotThreadData* threadData = captureBackBuffer(format, jpegQuality);
+	if (threadData == nullptr)
+	{
+		return;
+	}
+	strlcpy(threadData->userDataDirectory, TheGlobalData->getPath_UserData().str(), ARRAY_SIZE(threadData->userDataDirectory));
+	strlcpy(threadData->leafname, leafname, ARRAY_SIZE(threadData->leafname));
+
 	const HANDLE hThread = CreateThread(nullptr, 0, screenshotThreadFunc, threadData, 0, nullptr);
 	if (hThread)
 	{
@@ -234,3 +255,17 @@ void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
 		delete threadData;
 	}
 }
+
+#ifdef RTS_GAME_MCP
+bool W3D_WriteScreenshotFile(const char* pathname, ScreenshotFormat format, Int jpegQuality)
+{
+	ScreenshotThreadData* data = captureBackBuffer(format, jpegQuality);
+	if (data == nullptr)
+	{
+		return false;
+	}
+	const int success = writeScreenshotImage(data, pathname);
+	delete data;
+	return success != 0;
+}
+#endif

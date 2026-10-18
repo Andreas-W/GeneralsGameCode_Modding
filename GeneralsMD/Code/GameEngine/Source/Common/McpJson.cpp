@@ -17,10 +17,10 @@
 */
 
 // McpJson.cpp
-// Minimal JSON value used by the WorldBuilder MCP command bridge.
+// Minimal JSON value used by the MCP command bridges of the game and WorldBuilder.
 
-#include "StdAfx.h"
-#include "mcp/McpJson.h"
+#include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
+#include "Common/McpJson.h"
 
 #include <math.h>
 #include <stdio.h>

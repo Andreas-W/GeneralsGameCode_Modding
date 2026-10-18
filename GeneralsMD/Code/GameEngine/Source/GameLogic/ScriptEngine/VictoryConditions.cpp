@@ -32,6 +32,7 @@
 #include "Common/GameAudio.h"
 #include "Common/GameCommon.h"
 #include "Common/GameEngine.h"
+#include "Common/GameMcp.h"
 #include "Common/GameUtility.h"
 #include "Common/KindOf.h"
 #include "Common/PlayerList.h"
@@ -179,6 +180,12 @@ void VictoryConditions::update()
 {
 	if (!TheRecorder->isMultiplayer() || (m_localSlotNum < 0 && !m_isObserver))
 		return;
+
+#ifdef RTS_GAME_MCP
+	// A sandbox of the MCP bridge has a single player, who would win at once.
+	if (TheGameMcp && TheGameMcp->isSandbox())
+		return;
+#endif
 
 	// Check for a single winning alliance
 	if (!m_singleAllianceRemaining)

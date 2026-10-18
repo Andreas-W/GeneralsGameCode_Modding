@@ -44,7 +44,7 @@ Zero Hour targets are prefixed `z_` (Generals uses `g_`):
 
 ### Key build options (`cmake/config-build.cmake`)
 
-`RTS_BUILD_ZEROHOUR` (default ON), `RTS_BUILD_GENERALS` (turn OFF to skip original Generals), `RTS_BUILD_OPTION_DEBUG`, `RTS_BUILD_OPTION_PROFILE`, `RTS_DEBUG_LOGGING`, `RTS_DEBUG_CRASHING`, `RTS_DEBUG_STACKTRACE`, `RTS_BUILD_OPTION_FFMPEG`. Debug defines: `RTS_DEBUG WWDEBUG DEBUG`; Release: `RTS_RELEASE NDEBUG`.
+`RTS_BUILD_ZEROHOUR` (default ON), `RTS_BUILD_GENERALS` (turn OFF to skip original Generals), `RTS_BUILD_OPTION_DEBUG`, `RTS_BUILD_OPTION_PROFILE`, `RTS_DEBUG_LOGGING`, `RTS_DEBUG_CRASHING`, `RTS_DEBUG_STACKTRACE`, `RTS_BUILD_OPTION_FFMPEG`, `RTS_BUILD_OPTION_GAME_MCP` (default ON; the game MCP bridge, see below). Debug defines: `RTS_DEBUG WWDEBUG DEBUG`; Release: `RTS_RELEASE NDEBUG`.
 
 ## Architecture
 
@@ -155,3 +155,41 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 - Server tools: `scripts/worldbuilder-mcp/server.py`; logic that needs no bridge is in `faction.py`, `framework.py`, `scaffold.py`, `aidata.py`, `match.py`.
 - AI matches are an engine feature (`GameLogic/AIMatch.h`): `generalszh.exe -aiMatch <map> -aiPlayers Faction:difficulty,... -aiMatchLog <file> [-headless]`.
 - After a change: build `z_worldbuilder`, copy `WorldBuilderZH.exe` to the mod folder, restart it with `-mcp -ignoreAsserts`, run `python scripts/worldbuilder-mcp/smoke_test.py` (it replaces the open map with a test map) and extend that test for new commands.
+
+## Game MCP
+
+A second MCP server drives the running game itself, so features can be tested by playing: start a skirmish as the local player (alone in a sandbox or against AI), pause, step frames, inspect every object and player, give orders, spawn and change things, run scripts, take screenshots. Use its tools (`mcp__game__*`) for that. Full reference: the game section of `scripts/worldbuilder-mcp/README.md`.
+
+```
+Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.1:47801 -->  generalszh.exe -mcp
+```
+
+### Running it
+
+- The bridge exists only in builds with `RTS_BUILD_OPTION_GAME_MCP` and only listens when the game is started with `-mcp`. Without the flag nothing changes for normal play.
+- `game_launch` uses `generalszh.exe` in the mod folder (`GAME_DIR`, default `F:\Operation-Firestorm-2.0`; `GAME_EXE` picks another exe name). That exe must be an MCP build: if the game starts but the bridge never answers, the installed exe is older than the feature. After changing engine code, rebuild `z_generals` and copy it there (ask first, keep a `.bak` of the user's exe).
+- One game at a time: `game_launch` fails while a game with the bridge runs; `game_quit` it first. If a tool says "Cannot reach the game", no game runs with `-mcp` (or it hangs in a dialog).
+- A game started by hand works too: `generalszh.exe -mcp -mcpGame "<map>" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts`, run from the mod folder.
+
+### Testing a feature
+
+1. **Start**: `game_launch(map, faction, opponents)`. `map` is a multiplayer map name or part of its path (`"armed neighbors"` is known to work). `faction` is a player template (`FactionAmerica`, `FactionChina`, `FactionGLA`, generals such as `FactionAmericaAirForceGeneral`, or `Observer`). `opponents` are AI players as `"FactionChina:hard"`; none = a **sandbox** where nobody wins or loses. It returns paused at frame 1, before anything has happened. Use `headless=true` when no picture is needed (much faster, no `view_*`); `seed` repeats a game exactly.
+2. **Find things**: `players_list` gives internal player names (`player0` is usually the local player; `"local"` and `"neutral"` work everywhere). `objects_list` filters by `player`, `template` (substring), `kindof`, `status` and area; `objects_templates(contains=...)` gives exact template names. Never guess template, upgrade, science or special power names: look them up (`objects_templates`, `objects_get` sections `upgrades` / `special_powers`, or the INIs in `F:\Operation-Firestorm-2.0\Data\INI`).
+3. **Set up the situation**: `objects_spawn(template, x, y, player=..., count=...)` puts units or buildings anywhere, for any player (an AI player's name makes them enemies). `objects_set` changes health, position, veterancy, gives object upgrades, sets status flags. `players_set` gives money, sciences, player upgrades, `instant_build`, and `special_power_delays=false` for instant recharge.
+4. **Act**: `orders_*` (move, attack, guard, stop, build, produce, upgrade, special power, buy science, sell) as the owning player would click. Orders are queued and carried out on the **next logic frame**, so give them while paused and then step.
+5. **Advance time**: `game_step(frames=N)` or `game_step(seconds=S)` runs that long and pauses again (30 frames = 1 second). `game_set_speed(0)` before long steps makes them run as fast as possible. `game_resume` lets it run freely; `game_pause` stops it.
+6. **Check the result**: `objects_get(ids, sections=[...])` for health, damage state, status/disabled flags, weapons (status, ammo, range, reload frames), AI state and goal, upgrades, special powers (ready, percent), production queue, passengers, behavior modules with their INI tags, model conditions. `players_get` for money, power, sciences, upgrades, score, objects by type. `game_messages` for what scripts and the AI reported (pass `next_serial` as `since` to get only new ones). Compare numbers before and after a step to measure damage, speed, timing.
+7. **Look** (windowed only): `view_screenshot(id=...)` centers on an object and returns the picture; `view_camera` moves or zooms.
+8. **End**: always `game_quit` when done, so the next session can launch.
+
+- Coordinates are world units (10 per cell, (0,0) lower left of the playable area, z = terrain height when left out); angles are degrees, counterclockwise, 0 = +x. Take positions from the units in `objects_list` (e.g. the local command center) to place things near the base.
+- `objects_spawn` / `objects_set` / `players_set` change the game directly and are not recorded in the replay; orders are.
+- Scripts: `scripts_run`, `scripts_set_active`, `scripts_flags` / `scripts_counters` (read, or set with `set={...}`).
+- Windowed games must not be minimized (the engine sleeps while iconic); an unfocused window is fine.
+- `game_command(cmd, args)` runs any bridge command; `game_command("list_commands")` lists them with their arguments.
+
+### Working on the game MCP
+
+- C++: `GeneralsMD/Code/GameEngine/Source/Common/Mcp/` (`GameMcp.cpp` command line and main-thread side, `GameMcpServer.cpp` socket thread, `GameMcpCmd*.cpp` commands registered with `gameMcpRegisterCommand`, failing with `gameMcpFail`). Every hook in other files is inside `#ifdef RTS_GAME_MCP`. Handlers run on the main thread between logic frames (polled in `GameEngine::update`, or in `GameMcp::runHeadless`).
+- Skirmish setup without the menu is shared with AI matches: `GameLogic/SkirmishLaunch.h`.
+- After a change: build `z_generals`, copy `generalszh.exe` to the mod folder under another name and run `python scripts/worldbuilder-mcp/game_smoke_test.py --exe <name>` (add `--windowed` for the view commands); extend it for new commands.

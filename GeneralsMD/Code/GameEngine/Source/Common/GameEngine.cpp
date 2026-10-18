@@ -105,6 +105,7 @@
 #include "GameClient/GUICallbacks.h"
 
 #include "GameLogic/AIMatch.h"
+#include "Common/GameMcp.h"
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/WOLBrowser/WebBrowser.h"
 #include "GameNetwork/LANAPI.h"
@@ -286,6 +287,11 @@ GameEngine::~GameEngine()
 
 	delete TheAIMatch;
 	TheAIMatch = nullptr;
+
+#ifdef RTS_GAME_MCP
+	delete TheGameMcp;
+	TheGameMcp = nullptr;
+#endif
 
 	delete TheChallengeGameInfo;
 	TheChallengeGameInfo = nullptr;
@@ -750,6 +756,15 @@ void GameEngine::init()
 			TheAIMatch->start();
 		}
 
+#ifdef RTS_GAME_MCP
+		// The bridge for tools that drive the game, asked for on the command line.
+		TheGameMcp = GameMcp::createFromCommandLine();
+		if (TheGameMcp)
+		{
+			TheGameMcp->startGameFromCommandLine();
+		}
+#endif
+
 		//
 		if (TheMapCache && TheGlobalData->m_shellMapOn)
 		{
@@ -932,6 +947,15 @@ void GameEngine::update()
 				TheNetwork->UPDATE();
 			}
 		}
+
+#ifdef RTS_GAME_MCP
+		// Between the client and the logic, outside of the CRC check above because commands may change
+		// the game; orders from the bridge go out with this logic frame.
+		if (TheGameMcp)
+		{
+			TheGameMcp->poll();
+		}
+#endif
 
 		// TheSuperHackers @info Ignores frozen time because the script engine needs updating in the logic update regardless.
 		if (canUpdateGameLogic(FramePacer::IgnoreFrozenTime))

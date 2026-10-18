@@ -45,6 +45,7 @@
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/ScriptEngine.h"
+#include "GameLogic/SkirmishLaunch.h"
 #include "GameNetwork/GameInfo.h"
 
 #include <stdlib.h>
@@ -92,14 +93,6 @@ void writeCounts(FILE *file, const std::map<std::string, Int> &counts)
 		fprintf(file, "%s%s:%d", it == counts.begin() ? "" : ",", quoted(it->first.c_str()).c_str(), it->second);
 	}
 	fputc('}', file);
-}
-
-Int slotStateFor(const AsciiString &difficulty)
-{
-	if (difficulty.compareNoCase("easy") == 0) return SLOT_EASY_AI;
-	if (difficulty.compareNoCase("normal") == 0 || difficulty.compareNoCase("medium") == 0) return SLOT_MED_AI;
-	if (difficulty.compareNoCase("hard") == 0 || difficulty.compareNoCase("brutal") == 0) return SLOT_BRUTAL_AI;
-	return -1;
 }
 
 const char *difficultyName(GameDifficulty difficulty)
@@ -198,7 +191,7 @@ AIMatch *AIMatch::createFromCommandLine()
 			entrant.faction = part;
 		}
 		if (entry.nextToken(&part, ":")) {
-			entrant.difficulty = slotStateFor(part);
+			entrant.difficulty = SkirmishLaunch::slotStateForDifficulty(part);
 		}
 		if (entry.nextToken(&part, ":")) {
 			entrant.team = atoi(part.str());
@@ -234,26 +227,13 @@ void AIMatch::start()
 		return;
 	}
 
-	// The map: its key in the map cache, or the first multiplayer map whose path holds the name.
-	AsciiString mapKey = m_map;
-	mapKey.toLower();
-	if (TheMapCache->find(mapKey) == TheMapCache->end()) {
-		AsciiString found;
-		for (MapCache::const_iterator it = TheMapCache->begin(); it != TheMapCache->end(); ++it) {
-			if (it->second.m_isMultiplayer && strstr(it->first.str(), mapKey.str()) != nullptr) {
-				found = it->first;
-				break;
-			}
-		}
-		if (found.isEmpty()) {
-			AsciiString reason;
-			reason.format("no multiplayer map matches '%s'", m_map.str());
-			fail(reason.str());
-			return;
-		}
-		mapKey = found;
+	const AsciiString mapKey = SkirmishLaunch::findMap(m_map);
+	if (mapKey.isEmpty()) {
+		AsciiString reason;
+		reason.format("no multiplayer map matches '%s'", m_map.str());
+		fail(reason.str());
+		return;
 	}
-	const MapMetaData *mapData = TheMapCache->findMap(mapKey);
 
 	// Files that stand in for the game's own, to try changes without installing them.
 	if (m_scriptFile.isNotEmpty() && !TheFileSystem->doesFileExist(m_scriptFile.str())) {
@@ -278,66 +258,35 @@ void AIMatch::start()
 		fail("-aiPlayers needs at least two players (Faction:difficulty,Faction:difficulty)");
 		return;
 	}
-	if (mapData && (Int)m_entrants.size() > mapData->m_numPlayers) {
+	const Int startPositions = SkirmishLaunch::countStartPositions(mapKey);
+	if (startPositions >= 0 && (Int)m_entrants.size() > startPositions) {
 		AsciiString reason;
-		reason.format("the map has %d start positions for %d players", mapData->m_numPlayers, (Int)m_entrants.size());
+		reason.format("the map has %d start positions for %d players", startPositions, (Int)m_entrants.size());
 		fail(reason.str());
 		return;
 	}
 
-	if (TheSkirmishGameInfo == nullptr) {
-		TheSkirmishGameInfo = NEW SkirmishGameInfo;
-	}
-	TheSkirmishGameInfo->init();
-	TheSkirmishGameInfo->clearSlotList();
-	TheSkirmishGameInfo->reset();
-	TheSkirmishGameInfo->setLocalIP(TheSkirmishGameInfo->getSlot(0)->getIP());
-	TheSkirmishGameInfo->enterGame();
-
 	// The local player only watches.
-	UnicodeString observerName;
-	observerName.translate("Observer");
-	GameSlot observer;
-	observer.setState(SLOT_PLAYER, observerName);
-	observer.setPlayerTemplate(PLAYERTEMPLATE_OBSERVER);
-	TheSkirmishGameInfo->setSlot(0, observer);
-
+	std::vector<SkirmishSlot> slots;
+	SkirmishSlot observer;
+	observer.slotState = SLOT_PLAYER;
+	observer.team = -1;
+	slots.push_back(observer);
 	for (size_t i = 0; i < m_entrants.size(); i++) {
-		const Entrant &entrant = m_entrants[i];
-		Int templateIndex = -1;
-		for (Int t = 0; t < ThePlayerTemplateStore->getPlayerTemplateCount(); t++) {
-			const PlayerTemplate *playerTemplate = ThePlayerTemplateStore->getNthPlayerTemplate(t);
-			if (playerTemplate && (playerTemplate->getName().compareNoCase(entrant.faction.str()) == 0
-					|| playerTemplate->getSide().compareNoCase(entrant.faction.str()) == 0)) {
-				templateIndex = t;
-				break;
-			}
-		}
-		if (templateIndex < 0 || entrant.difficulty < 0) {
-			AsciiString reason;
-			reason.format("-aiPlayers entry %d: unknown faction '%s' or difficulty (easy, normal, hard)", (Int)i + 1, entrant.faction.str());
-			fail(reason.str());
-			return;
-		}
-		GameSlot slot;
-		slot.setState((SlotState)entrant.difficulty);
-		slot.setPlayerTemplate(templateIndex);
-		slot.setTeamNumber(entrant.team);
-		TheSkirmishGameInfo->setSlot((Int)i + 1, slot);
+		SkirmishSlot slot;
+		slot.faction = m_entrants[i].faction;
+		slot.slotState = m_entrants[i].difficulty;
+		slot.team = m_entrants[i].team;
+		slots.push_back(slot);
 	}
 
 	const Int seed = TheGlobalData->m_fixedSeed >= 0 ? TheGlobalData->m_fixedSeed : (Int)GetTickCount();
-	TheSkirmishGameInfo->setSeed(seed);
-	TheSkirmishGameInfo->setMap(mapKey);
-	TheSkirmishGameInfo->setMapCRC(mapData ? mapData->m_CRC : 0);
-	TheSkirmishGameInfo->setMapSize(mapData ? mapData->m_filesize : 0);
-	if (m_startingCash > 0) {
-		Money cash;
-		cash.init();
-		cash.deposit(m_startingCash, FALSE);
-		TheSkirmishGameInfo->setStartingCash(cash);
-	} else {
-		TheSkirmishGameInfo->setStartingCash(TheGlobalData->m_defaultStartingCash);
+	AsciiString error;
+	if (!SkirmishLaunch::prepare(mapKey, slots, seed, m_startingCash, error)) {
+		AsciiString reason;
+		reason.format("-aiPlayers %s", error.str());
+		fail(reason.str());
+		return;
 	}
 
 	fprintf(m_log, "{\"t\":\"setup\",\"map\":%s,\"seed\":%d,\"max_frames\":%u,\"snapshot_frames\":%u,\"frames_per_second\":%d,"
@@ -346,25 +295,8 @@ void AIMatch::start()
 		quoted(m_scriptFile).c_str(), quoted(m_aiDataFile).c_str());
 	fflush(m_log);
 
-	// From here on as the skirmish menu starts a game.
-	TheWritableGlobalData->m_mapName = mapKey;
-	TheWritableGlobalData->m_shellMapOn = FALSE;
-	TheSkirmishGameInfo->startGame(0);
-	InitRandom(seed);
-
-	// Without the client nobody carries messages from the stream to the logic, so the message
-	// goes to the logic's command list directly, as it does when a replay is simulated.
-	GameMessage *msg;
-	if (TheGlobalData->m_headless) {
-		msg = newInstance(GameMessage)(GameMessage::MSG_NEW_GAME);
-		TheCommandList->appendMessage(msg);
-	} else {
-		msg = TheMessageStream->appendMessage(GameMessage::MSG_NEW_GAME);
-	}
-	msg->appendIntegerArgument(GAME_SKIRMISH);
-	msg->appendIntegerArgument(DIFFICULTY_NORMAL);
-	msg->appendIntegerArgument(0);
-	msg->appendIntegerArgument(1000);	// no frame rate limit: the match runs as fast as the machine allows
+	// No frame rate limit: the match runs as fast as the machine allows.
+	SkirmishLaunch::launch(mapKey, seed, 1000);
 }
 
 //-------------------------------------------------------------------------------------------------
