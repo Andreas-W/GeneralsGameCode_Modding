@@ -163,6 +163,16 @@ const char *const TheEvaMessageNames[] =
 	"SUPERWEAPONREADY_ALLY_CHRONOSPHERE",
 	"SUPERWEAPONREADY_ENEMY_CHRONOSPHERE",
 
+	"SUPERWEAPONDETECTED_OWN_RIFT_GENERATOR",
+	"SUPERWEAPONDETECTED_ALLY_RIFT_GENERATOR",
+	"SUPERWEAPONDETECTED_ENEMY_RIFT_GENERATOR",
+	"SUPERWEAPONLAUNCHED_OWN_RIFT_GENERATOR",
+	"SUPERWEAPONLAUNCHED_ALLY_RIFT_GENERATOR",
+	"SUPERWEAPONLAUNCHED_ENEMY_RIFT_GENERATOR",
+	"SUPERWEAPONREADY_OWN_RIFT_GENERATOR",
+	"SUPERWEAPONREADY_ALLY_RIFT_GENERATOR",
+	"SUPERWEAPONREADY_ENEMY_RIFT_GENERATOR",
+
 	//****************************************************************************
 	//Kris: Don't forget to add another handler below -- it's ghey-ly implemented.
 	//****************************************************************************
@@ -244,6 +254,15 @@ const ShouldPlayFunc Eva::s_shouldPlayFuncs[] =
 	Eva::shouldPlayGenericHandler,
 	Eva::shouldPlayGenericHandler,
 	Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
+  Eva::shouldPlayGenericHandler,
   Eva::shouldPlayGenericHandler,
   Eva::shouldPlayGenericHandler,
   Eva::shouldPlayGenericHandler,

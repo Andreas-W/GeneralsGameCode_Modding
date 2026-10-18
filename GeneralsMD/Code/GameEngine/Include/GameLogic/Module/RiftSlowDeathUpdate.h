@@ -81,7 +81,10 @@ public:
 	Real m_spinRate;										///< Tumble budget, rads per frame
 	Real m_hugeVehiclePullScalar;				///< Suction multiplier for KINDOF_HUGE_VEHICLE
 
-	Real m_damagePerSecond;							///< Damage dealt per second of exposure at full strength
+	Real m_damagePerSecond;							///< Damage dealt per second of exposure at full strength, inside MaximumDamageRadius
+	Real m_maximumDamageRadius;					///< Victims within this 2D distance take the full DamagePerSecond
+	Real m_outerDamagePerSecond;				///< Damage per second at Radius, falling off linearly from MaximumDamageRadius;
+																			///< negative means same as DamagePerSecond (no falloff)
 	UnsignedInt m_damageInterval;				///< Frames between damage ticks
 	DamageType m_damageType;						///< Damage type used for the continuous damage
 	DeathType m_deathType;							///< Death type of the continuous damage outside ConsumeDeathRadius
@@ -130,11 +133,14 @@ protected:
 	void doRiftTick(Real strength, UnsignedInt currFrame);	///< one pass over everything in range
 	void doCollapse(void);															///< release the held victims and blow them outwards
 
+	Real getDamagePerSecondAt(Real dist2D) const;				///< damage falloff between MaximumDamageRadius and Radius
 	Bool isPullable(const Object* victim, Bool isDebris = FALSE) const;	///< can this object be dragged around at all
+	Bool isInvulnerable(const Object* victim) const;			///< the rift can never destroy it
 	Bool usesLocomotorCapture(const Object* victim) const;	///< flyer whose locomotor keeps running while disabled
 	RiftVictim* findVictim(ObjectID id);								///< NULL if we are not holding it
 	void captureVictim(Object* victim);									///< one-shot setup when a victim is first grabbed
 	void beginPhysicsCapture(RiftVictim& v, Object* victim);	///< hand the victim from its AI over to physics
+	void markVictimDying(RiftVictim& v, Object* obj);		///< keep pulling it until it is destroyed
 	void steerVictim(RiftVictim& victim, Object* obj, const Coord3D& toRift, Real dist, Real strength);
 	void releaseVictim(const RiftVictim& victim, Object* obj);	///< undo what capture cannot self-heal
 	void releaseAllVictims(void);

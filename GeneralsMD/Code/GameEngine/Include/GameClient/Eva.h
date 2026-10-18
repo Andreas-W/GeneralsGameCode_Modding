@@ -166,6 +166,16 @@ enum EvaMessage CPP_11(: Int)
 	  Eva_SuperweaponReady_Ally_Chronosphere,
 	  Eva_SuperweaponReady_Enemy_Chronosphere,
 
+	  Eva_SuperweaponDetected_Own_Rift_Generator,
+	  Eva_SuperweaponDetected_Ally_Rift_Generator,
+	  Eva_SuperweaponDetected_Enemy_Rift_Generator,
+	  Eva_SuperweaponLaunched_Own_Rift_Generator,
+	  Eva_SuperweaponLaunched_Ally_Rift_Generator,
+	  Eva_SuperweaponLaunched_Enemy_Rift_Generator,
+	  Eva_SuperweaponReady_Own_Rift_Generator,
+	  Eva_SuperweaponReady_Ally_Rift_Generator,
+	  Eva_SuperweaponReady_Enemy_Rift_Generator,
+
 	EVA_COUNT,
 	EVA_FIRST = 0,
 };
