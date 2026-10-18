@@ -489,6 +489,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/ScriptEngine.h
     Include/GameLogic/Scripts.h
     Include/GameLogic/SidesList.h
+    Include/GameLogic/SkirmishLaunch.h
     Include/GameLogic/Squad.h
     Include/GameLogic/TerrainLogic.h
     Include/GameLogic/TurretAI.h
@@ -1088,6 +1089,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/System/GameLogic.cpp
 #    Source/GameLogic/System/GameLogicDispatch.cpp
 #    Source/GameLogic/System/RankInfo.cpp
+    Source/GameLogic/System/SkirmishLaunch.cpp
 #    Source/GameNetwork/Connection.cpp
 #    Source/GameNetwork/ConnectionManager.cpp
 #    Source/GameNetwork/DisconnectManager.cpp
