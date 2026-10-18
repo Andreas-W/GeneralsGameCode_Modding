@@ -36,6 +36,7 @@
 #include "Common/ThingTemplate.h"
 #include "Common/Upgrade.h"
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/Module/BattlePlanUpdate.h"
 #include "GameLogic/Object.h"
 
 #include <map>
@@ -106,6 +107,18 @@ McpJson describeFull(Player *player)
 	}
 	result.set("upgrades", upgrades);
 
+	// Active battle plan sources per plan (Strategy Centers and other plan sources) and the
+	// accumulated army bonuses that new or captured units receive.
+	McpJson plans = McpJson::makeObject();
+	plans.set("bombardment", player->getBattlePlansActiveSpecific(PLANSTATUS_BOMBARDMENT));
+	plans.set("hold_the_line", player->getBattlePlansActiveSpecific(PLANSTATUS_HOLDTHELINE));
+	plans.set("search_and_destroy", player->getBattlePlansActiveSpecific(PLANSTATUS_SEARCHANDDESTROY));
+	const BattlePlanBonuses *planBonuses = player->getBattlePlanBonuses();
+	if (planBonuses) {
+		plans.set("armor_scalar", planBonuses->m_armorScalar).set("sight_range_scalar", planBonuses->m_sightRangeScalar);
+	}
+	result.set("battle_plans", plans);
+
 	ScoreKeeper *score = player->getScoreKeeper();
 	result.set("score", McpJson::makeObject().set("units_built", score->getTotalUnitsBuilt()).set("units_lost", score->getTotalUnitsLost())
 		.set("units_destroyed", score->getTotalUnitsDestroyed()).set("buildings_built", score->getTotalBuildingsBuilt())
@@ -159,7 +172,7 @@ void gameMcpRegisterPlayerCommands()
 {
 	gameMcpRegisterCommand("players.list", cmdList, "All players: name, side, faction, human or computer, local, active, money.");
 	gameMcpRegisterCommand("players.get", cmdGet,
-		"{player?} One player (default: the local one): money, power, rank, sciences, upgrades, score, relationships, objects by type.");
+		"{player?} One player (default: the local one): money, power, rank, sciences, upgrades, battle plans, score, relationships, objects by type.");
 }
 
 #endif // RTS_GAME_MCP

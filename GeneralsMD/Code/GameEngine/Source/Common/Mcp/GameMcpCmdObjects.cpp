@@ -35,6 +35,7 @@
 #include "Common/ThingTemplate.h"
 #include "Common/Upgrade.h"
 #include "GameClient/Drawable.h"
+#include "GameLogic/ArmorSet.h"
 #include "GameLogic/ExperienceTracker.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/AIUpdate.h"
@@ -214,6 +215,32 @@ McpJson describeUpgrades(const Object *object)
 	return names;
 }
 
+/// Stat modifiers that bonuses such as battle plans, upgrades and powers change.
+McpJson describeBonuses(Object *object)
+{
+	McpJson result = McpJson::makeObject();
+	result.set("weapon_bonus", gameMcpFlagNames(object->getWeaponBonusCondition()));
+	result.set("weapon_set", gameMcpFlagNames(object->getWeaponSetFlags()));
+	BodyModuleInterface *body = object->getBodyModule();
+	if (body) {
+		McpJson armorSet = McpJson::makeArray();
+		for (Int i = 0; i < ARMORSET_COUNT; i++) {
+			if (body->testArmorSetFlag((ArmorSetType)i)) {
+				const char *name = ArmorSetFlags::getNameFromSingleBit(i);
+				armorSet.push(name ? name : "?");
+			}
+		}
+		result.set("armor_set", armorSet);
+		result.set("armor_damage_scalar", body->getDamageScalar());
+	}
+	result.set("vision_range", object->getVisionRange()).set("shroud_clearing_range", object->getShroudClearingRange());
+	const AIUpdateInterface *ai = object->getAIUpdateInterface();
+	if (ai) {
+		result.set("speed_multiplier", ai->getSpeedMultiplier());
+	}
+	return result;
+}
+
 bool wants(const McpJson &sections, const char *name)
 {
 	if (!sections.isArray()) {
@@ -270,6 +297,9 @@ McpJson describeFull(Object *object, const McpJson &sections)
 	}
 	if (wants(sections, "upgrades")) {
 		result.set("upgrades", describeUpgrades(object));
+	}
+	if (wants(sections, "bonuses")) {
+		result.set("bonuses", describeBonuses(object));
 	}
 	if (wants(sections, "special_powers")) {
 		result.set("special_powers", describeSpecialPowers(object));
@@ -370,7 +400,7 @@ void gameMcpRegisterObjectCommands()
 		"{player?, template?, name?, kindof?, status?, x,y,radius | x0,y0,x1,y1, include_dead?, limit=200} "
 		"Objects in the game: id, template, owner, position, angle (degrees), health.");
 	gameMcpRegisterCommand("objects.get", cmdGet,
-		"{ids | id, sections?} Everything about objects: status, disabled, kindof, veterancy, ai, weapons, upgrades, "
+		"{ids | id, sections?} Everything about objects: status, disabled, kindof, veterancy, ai, weapons, upgrades, bonuses, "
 		"special_powers, production, contain, modules, model (sections limits the optional parts).");
 	gameMcpRegisterCommand("objects.templates", cmdTemplates, "{contains?, side?, kindof?, limit=300} Object templates that can be spawned.");
 }

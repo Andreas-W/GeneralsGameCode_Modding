@@ -41,7 +41,8 @@ Time:
 Looking:
 - objects_list (filters: player, template, kindof, status, area) gives ids, positions, health;
   objects_get gives everything about objects (status, weapons, AI state, upgrades, special powers,
-  production, passengers, modules). players_get: money, power, sciences, upgrades, score.
+  production, passengers, modules, bonuses). players_get: money, power, sciences, upgrades,
+  battle plans, score.
 - objects_templates finds template names. game_messages shows what scripts and the AI reported.
 - view_screenshot / view_camera need the window (not headless, not minimized).
 
@@ -237,7 +238,7 @@ def objects_list(player: str | None = None, template: str | None = None, name: s
                      x=x, y=y, radius=radius, x0=x0, y0=y0, x1=x1, y1=y1, include_dead=include_dead or None, limit=limit)
 
 
-ObjectSection = Literal["kindof", "model", "ai", "weapons", "upgrades", "special_powers", "production", "contain", "modules"]
+ObjectSection = Literal["kindof", "model", "ai", "weapons", "upgrades", "bonuses", "special_powers", "production", "contain", "modules"]
 
 
 @mcp.tool()
@@ -245,8 +246,10 @@ def objects_get(ids: list[int], sections: list[ObjectSection] | None = None) -> 
     """Everything about objects: owner, team, position, health, damage state, status and disabled
     flags, veterancy and experience, velocity, construction progress, and the sections kindof,
     model (model conditions), ai (state, goal), weapons (per slot: status, ammo, range, reload),
-    upgrades, special_powers (ready, percent), production queue, contain (passengers) and modules
-    (behavior modules with their INI tags). sections limits the optional parts (default all)."""
+    upgrades, bonuses (weapon bonus conditions, weapon and armor set flags, armor damage scalar,
+    vision and shroud clearing range, speed multiplier), special_powers (ready, percent),
+    production queue, contain (passengers) and modules (behavior modules with their INI tags).
+    sections limits the optional parts (default all)."""
     return game.call("objects.get", ids=ids, sections=sections)
 
 
@@ -267,7 +270,8 @@ def players_list() -> dict:
 @mcp.tool()
 def players_get(player: str | None = None) -> dict:
     """One player (default: the local one): money, power, rank, skill and science points, sciences,
-    player upgrades, score, relationships to the others and its objects counted by template."""
+    player upgrades, battle_plans (active plan sources per plan and the accumulated armor and
+    sight scalars), score, relationships to the others and its objects counted by template."""
     return game.call("players.get", player=player)
 
 
