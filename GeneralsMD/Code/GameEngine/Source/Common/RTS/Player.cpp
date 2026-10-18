@@ -3883,6 +3883,11 @@ void Player::changeBattlePlan( BattlePlanStatus plan, Int delta, const BattlePla
 			break;
 		}
 	}
+	DEBUG_LOG(( "BattlePlan frame %d: player %d plan %s %+d -> count %d (%s)",
+		TheGameLogic->getFrame(), getPlayerIndex(),
+		plan == PLANSTATUS_BOMBARDMENT ? "BOMBARDMENT" : plan == PLANSTATUS_HOLDTHELINE ? "HOLDTHELINE" : plan == PLANSTATUS_SEARCHANDDESTROY ? "SEARCHANDDESTROY" : "NONE",
+		delta, getBattlePlansActiveSpecific( plan ),
+		addBonus ? "bonus APPLIED" : removeBonus ? "bonus REMOVED" : "stacked, no change" ));
 	if( addBonus )
 	{
 		applyBattlePlanBonusesForPlayerObjects( bonus );
@@ -4006,7 +4011,8 @@ static void localApplyBattlePlanBonusesToObject( Object *obj, void *userData )
 			{
 				objectToModify->setWeaponBonusCondition( WEAPONBONUSCONDITION_BATTLEPLAN_BOMBARDMENT );
 			}
-			else
+			// Bonuses are deltas: a plan at 0 is unchanged and must not clear a flag another active plan source set.
+			else if( bonus->m_bombardment < 0 )
 			{
 				objectToModify->clearWeaponBonusCondition( WEAPONBONUSCONDITION_BATTLEPLAN_BOMBARDMENT );
 			}
@@ -4014,7 +4020,7 @@ static void localApplyBattlePlanBonusesToObject( Object *obj, void *userData )
 			{
 				objectToModify->setWeaponBonusCondition( WEAPONBONUSCONDITION_BATTLEPLAN_HOLDTHELINE );
 			}
-			else
+			else if( bonus->m_holdTheLine < 0 )
 			{
 				objectToModify->clearWeaponBonusCondition( WEAPONBONUSCONDITION_BATTLEPLAN_HOLDTHELINE );
 			}
@@ -4022,7 +4028,7 @@ static void localApplyBattlePlanBonusesToObject( Object *obj, void *userData )
 			{
 				objectToModify->setWeaponBonusCondition( WEAPONBONUSCONDITION_BATTLEPLAN_SEARCHANDDESTROY );
 			}
-			else
+			else if( bonus->m_searchAndDestroy < 0 )
 			{
 				objectToModify->clearWeaponBonusCondition( WEAPONBONUSCONDITION_BATTLEPLAN_SEARCHANDDESTROY );
 			}
