@@ -30,6 +30,7 @@
 
 #include "windows.h"
 #include "stdlib.h"
+#include <limits.h>
 #include "Common/STLTypedefs.h"
 
 #include "Common/DataChunk.h"
@@ -834,17 +835,37 @@ Bool WorldHeightMap::ParseObjectsDataChunk(DataChunkInput &file, DataChunkInfo *
 	return (file.parse(userData));
 }
 
-Bool WorldHeightMap::isValidMapSize(Int width, Int height, Int borderSize)
+Bool WorldHeightMap::isValidTotalMapSize(Int width, Int height, Int borderSize)
 {
 	if (width <= 0 || width > MAX_MAP_DIMENSION)
 		return false;
 	if (height <= 0 || height > MAX_MAP_DIMENSION)
 		return false;
+
+	if (borderSize < 0 ||
+		borderSize > (width - 1) / 2 ||
+		borderSize > (height - 1) / 2)
+		return false;
+
 	if (width * height > MAX_MAP_AREA)
 		return false;
-	if (borderSize < 0 || borderSize > (width - 1) / 2 || borderSize > (height - 1) / 2)
-		return false;
+
 	return true;
+}
+
+Bool WorldHeightMap::isValidPlayableMapSize(Int width, Int height, Int borderSize)
+{
+	if (width <= 0 || height <= 0 || borderSize < 0)
+		return false;
+
+	if (borderSize > (INT_MAX - width) / 2 ||
+		borderSize > (INT_MAX - height) / 2)
+		return false;
+
+	return isValidTotalMapSize(
+		width + 2 * borderSize,
+		height + 2 * borderSize,
+		borderSize);
 }
 
 static Bool isValidHeightDataSize(DataChunkInput &file, Int dataSize, Int width, Int height)
@@ -882,7 +903,7 @@ Bool WorldHeightMap::ParseHeightMapData(DataChunkInput &file, DataChunkInfo *inf
 		m_borderSize = 0;
 	}
 
-	if (!isValidMapSize(m_width, m_height, m_borderSize)) {
+	if (!isValidTotalMapSize(m_width, m_height, m_borderSize)) {
 		throw ERROR_CORRUPT_FILE_FORMAT;
 	}
 
@@ -967,7 +988,7 @@ Bool WorldHeightMap::ParseSizeOnly(DataChunkInput &file, DataChunkInfo *info, vo
 		m_borderSize = 0;
 	}
 
-	if (!isValidMapSize(m_width, m_height, m_borderSize)) {
+	if (!isValidTotalMapSize(m_width, m_height, m_borderSize)) {
 		throw ERROR_CORRUPT_FILE_FORMAT;
 	}
 
