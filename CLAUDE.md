@@ -164,10 +164,29 @@ A second MCP server drives the running game itself, so features can be tested by
 Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.1:47801 -->  generalszh.exe -mcp
 ```
 
+### Running it
+
 - The bridge exists only in builds with `RTS_BUILD_OPTION_GAME_MCP` and only listens when the game is started with `-mcp`. Without the flag nothing changes for normal play.
-- `game_launch` starts `generalszh.exe` from the mod folder (`GAME_DIR`, default `F:\Operation-Firestorm-2.0`; `GAME_EXE` picks another exe name) with `-mcpGame <map> -mcpPlayers <Faction>[,<AIFaction>:<difficulty>...] [-mcpStartPaused] [-headless]`. Only one faction = sandbox (no victory check).
-- Logic runs 30 frames per second. Orders (`orders_*`) go through the normal command messages and take effect on the next frame: give them while paused, then `game_step`. `objects_spawn` / `objects_set` / `players_set` change the game directly and are not in the replay.
-- Headless runs only the logic (fast, no `view_*`). Windowed must not be minimized (the engine sleeps while iconic).
+- `game_launch` uses `generalszh.exe` in the mod folder (`GAME_DIR`, default `F:\Operation-Firestorm-2.0`; `GAME_EXE` picks another exe name). That exe must be an MCP build: if the game starts but the bridge never answers, the installed exe is older than the feature. After changing engine code, rebuild `z_generals` and copy it there (ask first, keep a `.bak` of the user's exe).
+- One game at a time: `game_launch` fails while a game with the bridge runs; `game_quit` it first. If a tool says "Cannot reach the game", no game runs with `-mcp` (or it hangs in a dialog).
+- A game started by hand works too: `generalszh.exe -mcp -mcpGame "<map>" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts`, run from the mod folder.
+
+### Testing a feature
+
+1. **Start**: `game_launch(map, faction, opponents)`. `map` is a multiplayer map name or part of its path (`"armed neighbors"` is known to work). `faction` is a player template (`FactionAmerica`, `FactionChina`, `FactionGLA`, generals such as `FactionAmericaAirForceGeneral`, or `Observer`). `opponents` are AI players as `"FactionChina:hard"`; none = a **sandbox** where nobody wins or loses. It returns paused at frame 1, before anything has happened. Use `headless=true` when no picture is needed (much faster, no `view_*`); `seed` repeats a game exactly.
+2. **Find things**: `players_list` gives internal player names (`player0` is usually the local player; `"local"` and `"neutral"` work everywhere). `objects_list` filters by `player`, `template` (substring), `kindof`, `status` and area; `objects_templates(contains=...)` gives exact template names. Never guess template, upgrade, science or special power names: look them up (`objects_templates`, `objects_get` sections `upgrades` / `special_powers`, or the INIs in `F:\Operation-Firestorm-2.0\Data\INI`).
+3. **Set up the situation**: `objects_spawn(template, x, y, player=..., count=...)` puts units or buildings anywhere, for any player (an AI player's name makes them enemies). `objects_set` changes health, position, veterancy, gives object upgrades, sets status flags. `players_set` gives money, sciences, player upgrades, `instant_build`, and `special_power_delays=false` for instant recharge.
+4. **Act**: `orders_*` (move, attack, guard, stop, build, produce, upgrade, special power, buy science, sell) as the owning player would click. Orders are queued and carried out on the **next logic frame**, so give them while paused and then step.
+5. **Advance time**: `game_step(frames=N)` or `game_step(seconds=S)` runs that long and pauses again (30 frames = 1 second). `game_set_speed(0)` before long steps makes them run as fast as possible. `game_resume` lets it run freely; `game_pause` stops it.
+6. **Check the result**: `objects_get(ids, sections=[...])` for health, damage state, status/disabled flags, weapons (status, ammo, range, reload frames), AI state and goal, upgrades, special powers (ready, percent), production queue, passengers, behavior modules with their INI tags, model conditions. `players_get` for money, power, sciences, upgrades, score, objects by type. `game_messages` for what scripts and the AI reported (pass `next_serial` as `since` to get only new ones). Compare numbers before and after a step to measure damage, speed, timing.
+7. **Look** (windowed only): `view_screenshot(id=...)` centers on an object and returns the picture; `view_camera` moves or zooms.
+8. **End**: always `game_quit` when done, so the next session can launch.
+
+- Coordinates are world units (10 per cell, (0,0) lower left of the playable area, z = terrain height when left out); angles are degrees, counterclockwise, 0 = +x. Take positions from the units in `objects_list` (e.g. the local command center) to place things near the base.
+- `objects_spawn` / `objects_set` / `players_set` change the game directly and are not recorded in the replay; orders are.
+- Scripts: `scripts_run`, `scripts_set_active`, `scripts_flags` / `scripts_counters` (read, or set with `set={...}`).
+- Windowed games must not be minimized (the engine sleeps while iconic); an unfocused window is fine.
+- `game_command(cmd, args)` runs any bridge command; `game_command("list_commands")` lists them with their arguments.
 
 ### Working on the game MCP
 
