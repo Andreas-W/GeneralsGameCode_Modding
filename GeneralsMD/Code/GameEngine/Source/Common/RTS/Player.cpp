@@ -1077,7 +1077,9 @@ void Player::becomingTeamMember(Object *obj, Bool yes)
 		}
 	}
 
-	if( getNumBattlePlansActive() > 0 && obj->areModulesReady() )
+	// A loaded object already carries its bonuses in its saved state (vision, body, modules);
+	// applying them again while it is restored to its team would stack the sight scalar.
+	if( getNumBattlePlansActive() > 0 && obj->areModulesReady() && !TheGameState->isInLoadGame() )
 	{
 		if( yes )
 		{
