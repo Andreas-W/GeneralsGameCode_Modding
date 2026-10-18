@@ -17,7 +17,7 @@
 */
 
 // McpJson.h
-// Minimal JSON value used by the WorldBuilder MCP command bridge.
+// Minimal JSON value used by the MCP command bridges of the game and WorldBuilder.
 
 #pragma once
 

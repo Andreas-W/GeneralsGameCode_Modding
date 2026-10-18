@@ -119,6 +119,8 @@ public:
 	const AudioEventRTS *getInitiateSound() const { return &getFO()->m_initiateSound; }
 	const AudioEventRTS *getInitiateAtTargetSound() const { return &getFO()->m_initiateAtLocationSound; }
 	Bool hasPublicTimer() const { return getFO()->m_publicTimer; }
+	Bool isOwnerOnlyTimer() const { return getFO()->m_ownerOnlyTimer; }
+	Bool isFlashingTimer() const { return getFO()->m_flashingTimer; }
 	Bool isSharedNSync() const { return getFO()->m_sharedNSync; }
 	UnsignedInt getDetectionTime() const { return getFO()->m_detectionTime; }
 	UnsignedInt getViewObjectDuration() const { return getFO()->m_viewObjectDuration; }
@@ -155,6 +157,8 @@ private:
 	Real							m_viewObjectRange;		///< And how far that object can see.
 	Real							m_radiusCursorRadius;	///< size of radius cursor, if any
 	Bool							m_publicTimer;				///< display a countdown timer for this special power for all to see
+	Bool							m_ownerOnlyTimer;			///< the public timer is shown only to its owner, and also for objects that are not structures
+	Bool							m_flashingTimer;			///< the public timer flashes like a ready one the whole time, e.g. while an effect is active
 	Bool							m_sharedNSync;				///< If true, this is a special that is shared between all of a player's command centers
 	Bool							m_shortcutPower;		///< Is this shortcut power capable of being fired by the side panel?
 	Bool							m_needsTargetDesignator;		///< Is this special power only allowed to hit designated areas

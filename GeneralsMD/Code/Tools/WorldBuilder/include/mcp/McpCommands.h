@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "mcp/McpJson.h"
+#include "Common/McpJson.h"
 
 #include "Common/AsciiString.h"
 #include <vector>

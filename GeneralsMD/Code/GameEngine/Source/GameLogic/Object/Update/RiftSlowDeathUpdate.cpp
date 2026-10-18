@@ -42,6 +42,8 @@ RiftSlowDeathBehaviorModuleData::RiftSlowDeathBehaviorModuleData(void)
 	m_hugeVehiclePullScalar = 1.0f;
 
 	m_damagePerSecond = 0.0f;
+	m_maximumDamageRadius = 0.0f;
+	m_outerDamagePerSecond = -1.0f;
 	m_damageInterval = LOGICFRAMES_PER_SECOND;
 	m_damageType = DAMAGE_EXPLOSION;
 	m_deathType = DEATH_NORMAL;
@@ -100,6 +102,8 @@ RiftSlowDeathBehaviorModuleData::RiftSlowDeathBehaviorModuleData(void)
 		{ "HugeVehiclePullScalar",INI::parseReal,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_hugeVehiclePullScalar) },
 
 		{ "DamagePerSecond",			INI::parseReal,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_damagePerSecond) },
+		{ "MaximumDamageRadius",	INI::parseReal,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_maximumDamageRadius) },
+		{ "OuterDamagePerSecond",	INI::parseReal,									NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_outerDamagePerSecond) },
 		{ "DamageInterval",				INI::parseDurationUnsignedInt,	NULL, offsetof(RiftSlowDeathBehaviorModuleData, m_damageInterval) },
 		{ "DamageType",						INI::parseIndexList,		DamageTypeFlags::s_bitNameList, offsetof(RiftSlowDeathBehaviorModuleData, m_damageType) },
 		{ "DeathType",						INI::parseIndexList,		TheDeathNames,	offsetof(RiftSlowDeathBehaviorModuleData, m_deathType) },
@@ -291,11 +295,11 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 	Object* self = getObject();
 
 	Bool damageThisFrame = FALSE;
-	Real damageAmount = 0.0f;
-	if (d->m_damagePerSecond > 0.0f && currFrame >= m_nextDamageFrame)
+	Real damageTickScale = 0.0f;	// turns a damage per second into this tick's damage
+	if ((d->m_damagePerSecond > 0.0f || d->m_outerDamagePerSecond > 0.0f) && currFrame >= m_nextDamageFrame)
 	{
 		UnsignedInt interval = d->m_damageInterval > 0 ? d->m_damageInterval : 1;
-		damageAmount = d->m_damagePerSecond * ((Real)interval / (Real)LOGICFRAMES_PER_SECOND) * strength;
+		damageTickScale = ((Real)interval / (Real)LOGICFRAMES_PER_SECOND) * strength;
 		m_nextDamageFrame = currFrame + interval;
 		damageThisFrame = TRUE;
 	}
@@ -304,7 +308,7 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 	damageInfo.in.m_damageType = d->m_damageType;
 	damageInfo.in.m_deathType = d->m_deathType;
 	damageInfo.in.m_sourceID = self->getID();
-	damageInfo.in.m_amount = damageAmount;
+	damageInfo.in.m_amount = 0.0f;
 	// no shockwave here: we move victims through physics directly, and attemptDamage refuses to
 	// shove anything airborne anyway, which is exactly what we have lifted
 	damageInfo.in.m_shockWaveAmount = 0.0f;
@@ -346,6 +350,10 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 
 		if (damageThisFrame)
 		{
+			// falloff is measured on the ground, like Radius itself
+			Real dist2D = sqrtf(toRift.x * toRift.x + toRift.y * toRift.y);
+			damageInfo.in.m_amount = getDamagePerSecondAt(dist2D) * damageTickScale;
+
 			// only things that can actually fall in may die the consume death
 			damageInfo.in.m_deathType = (pullable && dist <= d->m_consumeDeathRadius) ? d->m_consumeDeathType : d->m_deathType;
 			// the same DamageInfo is reused for every victim, so clear what the last one reported
@@ -354,6 +362,7 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 
 			if (d->m_OCLstructureDebris != NULL
 					&& victim->isKindOf(KINDOF_STRUCTURE)
+					&& !isInvulnerable(victim)
 					&& !damageInfo.out.m_noEffect
 					&& damageInfo.out.m_actualDamageDealt > 0.0f
 					&& GameLogicRandomValueReal(0.0f, 1.0f) < d->m_structureDebrisChance)
@@ -442,18 +451,7 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 
 			if ((v.m_savedFlags & RiftVictim::RIFTSAVE_DYING) != 0 || dist <= d->m_consumeDeathRadius)
 			{
-				if ((v.m_savedFlags & RiftVictim::RIFTSAVE_DYING) == 0)
-				{
-					v.m_savedFlags |= RiftVictim::RIFTSAVE_DYING;
-
-					// a dead flyer's AI no longer drives its locomotor, so take it over through physics
-					if ((v.m_savedFlags & RiftVictim::RIFTSAVE_USES_LOCOMOTOR) != 0)
-					{
-						v.m_savedFlags &= ~RiftVictim::RIFTSAVE_USES_LOCOMOTOR;
-						beginPhysicsCapture(v, obj);
-					}
-				}
-
+				markVictimDying(v, obj);
 				steerVictim(v, obj, toRift, dist, strength);
 				continue;
 			}
@@ -476,14 +474,17 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 		if (victim == NULL)
 			continue;
 
-		for (Int i = (Int)m_victims.size() - 1; i >= 0; --i)
+		// Keep holding it: its death (e.g. a shrinking ChronoDeathBehavior) plays out over time, and
+		// letting go here would drop it out of the singularity under gravity instead of being
+		// swallowed. The dead branch above keeps steering it until it is destroyed.
+		RiftVictim* held = findVictim(*it);
+		if (held == NULL)
 		{
-			if (m_victims[i].m_id == *it)
-			{
-				m_victims.erase(m_victims.begin() + i);
-				break;
-			}
+			captureVictim(victim);
+			held = findVictim(*it);
 		}
+		if (held != NULL)
+			markVictimDying(*held, victim);
 
 		FXList::doFXPos(d->m_FXconsume, victim->getPosition());
 		ObjectCreationList::create(d->m_OCLconsume, self, victim->getPosition(), NULL, 0.0f);
@@ -491,6 +492,30 @@ void RiftSlowDeathBehavior::doRiftTick(Real strength, UnsignedInt currFrame)
 	}
 
 }  // end doRiftTick
+
+// ------------------------------------------------------------------------------------------------
+/** Full DamagePerSecond out to MaximumDamageRadius, then linear down to OuterDamagePerSecond at
+	* Radius. */
+// ------------------------------------------------------------------------------------------------
+Real RiftSlowDeathBehavior::getDamagePerSecondAt(Real dist2D) const
+{
+	const RiftSlowDeathBehaviorModuleData* d = getRiftSlowDeathBehaviorModuleData();
+
+	if (d->m_outerDamagePerSecond < 0.0f || dist2D <= d->m_maximumDamageRadius)
+		return d->m_damagePerSecond;
+
+	// guarded: MaximumDamageRadius >= Radius leaves no falloff band to divide by
+	Real band = d->m_radius - d->m_maximumDamageRadius;
+	if (band <= 0.0f)
+		return d->m_damagePerSecond;
+
+	Real t = (dist2D - d->m_maximumDamageRadius) / band;
+	if (t > 1.0f)
+		t = 1.0f;
+
+	return d->m_damagePerSecond + (d->m_outerDamagePerSecond - d->m_damagePerSecond) * t;
+
+}  // end getDamagePerSecondAt
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
@@ -508,22 +533,8 @@ Bool RiftSlowDeathBehavior::isPullable(const Object* victim, Bool isDebris) cons
 
 	// invulnerable things are left alone. Our own debris is exempt: it usually has an InactiveBody,
 	// which always reports itself as indestructible.
-	if (!isDebris)
-	{
-		const BodyModuleInterface* body = victim->getBodyModule();
-		if ((body != NULL && body->isIndestructible()) || victim->getIsUndetectedDefector())
-			return FALSE;
-
-		// these take damage but can never die, so the event horizon could never consume them
-		static const NameKeyType key_ImmortalBody = NAMEKEY("ImmortalBody");
-		static const NameKeyType key_HighlanderBody = NAMEKEY("HighlanderBody");
-		for (BehaviorModule** m = victim->getBehaviorModules(); *m; ++m)
-		{
-			NameKeyType key = (*m)->getModuleNameKey();
-			if (key == key_ImmortalBody || key == key_HighlanderBody)
-				return FALSE;
-		}
-	}
+	if (!isDebris && isInvulnerable(victim))
+		return FALSE;
 
 	if (victim->isAnyKindOf(d->m_noPullKindOf))
 		return FALSE;
@@ -534,6 +545,30 @@ Bool RiftSlowDeathBehavior::isPullable(const Object* victim, Bool isDebris) cons
 	return TRUE;
 
 }  // end isPullable
+
+// ------------------------------------------------------------------------------------------------
+/** Things the rift can never destroy. Note that ImmortalBody and HighlanderBody still report the
+	* damage they take, e.g. the ImmortalBody of GenericBridge and its towers. */
+// ------------------------------------------------------------------------------------------------
+Bool RiftSlowDeathBehavior::isInvulnerable(const Object* victim) const
+{
+	const BodyModuleInterface* body = victim->getBodyModule();
+	if ((body != NULL && body->isIndestructible()) || victim->getIsUndetectedDefector())
+		return TRUE;
+
+	// these take damage but can never die
+	static const NameKeyType key_ImmortalBody = NAMEKEY("ImmortalBody");
+	static const NameKeyType key_HighlanderBody = NAMEKEY("HighlanderBody");
+	for (BehaviorModule** m = victim->getBehaviorModules(); *m; ++m)
+	{
+		NameKeyType key = (*m)->getModuleNameKey();
+		if (key == key_ImmortalBody || key == key_HighlanderBody)
+			return TRUE;
+	}
+
+	return FALSE;
+
+}  // end isInvulnerable
 
 // ------------------------------------------------------------------------------------------------
 /** Flyers whose locomotor template is flagged LocomotorWorksWhenDisabled keep steering themselves
@@ -638,6 +673,25 @@ void RiftSlowDeathBehavior::beginPhysicsCapture(RiftVictim& v, Object* victim)
 	}
 
 }  // end beginPhysicsCapture
+
+// ------------------------------------------------------------------------------------------------
+/** From now on the victim is pulled until it is destroyed, dead or not. */
+// ------------------------------------------------------------------------------------------------
+void RiftSlowDeathBehavior::markVictimDying(RiftVictim& v, Object* obj)
+{
+	if ((v.m_savedFlags & RiftVictim::RIFTSAVE_DYING) != 0)
+		return;
+
+	v.m_savedFlags |= RiftVictim::RIFTSAVE_DYING;
+
+	// a dead flyer's AI no longer drives its locomotor, so take it over through physics
+	if ((v.m_savedFlags & RiftVictim::RIFTSAVE_USES_LOCOMOTOR) != 0)
+	{
+		v.m_savedFlags &= ~RiftVictim::RIFTSAVE_USES_LOCOMOTOR;
+		beginPhysicsCapture(v, obj);
+	}
+
+}  // end markVictimDying
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
