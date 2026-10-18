@@ -1256,6 +1256,23 @@ else()
 endif()
 
 
+if(RTS_BUILD_OPTION_GAME_MCP)
+    list(APPEND GAMEENGINE_SRC
+        Include/Common/GameMcp.h
+        Source/Common/Mcp/GameMcp.cpp
+        Source/Common/Mcp/GameMcpCmdCheats.cpp
+        Source/Common/Mcp/GameMcpCmdObjects.cpp
+        Source/Common/Mcp/GameMcpCmdOrders.cpp
+        Source/Common/Mcp/GameMcpCmdPlayers.cpp
+        Source/Common/Mcp/GameMcpCmdScripts.cpp
+        Source/Common/Mcp/GameMcpCmdState.cpp
+        Source/Common/Mcp/GameMcpCmdView.cpp
+        Source/Common/Mcp/GameMcpCommands.cpp
+        Source/Common/Mcp/GameMcpCommands.h
+        Source/Common/Mcp/GameMcpServer.cpp
+    )
+endif()
+
 add_library(z_gameengine STATIC)
 
 target_sources(z_gameengine PRIVATE ${GAMEENGINE_SRC})
@@ -1277,6 +1294,10 @@ target_link_libraries(z_gameengine PUBLIC
     corei_gameengine_public
     z_wwvegas
 )
+
+if(RTS_BUILD_OPTION_GAME_MCP)
+    target_link_libraries(z_gameengine PUBLIC ws2_32)
+endif()
 
 target_precompile_headers(z_gameengine PRIVATE
     [["Utility/CppMacros.h"]] # Must be first, to be removed when abandoning VC6

@@ -335,6 +335,17 @@ public:
 
 	const TCounter *getCounter(const AsciiString& counterName);
 
+	/// Named flags and counters for tools that test scripts. Setting one creates it if needed.
+	const TFlag *getFlag(const AsciiString& flagName);
+	void setFlagValue(const AsciiString& flagName, Bool value);
+	void setCounterValue(const AsciiString& counterName, Int value);
+	Int friend_getNumFlags() const { return m_numFlags; }	///< flags start at 1
+	const TFlag *friend_getNthFlag(Int ndx) const { return &m_flags[ndx]; }
+	Int friend_getNumCounters() const { return m_numCounters; }	///< counters start at 1
+	const TCounter *friend_getNthCounter(Int ndx) const { return &m_counters[ndx]; }
+	/// Enables or disables a script or script group by name; false if there is none.
+	Bool setScriptActive(const AsciiString& name, Bool active);
+
 	void createNamedMapReveal(const AsciiString& revealName, const AsciiString& waypointName, Real radiusToReveal, const AsciiString& playerName);
 	void doNamedMapReveal(const AsciiString& revealName);
 	void undoNamedMapReveal(const AsciiString& revealName);

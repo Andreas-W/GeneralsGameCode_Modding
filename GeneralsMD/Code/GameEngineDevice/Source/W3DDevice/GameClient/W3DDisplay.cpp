@@ -107,6 +107,7 @@ static void drawFramerateBar();
 #include "GameLogic/GameLogic.h"
 #ifdef DUMP_PERF_STATS
 #include "GameLogic/PartitionManager.h"
+#include "Common/GameMcp.h"
 #endif
 
 #include "WinMain.h"
@@ -735,6 +736,10 @@ void W3DDisplay::init2DScene()
 //=============================================================================
 void W3DDisplay::init()
 {
+#ifdef RTS_GAME_MCP
+	TheGameMcpScreenshot = W3D_WriteScreenshotFile;
+#endif
+
 
 	//
 	// call our base class init, this method should be able to handle re-entry

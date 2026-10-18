@@ -54,6 +54,7 @@
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/ScriptActions.h"
 #include "GameLogic/ScriptConditions.h"
+#include "Common/GameMcp.h"
 #include "GameLogic/AIMatch.h"
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/SidesList.h"
@@ -6180,6 +6181,59 @@ const TCounter *ScriptEngine::getCounter(const AsciiString& counterName)
 }
 
 //-------------------------------------------------------------------------------------------------
+const TFlag *ScriptEngine::getFlag(const AsciiString& flagName)
+{
+	// Note - flags start at 1.  0 means not assigned.
+	for (Int i=1; i<m_numFlags; i++)
+	{
+		if (flagName == m_flags[i].name)
+		{
+			return &(m_flags[i]);
+		}
+	}
+	return nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+void ScriptEngine::setFlagValue(const AsciiString& flagName, Bool value)
+{
+	const Int flagNdx = allocateFlag(flagName);
+	if (flagNdx > 0)
+	{
+		m_flags[flagNdx].value = value;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void ScriptEngine::setCounterValue(const AsciiString& counterName, Int value)
+{
+	const Int counterNdx = allocateCounter(counterName);
+	if (counterNdx > 0)
+	{
+		m_counters[counterNdx].value = value;
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool ScriptEngine::setScriptActive(const AsciiString& name, Bool active)
+{
+	Bool found = FALSE;
+	ScriptGroup *pGroup = findGroup(name);
+	if (pGroup)
+	{
+		pGroup->setActive(active);
+		found = TRUE;
+	}
+	Script *pScript = findScript(name);
+	if (pScript)
+	{
+		pScript->setActive(active);
+		found = TRUE;
+	}
+	return found;
+}
+
+//-------------------------------------------------------------------------------------------------
 void ScriptEngine::createNamedMapReveal(const AsciiString& revealName, const AsciiString& waypointName, Real radiusToReveal, const AsciiString& playerName)
 {
 	VecNamedRevealIt it;
@@ -8519,6 +8573,11 @@ void ScriptEngine::AppendDebugMessage(const AsciiString& strToAdd, Bool forcePau
 	if (TheAIMatch) {
 		TheAIMatch->scriptMessage(strToAdd);
 	}
+#ifdef RTS_GAME_MCP
+	if (TheGameMcp) {
+		TheGameMcp->scriptMessage(strToAdd);
+	}
+#endif
 #ifdef INTENSE_DEBUG
 	DEBUG_LOG(("-SCRIPT- %d %s", TheGameLogic->getFrame(), strToAdd.str()));
 #endif

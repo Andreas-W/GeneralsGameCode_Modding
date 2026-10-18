@@ -31,6 +31,7 @@
 #include "Common/FramePacer.h"
 #include "Common/GameEngine.h"
 #include "Common/ReplaySimulation.h"
+#include "Common/GameMcp.h"
 #include "GameLogic/AIMatch.h"
 
 
@@ -50,6 +51,13 @@ Int GameMain()
 	{
 		exitcode = ReplaySimulation::simulateReplays(TheGlobalData->m_simulateReplays, TheGlobalData->m_simulateReplayJobs);
 	}
+#ifdef RTS_GAME_MCP
+	else if (TheGameMcp && TheGlobalData->m_headless)
+	{
+		// Also runs an AI match started with -aiMatch, which ends itself.
+		exitcode = TheGameMcp->runHeadless();
+	}
+#endif
 	else if (TheAIMatch && TheGlobalData->m_headless)
 	{
 		exitcode = TheAIMatch->runHeadless();

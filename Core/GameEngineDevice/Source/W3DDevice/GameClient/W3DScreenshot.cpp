@@ -256,3 +256,16 @@ void W3D_TakeCompressedScreenshot(ScreenshotFormat format, Int jpegQuality)
 	}
 }
 
+#ifdef RTS_GAME_MCP
+bool W3D_WriteScreenshotFile(const char* pathname, ScreenshotFormat format, Int jpegQuality)
+{
+	ScreenshotThreadData* data = captureBackBuffer(format, jpegQuality);
+	if (data == nullptr)
+	{
+		return false;
+	}
+	const int success = writeScreenshotImage(data, pathname);
+	delete data;
+	return success != 0;
+}
+#endif
