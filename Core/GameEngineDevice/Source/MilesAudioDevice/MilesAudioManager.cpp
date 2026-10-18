@@ -3069,6 +3069,14 @@ U32 AILCALLBACK streamingFileRead(void *file_handle, void *buffer, U32 bytes)
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
+// Holds the Miles global lock for a scope. It is recursive, so this is safe on the Miles callback
+// thread, which already holds it.
+struct MilesLockScope
+{
+	MilesLockScope() { AIL_lock(); }
+	~MilesLockScope() { AIL_unlock(); }
+};
+
 //-------------------------------------------------------------------------------------------------
 AudioFileCache::AudioFileCache() : m_maxSize(0), m_currentlyUsedSize(0), m_mutexName("AudioFileCacheMutex")
 {
@@ -3100,6 +3108,12 @@ AudioFileCache::~AudioFileCache()
 //-------------------------------------------------------------------------------------------------
 void *AudioFileCache::openFile( AudioEventRTS *eventToOpenFrom )
 {
+	// Take the Miles lock before our own mutex. Miles runs the end-of-sample callbacks while holding
+	// its lock, and those callbacks reach closeFile/openFile and wait for our mutex. Making room in
+	// the cache stops playing samples, which waits for the Miles lock, so taking the two in the
+	// opposite order deadlocks as soon as an eviction meets a sample finishing at the same time.
+	MilesLockScope milesLock;
+
 	// Protect the entire openFile function
 	ScopedMutex mut(m_mutex);
 

@@ -100,6 +100,7 @@ enum DamageType CPP_11(: Int)
 	DAMAGE_JET_TORPEDO,
 	DAMAGE_ANTI_SHIP,
 	DAMAGE_CRYO,
+	DAMAGE_BLACK_HOLE,
 	
 	// Specific damage types with special logic attached
 	DAMAGE_TORPEDO, ///< can only attack units over water
