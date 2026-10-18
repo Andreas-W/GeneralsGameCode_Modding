@@ -319,10 +319,10 @@ void BattlePlanBonusBehavior::addBonusForType(BattlePlanStatus plan)
 			ai->applySpeedMultiplier(d->m_movementSpeedScalarEntries[idx]);
 		}
 	}
-	if (d->m_statusToSetEntries[idx] != -1) {
+	if (d->m_statusToSetEntries[idx] != OBJECT_STATUS_NONE) {
 		obj->setStatus(MAKE_OBJECT_STATUS_MASK(d->m_statusToSetEntries[idx]));
 	}
-	if (d->m_statusToClearEntries[idx] != -1) {
+	if (d->m_statusToClearEntries[idx] != OBJECT_STATUS_NONE) {
 		obj->setStatus(MAKE_OBJECT_STATUS_MASK(d->m_statusToClearEntries[idx]), FALSE);
 	}
 
@@ -376,10 +376,10 @@ void BattlePlanBonusBehavior::removeBonusForType(BattlePlanStatus plan)
 			ai->applySpeedMultiplier(1.0f / __max(d->m_movementSpeedScalarEntries[idx], 0.01f));
 		}
 	}
-	if (d->m_statusToSetEntries[idx] != -1) {
+	if (d->m_statusToSetEntries[idx] != OBJECT_STATUS_NONE) {
 		obj->setStatus(MAKE_OBJECT_STATUS_MASK(d->m_statusToSetEntries[idx]), FALSE);
 	}
-	if (d->m_statusToClearEntries[idx] != -1) {
+	if (d->m_statusToClearEntries[idx] != OBJECT_STATUS_NONE) {
 		obj->setStatus(MAKE_OBJECT_STATUS_MASK(d->m_statusToClearEntries[idx]));
 	}
 
