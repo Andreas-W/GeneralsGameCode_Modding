@@ -263,6 +263,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/BaikonurLaunchPower.h
     Include/GameLogic/Module/BaseRegenerateUpdate.h
     Include/GameLogic/Module/BattleBusSlowDeathBehavior.h
+    Include/GameLogic/Module/AllBattlePlansUpdate.h
     Include/GameLogic/Module/BattlePlanUpdate.h
     Include/GameLogic/Module/BehaviorModule.h
     Include/GameLogic/Module/BodyModule.h
@@ -985,6 +986,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Update/AutoDepositUpdate.cpp
     Source/GameLogic/Object/Update/AutoFindHealingUpdate.cpp
     Source/GameLogic/Object/Update/BaseRenerateUpdate.cpp
+    Source/GameLogic/Object/Update/AllBattlePlansUpdate.cpp
     Source/GameLogic/Object/Update/BattlePlanUpdate.cpp
     Source/GameLogic/Object/Update/BoneFXUpdate.cpp
     Source/GameLogic/Object/Update/CheckpointUpdate.cpp
