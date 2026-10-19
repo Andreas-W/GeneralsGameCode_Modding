@@ -63,7 +63,8 @@
 constexpr const Real ORBITAL_BEAM_Z_OFFSET = 3500.0f;
 // TheSuperHackers @fix The positional audio is now decoupled from the beam origin.
 // 500 units represent the height of the original audio emitter.
-constexpr const Real ORBITAL_BEAM_AUDIO_Z_OFFSET = 500.0f;
+
+constexpr const Real ORBITAL_BEAM_AUDIO_Z_OFFSET = 250.0f;
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
