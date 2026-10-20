@@ -6,6 +6,7 @@
 !.github
 !.gitmodules
 !.mcp.json
+!/.claude/
 
 *.user
 *.ncb
@@ -50,8 +51,9 @@ thumbs.db
 /Dependencies/MaxSDK/maxsdk
 /tmp/
 
-## AI assistant config (user-specific)
-/.claude/
+## AI assistant config (user-specific); shared skills are tracked
+/.claude/*
+!/.claude/skills/
 
 ## IntelliJ, CLion, etc.
 /.idea
