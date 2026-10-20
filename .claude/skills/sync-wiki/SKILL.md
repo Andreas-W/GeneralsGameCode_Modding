@@ -1,7 +1,7 @@
 ---
 name: sync-wiki
-description: Sync the GeneralsGameCode_Modding GitHub wiki with modding-relevant changes in this repo. Reads the last synced source commit from the wiki's git trailer, diffs this repo up to the newest weekly release tag (or a given ref), documents new INI fields / modules / enums and behavior-changing fixes on the right wiki pages, and commits to the wiki with a Source-Commit trailer. Use when asked to "update the wiki", "sync the wiki", or document changes since the last wiki update.
-argument-hint: "[target ref, default: newest weekly-* tag]"
+description: Sync the GeneralsGameCode_Modding GitHub wiki with modding-relevant changes in this repo. Reads the last synced source commit from the wiki's git trailer, diffs this repo up to the tip of main (or a ref/tag the user names), documents new INI fields / modules / enums and behavior-changing fixes on the right wiki pages, and commits to the wiki with a Source-Commit trailer. Use when asked to "update the wiki", "sync the wiki", or document changes since the last wiki update.
+argument-hint: "[target ref or tag, default: origin/main]"
 ---
 
 # Sync wiki with this repo
@@ -19,12 +19,14 @@ Below, `$WIKI` = `../GeneralsGameCode_Modding.wiki`. Run wiki git commands as `g
    git -C $WIKI log --format='%(trailers:key=Source-Commit,valueonly)' | grep -m1 .
    ```
    No trailer found → use the bootstrap value `78949f91c0a9593aa35056550eb994bc2562cca8` (covered by wiki commit `7efd799`, 2026-09-01).
-3. Target: `$ARGUMENTS` if given, else the newest weekly tag:
+3. Target: by default **everything on `main`**, i.e. the tip of `origin/main`. Release tags (`weekly-*`) are ignored unless the user explicitly names a tag or ref (`$ARGUMENTS`), in which case use that instead.
    ```bash
    git fetch origin --tags
-   git tag -l 'weekly-*' --sort=-creatordate | head -1
+   git rev-parse origin/main          # default target
+   git rev-parse <ref>^{commit}       # only when a tag/ref was given
    ```
-   Resolve it to a full SHA (`git rev-parse <tag>^{commit}`). If target == last synced, report "already in sync" and stop.
+   Use `origin/main`, not local `main`: the wiki is public, so it only documents pushed code. If local `main` has unpushed commits that touch `GeneralsMD`/`Core` (`git log origin/main..main -- GeneralsMD Core`), mention them in the report, don't document them.
+   If target == last synced, report "already in sync" and stop.
    Sanity check: `git merge-base --is-ancestor <last> <target>` must succeed.
 4. Never select commits by date. Upstream merges keep old author dates, so date ranges skip or duplicate commits. Always use `<last>..<target>`.
 
@@ -49,7 +51,7 @@ Look for:
 | Removed / renamed fields | `^-` lines in `FieldParse` tables, `DEBUG_CRASH`/"no longer supported" messages |
 | Behavior fixes | fork commits named "fix ..." and upstream `bugfix(...)` that change in-game behavior modders would notice |
 
-Read the surrounding code for every hit so you can document type, default and semantics correctly. For real usage examples, the mod's INIs are at `F:\Operation-Firestorm-2.0\Data\INI` (read-only).
+Read code **at the target commit** (`git show <target>:<path>`), not the working tree: the checkout can be ahead of or behind the target, and fields from later commits must not leak into this sync. Read the surrounding code for every hit so you can document type, default and semantics correctly. For real usage examples, the mod's INIs are at `F:\Operation-Firestorm-2.0\Data\INI` (read-only).
 
 ## 3. Map to wiki pages (in `$WIKI`)
 
@@ -88,14 +90,16 @@ No fitting page → add a section to the closest page. Create a new page only fo
 ## 5. Commit (in `$WIKI`)
 
 Make two commits if both kinds of change exist:
-1. `update wiki: new modding features up to <tag>`: fields, modules, enums.
-2. `update wiki: behavior changes and fixes up to <tag>`: `Changes-&-Bug-Fixes.md` and related notes.
+1. `update wiki: new modding features up to <ref>`: fields, modules, enums.
+2. `update wiki: behavior changes and fixes up to <ref>`: `Changes-&-Bug-Fixes.md` and related notes.
+
+`<ref>` is `main@<short SHA>` for the default target, or the tag/ref the user named.
 
 Each commit body has a short summary of what was documented, then the trailers:
 
 ```
 Source-Commit: <full target SHA>
-Source-Ref: <tag or ref>
+Source-Ref: <main or the given tag/ref>
 Co-Authored-By: ...
 ```
 
@@ -103,4 +107,4 @@ Both commits get the same `Source-Commit`. **Don't push.** The wiki is public. S
 
 ## 6. Report
 
-Short report: range (`<last short>..<target short>`, tag), pages touched, items documented, items skipped as not modder-visible (one line each), open questions.
+Short report: range (`<last short>..<target short>`, ref), pages touched, items documented, items skipped as not modder-visible (one line each), open questions.
