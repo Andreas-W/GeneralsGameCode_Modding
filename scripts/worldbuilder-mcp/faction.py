@@ -599,7 +599,7 @@ def _unit_row(obj: dict[str, Any]) -> dict[str, Any]:
     combat = obj.get("combat")
     if combat:
         row.update({k: combat[k] for k in ("targets", "range", "range_air", "dps_vs") if k in combat})
-    for key in ("stealth", "detector_range", "counters", "countered_by", "micro", "team_hint", "notes", "variants",
+    for key in ("stealth", "detector_range", "detector_upgrade", "counters", "countered_by", "micro", "team_hint", "notes", "variants",
                 "unavailable", "naval", "submarine", "amphibious"):
         if key in obj:
             row[key] = obj[key]

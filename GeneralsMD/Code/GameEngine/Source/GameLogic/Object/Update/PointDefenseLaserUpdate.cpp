@@ -51,6 +51,7 @@
 //-------------------------------------------------------------------------------------------------
 PointDefenseLaserUpdateModuleData::PointDefenseLaserUpdateModuleData()
 {
+	m_initiallyActive		= false;
 	m_weaponTemplate		= nullptr;
 	m_scanFrames				= 0;
 	m_scanRange					= 0.0f;
@@ -70,9 +71,11 @@ PointDefenseLaserUpdateModuleData::PointDefenseLaserUpdateModuleData()
 		{ "ScanRate",							INI::parseDurationUnsignedInt,	nullptr, offsetof( PointDefenseLaserUpdateModuleData, m_scanFrames ) },
 		{ "ScanRange",						INI::parseReal,									nullptr, offsetof( PointDefenseLaserUpdateModuleData, m_scanRange ) },
 		{ "PredictTargetVelocityFactor", INI::parseReal,					nullptr, offsetof( PointDefenseLaserUpdateModuleData, m_velocityFactor ) },
+		{ "StartsActive",					INI::parseBool,									nullptr, offsetof( PointDefenseLaserUpdateModuleData, m_initiallyActive ) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 	p.add(dataFieldParse);
+	p.add(UpgradeMuxData::getFieldParse(), offsetof( PointDefenseLaserUpdateModuleData, m_upgradeMuxData ));
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -82,7 +85,9 @@ PointDefenseLaserUpdate::PointDefenseLaserUpdate( Thing *thing, const ModuleData
 	m_nextScanFrames = 0;
 	m_nextShotAvailableInFrames = 0;
 	m_inRange  					= false;
-	setWakeFrame(getObject(), UPDATE_SLEEP_NONE);// No starting sleep, but we want to sleep later.
+	if( getPointDefenseLaserUpdateModuleData()->m_initiallyActive )
+		giveSelfUpgrade();
+	setWakeFrame(getObject(), isUpgradeActive() ? UPDATE_SLEEP_NONE : UPDATE_SLEEP_FOREVER);// No starting sleep, but we want to sleep later.
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -92,6 +97,26 @@ PointDefenseLaserUpdate::~PointDefenseLaserUpdate()
 
 }
 
+
+//-------------------------------------------------------------------------------------------------
+void PointDefenseLaserUpdate::upgradeImplementation()
+{
+	// scan right away
+	m_nextScanFrames = 0;
+	setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool PointDefenseLaserUpdate::resetUpgrade( const UpgradeMaskType& keyMask )
+{
+	if( !UpgradeMux::resetUpgrade( keyMask ) )
+		return FALSE;
+
+	m_bestTargetID = INVALID_ID;
+	m_inRange = false;
+	setWakeFrame(getObject(), UPDATE_SLEEP_FOREVER);
+	return TRUE;
+}
 
 //-------------------------------------------------------------------------------------------------
 void PointDefenseLaserUpdate::onObjectCreated()
@@ -133,6 +158,10 @@ UpdateSleepTime PointDefenseLaserUpdate::update()
 	Object *me = getObject();
 	if( me->isEffectivelyDead() )
 		return UPDATE_SLEEP_FOREVER;//No more laser fo you.
+
+	// Lost the trigger upgrade; upgradeImplementation wakes us again.
+	if( !isUpgradeActive() )
+		return UPDATE_SLEEP_FOREVER;
 
 	const PointDefenseLaserUpdateModuleData *data = getPointDefenseLaserUpdateModuleData();
 
@@ -395,18 +424,22 @@ void PointDefenseLaserUpdate::crc( Xfer *xfer )
 	// extend base class
 	UpdateModule::crc( xfer );
 
+	// extend upgrade mux
+	UpgradeMux::upgradeMuxCRC( xfer );
+
 }
 
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: Upgrade mux */
 // ------------------------------------------------------------------------------------------------
 void PointDefenseLaserUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -425,6 +458,10 @@ void PointDefenseLaserUpdate::xfer( Xfer *xfer )
 	// next shot available in frames
 	xfer->xferInt( &m_nextShotAvailableInFrames );
 
+	// extend upgrade mux
+	if( version >= 2 )
+		UpgradeMux::upgradeMuxXfer( xfer );
+
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -435,5 +472,8 @@ void PointDefenseLaserUpdate::loadPostProcess()
 
 	// extend base class
 	UpdateModule::loadPostProcess();
+
+	// extend upgrade mux
+	UpgradeMux::upgradeMuxLoadPostProcess();
 
 }

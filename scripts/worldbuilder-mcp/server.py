@@ -732,7 +732,8 @@ def faction_describe(faction: str, path: str | None = None, scope: Literal["side
       sets, cost and build time multipliers of single types.
     - objects: per unit and structure name, side, in_tech_tree, kind_of, cost, build_time
       (seconds), energy, max_simultaneous, vision, health, locomotor (speed per second,
-      surfaces), contain, stealth, detector_range, supply_boxes, modules, weapon_sets and
+      surfaces), contain, stealth, detector_range (detector_upgrade: detects only after one of
+      these upgrades), supply_boxes, modules, weapon_sets and
       armor_sets by condition, prerequisites, built_by, and from its command sets: builds,
       upgrades, special_powers, abilities (button names as script actions take them).
       `prerequisites` are all required: one type out of every group in `objects`, and every

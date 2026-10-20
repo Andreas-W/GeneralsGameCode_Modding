@@ -510,6 +510,13 @@ void describeModules(const ThingTemplate *tt, McpJson &j)
 		if (const StealthDetectorUpdateModuleData *detector = dynamic_cast<const StealthDetectorUpdateModuleData *>(data)) {
 			// A range of 0 means the vision range is used.
 			j.set("detector_range", num(detector->m_detectionRange > 0 ? detector->m_detectionRange : tt->friend_calcVisionRange()));
+			// Detection only after one of these upgrades.
+			const std::vector<AsciiString> &triggers = detector->m_upgradeMuxData.m_activationUpgradeNames;
+			if (!triggers.empty() && !detector->m_initiallyActive) {
+				McpJson upgrades = McpJson::makeArray();
+				for (size_t t = 0; t < triggers.size(); t++) upgrades.push(McpJson(triggers[t].str()));
+				j.set("detector_upgrade", upgrades);
+			}
 		}
 	}
 	j.set("modules", stringArray(names));

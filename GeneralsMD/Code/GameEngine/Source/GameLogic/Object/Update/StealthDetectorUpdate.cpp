@@ -74,10 +74,13 @@ void StealthDetectorUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "ExtraForbiddenKindOf",				KindOfMaskType::parseFromINI,				nullptr, offsetof( StealthDetectorUpdateModuleData, m_extraDetectKindofNot ) },
 		{ "CanDetectWhileGarrisoned",		INI::parseBool,											nullptr, offsetof( StealthDetectorUpdateModuleData, m_canDetectWhileGarrisoned ) },
 		{ "CanDetectWhileContained",		INI::parseBool,											nullptr, offsetof( StealthDetectorUpdateModuleData, m_canDetectWhileTransported ) },
+		{ "StartsActive",								INI::parseBool,											nullptr, offsetof( StealthDetectorUpdateModuleData, m_initiallyActive ) },
+		{ "RequiresPlayerOwner",				INI::parseBool,											nullptr, offsetof( StealthDetectorUpdateModuleData, m_requiresPlayerOwner ) },
 
 		{ nullptr, nullptr, nullptr, 0 }
 	};
   p.add(dataFieldParse);
+	p.add(UpgradeMuxData::getFieldParse(), offsetof( StealthDetectorUpdateModuleData, m_upgradeMuxData ));
 }
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -85,9 +88,11 @@ StealthDetectorUpdate::StealthDetectorUpdate( Thing *thing, const ModuleData* mo
 {
 	const StealthDetectorUpdateModuleData *data = getStealthDetectorUpdateModuleData();
 	m_enabled = !data->m_initiallyDisabled;
+	if( data->m_initiallyActive )
+		giveSelfUpgrade();
 	// start these guys with random phasings so that we don't
 	// have all of 'em check on the same frame.
-	setWakeFrame(getObject(), m_enabled ? UPDATE_SLEEP(GameLogicRandomValue(1, data->m_updateRate)) : UPDATE_SLEEP_FOREVER);
+	setWakeFrame(getObject(), m_enabled && isUpgradeActive() ? UPDATE_SLEEP(GameLogicRandomValue(1, data->m_updateRate)) : UPDATE_SLEEP_FOREVER);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -101,7 +106,35 @@ StealthDetectorUpdate::~StealthDetectorUpdate()
 void StealthDetectorUpdate::setSDEnabled( Bool enabled )
 {
 	m_enabled = enabled;
-	setWakeFrame(getObject(), m_enabled ? UPDATE_SLEEP_NONE : UPDATE_SLEEP_FOREVER);
+	setWakeFrame(getObject(), m_enabled && isUpgradeActive() ? UPDATE_SLEEP_NONE : UPDATE_SLEEP_FOREVER);
+}
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+void StealthDetectorUpdate::onCapture( Player *oldOwner, Player *newOwner )
+{
+	// update() decides whether the new owner may use us
+	if( m_enabled && isUpgradeActive() )
+		setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
+}
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+void StealthDetectorUpdate::upgradeImplementation()
+{
+	if( m_enabled )
+		setWakeFrame(getObject(), UPDATE_SLEEP_NONE);
+}
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+Bool StealthDetectorUpdate::resetUpgrade( const UpgradeMaskType& keyMask )
+{
+	if( !UpgradeMux::resetUpgrade( keyMask ) )
+		return FALSE;
+
+	setWakeFrame(getObject(), UPDATE_SLEEP_FOREVER);
+	return TRUE;
 }
 
 
@@ -147,6 +180,18 @@ UpdateSleepTime StealthDetectorUpdate::update()
 
 	if (self->isEffectivelyDead())
 		return UPDATE_SLEEP_FOREVER;
+
+	// Switched off by the battle plan or by losing the trigger upgrade; whoever switches us on wakes us.
+	if( !m_enabled || !isUpgradeActive() )
+		return UPDATE_SLEEP_FOREVER;
+
+	// e.g. a civilian building that works only once captured; onCapture wakes us
+	if( data->m_requiresPlayerOwner )
+	{
+		const Player *owner = self->getControllingPlayer();
+		if( !owner || !owner->isPlayableSide() )
+			return UPDATE_SLEEP_FOREVER;
+	}
 
 	// We have to wait until we are fully constructed, but we will detect the moment we finish
 	if( self->testStatus(OBJECT_STATUS_UNDER_CONSTRUCTION) )
@@ -421,18 +466,22 @@ void StealthDetectorUpdate::crc( Xfer *xfer )
 	// extend base class
 	UpdateModule::crc( xfer );
 
+	// extend upgrade mux
+	UpgradeMux::upgradeMuxCRC( xfer );
+
 }
 
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: Upgrade mux */
 // ------------------------------------------------------------------------------------------------
 void StealthDetectorUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -441,6 +490,10 @@ void StealthDetectorUpdate::xfer( Xfer *xfer )
 
 	// enabled
 	xfer->xferBool( &m_enabled );
+
+	// extend upgrade mux
+	if( version >= 2 )
+		UpgradeMux::upgradeMuxXfer( xfer );
 
 }
 
@@ -452,5 +505,8 @@ void StealthDetectorUpdate::loadPostProcess()
 
 	// extend base class
 	UpdateModule::loadPostProcess();
+
+	// extend upgrade mux
+	UpgradeMux::upgradeMuxLoadPostProcess();
 
 }
