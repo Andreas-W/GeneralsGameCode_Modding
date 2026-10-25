@@ -29,6 +29,7 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/AudioEventInfo.h"
 #include "Common/GameAudio.h"
 #include "Common/GlobalData.h"
 #include "Common/Player.h"
@@ -276,6 +277,36 @@ UpdateSleepTime MissileLauncherBuildingUpdate::update()
 			switchToState(DOOR_OPENING);
 		}
 	}
+
+	// MilesAudioManager kills looping sounds that go out of range and never restarts them,
+	// so keep restarting the open idle loop while the door is open (same as Drawable ambient sounds).
+	if (m_doorState == DOOR_OPEN && !m_openIdleAudio.getEventName().isEmpty() && !m_openIdleAudio.isCurrentlyPlaying())
+	{
+		const AudioEventInfo *info = m_openIdleAudio.getAudioEventInfo();
+		if (info == nullptr)
+		{
+			TheAudio->getInfoForAudioEvent(&m_openIdleAudio);
+			info = m_openIdleAudio.getAudioEventInfo();
+		}
+
+		if (info && info->isPermanentSound())
+		{
+			Bool tryPlay = BitIsSet(info->m_type, ST_GLOBAL) || info->m_priority == AP_CRITICAL;
+			if (!tryPlay)
+			{
+				// Only request it when in range, otherwise the request is culled anyway
+				Coord3D vector = *getObject()->getPosition();
+				vector.sub(*TheAudio->getListenerPosition());
+				tryPlay = vector.lengthSqr() < sqr(info->m_maxDistance);
+			}
+
+			if (tryPlay)
+			{
+				m_openIdleAudio.setPlayingHandle(TheAudio->addAudioEvent(&m_openIdleAudio));
+			}
+		}
+	}
+
 	return UPDATE_SLEEP_NONE;
 }
 
