@@ -121,6 +121,7 @@ public:
 	AsciiString getMedallionSelected() const { return m_strMedallionSelected; }
 
 	const ScienceVec& getIntrinsicSciences() const { return m_intrinsicSciences; }
+	const ScienceVec& getIntrinsicSciencesShipMap() const { return m_intrinsicSciencesShipMap; }
 	Int getIntrinsicSciencePurchasePoints() const { return m_intrinsicSPP; }
 	AsciiString getPurchaseScienceCommandSetRank1() const {return m_purchaseScienceCommandSetRank1;	}
 	AsciiString getPurchaseScienceCommandSetRank3() const {return m_purchaseScienceCommandSetRank3;	}
@@ -160,6 +161,7 @@ private:
 	ProductionChangeMap			m_productionTimeChanges;
 	ProductionVeterancyMap	m_productionVeterancyLevels;
 	ScienceVec				m_intrinsicSciences;	///< sciences that this Player will always know
+	ScienceVec				m_intrinsicSciencesShipMap;	///< additional sciences known on maps whose map.ini sets EnableShips
 	AsciiString				m_purchaseScienceCommandSetRank1;		///< the command set we'll use when we want to purchase sciences
 	AsciiString				m_purchaseScienceCommandSetRank3;		///< the command set we'll use when we want to purchase sciences
 	AsciiString				m_purchaseScienceCommandSetRank8;		///< the command set we'll use when we want to purchase sciences

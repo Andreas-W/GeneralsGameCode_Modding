@@ -54,6 +54,7 @@
 #include "Common/DisabledTypes.h"
 #include "Common/GameState.h"
 #include "Common/GlobalData.h"
+#include "Common/MapData.h"
 #include "Common/MessageStream.h"
 #include "Common/MiscAudio.h"
 #include "Common/PerfTimer.h"
@@ -2818,7 +2819,17 @@ void Player::resetSciences()
 	m_sciences.clear();
 
 	if (getPlayerTemplate())
+	{
 		m_sciences = getPlayerTemplate()->getIntrinsicSciences();
+
+		// lets ship-only content (shipyards, naval sciences) require a science that land maps never grant
+		if (TheMapData && TheMapData->m_enableShips)
+		{
+			const ScienceVec& shipSciences = getPlayerTemplate()->getIntrinsicSciencesShipMap();
+			for (ScienceVec::const_iterator it = shipSciences.begin(); it != shipSciences.end(); ++it)
+				addScience(*it);
+		}
+	}
 
 	for (Int i = 1; i <= m_rankLevel; ++i)
 	{
