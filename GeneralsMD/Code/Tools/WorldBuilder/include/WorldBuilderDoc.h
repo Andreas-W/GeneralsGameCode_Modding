@@ -120,7 +120,7 @@ public:
 	void invalCell(int xIndex, int yIndex);
 
 	void updateAllViews();
-	void updateHeightMap(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange);
+	void updateHeightMap(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects = true);
 
 	/// Gets an xy index into the height map from a pixel location.
 	Bool getCellIndexFromCoord(Coord3D pt, CPoint *ndxP);

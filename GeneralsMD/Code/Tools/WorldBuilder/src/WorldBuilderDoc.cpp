@@ -1392,7 +1392,7 @@ void CWorldBuilderDoc::updateAllViews()
 	}
 }
 
-void CWorldBuilderDoc::updateHeightMap(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange)
+void CWorldBuilderDoc::updateHeightMap(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects)
 {
 	POSITION pos = GetFirstViewPosition();
 	while (pos != nullptr)
@@ -1400,7 +1400,7 @@ void CWorldBuilderDoc::updateHeightMap(WorldHeightMap *htMap, Bool partial, cons
 		CView* pView = GetNextView(pos);
 		WbView* pWView = (WbView *)pView;
 		ASSERT_VALID(pWView);
-		pWView->updateHeightMapInView(htMap, partial, partialRange);
+		pWView->updateHeightMapInView(htMap, partial, partialRange, invalObjects);
 		pWView->Invalidate();
 	}
 }

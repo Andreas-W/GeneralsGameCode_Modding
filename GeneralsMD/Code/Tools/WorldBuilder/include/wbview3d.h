@@ -242,7 +242,7 @@ public:
 	virtual Bool viewToDocCoords(CPoint curPt, Coord3D *newPt, Bool constrain=true) override;
 	virtual Bool docToViewCoords(Coord3D curPt, CPoint* newPt) override;
 
-	virtual void updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange) override;
+	virtual void updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects = true) override;
 
 	/// Invalidates an object. Pass null to inval all objects.
 	virtual void invalObjectInView(MapObject *pObj) override;

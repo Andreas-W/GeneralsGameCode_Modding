@@ -110,8 +110,9 @@ public:
 	/// Set the center for display.
 	virtual void setCenterInView(Real x, Real y) { }
 
-	/// Update the height map in the 3d window.
-	virtual void updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange) { }
+	/// Update the height map in the 3d window. Pass invalObjects=false when no heights changed,
+	/// so objects, roads, lights and scorches don't need to be refitted to the terrain.
+	virtual void updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects = true) { }
 
 	/// the doc has changed size; readjust view as necessary.
 	virtual void adjustDocSize() { }

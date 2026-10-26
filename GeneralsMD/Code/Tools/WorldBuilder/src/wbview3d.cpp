@@ -1575,7 +1575,7 @@ void WbView3d::invalObjectInView(MapObject *pMapObjIn)
 
 
 // ----------------------------------------------------------------------------
-void WbView3d::updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange)
+void WbView3d::updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects)
 {
 	if (htMap == nullptr)
 		return;
@@ -1612,7 +1612,10 @@ void WbView3d::updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const 
 		if (curTicks < 1) curTicks = 1;
 	}
 
-	invalObjectInView(nullptr);	// update all the map objects, to account for ground changes
+	// A full rebuild always refits objects; a partial update only when heights may have changed.
+	if (invalObjects || !partial) {
+		invalObjectInView(nullptr);	// update all the map objects, to account for ground changes
+	}
 
 	--m_updateCount;
 }

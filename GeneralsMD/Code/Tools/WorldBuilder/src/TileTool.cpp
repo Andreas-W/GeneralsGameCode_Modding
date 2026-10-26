@@ -170,7 +170,9 @@ void TileTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldB
 		if (fullUpdate) {
 			m_htMapEditCopy->optimizeTiles(); // force to optimize tileset
 		}
-		pDoc->updateHeightMap(m_htMapEditCopy, !fullUpdate, partialRange);
+		// Painting tiles or pathing never changes heights, so skip refitting every object,
+		// road, light and scorch to the terrain on each mouse move.
+		pDoc->updateHeightMap(m_htMapEditCopy, !fullUpdate, partialRange, false);
 	}
 	pView->UpdateWindow();
 	m_prevViewPt = viewPt;
