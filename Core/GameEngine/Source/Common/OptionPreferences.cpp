@@ -803,6 +803,20 @@ Int OptionPreferences::getNetworkLatencyFontSize()
 	return fontSize;
 }
 
+Int OptionPreferences::getRenderFpsLimit()
+{
+	OptionPreferences::const_iterator it = find("RenderFPSLimit");
+	if (it == end())
+		return -1;
+
+	Int fps = atoi(it->second.str());
+	if (fps < 0)
+	{
+		fps = 0;
+	}
+	return fps;
+}
+
 Int OptionPreferences::getRenderFpsFontSize()
 {
 	OptionPreferences::const_iterator it = find("RenderFpsFontSize");

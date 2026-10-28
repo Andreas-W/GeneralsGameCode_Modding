@@ -79,6 +79,7 @@ McpJson cmdStatus(const McpJson &)
 	} else {
 		result.set("speed_fps", TheFramePacer->isFramesPerSecondLimitEnabled() ? TheFramePacer->getFramesPerSecondLimit() : 0);
 		result.set("render_fps", (double)TheFramePacer->getUpdateFps());
+		result.set("render_fps_limit", TheFramePacer->getRenderFramesPerSecondLimit());
 		result.set("render_interpolation", TheGlobalData->m_useRenderInterpolation != FALSE);
 		result.set("render_interpolation_factor", (double)TheFramePacer->getLogicInterpolation());
 	}

@@ -119,6 +119,7 @@ public:
 	Bool m_useRenderInterpolation;	///< draw objects between their last two logic positions, for smooth motion above the logic frame rate
 	Bool m_dumpAssetUsage;
 	Int m_framesPerSecondLimit;
+	Int m_renderFramesPerSecondLimit;	///< single player render fps cap independent of the game speed; 0 = the game speed is the render fps cap
 	Int	m_chipSetType;	///<See W3DShaderManager::ChipsetType for options
 
 	// TheSuperHackers @feature helmutbuhler 11/04/2025

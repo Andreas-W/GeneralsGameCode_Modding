@@ -684,6 +684,14 @@ void GameEngine::init()
 		TheSubsystemList->postProcessLoadAll();
 
 		TheFramePacer->setFramesPerSecondLimit(TheGlobalData->m_framesPerSecondLimit);
+		// The player's options override the render fps limit of the game data. It only affects this client.
+		{
+			OptionPreferences optionPref;
+			Int renderFpsLimit = optionPref.getRenderFpsLimit();
+			if (renderFpsLimit < 0)
+				renderFpsLimit = TheGlobalData->m_renderFramesPerSecondLimit;
+			TheFramePacer->setRenderFramesPerSecondLimit(renderFpsLimit);
+		}
 
 		TheAudio->setOn(TheGlobalData->m_audioOn && TheGlobalData->m_musicOn, AudioAffect_Music);
 		TheAudio->setOn(TheGlobalData->m_audioOn && TheGlobalData->m_soundsOn, AudioAffect_Sound);

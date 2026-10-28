@@ -107,6 +107,7 @@ GlobalData* GlobalData::m_theOriginal = nullptr;
 	{ "ReverseMoveIgnoreAngleThreshold",	INI::parseBool,			nullptr,			offsetof( GlobalData, m_reverseMoveIgnoreAngleThreshold ) },
 	{ "SmartGarrisonRange",				INI::parseReal,				nullptr,			offsetof( GlobalData, m_smartGarrisonRange ) },
 	{ "FramesPerSecondLimit",			INI::parseInt,				nullptr,			offsetof( GlobalData, m_framesPerSecondLimit ) },
+	{ "RenderFramesPerSecondLimit",	INI::parseInt,				nullptr,			offsetof( GlobalData, m_renderFramesPerSecondLimit ) },
 	{ "ChipsetType",							INI::parseInt,				nullptr,			offsetof( GlobalData, m_chipSetType ) },
 	{ "MaxShellScreens",					INI::parseInt,				nullptr,			offsetof( GlobalData, m_maxShellScreens ) },
 	{ "UseCloudMap",							INI::parseBool,				nullptr,			offsetof( GlobalData, m_useCloudMap ) },
@@ -699,6 +700,7 @@ GlobalData::GlobalData()
 	m_smartGarrisonRange = 100.0f;
 	m_dumpAssetUsage = FALSE;
 	m_framesPerSecondLimit = 0;
+	m_renderFramesPerSecondLimit = 0;
 	m_chipSetType = 0;
 	m_headless = FALSE;
 	m_windowed = 0;

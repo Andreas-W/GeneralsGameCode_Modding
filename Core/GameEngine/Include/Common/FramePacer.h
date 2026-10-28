@@ -47,6 +47,8 @@ public:
 	Bool isFramesPerSecondLimitEnabled() const; ///< Returns whether the fps limit is enabled here.
 	Bool isActualFramesPerSecondLimitEnabled() const; ///< Returns whether the fps limit is actually enabled when considering all game settings and setups.
 	Int  getActualFramesPerSecondLimit() const; // Get the actual update fps limit.
+	void setRenderFramesPerSecondLimit( Int fps ); ///< Set a render fps limit separate from the update fps limit. When set (> 0) it limits the rendering in all games, and outside of network games the update fps limit becomes the logic rate.
+	Int  getRenderFramesPerSecondLimit() const; ///< Get the separate render fps limit, 0 if not set.
 
 	Real getUpdateTime() const; ///< Get the last update delta time in seconds.
 	Real getUpdateFps() const; ///< Get the last update fps.
@@ -73,9 +75,12 @@ public:
 
 protected:
 
+	Bool isRenderDecoupled() const; ///< Whether the separate render fps limit applies
+
 	FrameRateLimit m_frameRateLimit;
 
 	Int m_maxFPS; ///< Maximum frames per second for rendering
+	Int m_renderFpsLimit; ///< Separate render fps limit, 0 if not set
 	Int m_logicTimeScaleFPS; ///< Maximum frames per second for logic time scale
 
 	Int64 m_perfFreq; ///< Performance counter frequency

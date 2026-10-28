@@ -36,6 +36,7 @@ FramePacer::FramePacer()
 	timeBeginPeriod(1);
 
 	m_maxFPS = BaseFps;
+	m_renderFpsLimit = 0;
 	m_logicTimeScaleFPS = LOGICFRAMES_PER_SECOND;
 	m_updateTime = 1.0f / (Real)BaseFps; // initialized to something to avoid division by zero on first use
 	m_logicInterpolation = 1.0f;
@@ -120,7 +121,40 @@ Bool FramePacer::isActualFramesPerSecondLimitEnabled() const
 
 Int FramePacer::getActualFramesPerSecondLimit() const
 {
-	return isActualFramesPerSecondLimitEnabled() ? getFramesPerSecondLimit() : RenderFpsPreset::UncappedFpsValue;
+	// Network games turn the regular fps limit off; the separate render limit still applies there.
+	// The logic steps at most once per render update, so never render slower than the network frame rate.
+	if (m_renderFpsLimit > 0 && TheNetwork != nullptr)
+	{
+		return std::max(m_renderFpsLimit, (Int)TheNetwork->getFrameRate());
+	}
+
+	if (!isActualFramesPerSecondLimitEnabled())
+	{
+		return RenderFpsPreset::UncappedFpsValue;
+	}
+
+	// The logic steps at most once per render update, so never render slower than the game speed.
+	if (isRenderDecoupled())
+	{
+		return std::max(m_renderFpsLimit, getFramesPerSecondLimit());
+	}
+
+	return getFramesPerSecondLimit();
+}
+
+void FramePacer::setRenderFramesPerSecondLimit( Int fps )
+{
+	m_renderFpsLimit = std::max(fps, 0);
+}
+
+Int FramePacer::getRenderFramesPerSecondLimit() const
+{
+	return m_renderFpsLimit;
+}
+
+Bool FramePacer::isRenderDecoupled() const
+{
+	return m_renderFpsLimit > 0 && TheNetwork == nullptr;
 }
 
 Real FramePacer::getUpdateTime()  const
@@ -200,6 +234,13 @@ Int FramePacer::getActualLogicTimeScaleFps(LogicTimeQueryFlags flags) const
 	if (isLogicTimeScaleEnabled())
 	{
 		return getLogicTimeScaleFps();
+	}
+
+	// With a separate render limit the update fps limit is the game speed, so the logic runs at it.
+	// Fast forward and an unlocked fps limit still step the logic once per render update.
+	if (isRenderDecoupled() && isActualFramesPerSecondLimitEnabled())
+	{
+		return getFramesPerSecondLimit();
 	}
 
 	// Returns uncapped value to align with the render update as per the original game behavior.

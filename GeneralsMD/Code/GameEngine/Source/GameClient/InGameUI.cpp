@@ -6607,14 +6607,11 @@ void InGameUI::drawRenderFps(Int &x, Int &y)
 		updateRenderFpsString();
 	}
 
-	UnsignedInt renderFpsLimit = 0u;
-	if (TheGlobalData->m_useFpsLimit)
+	// The actual limit covers a disabled fps limit as uncapped and the separate render limit of network games.
+	UnsignedInt renderFpsLimit = (UnsignedInt)TheFramePacer->getActualFramesPerSecondLimit();
+	if (renderFpsLimit == RenderFpsPreset::UncappedFpsValue)
 	{
-		renderFpsLimit = (UnsignedInt)TheFramePacer->getFramesPerSecondLimit();
-		if (renderFpsLimit == RenderFpsPreset::UncappedFpsValue)
-		{
-			renderFpsLimit = 0u;
-		}
+		renderFpsLimit = 0u;
 	}
 	if (renderFpsLimit != m_lastRenderFpsLimit)
 	{
