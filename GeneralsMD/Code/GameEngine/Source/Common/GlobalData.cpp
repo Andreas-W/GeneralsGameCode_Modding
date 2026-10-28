@@ -100,6 +100,7 @@ GlobalData* GlobalData::m_theOriginal = nullptr;
 	{ "MoveHintName",							INI::parseAsciiString,nullptr,			offsetof( GlobalData, m_moveHintName ) },
 	{ "UseTrees",									INI::parseBool,				nullptr,			offsetof( GlobalData, m_useTrees ) },
 	{ "UseFPSLimit",							INI::parseBool,				nullptr,			offsetof( GlobalData, m_useFpsLimit ) },
+	{ "UseRenderInterpolation",		INI::parseBool,				nullptr,			offsetof( GlobalData, m_useRenderInterpolation ) },
 	{ "DumpAssetUsage",						INI::parseBool,				nullptr,			offsetof( GlobalData, m_dumpAssetUsage ) },
 	{ "EnableSingleplayerChatwindow",	INI::parseBool,				nullptr,			offsetof( GlobalData, m_enableSingleplayerChatWindow ) },
 	{ "WeaponScatterOnWaterSurfaceDefault",	INI::parseBool,			nullptr,			offsetof( GlobalData, m_weaponScatterOnWaterSurfaceDefault ) },
@@ -692,6 +693,7 @@ GlobalData::GlobalData()
 	m_useDrawModuleLOD = FALSE;
 	m_useHeatEffects = TRUE;
 	m_useFpsLimit = FALSE;
+	m_useRenderInterpolation = FALSE;
 	m_weaponScatterOnWaterSurfaceDefault = FALSE;
 	m_reverseMoveIgnoreAngleThreshold = FALSE;
 	m_smartGarrisonRange = 100.0f;

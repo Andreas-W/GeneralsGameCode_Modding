@@ -38,6 +38,15 @@ FramePacer::FramePacer()
 	m_maxFPS = BaseFps;
 	m_logicTimeScaleFPS = LOGICFRAMES_PER_SECOND;
 	m_updateTime = 1.0f / (Real)BaseFps; // initialized to something to avoid division by zero on first use
+	m_logicInterpolation = 1.0f;
+
+	LARGE_INTEGER freq;
+	LARGE_INTEGER tick;
+	QueryPerformanceFrequency(&freq);
+	QueryPerformanceCounter(&tick);
+	m_perfFreq = freq.QuadPart;
+	m_lastLogicUpdate = tick.QuadPart;
+
 	m_enableFpsLimit = FALSE;
 	m_enableLogicTimeScale = FALSE;
 	m_isTimeFrozen = FALSE;
@@ -217,4 +226,29 @@ Real FramePacer::getLogicTimeStepSeconds(LogicTimeQueryFlags flags) const
 Real FramePacer::getLogicTimeStepMilliseconds(LogicTimeQueryFlags flags) const
 {
 	return MSEC_PER_LOGICFRAME_REAL * getActualLogicTimeScaleOverFpsRatio(flags);
+}
+
+void FramePacer::markLogicUpdate()
+{
+	LARGE_INTEGER tick;
+	QueryPerformanceCounter(&tick);
+	m_lastLogicUpdate = tick.QuadPart;
+}
+
+void FramePacer::updateLogicInterpolation()
+{
+	// Frozen, halted or stalled logic does not advance, so show the last logic step as is.
+	const Int logicFps = getActualLogicTimeScaleFps();
+	if (logicFps <= 0)
+	{
+		m_logicInterpolation = 1.0f;
+		return;
+	}
+
+	// When the logic steps once per render update (uncapped logic time scale), the
+	// elapsed time always covers a full logic step and this resolves to 1.
+	LARGE_INTEGER tick;
+	QueryPerformanceCounter(&tick);
+	const double elapsedSeconds = static_cast<double>(tick.QuadPart - m_lastLogicUpdate) / m_perfFreq;
+	m_logicInterpolation = (Real)std::min(elapsedSeconds * logicFps, 1.0);
 }

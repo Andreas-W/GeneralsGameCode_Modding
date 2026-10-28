@@ -67,6 +67,10 @@ public:
 	Real getLogicTimeStepSeconds(LogicTimeQueryFlags flags = 0) const; ///< Get the logic time step in seconds
 	Real getLogicTimeStepMilliseconds(LogicTimeQueryFlags flags = 0) const; ///< Get the logic time step in milliseconds
 
+	void markLogicUpdate(); ///< Signal that a logic step was just done. Anchors the render interpolation.
+	void updateLogicInterpolation(); ///< Compute the render interpolation factor for the coming render update.
+	Real getLogicInterpolation() const { return m_logicInterpolation; } ///< How far the render update is between the previous and the last logic step, 0..1.
+
 protected:
 
 	FrameRateLimit m_frameRateLimit;
@@ -74,7 +78,11 @@ protected:
 	Int m_maxFPS; ///< Maximum frames per second for rendering
 	Int m_logicTimeScaleFPS; ///< Maximum frames per second for logic time scale
 
+	Int64 m_perfFreq; ///< Performance counter frequency
+	Int64 m_lastLogicUpdate; ///< Performance counter tick of the last logic step
+
 	Real m_updateTime; ///< Last update delta time in seconds
+	Real m_logicInterpolation; ///< Render interpolation factor between the previous and the last logic step
 
 	Bool m_enableFpsLimit;
 	Bool m_enableLogicTimeScale;

@@ -930,6 +930,12 @@ void GameEngine::update()
 {
 	USE_PERF_TIMER(GameEngine_update)
 	{
+		const Bool useRenderInterpolation = TheGlobalData->m_useRenderInterpolation && !TheGlobalData->m_headless;
+		if (useRenderInterpolation)
+		{
+			TheFramePacer->updateLogicInterpolation();
+		}
+
 		{
 			// VERIFY CRC needs to be in this code block.  Please to not pull TheGameLogic->update() inside this block.
 			VERIFY_CRC
@@ -960,7 +966,17 @@ void GameEngine::update()
 		// TheSuperHackers @info Ignores frozen time because the script engine needs updating in the logic update regardless.
 		if (canUpdateGameLogic(FramePacer::IgnoreFrozenTime))
 		{
+			if (useRenderInterpolation)
+			{
+				TheGameClient->captureInterpolationTransforms();
+			}
+
 			TheGameLogic->UPDATE();
+
+			if (useRenderInterpolation)
+			{
+				TheFramePacer->markLogicUpdate();
+			}
 
 			if (!TheFramePacer->isTimeFrozen())
 			{

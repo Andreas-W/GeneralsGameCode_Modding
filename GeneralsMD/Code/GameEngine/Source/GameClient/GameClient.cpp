@@ -816,6 +816,15 @@ void GameClient::iterateDrawablesInRegion( Region3D *region, GameClientFuncPtr u
 	}
 }
 
+//-------------------------------------------------------------------------------------------------
+void GameClient::captureInterpolationTransforms()
+{
+	for( Drawable *draw = getDrawableList(); draw; draw = draw->getNextDrawable() )
+	{
+		draw->captureInterpolationTransform();
+	}
+}
+
 /**Helper function to update fake GLA structures to become visible to certain players.
 We should only call this during critical moments, such as changing teams, changing to
 observer, etc.*/

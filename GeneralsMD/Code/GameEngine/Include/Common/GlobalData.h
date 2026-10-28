@@ -116,6 +116,7 @@ public:
 	Bool m_useDrawModuleLOD;
 	Bool m_useHeatEffects;
 	Bool m_useFpsLimit;
+	Bool m_useRenderInterpolation;	///< draw objects between their last two logic positions, for smooth motion above the logic frame rate
 	Bool m_dumpAssetUsage;
 	Int m_framesPerSecondLimit;
 	Int	m_chipSetType;	///<See W3DShaderManager::ChipsetType for options
