@@ -541,8 +541,7 @@ void WbView3d::ReAcquireResources()
 		TheTerrainRenderObject->worldBuilderUpdateBridgeTowers( m_assetManager, m_scene );
 	}
 	m_drawObject->initData();
-	IDirect3DDevice8* pDev = DX8Wrapper::_Get_D3D_Device8();
-	if (pDev) {
+	if (DX8Wrapper::Has_Device()) {
 
 //		CDC* pDC = GetDC();
 		LOGFONT logFont;
@@ -563,7 +562,7 @@ void WbView3d::ReAcquireResources()
 
 		HFONT hFont = CreateFontIndirect(&logFont);
 		if (hFont) {
-			D3DXCreateFont(pDev, hFont, &m3DFont);
+			DX8Wrapper::_Create_DX8_Font(hFont, &m3DFont);
 			DeleteObject(hFont);
 		} else {
 			m3DFont = nullptr;
@@ -2296,8 +2295,7 @@ void WbView3d::initWW3D()
 			}
 		}
 
-		IDirect3DDevice8* pDev = DX8Wrapper::_Get_D3D_Device8();
-		if (pDev) {
+		if (DX8Wrapper::Has_Device()) {
 
 //			CDC* pDC = GetDC();
 			LOGFONT logFont;
@@ -2318,7 +2316,7 @@ void WbView3d::initWW3D()
 
 			HFONT hFont = CreateFontIndirect(&logFont);
 			if (hFont) {
-				D3DXCreateFont(pDev, hFont, &m3DFont);
+				DX8Wrapper::_Create_DX8_Font(hFont, &m3DFont);
 				DeleteObject(hFont);
 			} else {
 				m3DFont = nullptr;

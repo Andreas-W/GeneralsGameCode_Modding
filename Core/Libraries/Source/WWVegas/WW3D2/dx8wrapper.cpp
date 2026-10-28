@@ -1820,6 +1820,199 @@ void DX8Wrapper::Set_Viewport(CONST D3DVIEWPORT8* pViewport)
 	DX8CALL(SetViewport(pViewport));
 }
 
+void DX8Wrapper::Get_Viewport(D3DVIEWPORT8* viewport)
+{
+	DX8_THREAD_ASSERT();
+	DX8CALL(GetViewport(viewport));
+}
+
+// ----------------------------------------------------------------------------
+//
+// Device access for code that manages its own shaders, buffers and render targets.
+// Failures are returned rather than asserted on, as the callers check them.
+//
+// ----------------------------------------------------------------------------
+
+HRESULT DX8Wrapper::Create_Vertex_Shader(const DWORD* declaration, const DWORD* function, DWORD* handle, DWORD usage)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateVertexShader(declaration, function, handle, usage);
+}
+
+HRESULT DX8Wrapper::Create_Pixel_Shader(const DWORD* function, DWORD* handle)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreatePixelShader(function, handle);
+}
+
+void DX8Wrapper::Delete_Vertex_Shader(DWORD handle)
+{
+	DX8_THREAD_ASSERT();
+	if (Vertex_Shader == handle)
+		Vertex_Shader = 0;
+	Increment_DX8_CallCount();
+	D3DDevice->DeleteVertexShader(handle);
+}
+
+void DX8Wrapper::Delete_Pixel_Shader(DWORD handle)
+{
+	DX8_THREAD_ASSERT();
+	// A later shader may be created with the same handle, which the redundancy check would then skip.
+	if (Pixel_Shader == handle)
+		Pixel_Shader = 0;
+	Increment_DX8_CallCount();
+	D3DDevice->DeletePixelShader(handle);
+}
+
+unsigned DX8Wrapper::Get_Device_Render_State(D3DRENDERSTATETYPE state)
+{
+	DX8_THREAD_ASSERT();
+	DWORD value = 0;
+	Increment_DX8_CallCount();
+	D3DDevice->GetRenderState(state, &value);
+	return value;
+}
+
+void DX8Wrapper::Set_DX8_Stream_Source(unsigned stream, IDirect3DVertexBuffer8* vb, unsigned stride)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->SetStreamSource(stream, vb, stride);
+	DX8_RECORD_VERTEX_BUFFER_CHANGE();
+	render_state_changed |= VERTEX_BUFFER_CHANGED;
+}
+
+void DX8Wrapper::Set_DX8_Indices(IDirect3DIndexBuffer8* ib, unsigned base_vertex_index)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->SetIndices(ib, base_vertex_index);
+	DX8_RECORD_INDEX_BUFFER_CHANGE();
+	render_state_changed |= INDEX_BUFFER_CHANGED;
+}
+
+void DX8Wrapper::Draw_DX8_Primitive(D3DPRIMITIVETYPE type, unsigned start_vertex, unsigned primitive_count)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->DrawPrimitive(type, start_vertex, primitive_count);
+	DX8_RECORD_DRAW_CALLS();
+}
+
+void DX8Wrapper::Draw_DX8_Indexed_Primitive(D3DPRIMITIVETYPE type, unsigned min_index, unsigned num_vertices, unsigned start_index, unsigned primitive_count)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->DrawIndexedPrimitive(type, min_index, num_vertices, start_index, primitive_count);
+	DX8_RECORD_DRAW_CALLS();
+}
+
+void DX8Wrapper::Draw_DX8_Primitive_UP(D3DPRIMITIVETYPE type, unsigned primitive_count, const void* vertices, unsigned stride)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->DrawPrimitiveUP(type, primitive_count, vertices, stride);
+	DX8_RECORD_DRAW_CALLS();
+	// DrawPrimitiveUP leaves stream 0 and the indices unset.
+	render_state_changed |= VERTEX_BUFFER_CHANGED | INDEX_BUFFER_CHANGED;
+}
+
+HRESULT DX8Wrapper::Process_DX8_Vertices(unsigned src_start_index, unsigned dest_index, unsigned vertex_count, IDirect3DVertexBuffer8* dest_buffer, DWORD flags)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->ProcessVertices(src_start_index, dest_index, vertex_count, dest_buffer, flags);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Vertex_Buffer(unsigned length, DWORD usage, DWORD fvf, D3DPOOL pool, IDirect3DVertexBuffer8** vb)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateVertexBuffer(length, usage, fvf, pool, vb);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Index_Buffer(unsigned length, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DIndexBuffer8** ib)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateIndexBuffer(length, usage, format, pool, ib);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Texture_Raw(unsigned width, unsigned height, unsigned levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture8** texture)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateTexture(width, height, levels, usage, format, pool, texture);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Image_Surface(unsigned width, unsigned height, D3DFORMAT format, IDirect3DSurface8** surface)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateImageSurface(width, height, format, surface);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Font(HFONT font, ID3DXFont** d3dx_font)
+{
+	DX8_THREAD_ASSERT();
+	return D3DXCreateFont(D3DDevice, font, d3dx_font);
+}
+
+HRESULT DX8Wrapper::_Copy_DX8_Rects_Checked(IDirect3DSurface8* source, const RECT* source_rects, unsigned rect_count, IDirect3DSurface8* dest, const POINT* dest_points)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CopyRects(source, source_rects, rect_count, dest, dest_points);
+}
+
+HRESULT DX8Wrapper::_Get_DX8_Render_Target(IDirect3DSurface8** surface)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->GetRenderTarget(surface);
+}
+
+HRESULT DX8Wrapper::_Get_DX8_Depth_Stencil_Surface(IDirect3DSurface8** surface)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->GetDepthStencilSurface(surface);
+}
+
+HRESULT DX8Wrapper::_Set_DX8_Render_Target(IDirect3DSurface8* render_target, IDirect3DSurface8* depth_buffer)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->SetRenderTarget(render_target, depth_buffer);
+}
+
+HRESULT DX8Wrapper::Test_Cooperative_Level()
+{
+	WWASSERT(D3DDevice != nullptr);
+	return D3DDevice->TestCooperativeLevel();
+}
+
+// The cursor functions are also called from the mouse thread.
+HRESULT DX8Wrapper::Set_Cursor_Properties(unsigned hotspot_x, unsigned hotspot_y, IDirect3DSurface8* cursor_bitmap)
+{
+	Increment_DX8_CallCount();
+	return D3DDevice->SetCursorProperties(hotspot_x, hotspot_y, cursor_bitmap);
+}
+
+void DX8Wrapper::Set_Cursor_Position(int x, int y, DWORD flags)
+{
+	Increment_DX8_CallCount();
+	D3DDevice->SetCursorPosition(x, y, flags);
+}
+
+bool DX8Wrapper::Show_Cursor(bool show)
+{
+	Increment_DX8_CallCount();
+	return D3DDevice->ShowCursor(show) != FALSE;
+}
+
 // ----------------------------------------------------------------------------
 //
 // Set vertex buffer. A reference to previous vertex buffer is released and

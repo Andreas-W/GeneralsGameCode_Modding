@@ -108,11 +108,9 @@ W3DMouse::W3DMouse()
 
 W3DMouse::~W3DMouse()
 {
-	LPDIRECT3DDEVICE8 m_pDev=DX8Wrapper::_Get_D3D_Device8();
-
-	if (m_pDev)
+	if (DX8Wrapper::Has_Device())
 	{
-		m_pDev->ShowCursor(FALSE);	//kill DX8 cursor
+		DX8Wrapper::Show_Cursor(false);	//kill DX8 cursor
 		Win32Mouse::setCursor(ARROW); //enable default windows cursor
 	}
 
@@ -389,12 +387,11 @@ void W3DMouse::setCursor( MouseCursor cursor )
 	{
 		SetCursor(nullptr);	//Kill Windows Cursor
 
-		LPDIRECT3DDEVICE8 m_pDev=DX8Wrapper::_Get_D3D_Device8();
 		Bool doImageChange=FALSE;
 
-		if (m_pDev != nullptr)
+		if (DX8Wrapper::Has_Device())
 		{
-			m_pDev->ShowCursor(FALSE);	//disable DX8 cursor
+			DX8Wrapper::Show_Cursor(false);	//disable DX8 cursor
 			if (cursor != m_currentD3DCursor)
 			{	if (!isThread)
 				{	releaseD3DCursorTextures(m_currentD3DCursor);
@@ -414,8 +411,8 @@ void W3DMouse::setCursor( MouseCursor cursor )
 			m_currentHotSpot = m_cursorInfo[cursor].hotSpotPosition;
 			m_currentFMS = m_cursorInfo[cursor].fps/1000.0f;
 			m_currentAnimFrame = 0;	//reset animation when cursor changes
-			res = m_pDev->SetCursorProperties(m_currentHotSpot.x,m_currentHotSpot.y,m_currentD3DSurface[(Int)m_currentAnimFrame]->Peek_D3D_Surface());
-			m_pDev->ShowCursor(TRUE);	//Enable DX8 cursor
+			res = DX8Wrapper::Set_Cursor_Properties(m_currentHotSpot.x,m_currentHotSpot.y,m_currentD3DSurface[(Int)m_currentAnimFrame]->Peek_D3D_Surface());
+			DX8Wrapper::Show_Cursor(true);	//Enable DX8 cursor
 			m_currentD3DFrame=(Int)m_currentAnimFrame;
 			m_currentD3DCursor = cursor;
 			m_lastAnimTime=timeGetTime();
@@ -485,9 +482,8 @@ void W3DMouse::draw()
 	{
 		//called from update thread or rendering loop.  Tells D3D where
 		//to draw the mouse cursor.
-		LPDIRECT3DDEVICE8 m_pDev=DX8Wrapper::_Get_D3D_Device8();
-		if (m_pDev)
-		{	m_pDev->ShowCursor(TRUE);	//Enable DX8 cursor
+		if (DX8Wrapper::Has_Device())
+		{	DX8Wrapper::Show_Cursor(true);	//Enable DX8 cursor
 
 			if (TheDisplay && !TheDisplay->getWindowed())
 			{	//if we're full-screen, need to manually move cursor image
@@ -495,7 +491,7 @@ void W3DMouse::draw()
 
 				GetCursorPos( &ptCursor );
 				ScreenToClient( ApplicationHWnd, &ptCursor );
-				m_pDev->SetCursorPosition( ptCursor.x, ptCursor.y, D3DCURSOR_IMMEDIATE_UPDATE);
+				DX8Wrapper::Set_Cursor_Position( ptCursor.x, ptCursor.y, D3DCURSOR_IMMEDIATE_UPDATE);
 			}
 			//Check if animated cursor and new frame
 			if (m_currentFrames > 1)
@@ -508,7 +504,7 @@ void W3DMouse::draw()
 				if ((Int)m_currentAnimFrame != m_currentD3DFrame)
 				{
 					m_currentD3DFrame=(Int)m_currentAnimFrame;
-					m_pDev->SetCursorProperties(m_currentHotSpot.x,m_currentHotSpot.y,m_currentD3DSurface[m_currentD3DFrame]->Peek_D3D_Surface());
+					DX8Wrapper::Set_Cursor_Properties(m_currentHotSpot.x,m_currentHotSpot.y,m_currentD3DSurface[m_currentD3DFrame]->Peek_D3D_Surface());
 				}
 			}
 		}
