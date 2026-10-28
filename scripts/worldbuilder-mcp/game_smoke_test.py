@@ -136,6 +136,14 @@ def main() -> int:
             bridge.call("view.screenshot", path=path)
             check(os.path.getsize(path) > 1000, f"screenshot written ({path})")
 
+            print("render speed")
+            speed = bridge.call("game.set_speed", fps=30, render_fps=0)
+            check(speed["speed_fps"] == 30, "logic speed kept with an uncapped render rate")
+            step(bridge, 10)
+            status = bridge.call("game.status")
+            check("render_fps" in status and "render_interpolation_factor" in status, "game.status reports render timing")
+            bridge.call("game.set_speed", fps=30)
+
         print("cleanup")
         bridge.call("objects.destroy", ids=spawned, how="remove")
         step(bridge, 2)

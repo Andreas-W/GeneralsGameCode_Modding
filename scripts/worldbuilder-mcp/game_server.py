@@ -190,9 +190,13 @@ def game_step(frames: int | None = None, seconds: float | None = None, wait: boo
 
 
 @mcp.tool()
-def game_set_speed(fps: int) -> dict:
-    """Logic frames per second: 30 is normal speed, 60 double, 0 as fast as possible."""
-    return game.call("game.set_speed", fps=fps)
+def game_set_speed(fps: int, render_fps: int | None = None) -> dict:
+    """Logic frames per second: 30 is normal speed, 60 double, 0 as fast as possible.
+    render_fps (windowed only) lets the window render at its own rate (0 = uncapped) while the
+    logic keeps fps, as in network games; needed to see UseRenderInterpolation at work."""
+    if render_fps is None:
+        return game.call("game.set_speed", fps=fps)
+    return game.call("game.set_speed", fps=fps, render_fps=render_fps)
 
 
 @mcp.tool()
