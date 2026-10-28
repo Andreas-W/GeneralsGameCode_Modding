@@ -89,6 +89,8 @@ class RenderDeviceDescClass;
 class VertexBufferClass;
 class DynamicVBAccessClass;
 class IndexBufferClass;
+class DX8VertexBufferClass;
+class DX8IndexBufferClass;
 class DynamicIBAccessClass;
 class TextureClass;
 class LightClass;
@@ -540,15 +542,13 @@ public:
 	static unsigned Get_Device_Render_State(D3DRENDERSTATETYPE state);
 
 	// Bypass the deferred vertex/index buffer state, which is re-applied on the next wrapper draw.
-	static void Set_DX8_Stream_Source(unsigned stream, IDirect3DVertexBuffer8* vb, unsigned stride);
-	static void Set_DX8_Indices(IDirect3DIndexBuffer8* ib, unsigned base_vertex_index);
+	static void Set_DX8_Stream_Source(unsigned stream, DX8VertexBufferClass* vb, unsigned stride);
+	static void Set_DX8_Indices(DX8IndexBufferClass* ib, unsigned base_vertex_index);
 	static void Draw_DX8_Primitive(D3DPRIMITIVETYPE type, unsigned start_vertex, unsigned primitive_count);
 	static void Draw_DX8_Indexed_Primitive(D3DPRIMITIVETYPE type, unsigned min_index, unsigned num_vertices, unsigned start_index, unsigned primitive_count);
 	static void Draw_DX8_Primitive_UP(D3DPRIMITIVETYPE type, unsigned primitive_count, const void* vertices, unsigned stride);
-	static HRESULT Process_DX8_Vertices(unsigned src_start_index, unsigned dest_index, unsigned vertex_count, IDirect3DVertexBuffer8* dest_buffer, DWORD flags);
+	static HRESULT Process_DX8_Vertices(unsigned src_start_index, unsigned dest_index, unsigned vertex_count, DX8VertexBufferClass* dest_buffer, DWORD flags);
 
-	static HRESULT _Create_DX8_Vertex_Buffer(unsigned length, DWORD usage, DWORD fvf, D3DPOOL pool, IDirect3DVertexBuffer8** vb);
-	static HRESULT _Create_DX8_Index_Buffer(unsigned length, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DIndexBuffer8** ib);
 	static HRESULT _Create_DX8_Texture_Raw(unsigned width, unsigned height, unsigned levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture8** texture);
 	static HRESULT _Create_DX8_Image_Surface(unsigned width, unsigned height, D3DFORMAT format, IDirect3DSurface8** surface);
 	static HRESULT _Create_DX8_Font(HFONT font, ID3DXFont** d3dx_font);

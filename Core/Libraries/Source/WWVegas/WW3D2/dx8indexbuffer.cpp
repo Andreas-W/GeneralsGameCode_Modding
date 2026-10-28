@@ -67,7 +67,7 @@ static int _IndexBufferTotalSize;
 //
 // ----------------------------------------------------------------------------
 
-IndexBufferClass::IndexBufferClass(unsigned type_, unsigned short index_count_)
+IndexBufferClass::IndexBufferClass(unsigned type_, unsigned index_count_)
 	:
 	index_count(index_count_),
 	type(type_),
@@ -282,7 +282,7 @@ IndexBufferClass::AppendLockClass::~AppendLockClass()
 //
 // ----------------------------------------------------------------------------
 
-DX8IndexBufferClass::DX8IndexBufferClass(unsigned short index_count_,UsageType usage)
+DX8IndexBufferClass::DX8IndexBufferClass(unsigned index_count_,UsageType usage)
 	:
 	IndexBufferClass(BUFFER_TYPE_DX8,index_count_)
 {
@@ -339,6 +339,18 @@ DX8IndexBufferClass::DX8IndexBufferClass(unsigned short index_count_,UsageType u
 DX8IndexBufferClass::~DX8IndexBufferClass()
 {
 	index_buffer->Release();
+}
+
+HRESULT DX8IndexBufferClass::Lock(unsigned offset, unsigned size, unsigned char** data, unsigned flags)
+{
+	DX8_THREAD_ASSERT();
+	return index_buffer->Lock(offset, size, data, flags);
+}
+
+HRESULT DX8IndexBufferClass::Unlock()
+{
+	DX8_THREAD_ASSERT();
+	return index_buffer->Unlock();
 }
 
 // ----------------------------------------------------------------------------

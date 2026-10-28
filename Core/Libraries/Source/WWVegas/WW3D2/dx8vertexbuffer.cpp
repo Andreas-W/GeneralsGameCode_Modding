@@ -74,7 +74,7 @@ static int _VertexBufferTotalSize;
 //
 // ----------------------------------------------------------------------------
 
-VertexBufferClass::VertexBufferClass(unsigned type_, unsigned FVF, unsigned short vertex_count_)
+VertexBufferClass::VertexBufferClass(unsigned type_, unsigned FVF, unsigned vertex_count_)
 	:
 	VertexCount(vertex_count_),
 	type(type_),
@@ -307,7 +307,7 @@ SortingVertexBufferClass::~SortingVertexBufferClass()
 
 //	bool dynamic=false,bool softwarevp=false);
 
-DX8VertexBufferClass::DX8VertexBufferClass(unsigned FVF, unsigned short vertex_count_, UsageType usage)
+DX8VertexBufferClass::DX8VertexBufferClass(unsigned FVF, unsigned vertex_count_, UsageType usage)
 	:
 	VertexBufferClass(BUFFER_TYPE_DX8, FVF, vertex_count_),
 	VertexBuffer(nullptr)
@@ -407,6 +407,18 @@ DX8VertexBufferClass::~DX8VertexBufferClass()
 	VertexBuffer->Release();
 }
 
+HRESULT DX8VertexBufferClass::Lock(unsigned offset, unsigned size, unsigned char** data, unsigned flags)
+{
+	DX8_THREAD_ASSERT();
+	return VertexBuffer->Lock(offset, size, data, flags);
+}
+
+HRESULT DX8VertexBufferClass::Unlock()
+{
+	DX8_THREAD_ASSERT();
+	return VertexBuffer->Unlock();
+}
+
 // ----------------------------------------------------------------------------
 //
 //
@@ -436,7 +448,9 @@ void DX8VertexBufferClass::Create_Vertex_Buffer(UsageType usage)
 		D3DUSAGE_WRITEONLY|
 		((usage&USAGE_DYNAMIC) ? D3DUSAGE_DYNAMIC : 0)|
 		((usage&USAGE_NPATCHES) ? D3DUSAGE_NPATCHES : 0)|
-		((usage&USAGE_SOFTWAREPROCESSING) ? D3DUSAGE_SOFTWAREPROCESSING : 0);
+		((usage&USAGE_SOFTWAREPROCESSING) ? D3DUSAGE_SOFTWAREPROCESSING : 0)|
+		((usage&USAGE_POINTS) ? D3DUSAGE_POINTS : 0);
+	const unsigned fvf=(usage&USAGE_NO_FVF) ? 0 : FVF_Info().Get_FVF();
 	// New Code
 	if (!DX8Wrapper::Get_Current_Caps()->Support_TnL()) {
 		usage_flags|=D3DUSAGE_SOFTWAREPROCESSING;
@@ -445,7 +459,7 @@ void DX8VertexBufferClass::Create_Vertex_Buffer(UsageType usage)
 	HRESULT ret=DX8Wrapper::_Get_D3D_Device8()->CreateVertexBuffer(
 		FVF_Info().Get_FVF_Size()*VertexCount,
 		usage_flags,
-		FVF_Info().Get_FVF(),
+		fvf,
 		(usage&USAGE_DYNAMIC) ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED,
 		&VertexBuffer);
 	if (SUCCEEDED(ret)) {
@@ -469,7 +483,7 @@ void DX8VertexBufferClass::Create_Vertex_Buffer(UsageType usage)
 	ret=DX8Wrapper::_Get_D3D_Device8()->CreateVertexBuffer(
 		FVF_Info().Get_FVF_Size()*VertexCount,
 		usage_flags,
-		FVF_Info().Get_FVF(),
+		fvf,
 		(usage&USAGE_DYNAMIC) ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED,
 		&VertexBuffer);
 

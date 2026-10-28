@@ -644,30 +644,20 @@ HRESULT WaterRenderObjClass::generateVertexBuffer( Int sizeX, Int sizeY, Int ver
 	HRESULT hr;
 
 	//default setting for a dynamic vertex buffer
-	D3DPOOL pool = D3DPOOL_DEFAULT;
-	DWORD usage = D3DUSAGE_WRITEONLY | D3DUSAGE_DYNAMIC;
-	DWORD fvf = WATER_MESH_FVF;
+	DX8VertexBufferClass::UsageType usage = DX8VertexBufferClass::USAGE_DYNAMIC;
+	unsigned fvf = WATER_MESH_FVF;
 
 	if (doStatic)
 	{	//change settings for a static vertex buffer
-		pool = D3DPOOL_MANAGED;
-		usage = D3DUSAGE_WRITEONLY;
-		fvf=0;// DX8 Docs confusing on this. Say no FVF for vertex shaders. Else DX8_FVF_XYZDUV1;
+		usage = DX8VertexBufferClass::USAGE_NO_FVF;	// DX8 Docs confusing on this. Say no FVF for vertex shaders.
+		fvf = DX8_FVF_XYZDUV1;
 		m_numVertices=sizeX*sizeY;
 	}
+	DEBUG_ASSERTCRASH(Get_FVF_Vertex_Size(fvf) == (unsigned)vertexSize, ("Water vertex size does not match its vertex format"));
 
 	if (m_vertexBufferD3D == nullptr)
 	{	// Create vertex buffer
-
-		if (FAILED(hr=DX8Wrapper::_Create_DX8_Vertex_Buffer
-		(
-			m_numVertices*vertexSize,
-			usage,
-			fvf,
-			pool,
-			&m_vertexBufferD3D
-		)))
-			return hr;
+		m_vertexBufferD3D=NEW_REF(DX8VertexBufferClass,(fvf,m_numVertices,usage));
 	}
 
 	m_vertexBufferD3DOffset=0;
@@ -724,15 +714,7 @@ HRESULT WaterRenderObjClass::generateIndexBuffer(Int sizeX, Int sizeY)
 	// Create index buffer
 	WORD* pIndices;
 
-	if (FAILED(hr=DX8Wrapper::_Create_DX8_Index_Buffer
-	(
-		(m_numIndices+2)*sizeof(WORD),
-		D3DUSAGE_WRITEONLY,
-		D3DFMT_INDEX16,
-		D3DPOOL_MANAGED,
-		&m_indexBufferD3D
-	)))
-		return hr;
+	m_indexBufferD3D=NEW_REF(DX8IndexBufferClass,(m_numIndices+2));
 
 	if (FAILED(hr=m_indexBufferD3D->Lock
 	(
@@ -817,8 +799,8 @@ void WaterRenderObjClass::ReleaseResources()
 	REF_PTR_RELEASE(m_indexBuffer);
 
 	REF_PTR_RELEASE(m_pReflectionTexture);
-	SAFE_RELEASE(m_vertexBufferD3D);
-	SAFE_RELEASE(m_indexBufferD3D);
+	REF_PTR_RELEASE(m_vertexBufferD3D);
+	REF_PTR_RELEASE(m_indexBufferD3D);
 
 	if (m_waterTrackSystem)
 		m_waterTrackSystem->ReleaseResources();
@@ -1202,8 +1184,8 @@ void WaterRenderObjClass::enableWaterGrid(Bool state)
 		reset();
 
 		//Release existing grid data
-		SAFE_RELEASE(m_vertexBufferD3D);
-		SAFE_RELEASE(m_indexBufferD3D);
+		REF_PTR_RELEASE(m_vertexBufferD3D);
+		REF_PTR_RELEASE(m_indexBufferD3D);
 
 		//Create new grid data
 		if (FAILED(generateIndexBuffer(m_gridCellsX+1,m_gridCellsY+1)))

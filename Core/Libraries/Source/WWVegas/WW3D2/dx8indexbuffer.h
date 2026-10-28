@@ -55,12 +55,12 @@ class IndexBufferClass : public RefCountClass
 protected:
 	virtual ~IndexBufferClass() override;
 public:
-	IndexBufferClass(unsigned type, unsigned short index_count);
+	IndexBufferClass(unsigned type, unsigned index_count);
 
 	void Copy(unsigned int* indices,unsigned start_index,unsigned index_count);
 	void Copy(unsigned short* indices,unsigned start_index,unsigned index_count);
 
-	unsigned short Get_Index_Count() const { return index_count; }
+	unsigned Get_Index_Count() const { return index_count; }
 
 	unsigned Type() const { return type; }
 
@@ -96,7 +96,7 @@ public:
 
 protected:
 	mutable int					engine_refs;
-	unsigned short				index_count;		// number of indices
+	unsigned						index_count;		// number of indices
 	unsigned						type;
 };
 
@@ -165,13 +165,17 @@ public:
 		USAGE_NPATCHES=4
 	};
 
-	DX8IndexBufferClass(unsigned short index_count,UsageType usage=USAGE_DEFAULT);
+	DX8IndexBufferClass(unsigned index_count,UsageType usage=USAGE_DEFAULT);
 	virtual ~DX8IndexBufferClass() override;
 
 	void Copy(unsigned int* indices,unsigned start_index,unsigned index_count);
 	void Copy(unsigned short* indices,unsigned start_index,unsigned index_count);
 
 	IDirect3DIndexBuffer8* Get_DX8_Index_Buffer()	{ return index_buffer; }
+
+	// Locks a byte range of the buffer, for code that manages its own offsets in it.
+	HRESULT Lock(unsigned offset, unsigned size, unsigned char** data, unsigned flags);
+	HRESULT Unlock();
 
 private:
 	IDirect3DIndexBuffer8*	index_buffer;		// actual dx8 index buffer

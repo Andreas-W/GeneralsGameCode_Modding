@@ -78,8 +78,8 @@ W3DProjectedShadowManager *TheW3DProjectedShadowManager=nullptr;	//global single
 ProjectedShadowManager	*TheProjectedShadowManager;				//global singleton with simpler interface.
 extern const FrustumClass *shadowCameraFrustum;	//defined in W3DShadow.
 ///@todo: Externs from volumetric shadow renderer - these need to be moved into W3DBufferManager
-extern LPDIRECT3DVERTEXBUFFER8 shadowVertexBufferD3D;		///<D3D vertex buffer
-extern LPDIRECT3DINDEXBUFFER8	shadowIndexBufferD3D;	///<D3D index buffer
+extern DX8VertexBufferClass *shadowVertexBufferD3D;
+extern DX8IndexBufferClass *shadowIndexBufferD3D;
 extern int nShadowVertsInBuf;	//model vetices in vertex buffer
 extern int nShadowStartBatchVertex;
 extern int nShadowIndicesInBuf;	//model vetices in vertex buffer
@@ -97,8 +97,8 @@ struct SHADOW_DECAL_VERTEX	//vertex structure passed to D3D
 
 #define SHADOW_DECAL_FVF	D3DFVF_XYZ|D3DFVF_TEX1|D3DFVF_DIFFUSE
 
-LPDIRECT3DVERTEXBUFFER8 shadowDecalVertexBufferD3D=nullptr;		///<D3D vertex buffer
-LPDIRECT3DINDEXBUFFER8	shadowDecalIndexBufferD3D=nullptr;	///<D3D index buffer
+DX8VertexBufferClass *shadowDecalVertexBufferD3D=nullptr;
+DX8IndexBufferClass *shadowDecalIndexBufferD3D=nullptr;
 int nShadowDecalVertsInBuf=0;	//model vetices in vertex buffer
 int nShadowDecalStartBatchVertex=0;
 int nShadowDecalIndicesInBuf=0;	//model vetices in vertex buffer
@@ -274,28 +274,12 @@ Bool W3DProjectedShadowManager::ReAcquireResources()
 	DEBUG_ASSERTCRASH(DX8Wrapper::Has_Device(), ("Trying to ReAcquireResources on W3DProjectedShadowManager without device"));
 	DEBUG_ASSERTCRASH(shadowDecalIndexBufferD3D == nullptr && shadowDecalIndexBufferD3D == nullptr, ("ReAcquireResources not released in W3DProjectedShadowManager"));
 
-	if (FAILED(DX8Wrapper::_Create_DX8_Index_Buffer
-	(
-		SHADOW_DECAL_INDEX_SIZE*sizeof(WORD),
-		D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
-		D3DFMT_INDEX16,
-		D3DPOOL_DEFAULT,
-		&shadowDecalIndexBufferD3D
-	)))
-		return FALSE;
+	shadowDecalIndexBufferD3D=NEW_REF(DX8IndexBufferClass,(SHADOW_DECAL_INDEX_SIZE,DX8IndexBufferClass::USAGE_DYNAMIC));
 
 	if (shadowDecalVertexBufferD3D == nullptr)
 	{	// Create vertex buffer
-
-		if (FAILED(DX8Wrapper::_Create_DX8_Vertex_Buffer
-		(
-			SHADOW_DECAL_VERTEX_SIZE*sizeof(SHADOW_DECAL_VERTEX),
-			D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
-			0,
-			D3DPOOL_DEFAULT,
-			&shadowDecalVertexBufferD3D
-		)))
-			return FALSE;
+		shadowDecalVertexBufferD3D=NEW_REF(DX8VertexBufferClass,(SHADOW_DECAL_FVF,SHADOW_DECAL_VERTEX_SIZE,
+			(DX8VertexBufferClass::UsageType)(DX8VertexBufferClass::USAGE_DYNAMIC|DX8VertexBufferClass::USAGE_NO_FVF)));
 	}
 
 	return TRUE;
@@ -305,12 +289,8 @@ void W3DProjectedShadowManager::ReleaseResources()
 {
 	invalidateCachedLightPositions();	//textures need to be updated
 	REF_PTR_RELEASE(m_dynamicRenderTarget);	//need to create a new render target
-	if (shadowDecalIndexBufferD3D)
-		shadowDecalIndexBufferD3D->Release();
-	if (shadowDecalVertexBufferD3D)
-		shadowDecalVertexBufferD3D->Release();
-	shadowDecalIndexBufferD3D=nullptr;
-	shadowDecalVertexBufferD3D=nullptr;
+	REF_PTR_RELEASE(shadowDecalIndexBufferD3D);
+	REF_PTR_RELEASE(shadowDecalVertexBufferD3D);
 }
 
 void W3DProjectedShadowManager::invalidateCachedLightPositions()

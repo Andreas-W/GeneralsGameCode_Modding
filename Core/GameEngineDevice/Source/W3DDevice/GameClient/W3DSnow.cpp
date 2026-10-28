@@ -41,7 +41,7 @@ W3DSnowManager::W3DSnowManager()
 {
 	m_indexBuffer=nullptr;
 	m_snowTexture=nullptr;
-	m_VertexBufferD3D=nullptr;
+	m_pointVertexBuffer=nullptr;
 }
 
 W3DSnowManager::~W3DSnowManager()
@@ -60,10 +60,7 @@ void W3DSnowManager::ReleaseResources()
 {
 	REF_PTR_RELEASE(m_snowTexture);
 
-	if (m_VertexBufferD3D)
-		m_VertexBufferD3D->Release();
-
-	m_VertexBufferD3D=nullptr;
+	REF_PTR_RELEASE(m_pointVertexBuffer);
 
 	REF_PTR_RELEASE(m_indexBuffer);
 }
@@ -80,18 +77,10 @@ Bool W3DSnowManager::ReAcquireResources()
 	{
 		DEBUG_ASSERTCRASH(DX8Wrapper::Has_Device(), ("Trying to ReAcquireResources on W3DSnowManager without device"));
 
-		if (m_VertexBufferD3D == nullptr)
+		if (m_pointVertexBuffer == nullptr)
 		{	// Create vertex buffer
-
-			if (FAILED(DX8Wrapper::_Create_DX8_Vertex_Buffer
-			(
-				SNOW_BUFFER_SIZE*sizeof(POINTVERTEX),
-				D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC|D3DUSAGE_POINTS,
-				D3DFVF_POINTVERTEX,
-				D3DPOOL_DEFAULT,
-				&m_VertexBufferD3D
-			)))
-				return FALSE;
+			m_pointVertexBuffer=NEW_REF(DX8VertexBufferClass,(D3DFVF_POINTVERTEX,SNOW_BUFFER_SIZE,
+				(DX8VertexBufferClass::UsageType)(DX8VertexBufferClass::USAGE_DYNAMIC|DX8VertexBufferClass::USAGE_POINTS)));
 		}
 	}
 	else
@@ -265,7 +254,7 @@ void W3DSnowManager::renderSubBox(RenderInfoClass &rinfo, Int originX, Int origi
 
 		POINTVERTEX* verts;
 
-		if(m_VertexBufferD3D->Lock(m_dwBase * sizeof(POINTVERTEX), batchSize * sizeof(POINTVERTEX),
+		if(m_pointVertexBuffer->Lock(m_dwBase * sizeof(POINTVERTEX), batchSize * sizeof(POINTVERTEX),
 			(unsigned char **) &verts, m_dwBase ? D3DLOCK_NOOVERWRITE : D3DLOCK_DISCARD) != D3D_OK )
 			return;	//couldn't lock buffer.
 
@@ -306,7 +295,7 @@ void W3DSnowManager::renderSubBox(RenderInfoClass &rinfo, Int originX, Int origi
 		}
 
 flush_particles:
-		m_VertexBufferD3D->Unlock();
+		m_pointVertexBuffer->Unlock();
 		//Render any particles that may be queued up.
 		if (numberInBatch)
 		{
@@ -399,7 +388,7 @@ void W3DSnowManager::render(RenderInfoClass &rinfo)
 	REF_PTR_RELEASE(vmat);
 
 	//make sure we have all the resources we need
-	if (usePointSprites && !m_VertexBufferD3D)
+	if (usePointSprites && !m_pointVertexBuffer)
 		ReAcquireResources();
 
 	if (!usePointSprites && !m_indexBuffer)
@@ -427,7 +416,7 @@ void W3DSnowManager::render(RenderInfoClass &rinfo)
     DX8Wrapper::Set_DX8_Render_State( D3DRS_POINTSCALE_B,  FtoDW(0.00f) );
     DX8Wrapper::Set_DX8_Render_State( D3DRS_POINTSCALE_C,  FtoDW(1.00f) );
 
-	DX8Wrapper::Set_DX8_Stream_Source( 0, m_VertexBufferD3D, sizeof(POINTVERTEX) );
+	DX8Wrapper::Set_DX8_Stream_Source( 0, m_pointVertexBuffer, sizeof(POINTVERTEX) );
     DX8Wrapper::Set_Vertex_Shader( D3DFVF_POINTVERTEX );
 	m_dwBase = SNOW_BUFFER_SIZE;	//start with a new vertex buffer each frame.
 

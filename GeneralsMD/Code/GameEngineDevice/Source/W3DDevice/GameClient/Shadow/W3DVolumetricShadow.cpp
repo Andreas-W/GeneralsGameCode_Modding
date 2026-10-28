@@ -111,8 +111,8 @@ struct SHADOW_STATIC_VOLUME_VERTEX	//vertex structure passed to D3D
 	#define SHADOW_DYNAMIC_VOLUME_FVF	D3DFVF_XYZ
 #endif
 
-LPDIRECT3DVERTEXBUFFER8 shadowVertexBufferD3D=nullptr;		///<D3D vertex buffer
-LPDIRECT3DINDEXBUFFER8	shadowIndexBufferD3D=nullptr;	///<D3D index buffer
+DX8VertexBufferClass *shadowVertexBufferD3D=nullptr;
+DX8IndexBufferClass *shadowIndexBufferD3D=nullptr;
 int nShadowVertsInBuf=0;	//model vetices in vertex buffer
 int nShadowStartBatchVertex=0;
 int nShadowIndicesInBuf=0;	//model vetices in vertex buffer
@@ -129,7 +129,7 @@ static Real beX;
 static Real beY;
 static Real beZ;
 
-static LPDIRECT3DVERTEXBUFFER8 lastActiveVertexBuffer=nullptr;
+static DX8VertexBufferClass *lastActiveVertexBuffer=nullptr;
 
 /** A simple structure to hold random geometry (vertices, polygons, etc.).  We'll use this
 * to store shadow volumes. */
@@ -1360,8 +1360,8 @@ void W3DVolumetricShadow::RenderMeshVolume(Int meshIndex, Int lightIndex, const 
 	W3DBufferManager::W3DVertexBufferSlot *vbSlot=m_shadowVolumeVB[lightIndex][ meshIndex ];
 	if (!vbSlot)
 		return;
-	if (vbSlot->m_VB->m_DX8VertexBuffer->Get_DX8_Vertex_Buffer() != lastActiveVertexBuffer)
-	{	lastActiveVertexBuffer=vbSlot->m_VB->m_DX8VertexBuffer->Get_DX8_Vertex_Buffer();
+	if (vbSlot->m_VB->m_DX8VertexBuffer != lastActiveVertexBuffer)
+	{	lastActiveVertexBuffer=vbSlot->m_VB->m_DX8VertexBuffer;
 		DX8Wrapper::Set_DX8_Stream_Source(0,lastActiveVertexBuffer,
 			vbSlot->m_VB->m_DX8VertexBuffer->FVF_Info().Get_FVF_Size());	//12 bytes per vertex.
 	}
@@ -1374,7 +1374,7 @@ void W3DVolumetricShadow::RenderMeshVolume(Int meshIndex, Int lightIndex, const 
 
 	DEBUG_ASSERTCRASH(ibSlot->m_size >= numIndex,("Overflowing Shadow Index Buffer Slot"));
 
-	DX8Wrapper::Set_DX8_Indices(ibSlot->m_IB->m_DX8IndexBuffer->Get_DX8_Index_Buffer(),vbSlot->m_start);
+	DX8Wrapper::Set_DX8_Indices(ibSlot->m_IB->m_DX8IndexBuffer,vbSlot->m_start);
 
 	if (DX8Wrapper::_Is_Triangle_Draw_Enabled())
 	{
@@ -3735,12 +3735,8 @@ W3DVolumetricShadowManager::~W3DVolumetricShadowManager()
 /** Releases all W3D/D3D assets before a reset.. */
 void W3DVolumetricShadowManager::ReleaseResources()
 {
-	if (shadowIndexBufferD3D)
-		shadowIndexBufferD3D->Release();
-	if (shadowVertexBufferD3D)
-		shadowVertexBufferD3D->Release();
-	shadowIndexBufferD3D=nullptr;
-	shadowVertexBufferD3D=nullptr;
+	REF_PTR_RELEASE(shadowIndexBufferD3D);
+	REF_PTR_RELEASE(shadowVertexBufferD3D);
 	if (TheW3DBufferManager)
 	{	TheW3DBufferManager->ReleaseResources();
 		invalidateCachedLightPositions();	//vertex buffers need to be refilled.
@@ -3755,28 +3751,12 @@ Bool W3DVolumetricShadowManager::ReAcquireResources()
 
 	DEBUG_ASSERTCRASH(DX8Wrapper::Has_Device(), ("Trying to ReAcquireResources on W3DVolumetricShadowManager without device"));
 
-	if (FAILED(DX8Wrapper::_Create_DX8_Index_Buffer
-	(
-		SHADOW_INDEX_SIZE*sizeof(WORD),
-		D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
-		D3DFMT_INDEX16,
-		D3DPOOL_DEFAULT,
-		&shadowIndexBufferD3D
-	)))
-		return FALSE;
+	shadowIndexBufferD3D=NEW_REF(DX8IndexBufferClass,(SHADOW_INDEX_SIZE,DX8IndexBufferClass::USAGE_DYNAMIC));
 
 	if (shadowVertexBufferD3D == nullptr)
-	{	// Create vertex buffer
-
-		if (FAILED(DX8Wrapper::_Create_DX8_Vertex_Buffer
-		(
-			SHADOW_VERTEX_SIZE*sizeof(SHADOW_DYNAMIC_VOLUME_VERTEX),
-			D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC,
-			0,
-			D3DPOOL_DEFAULT,
-			&shadowVertexBufferD3D
-		)))
-			return FALSE;
+	{	// Create vertex buffer. Projected shadows also use it, with a smaller vertex, so it has no FVF.
+		shadowVertexBufferD3D=NEW_REF(DX8VertexBufferClass,(SHADOW_DYNAMIC_VOLUME_FVF,SHADOW_VERTEX_SIZE,
+			(DX8VertexBufferClass::UsageType)(DX8VertexBufferClass::USAGE_DYNAMIC|DX8VertexBufferClass::USAGE_NO_FVF)));
 	}
 
 	if (TheW3DBufferManager)

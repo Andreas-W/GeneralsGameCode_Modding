@@ -1886,20 +1886,20 @@ unsigned DX8Wrapper::Get_Device_Render_State(D3DRENDERSTATETYPE state)
 	return value;
 }
 
-void DX8Wrapper::Set_DX8_Stream_Source(unsigned stream, IDirect3DVertexBuffer8* vb, unsigned stride)
+void DX8Wrapper::Set_DX8_Stream_Source(unsigned stream, DX8VertexBufferClass* vb, unsigned stride)
 {
 	DX8_THREAD_ASSERT();
 	Increment_DX8_CallCount();
-	D3DDevice->SetStreamSource(stream, vb, stride);
+	D3DDevice->SetStreamSource(stream, vb ? vb->Get_DX8_Vertex_Buffer() : nullptr, stride);
 	DX8_RECORD_VERTEX_BUFFER_CHANGE();
 	render_state_changed |= VERTEX_BUFFER_CHANGED;
 }
 
-void DX8Wrapper::Set_DX8_Indices(IDirect3DIndexBuffer8* ib, unsigned base_vertex_index)
+void DX8Wrapper::Set_DX8_Indices(DX8IndexBufferClass* ib, unsigned base_vertex_index)
 {
 	DX8_THREAD_ASSERT();
 	Increment_DX8_CallCount();
-	D3DDevice->SetIndices(ib, base_vertex_index);
+	D3DDevice->SetIndices(ib ? ib->Get_DX8_Index_Buffer() : nullptr, base_vertex_index);
 	DX8_RECORD_INDEX_BUFFER_CHANGE();
 	render_state_changed |= INDEX_BUFFER_CHANGED;
 }
@@ -1930,25 +1930,11 @@ void DX8Wrapper::Draw_DX8_Primitive_UP(D3DPRIMITIVETYPE type, unsigned primitive
 	render_state_changed |= VERTEX_BUFFER_CHANGED | INDEX_BUFFER_CHANGED;
 }
 
-HRESULT DX8Wrapper::Process_DX8_Vertices(unsigned src_start_index, unsigned dest_index, unsigned vertex_count, IDirect3DVertexBuffer8* dest_buffer, DWORD flags)
+HRESULT DX8Wrapper::Process_DX8_Vertices(unsigned src_start_index, unsigned dest_index, unsigned vertex_count, DX8VertexBufferClass* dest_buffer, DWORD flags)
 {
 	DX8_THREAD_ASSERT();
 	Increment_DX8_CallCount();
-	return D3DDevice->ProcessVertices(src_start_index, dest_index, vertex_count, dest_buffer, flags);
-}
-
-HRESULT DX8Wrapper::_Create_DX8_Vertex_Buffer(unsigned length, DWORD usage, DWORD fvf, D3DPOOL pool, IDirect3DVertexBuffer8** vb)
-{
-	DX8_THREAD_ASSERT();
-	Increment_DX8_CallCount();
-	return D3DDevice->CreateVertexBuffer(length, usage, fvf, pool, vb);
-}
-
-HRESULT DX8Wrapper::_Create_DX8_Index_Buffer(unsigned length, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DIndexBuffer8** ib)
-{
-	DX8_THREAD_ASSERT();
-	Increment_DX8_CallCount();
-	return D3DDevice->CreateIndexBuffer(length, usage, format, pool, ib);
+	return D3DDevice->ProcessVertices(src_start_index, dest_index, vertex_count, dest_buffer->Get_DX8_Vertex_Buffer(), flags);
 }
 
 HRESULT DX8Wrapper::_Create_DX8_Texture_Raw(unsigned width, unsigned height, unsigned levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture8** texture)
