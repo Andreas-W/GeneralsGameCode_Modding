@@ -1,0 +1,240 @@
+/*
+**	Command & Conquer Generals Zero Hour(tm)
+**	Copyright 2026 Electronic Arts Inc.
+**
+**	This program is free software: you can redistribute it and/or modify
+**	it under the terms of the GNU General Public License as published by
+**	the Free Software Foundation, either version 3 of the License, or
+**	(at your option) any later version.
+**
+**	This program is distributed in the hope that it will be useful,
+**	but WITHOUT ANY WARRANTY; without even the implied warranty of
+**	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+**	GNU General Public License for more details.
+**
+**	You should have received a copy of the GNU General Public License
+**	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// Device.h
+// IDirect3DDevice8 on Direct3D 12.
+
+#pragma once
+
+#include "Private.h"
+
+namespace D3D8On12
+{
+
+class Surface;
+
+const unsigned MAX_TEXTURE_STAGES = 8;
+const unsigned MAX_STREAMS = 16;
+const unsigned MAX_LIGHTS = 8;
+const unsigned MAX_CLIP_PLANES = 6;
+const unsigned MAX_VERTEX_SHADER_CONSTANTS = 96;
+const unsigned MAX_PIXEL_SHADER_CONSTANTS = 8;
+const unsigned TRANSFORM_COUNT = 14;	// view, projection, texture 0-7, world 0-3
+const unsigned FRAME_COUNT = 3;
+
+// The device state that state blocks record. Bound resources are kept apart, as they are reference counted.
+struct StateValues
+{
+	DWORD renderStates[256];
+	DWORD textureStageStates[MAX_TEXTURE_STAGES][32];
+	D3DMATRIX transforms[TRANSFORM_COUNT];
+	D3DMATERIAL8 material;
+	D3DLIGHT8 lights[MAX_LIGHTS];
+	BOOL lightEnabled[MAX_LIGHTS];
+	float clipPlanes[MAX_CLIP_PLANES][4];
+	D3DVIEWPORT8 viewport;
+	DWORD vertexShader;
+	DWORD pixelShader;
+	float vertexShaderConstants[MAX_VERTEX_SHADER_CONSTANTS][4];
+	float pixelShaderConstants[MAX_PIXEL_SHADER_CONSTANTS][4];
+};
+
+struct StreamBinding
+{
+	IDirect3DVertexBuffer8* buffer;
+	UINT stride;
+};
+
+class Device : public RefCounted<IDirect3DDevice8>
+{
+public:
+	Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3DDEVTYPE device_type, HWND focus_window, DWORD behavior_flags);
+	virtual ~Device() override;
+
+	// Creates the Direct3D 12 device and the swap chain. Returns a D3D8 error code on failure.
+	HRESULT Init(D3DPRESENT_PARAMETERS* params);
+
+	ID3D12Device* D3D12_Device() const { return m_device.Get(); }
+
+	// IUnknown
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
+
+	// IDirect3DDevice8
+	HRESULT STDMETHODCALLTYPE TestCooperativeLevel() override;
+	UINT STDMETHODCALLTYPE GetAvailableTextureMem() override;
+	HRESULT STDMETHODCALLTYPE ResourceManagerDiscardBytes(DWORD bytes) override;
+	HRESULT STDMETHODCALLTYPE GetDirect3D(IDirect3D8** d3d) override;
+	HRESULT STDMETHODCALLTYPE GetDeviceCaps(D3DCAPS8* caps) override;
+	HRESULT STDMETHODCALLTYPE GetDisplayMode(D3DDISPLAYMODE* mode) override;
+	HRESULT STDMETHODCALLTYPE GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS* params) override;
+	HRESULT STDMETHODCALLTYPE SetCursorProperties(UINT hotspot_x, UINT hotspot_y, IDirect3DSurface8* cursor_bitmap) override;
+	void STDMETHODCALLTYPE SetCursorPosition(UINT x, UINT y, DWORD flags) override;
+	BOOL STDMETHODCALLTYPE ShowCursor(BOOL show) override;
+	HRESULT STDMETHODCALLTYPE CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS* params, IDirect3DSwapChain8** swap_chain) override;
+	HRESULT STDMETHODCALLTYPE Reset(D3DPRESENT_PARAMETERS* params) override;
+	HRESULT STDMETHODCALLTYPE Present(CONST RECT* source_rect, CONST RECT* dest_rect, HWND dest_window, CONST RGNDATA* dirty_region) override;
+	HRESULT STDMETHODCALLTYPE GetBackBuffer(UINT index, D3DBACKBUFFER_TYPE type, IDirect3DSurface8** back_buffer) override;
+	HRESULT STDMETHODCALLTYPE GetRasterStatus(D3DRASTER_STATUS* status) override;
+	void STDMETHODCALLTYPE SetGammaRamp(DWORD flags, CONST D3DGAMMARAMP* ramp) override;
+	void STDMETHODCALLTYPE GetGammaRamp(D3DGAMMARAMP* ramp) override;
+	HRESULT STDMETHODCALLTYPE CreateTexture(UINT width, UINT height, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture8** texture) override;
+	HRESULT STDMETHODCALLTYPE CreateVolumeTexture(UINT width, UINT height, UINT depth, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DVolumeTexture8** texture) override;
+	HRESULT STDMETHODCALLTYPE CreateCubeTexture(UINT edge_length, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DCubeTexture8** texture) override;
+	HRESULT STDMETHODCALLTYPE CreateVertexBuffer(UINT length, DWORD usage, DWORD fvf, D3DPOOL pool, IDirect3DVertexBuffer8** buffer) override;
+	HRESULT STDMETHODCALLTYPE CreateIndexBuffer(UINT length, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DIndexBuffer8** buffer) override;
+	HRESULT STDMETHODCALLTYPE CreateRenderTarget(UINT width, UINT height, D3DFORMAT format, D3DMULTISAMPLE_TYPE multisample, BOOL lockable, IDirect3DSurface8** surface) override;
+	HRESULT STDMETHODCALLTYPE CreateDepthStencilSurface(UINT width, UINT height, D3DFORMAT format, D3DMULTISAMPLE_TYPE multisample, IDirect3DSurface8** surface) override;
+	HRESULT STDMETHODCALLTYPE CreateImageSurface(UINT width, UINT height, D3DFORMAT format, IDirect3DSurface8** surface) override;
+	HRESULT STDMETHODCALLTYPE CopyRects(IDirect3DSurface8* source, CONST RECT* source_rects, UINT rect_count, IDirect3DSurface8* dest, CONST POINT* dest_points) override;
+	HRESULT STDMETHODCALLTYPE UpdateTexture(IDirect3DBaseTexture8* source, IDirect3DBaseTexture8* dest) override;
+	HRESULT STDMETHODCALLTYPE GetFrontBuffer(IDirect3DSurface8* dest) override;
+	HRESULT STDMETHODCALLTYPE SetRenderTarget(IDirect3DSurface8* render_target, IDirect3DSurface8* depth_stencil) override;
+	HRESULT STDMETHODCALLTYPE GetRenderTarget(IDirect3DSurface8** render_target) override;
+	HRESULT STDMETHODCALLTYPE GetDepthStencilSurface(IDirect3DSurface8** depth_stencil) override;
+	HRESULT STDMETHODCALLTYPE BeginScene() override;
+	HRESULT STDMETHODCALLTYPE EndScene() override;
+	HRESULT STDMETHODCALLTYPE Clear(DWORD count, CONST D3DRECT* rects, DWORD flags, D3DCOLOR color, float z, DWORD stencil) override;
+	HRESULT STDMETHODCALLTYPE SetTransform(D3DTRANSFORMSTATETYPE state, CONST D3DMATRIX* matrix) override;
+	HRESULT STDMETHODCALLTYPE GetTransform(D3DTRANSFORMSTATETYPE state, D3DMATRIX* matrix) override;
+	HRESULT STDMETHODCALLTYPE MultiplyTransform(D3DTRANSFORMSTATETYPE state, CONST D3DMATRIX* matrix) override;
+	HRESULT STDMETHODCALLTYPE SetViewport(CONST D3DVIEWPORT8* viewport) override;
+	HRESULT STDMETHODCALLTYPE GetViewport(D3DVIEWPORT8* viewport) override;
+	HRESULT STDMETHODCALLTYPE SetMaterial(CONST D3DMATERIAL8* material) override;
+	HRESULT STDMETHODCALLTYPE GetMaterial(D3DMATERIAL8* material) override;
+	HRESULT STDMETHODCALLTYPE SetLight(DWORD index, CONST D3DLIGHT8* light) override;
+	HRESULT STDMETHODCALLTYPE GetLight(DWORD index, D3DLIGHT8* light) override;
+	HRESULT STDMETHODCALLTYPE LightEnable(DWORD index, BOOL enable) override;
+	HRESULT STDMETHODCALLTYPE GetLightEnable(DWORD index, BOOL* enable) override;
+	HRESULT STDMETHODCALLTYPE SetClipPlane(DWORD index, CONST float* plane) override;
+	HRESULT STDMETHODCALLTYPE GetClipPlane(DWORD index, float* plane) override;
+	HRESULT STDMETHODCALLTYPE SetRenderState(D3DRENDERSTATETYPE state, DWORD value) override;
+	HRESULT STDMETHODCALLTYPE GetRenderState(D3DRENDERSTATETYPE state, DWORD* value) override;
+	HRESULT STDMETHODCALLTYPE BeginStateBlock() override;
+	HRESULT STDMETHODCALLTYPE EndStateBlock(DWORD* token) override;
+	HRESULT STDMETHODCALLTYPE ApplyStateBlock(DWORD token) override;
+	HRESULT STDMETHODCALLTYPE CaptureStateBlock(DWORD token) override;
+	HRESULT STDMETHODCALLTYPE DeleteStateBlock(DWORD token) override;
+	HRESULT STDMETHODCALLTYPE CreateStateBlock(D3DSTATEBLOCKTYPE type, DWORD* token) override;
+	HRESULT STDMETHODCALLTYPE SetClipStatus(CONST D3DCLIPSTATUS8* status) override;
+	HRESULT STDMETHODCALLTYPE GetClipStatus(D3DCLIPSTATUS8* status) override;
+	HRESULT STDMETHODCALLTYPE GetTexture(DWORD stage, IDirect3DBaseTexture8** texture) override;
+	HRESULT STDMETHODCALLTYPE SetTexture(DWORD stage, IDirect3DBaseTexture8* texture) override;
+	HRESULT STDMETHODCALLTYPE GetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD* value) override;
+	HRESULT STDMETHODCALLTYPE SetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD value) override;
+	HRESULT STDMETHODCALLTYPE ValidateDevice(DWORD* passes) override;
+	HRESULT STDMETHODCALLTYPE GetInfo(DWORD id, void* info, DWORD size) override;
+	HRESULT STDMETHODCALLTYPE SetPaletteEntries(UINT palette, CONST PALETTEENTRY* entries) override;
+	HRESULT STDMETHODCALLTYPE GetPaletteEntries(UINT palette, PALETTEENTRY* entries) override;
+	HRESULT STDMETHODCALLTYPE SetCurrentTexturePalette(UINT palette) override;
+	HRESULT STDMETHODCALLTYPE GetCurrentTexturePalette(UINT* palette) override;
+	HRESULT STDMETHODCALLTYPE DrawPrimitive(D3DPRIMITIVETYPE type, UINT start_vertex, UINT primitive_count) override;
+	HRESULT STDMETHODCALLTYPE DrawIndexedPrimitive(D3DPRIMITIVETYPE type, UINT min_index, UINT num_vertices, UINT start_index, UINT primitive_count) override;
+	HRESULT STDMETHODCALLTYPE DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT primitive_count, CONST void* vertices, UINT stride) override;
+	HRESULT STDMETHODCALLTYPE DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE type, UINT min_index, UINT num_vertices, UINT primitive_count, CONST void* indices, D3DFORMAT index_format, CONST void* vertices, UINT stride) override;
+	HRESULT STDMETHODCALLTYPE ProcessVertices(UINT src_start_index, UINT dest_index, UINT vertex_count, IDirect3DVertexBuffer8* dest_buffer, DWORD flags) override;
+	HRESULT STDMETHODCALLTYPE CreateVertexShader(CONST DWORD* declaration, CONST DWORD* function, DWORD* handle, DWORD usage) override;
+	HRESULT STDMETHODCALLTYPE SetVertexShader(DWORD handle) override;
+	HRESULT STDMETHODCALLTYPE GetVertexShader(DWORD* handle) override;
+	HRESULT STDMETHODCALLTYPE DeleteVertexShader(DWORD handle) override;
+	HRESULT STDMETHODCALLTYPE SetVertexShaderConstant(DWORD reg, CONST void* data, DWORD count) override;
+	HRESULT STDMETHODCALLTYPE GetVertexShaderConstant(DWORD reg, void* data, DWORD count) override;
+	HRESULT STDMETHODCALLTYPE GetVertexShaderDeclaration(DWORD handle, void* data, DWORD* size) override;
+	HRESULT STDMETHODCALLTYPE GetVertexShaderFunction(DWORD handle, void* data, DWORD* size) override;
+	HRESULT STDMETHODCALLTYPE SetStreamSource(UINT stream, IDirect3DVertexBuffer8* buffer, UINT stride) override;
+	HRESULT STDMETHODCALLTYPE GetStreamSource(UINT stream, IDirect3DVertexBuffer8** buffer, UINT* stride) override;
+	HRESULT STDMETHODCALLTYPE SetIndices(IDirect3DIndexBuffer8* buffer, UINT base_vertex_index) override;
+	HRESULT STDMETHODCALLTYPE GetIndices(IDirect3DIndexBuffer8** buffer, UINT* base_vertex_index) override;
+	HRESULT STDMETHODCALLTYPE CreatePixelShader(CONST DWORD* function, DWORD* handle) override;
+	HRESULT STDMETHODCALLTYPE SetPixelShader(DWORD handle) override;
+	HRESULT STDMETHODCALLTYPE GetPixelShader(DWORD* handle) override;
+	HRESULT STDMETHODCALLTYPE DeletePixelShader(DWORD handle) override;
+	HRESULT STDMETHODCALLTYPE SetPixelShaderConstant(DWORD reg, CONST void* data, DWORD count) override;
+	HRESULT STDMETHODCALLTYPE GetPixelShaderConstant(DWORD reg, void* data, DWORD count) override;
+	HRESULT STDMETHODCALLTYPE GetPixelShaderFunction(DWORD handle, void* data, DWORD* size) override;
+	HRESULT STDMETHODCALLTYPE DrawRectPatch(UINT handle, CONST float* segments, CONST D3DRECTPATCH_INFO* info) override;
+	HRESULT STDMETHODCALLTYPE DrawTriPatch(UINT handle, CONST float* segments, CONST D3DTRIPATCH_INFO* info) override;
+	HRESULT STDMETHODCALLTYPE DeletePatch(UINT handle) override;
+
+private:
+	struct ShaderData
+	{
+		bool used;
+		std::vector<DWORD> declaration;
+		std::vector<DWORD> function;
+	};
+
+	HRESULT Create_Swap_Chain_Buffers();
+	void Release_Swap_Chain_Buffers();
+	void Set_Default_State();
+	void Begin_Frame();
+	void Flush_Commands();
+	void Wait_For_GPU();
+	void Log_Debug_Messages();
+	HRESULT Read_Back_Buffer(Surface* dest);
+	void Replace_Surface(Surface*& slot, Surface* surface);
+
+	Direct3D* m_d3d;
+	AdapterInfo m_adapter;
+	D3DDEVICE_CREATION_PARAMETERS m_creationParams;
+	D3DPRESENT_PARAMETERS m_presentParams;
+	HWND m_window;
+
+	ComPtr<ID3D12Device> m_device;
+	ComPtr<ID3D12InfoQueue> m_infoQueue;	// only with the debug layer
+	ComPtr<ID3D12CommandQueue> m_queue;
+	ComPtr<IDXGISwapChain3> m_swapChain;
+	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
+	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
+	UINT m_rtvDescriptorSize;
+	ComPtr<ID3D12Resource> m_backBuffers[FRAME_COUNT];
+	ComPtr<ID3D12Resource> m_depthBuffer;
+	ComPtr<ID3D12CommandAllocator> m_allocators[FRAME_COUNT];
+	ComPtr<ID3D12GraphicsCommandList> m_commandList;
+	ComPtr<ID3D12Resource> m_readbackBuffer;
+	ComPtr<ID3D12Fence> m_fence;
+	HANDLE m_fenceEvent;
+	UINT64 m_frameFenceValues[FRAME_COUNT];
+	UINT64 m_nextFenceValue;
+	UINT m_backBufferIndex;
+	bool m_recording;
+	bool m_deviceRemoved;
+
+	Surface* m_backBufferSurface;
+	Surface* m_autoDepthSurface;
+	Surface* m_renderTarget;
+	Surface* m_depthStencil;
+
+	StateValues m_state;
+	IDirect3DBaseTexture8* m_textures[MAX_TEXTURE_STAGES];
+	StreamBinding m_streams[MAX_STREAMS];
+	IDirect3DIndexBuffer8* m_indices;
+	UINT m_baseVertexIndex;
+
+	std::vector<ShaderData> m_vertexShaders;
+	std::vector<ShaderData> m_pixelShaders;
+	std::vector<StateValues*> m_stateBlocks;
+	StateValues* m_recordingStateBlock;
+
+	HCURSOR m_cursor;
+	bool m_cursorVisible;
+	D3DGAMMARAMP m_gammaRamp;
+	PALETTEENTRY m_palettes[256][256];
+	UINT m_currentPalette;
+};
+
+} // namespace D3D8On12

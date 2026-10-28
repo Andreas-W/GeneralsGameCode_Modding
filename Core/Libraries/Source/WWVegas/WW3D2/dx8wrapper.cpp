@@ -87,6 +87,10 @@
 
 #include "shdlib.h"
 
+#ifdef RTS_RENDERER_DX12
+#include <d3d8on12.h>
+#endif
+
 const int DEFAULT_RESOLUTION_WIDTH = 640;
 const int DEFAULT_RESOLUTION_HEIGHT = 480;
 const int DEFAULT_BIT_DEPTH = 32;
@@ -100,6 +104,7 @@ bool DX8Wrapper_IsWindowed = true;
 
 // FPU_PRESERVE
 int DX8Wrapper_PreserveFPU = 0;
+int DX8Wrapper_UseDX12 = 0;
 
 /***********************************************************************************
 **
@@ -292,11 +297,21 @@ bool DX8Wrapper::Init(void * hwnd, bool lite)
 	Invalidate_Cached_Render_States();
 
 	if (!lite) {
-		D3D8Lib = LoadLibrary("D3D8.DLL");
+#ifdef RTS_RENDERER_DX12
+		if (DX8Wrapper_UseDX12) {
+			// The D3D8 interfaces implemented on Direct3D 12 stand in for d3d8.dll.
+			WWDEBUG_SAY(("Create Direct3D8 on Direct3D 12"));
+			Direct3DCreate8Ptr = Direct3DCreate8On12;
+		}
+		else
+#endif
+		{
+			D3D8Lib = LoadLibrary("D3D8.DLL");
 
-		if (D3D8Lib == nullptr) return false;	// Return false at this point if init failed
+			if (D3D8Lib == nullptr) return false;	// Return false at this point if init failed
 
-		Direct3DCreate8Ptr = (Direct3DCreate8Type) GetProcAddress(D3D8Lib, "Direct3DCreate8");
+			Direct3DCreate8Ptr = (Direct3DCreate8Type) GetProcAddress(D3D8Lib, "Direct3DCreate8");
+		}
 		if (Direct3DCreate8Ptr == nullptr) return false;
 
 		/*
