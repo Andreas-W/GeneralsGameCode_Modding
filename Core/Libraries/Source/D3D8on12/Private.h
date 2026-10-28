@@ -72,6 +72,16 @@ struct GpuTexture
 	D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
 };
 
+// The Direct3D 12 copy of a vertex or index buffer that is not dynamic. Locks mark the range they
+// can change; it is uploaded before the next draw that uses the buffer.
+struct GpuBuffer
+{
+	ComPtr<ID3D12Resource> resource;
+	D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
+	UINT dirtyBegin = 0;
+	UINT dirtyEnd = 0;
+};
+
 // The adapters Direct3D 12 can create a device on, in the order IDirect3D8 reports them.
 struct AdapterInfo
 {

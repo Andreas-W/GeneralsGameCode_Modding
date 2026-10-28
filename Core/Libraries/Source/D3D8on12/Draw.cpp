@@ -19,8 +19,9 @@
 // Draw.cpp
 // Drawing with the fixed function pipeline emulated by generated shaders.
 //
-// Each draw copies the vertices and indices it uses into upload memory, so vertex and index buffers
-// need no Direct3D 12 copy of their own and every lock behaves like D3DLOCK_NOOVERWRITE.
+// Vertex and index buffers that are not dynamic have a Direct3D 12 copy (Gpu.cpp). Draws from dynamic
+// buffers copy the vertices and indices they use into upload memory, so every lock of those behaves
+// like D3DLOCK_NOOVERWRITE.
 
 #include "Device.h"
 #include "Formats.h"
@@ -152,8 +153,8 @@ bool Device::Upload_Vertices(const unsigned char* data, UINT stride, UINT count,
 	return true;
 }
 
-// Copies indices, subtracting the first vertex index from each, and turns triangle fans into lists.
-bool Device::Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index32, UINT count, UINT subtract, D3D12_INDEX_BUFFER_VIEW& view, UINT& index_count)
+// Copies indices, turning triangle fans into lists.
+bool Device::Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index32, UINT count, D3D12_INDEX_BUFFER_VIEW& view, UINT& index_count)
 {
 	const UINT index_size = index32 ? 4 : 2;
 	index_count = type == D3DPT_TRIANGLEFAN ? (count - 2) * 3 : count;
@@ -161,42 +162,30 @@ bool Device::Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index3
 	if (upload.cpu == nullptr)
 		return false;
 
-	if (index32)
+	if (type != D3DPT_TRIANGLEFAN)
+	{
+		memcpy(upload.cpu, data, (size_t)count * index_size);
+	}
+	else if (index32)
 	{
 		const DWORD* source = (const DWORD*)data;
 		DWORD* dest = (DWORD*)upload.cpu;
-		if (type == D3DPT_TRIANGLEFAN)
+		for (UINT i = 1; i + 1 < count; ++i)
 		{
-			for (UINT i = 1; i + 1 < count; ++i)
-			{
-				*dest++ = source[0] - subtract;
-				*dest++ = source[i] - subtract;
-				*dest++ = source[i + 1] - subtract;
-			}
-		}
-		else
-		{
-			for (UINT i = 0; i < count; ++i)
-				dest[i] = source[i] - subtract;
+			*dest++ = source[0];
+			*dest++ = source[i];
+			*dest++ = source[i + 1];
 		}
 	}
 	else
 	{
 		const WORD* source = (const WORD*)data;
 		WORD* dest = (WORD*)upload.cpu;
-		if (type == D3DPT_TRIANGLEFAN)
+		for (UINT i = 1; i + 1 < count; ++i)
 		{
-			for (UINT i = 1; i + 1 < count; ++i)
-			{
-				*dest++ = (WORD)(source[0] - subtract);
-				*dest++ = (WORD)(source[i] - subtract);
-				*dest++ = (WORD)(source[i + 1] - subtract);
-			}
-		}
-		else
-		{
-			for (UINT i = 0; i < count; ++i)
-				dest[i] = (WORD)(source[i] - subtract);
+			*dest++ = source[0];
+			*dest++ = source[i];
+			*dest++ = source[i + 1];
 		}
 	}
 
@@ -206,16 +195,22 @@ bool Device::Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index3
 	return true;
 }
 
-// Indices 0, 1, 2, 0, 2, 3, ... that draw a non-indexed triangle fan as a list.
+// Indices 0, 1, 2, ... of a non-indexed triangle fan, for Upload_Indices to turn into a list.
 static void Make_Fan_Indices(UINT vertex_count, std::vector<WORD>& indices)
 {
 	indices.clear();
-	for (UINT i = 1; i + 1 < vertex_count; ++i)
-	{
-		indices.push_back(0);
+	for (UINT i = 0; i < vertex_count; ++i)
 		indices.push_back((WORD)i);
-		indices.push_back((WORD)(i + 1));
-	}
+}
+
+// The view of a buffer's Direct3D 12 copy.
+static D3D12_VERTEX_BUFFER_VIEW Make_Vertex_View(D3D12_GPU_VIRTUAL_ADDRESS address, UINT size, UINT stride)
+{
+	D3D12_VERTEX_BUFFER_VIEW view;
+	view.BufferLocation = address;
+	view.SizeInBytes = size;
+	view.StrideInBytes = stride;
+	return view;
 }
 
 HRESULT STDMETHODCALLTYPE Device::DrawPrimitive(D3DPRIMITIVETYPE type, UINT start_vertex, UINT primitive_count)
@@ -228,9 +223,22 @@ HRESULT STDMETHODCALLTYPE Device::DrawPrimitive(D3DPRIMITIVETYPE type, UINT star
 	if (!Begin_Draw())
 		return D3D_OK;
 
+	// first is the vertex to start with, in the view.
 	D3D12_VERTEX_BUFFER_VIEW vertices;
-	if (!Upload_Vertices(buffer->Data() + start_vertex * stride, stride, count, vertices))
-		return D3D_OK;
+	UINT first = start_vertex;
+	if (buffer->Has_Gpu_Copy())
+	{
+		const D3D12_GPU_VIRTUAL_ADDRESS address = Prepare_Buffer(buffer->Gpu(), buffer->Data(), buffer->Size(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+		if (address == 0)
+			return D3D_OK;
+		vertices = Make_Vertex_View(address, buffer->Size(), stride);
+	}
+	else
+	{
+		if (!Upload_Vertices(buffer->Data() + start_vertex * stride, stride, count, vertices))
+			return D3D_OK;
+		first = 0;
+	}
 
 	if (type == D3DPT_TRIANGLEFAN)
 	{
@@ -238,11 +246,11 @@ HRESULT STDMETHODCALLTYPE Device::DrawPrimitive(D3DPRIMITIVETYPE type, UINT star
 		Make_Fan_Indices(count, fan);
 		D3D12_INDEX_BUFFER_VIEW indices;
 		UINT index_count = 0;
-		if (!Upload_Indices(D3DPT_TRIANGLELIST, fan.data(), false, (UINT)fan.size(), 0, indices, index_count))
+		if (!Upload_Indices(type, fan.data(), false, count, indices, index_count))
 			return D3D_OK;
-		return Draw_Geometry(type, primitive_count, vertices, &indices, index_count);
+		return Draw_Geometry(type, vertices, &indices, index_count, 0, (INT)first);
 	}
-	return Draw_Geometry(type, primitive_count, vertices, nullptr, count);
+	return Draw_Geometry(type, vertices, nullptr, count, first, 0);
 }
 
 HRESULT STDMETHODCALLTYPE Device::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, UINT min_index, UINT num_vertices, UINT start_index, UINT primitive_count)
@@ -264,14 +272,39 @@ HRESULT STDMETHODCALLTYPE Device::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, UI
 	if (!Begin_Draw())
 		return D3D_OK;
 
+	// Indices count from the base vertex index; view_start is the vertex the view starts with.
 	D3D12_VERTEX_BUFFER_VIEW vertices;
+	UINT view_start = 0;
+	if (buffer->Has_Gpu_Copy())
+	{
+		const D3D12_GPU_VIRTUAL_ADDRESS address = Prepare_Buffer(buffer->Gpu(), buffer->Data(), buffer->Size(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+		if (address == 0)
+			return D3D_OK;
+		vertices = Make_Vertex_View(address, buffer->Size(), stride);
+	}
+	else
+	{
+		if (!Upload_Vertices(buffer->Data() + first_vertex * stride, stride, num_vertices, vertices))
+			return D3D_OK;
+		view_start = first_vertex;
+	}
+	const INT base_vertex = (INT)m_baseVertexIndex - (INT)view_start;
+
 	D3D12_INDEX_BUFFER_VIEW indices;
+	if (index_buffer->Has_Gpu_Copy() && type != D3DPT_TRIANGLEFAN)
+	{
+		indices.BufferLocation = Prepare_Buffer(index_buffer->Gpu(), index_buffer->Data(), index_buffer->Size(), D3D12_RESOURCE_STATE_INDEX_BUFFER);
+		indices.SizeInBytes = index_buffer->Size();
+		indices.Format = index32 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
+		if (indices.BufferLocation == 0)
+			return D3D_OK;
+		return Draw_Geometry(type, vertices, &indices, count, start_index, base_vertex);
+	}
+
 	UINT index_count = 0;
-	if (!Upload_Vertices(buffer->Data() + first_vertex * stride, stride, num_vertices, vertices))
+	if (!Upload_Indices(type, index_buffer->Data() + start_index * index_size, index32, count, indices, index_count))
 		return D3D_OK;
-	if (!Upload_Indices(type, index_buffer->Data() + start_index * index_size, index32, count, min_index, indices, index_count))
-		return D3D_OK;
-	return Draw_Geometry(type, primitive_count, vertices, &indices, index_count);
+	return Draw_Geometry(type, vertices, &indices, index_count, 0, base_vertex);
 }
 
 HRESULT STDMETHODCALLTYPE Device::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT primitive_count, CONST void* data, UINT stride)
@@ -296,11 +329,11 @@ HRESULT STDMETHODCALLTYPE Device::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT pr
 		Make_Fan_Indices(count, fan);
 		D3D12_INDEX_BUFFER_VIEW indices;
 		UINT index_count = 0;
-		if (!Upload_Indices(D3DPT_TRIANGLELIST, fan.data(), false, (UINT)fan.size(), 0, indices, index_count))
+		if (!Upload_Indices(type, fan.data(), false, count, indices, index_count))
 			return D3D_OK;
-		return Draw_Geometry(type, primitive_count, vertices, &indices, index_count);
+		return Draw_Geometry(type, vertices, &indices, index_count, 0, 0);
 	}
-	return Draw_Geometry(type, primitive_count, vertices, nullptr, count);
+	return Draw_Geometry(type, vertices, nullptr, count, 0, 0);
 }
 
 HRESULT STDMETHODCALLTYPE Device::DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE type, UINT min_index, UINT num_vertices, UINT primitive_count, CONST void* index_data, D3DFORMAT index_format, CONST void* vertex_data, UINT stride)
@@ -319,9 +352,9 @@ HRESULT STDMETHODCALLTYPE Device::DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE type, 
 	UINT index_count = 0;
 	if (!Upload_Vertices((const unsigned char*)vertex_data + min_index * stride, stride, num_vertices, vertices))
 		return D3D_OK;
-	if (!Upload_Indices(type, index_data, index_format == D3DFMT_INDEX32, count, min_index, indices, index_count))
+	if (!Upload_Indices(type, index_data, index_format == D3DFMT_INDEX32, count, indices, index_count))
 		return D3D_OK;
-	return Draw_Geometry(type, primitive_count, vertices, &indices, index_count);
+	return Draw_Geometry(type, vertices, &indices, index_count, 0, -(INT)min_index);
 }
 
 // ----------------------------------------------------------------------------
@@ -441,7 +474,8 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 		}
 		key.depthBias = (BYTE)rs[D3DRS_ZBIAS];
 	}
-	key.cullMode = (BYTE)rs[D3DRS_CULLMODE];
+	// Point sprites are never culled.
+	key.cullMode = vs_key.pointSprite ? (BYTE)D3DCULL_NONE : (BYTE)rs[D3DRS_CULLMODE];
 	key.fillMode = (BYTE)rs[D3DRS_FILLMODE];
 
 	const UINT64 hash = Hash_Bytes(&key, sizeof(key));
@@ -451,6 +485,13 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 
 	ID3DBlob* vs = Get_Shader(key.vertexShader, Generate_Vertex_Shader(vs_key), "vs_5_0");
 	ID3DBlob* ps = Get_Shader(key.pixelShader, Generate_Pixel_Shader(ps_key), "ps_5_0");
+	ID3DBlob* gs = nullptr;
+	if (vs_key.pointSprite)
+	{
+		gs = Get_Shader(key.vertexShader ^ 0x6a09e667f3bcc908ull, Generate_Geometry_Shader(vs_key), "gs_5_0");
+		if (gs == nullptr)
+			vs = nullptr;
+	}
 	if (vs == nullptr || ps == nullptr)
 	{
 		m_pipelines[hash] = nullptr;
@@ -466,6 +507,11 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	desc.VS.BytecodeLength = vs->GetBufferSize();
 	desc.PS.pShaderBytecode = ps->GetBufferPointer();
 	desc.PS.BytecodeLength = ps->GetBufferSize();
+	if (gs != nullptr)
+	{
+		desc.GS.pShaderBytecode = gs->GetBufferPointer();
+		desc.GS.BytecodeLength = gs->GetBufferSize();
+	}
 
 	D3D12_RENDER_TARGET_BLEND_DESC& blend = desc.BlendState.RenderTarget[0];
 	blend.BlendEnable = key.blendEnable;
@@ -593,6 +639,15 @@ void Device::Fill_Vertex_Constants(FFVertexConstants& c)
 	}
 	c.lightCount[0] = count;
 	c.lightCount[1] = c.lightCount[2] = c.lightCount[3] = 0;
+
+	c.pointSize[0] = As_Float(rs[D3DRS_POINTSIZE]);
+	c.pointSize[1] = As_Float(rs[D3DRS_POINTSIZE_MIN]);
+	c.pointSize[2] = min(As_Float(rs[D3DRS_POINTSIZE_MAX]), 256.0f);
+	c.pointSize[3] = 0;
+	c.pointScale[0] = As_Float(rs[D3DRS_POINTSCALE_A]);
+	c.pointScale[1] = As_Float(rs[D3DRS_POINTSCALE_B]);
+	c.pointScale[2] = As_Float(rs[D3DRS_POINTSCALE_C]);
+	c.pointScale[3] = 0;
 }
 
 void Device::Fill_Pixel_Constants(FFPixelConstants& c)
@@ -619,7 +674,7 @@ void Device::Fill_Pixel_Constants(FFPixelConstants& c)
 // Drawing
 // ----------------------------------------------------------------------------
 
-HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, UINT, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT index_count)
+HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT count, UINT first, INT base_vertex)
 {
 	const DWORD* rs = m_state.renderStates;
 	const DWORD fvf = m_state.vertexShader;
@@ -680,6 +735,8 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, UINT, const D3D12_VERTEX_BU
 	vs_key.fogMode = ps_key.fog ? (fog_mode != D3DFOG_NONE ? fog_mode : (BYTE)D3DFOG_LINEAR) : (BYTE)D3DFOG_NONE;
 	vs_key.rangeFog = rs[D3DRS_RANGEFOGENABLE] != FALSE;
 	vs_key.stageCount = ps_key.stageCount;
+	vs_key.pointSprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
+	vs_key.pointScale = vs_key.pointSprite && rs[D3DRS_POINTSCALEENABLE] != FALSE && !rhw;
 	for (UINT stage = 0; stage < vs_key.stageCount; ++stage)
 	{
 		const DWORD* tss = m_state.textureStageStates[stage];
@@ -741,11 +798,11 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, UINT, const D3D12_VERTEX_BU
 	if (indices != nullptr)
 	{
 		list->IASetIndexBuffer(indices);
-		list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+		list->DrawIndexedInstanced(count, 1, first, base_vertex, 0);
 	}
 	else
 	{
-		list->DrawInstanced(index_count, 1, 0, 0);
+		list->DrawInstanced(count, 1, first, 0);
 	}
 	return D3D_OK;
 }

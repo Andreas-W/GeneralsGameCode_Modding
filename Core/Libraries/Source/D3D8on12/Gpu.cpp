@@ -70,7 +70,7 @@ HRESULT Device::Init_Gpu_Objects()
 
 	params[ROOT_VERTEX_CONSTANTS].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[ROOT_VERTEX_CONSTANTS].Descriptor.ShaderRegister = 0;
-	params[ROOT_VERTEX_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	params[ROOT_VERTEX_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	// also read by the point sprite geometry shader
 	params[ROOT_PIXEL_CONSTANTS].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[ROOT_PIXEL_CONSTANTS].Descriptor.ShaderRegister = 1;
 	params[ROOT_PIXEL_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -230,6 +230,64 @@ void Device::Release_Gpu_Texture(GpuTexture& gpu)
 	}
 	gpu.resource.Reset();
 	gpu.srv = 0;
+}
+
+void Device::Release_Gpu_Resource(ComPtr<ID3D12Resource>& resource)
+{
+	if (resource != nullptr)
+	{
+		Garbage garbage = { m_nextFenceValue, resource, 0 };
+		m_garbage.push_back(garbage);
+	}
+	resource.Reset();
+}
+
+// Creates the Direct3D 12 copy of a buffer on first use and uploads the range changed since the last
+// upload. Returns its GPU address.
+D3D12_GPU_VIRTUAL_ADDRESS Device::Prepare_Buffer(GpuBuffer& gpu, const unsigned char* data, UINT size, D3D12_RESOURCE_STATES read_state)
+{
+	if (gpu.resource == nullptr)
+	{
+		gpu.resource = Create_Buffer(m_device.Get(), D3D12_HEAP_TYPE_DEFAULT, size, D3D12_RESOURCE_STATE_COPY_DEST);
+		if (gpu.resource == nullptr)
+			return 0;
+		gpu.state = D3D12_RESOURCE_STATE_COPY_DEST;
+		gpu.dirtyBegin = 0;
+		gpu.dirtyEnd = size;
+	}
+
+	D3D12_RESOURCE_BARRIER barrier = {};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Transition.pResource = gpu.resource.Get();
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+	if (gpu.dirtyBegin < gpu.dirtyEnd)
+	{
+		if (gpu.state != D3D12_RESOURCE_STATE_COPY_DEST)
+		{
+			barrier.Transition.StateBefore = gpu.state;
+			barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+			m_commandList->ResourceBarrier(1, &barrier);
+			gpu.state = D3D12_RESOURCE_STATE_COPY_DEST;
+		}
+
+		const UINT bytes = gpu.dirtyEnd - gpu.dirtyBegin;
+		UploadAllocation upload = Allocate_Upload(bytes, 16);
+		if (upload.cpu == nullptr)
+			return 0;
+		memcpy(upload.cpu, data + gpu.dirtyBegin, bytes);
+		m_commandList->CopyBufferRegion(gpu.resource.Get(), gpu.dirtyBegin, upload.resource, upload.offset, bytes);
+		gpu.dirtyBegin = gpu.dirtyEnd = 0;
+	}
+
+	if (gpu.state != read_state)
+	{
+		barrier.Transition.StateBefore = gpu.state;
+		barrier.Transition.StateAfter = read_state;
+		m_commandList->ResourceBarrier(1, &barrier);
+		gpu.state = read_state;
+	}
+	return gpu.resource->GetGPUVirtualAddress();
 }
 
 void Device::Release_Finished_Resources()

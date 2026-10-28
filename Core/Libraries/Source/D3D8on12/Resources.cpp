@@ -330,6 +330,7 @@ VertexBuffer::VertexBuffer(Device* device, UINT length, DWORD usage, DWORD fvf, 
 	:	Resource<IDirect3DVertexBuffer8, D3DRTYPE_VERTEXBUFFER>(device),
 		m_data(length)
 {
+	m_gpu.dirtyEnd = length;
 	m_desc.Format = D3DFMT_VERTEXDATA;
 	m_desc.Type = D3DRTYPE_VERTEXBUFFER;
 	m_desc.Usage = usage;
@@ -352,11 +353,31 @@ HRESULT STDMETHODCALLTYPE VertexBuffer::QueryInterface(REFIID riid, void** objec
 	return E_NOINTERFACE;
 }
 
-HRESULT STDMETHODCALLTYPE VertexBuffer::Lock(UINT offset, UINT size, BYTE** data, DWORD)
+VertexBuffer::~VertexBuffer()
+{
+	m_device->Release_Gpu_Resource(m_gpu.resource);
+}
+
+HRESULT STDMETHODCALLTYPE VertexBuffer::Lock(UINT offset, UINT size, BYTE** data, DWORD flags)
 {
 	if (data == nullptr || offset > m_data.size() || (size != 0 && offset + size > m_data.size()))
 		return D3DERR_INVALIDCALL;
 	*data = m_data.data() + offset;
+
+	if ((flags & D3DLOCK_READONLY) == 0)
+	{
+		const UINT end = size != 0 ? offset + size : (UINT)m_data.size();
+		if (m_gpu.dirtyBegin == m_gpu.dirtyEnd)
+		{
+			m_gpu.dirtyBegin = offset;
+			m_gpu.dirtyEnd = end;
+		}
+		else
+		{
+			m_gpu.dirtyBegin = min(m_gpu.dirtyBegin, offset);
+			m_gpu.dirtyEnd = max(m_gpu.dirtyEnd, end);
+		}
+	}
 	return D3D_OK;
 }
 
@@ -381,6 +402,7 @@ IndexBuffer::IndexBuffer(Device* device, UINT length, DWORD usage, D3DFORMAT for
 	:	Resource<IDirect3DIndexBuffer8, D3DRTYPE_INDEXBUFFER>(device),
 		m_data(length)
 {
+	m_gpu.dirtyEnd = length;
 	m_desc.Format = format;
 	m_desc.Type = D3DRTYPE_INDEXBUFFER;
 	m_desc.Usage = usage;
@@ -402,11 +424,31 @@ HRESULT STDMETHODCALLTYPE IndexBuffer::QueryInterface(REFIID riid, void** object
 	return E_NOINTERFACE;
 }
 
-HRESULT STDMETHODCALLTYPE IndexBuffer::Lock(UINT offset, UINT size, BYTE** data, DWORD)
+IndexBuffer::~IndexBuffer()
+{
+	m_device->Release_Gpu_Resource(m_gpu.resource);
+}
+
+HRESULT STDMETHODCALLTYPE IndexBuffer::Lock(UINT offset, UINT size, BYTE** data, DWORD flags)
 {
 	if (data == nullptr || offset > m_data.size() || (size != 0 && offset + size > m_data.size()))
 		return D3DERR_INVALIDCALL;
 	*data = m_data.data() + offset;
+
+	if ((flags & D3DLOCK_READONLY) == 0)
+	{
+		const UINT end = size != 0 ? offset + size : (UINT)m_data.size();
+		if (m_gpu.dirtyBegin == m_gpu.dirtyEnd)
+		{
+			m_gpu.dirtyBegin = offset;
+			m_gpu.dirtyEnd = end;
+		}
+		else
+		{
+			m_gpu.dirtyBegin = min(m_gpu.dirtyBegin, offset);
+			m_gpu.dirtyEnd = max(m_gpu.dirtyEnd, end);
+		}
+	}
 	return D3D_OK;
 }
 

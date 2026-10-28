@@ -163,6 +163,7 @@ class VertexBuffer : public Resource<IDirect3DVertexBuffer8, D3DRTYPE_VERTEXBUFF
 {
 public:
 	VertexBuffer(Device* device, UINT length, DWORD usage, DWORD fvf, D3DPOOL pool);
+	virtual ~VertexBuffer() override;
 
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
 	HRESULT STDMETHODCALLTYPE Lock(UINT offset, UINT size, BYTE** data, DWORD flags) override;
@@ -172,15 +173,21 @@ public:
 	const unsigned char* Data() const { return m_data.data(); }
 	UINT Size() const { return (UINT)m_data.size(); }
 
+	// Dynamic buffers and buffers in system memory are copied into upload memory with every draw.
+	bool Has_Gpu_Copy() const { return (m_desc.Usage & D3DUSAGE_DYNAMIC) == 0 && m_desc.Pool != D3DPOOL_SYSTEMMEM; }
+	GpuBuffer& Gpu() { return m_gpu; }
+
 private:
 	D3DVERTEXBUFFER_DESC m_desc;
 	std::vector<unsigned char> m_data;
+	GpuBuffer m_gpu;
 };
 
 class IndexBuffer : public Resource<IDirect3DIndexBuffer8, D3DRTYPE_INDEXBUFFER>
 {
 public:
 	IndexBuffer(Device* device, UINT length, DWORD usage, D3DFORMAT format, D3DPOOL pool);
+	virtual ~IndexBuffer() override;
 
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
 	HRESULT STDMETHODCALLTYPE Lock(UINT offset, UINT size, BYTE** data, DWORD flags) override;
@@ -190,9 +197,14 @@ public:
 	const unsigned char* Data() const { return m_data.data(); }
 	UINT Size() const { return (UINT)m_data.size(); }
 
+	// Dynamic buffers and buffers in system memory are copied into upload memory with every draw.
+	bool Has_Gpu_Copy() const { return (m_desc.Usage & D3DUSAGE_DYNAMIC) == 0 && m_desc.Pool != D3DPOOL_SYSTEMMEM; }
+	GpuBuffer& Gpu() { return m_gpu; }
+
 private:
 	D3DINDEXBUFFER_DESC m_desc;
 	std::vector<unsigned char> m_data;
+	GpuBuffer m_gpu;
 };
 
 } // namespace D3D8On12

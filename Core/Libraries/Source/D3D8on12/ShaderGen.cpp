@@ -129,7 +129,13 @@ void Get_Input_Layout(DWORD fvf, std::vector<D3D12_INPUT_ELEMENT_DESC>& elements
 		offset += 12;
 	}
 	if (fvf & D3DFVF_PSIZE)
+	{
+		element.SemanticName = "PSIZE";
+		element.Format = DXGI_FORMAT_R32_FLOAT;
+		element.AlignedByteOffset = offset;
+		elements.push_back(element);
 		offset += 4;
+	}
 	if (fvf & D3DFVF_DIFFUSE)
 	{
 		element.SemanticName = "COLOR";
@@ -195,7 +201,20 @@ static const char* s_vertexShaderHeader =
 	"	float4 Fog;\n"
 	"	int4 LightCount;\n"
 	"	Light Lights[8];\n"
+	"	float4 PointSize;\n"
+	"	float4 PointScale;\n"
 	"};\n";
+
+// The outputs of the vertex shader, which are also the inputs of the geometry shader.
+static void Append_Vertex_Output(std::string& text, const VertexShaderKey& key)
+{
+	text += "struct VSOutput\n{\n	float4 position : SV_Position;\n	float4 diffuse : COLOR0;\n	float4 specular : COLOR1;\n	float fog : FOG;\n";
+	for (UINT stage = 0; stage < key.stageCount; ++stage)
+		Append(text, "	float4 tex%u : TEXCOORD%u;\n", stage, stage);
+	if (key.pointSprite)
+		text += "	float pointSize : POINTSIZE;\n";
+	text += "};\n";
+}
 
 static const char* Get_Material_Source(BYTE source, const char* material, bool has_color0, bool has_color1)
 {
@@ -221,6 +240,8 @@ std::string Generate_Vertex_Shader(const VertexShaderKey& key)
 	text += "	float4 position : POSITION;\n";
 	if (has_normal)
 		text += "	float3 normal : NORMAL;\n";
+	if (fvf & D3DFVF_PSIZE)
+		text += "	float pointSize : PSIZE;\n";
 	if (has_color0)
 		text += "	float4 color0 : COLOR0;\n";
 	if (has_color1)
@@ -235,10 +256,7 @@ std::string Generate_Vertex_Shader(const VertexShaderKey& key)
 	}
 	text += "};\n";
 
-	text += "struct VSOutput\n{\n	float4 position : SV_Position;\n	float4 diffuse : COLOR0;\n	float4 specular : COLOR1;\n	float fog : FOG;\n";
-	for (UINT stage = 0; stage < key.stageCount; ++stage)
-		Append(text, "	float4 tex%u : TEXCOORD%u;\n", stage, stage);
-	text += "};\n";
+	Append_Vertex_Output(text, key);
 
 	text += "VSOutput main(VSInput input)\n{\n	VSOutput output;\n";
 	text += "	float3 viewPosition = float3(0, 0, 0);\n	float3 viewNormal = float3(0, 0, -1);\n";
@@ -362,7 +380,55 @@ std::string Generate_Vertex_Shader(const VertexShaderKey& key)
 		Append(text, "		output.tex%u = coords;\n	}\n", stage);
 	}
 
+	if (key.pointSprite)
+	{
+		text += (fvf & D3DFVF_PSIZE) ? "	float pointSize = input.pointSize;\n" : "	float pointSize = PointSize.x;\n";
+		if (key.pointScale)
+		{
+			text +=
+				"	float eyeDistance = length(viewPosition);\n"
+				"	pointSize = Viewport.w * pointSize * sqrt(1 / max(PointScale.x + PointScale.y * eyeDistance + PointScale.z * eyeDistance * eyeDistance, 1e-6));\n";
+		}
+		text += "	output.pointSize = clamp(pointSize, PointSize.y, PointSize.z);\n";
+	}
+
 	text += "	return output;\n}\n";
+	return text;
+}
+
+// Expands each point into a square of its size in pixels, with texture coordinates from (0, 0) at the
+// top left to (1, 1) at the bottom right in all stages.
+std::string Generate_Geometry_Shader(const VertexShaderKey& key)
+{
+	std::string text = s_vertexShaderHeader;
+	Append_Vertex_Output(text, key);
+
+	text += "struct GSOutput\n{\n	float4 position : SV_Position;\n	float4 diffuse : COLOR0;\n	float4 specular : COLOR1;\n	float fog : FOG;\n";
+	for (UINT stage = 0; stage < key.stageCount; ++stage)
+		Append(text, "	float4 tex%u : TEXCOORD%u;\n", stage, stage);
+	text += "};\n";
+
+	text +=
+		"[maxvertexcount(4)]\n"
+		"void main(point VSOutput input[1], inout TriangleStream<GSOutput> stream)\n"
+		"{\n"
+		"	float2 extent = float2(input[0].pointSize / Viewport.z, input[0].pointSize / Viewport.w) * input[0].position.w;\n"
+		"	const float2 corners[4] = { float2(-1, 1), float2(1, 1), float2(-1, -1), float2(1, -1) };\n"
+		"	const float2 coords[4] = { float2(0, 0), float2(1, 0), float2(0, 1), float2(1, 1) };\n"
+		"	[unroll] for (int i = 0; i < 4; ++i)\n"
+		"	{\n"
+		"		GSOutput output;\n"
+		"		output.position = input[0].position;\n"
+		"		output.position.xy += corners[i] * extent;\n"
+		"		output.diffuse = input[0].diffuse;\n"
+		"		output.specular = input[0].specular;\n"
+		"		output.fog = input[0].fog;\n";
+	for (UINT stage = 0; stage < key.stageCount; ++stage)
+		Append(text, "		output.tex%u = float4(coords[i], 0, 1);\n", stage);
+	text +=
+		"		stream.Append(output);\n"
+		"	}\n"
+		"}\n";
 	return text;
 }
 

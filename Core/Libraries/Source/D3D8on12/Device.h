@@ -76,6 +76,7 @@ public:
 
 	// Releases the Direct3D 12 copy of a texture once the GPU is done with the frames that used it.
 	void Release_Gpu_Texture(GpuTexture& gpu);
+	void Release_Gpu_Resource(ComPtr<ID3D12Resource>& resource);
 
 	// IUnknown
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
@@ -199,14 +200,16 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE Srv_Cpu_Handle(UINT index) const;
 	D3D12_GPU_DESCRIPTOR_HANDLE Srv_Gpu_Handle(UINT index) const;
 	UINT Prepare_Texture(IDirect3DBaseTexture8* texture, TextureType& type);
+	D3D12_GPU_VIRTUAL_ADDRESS Prepare_Buffer(GpuBuffer& gpu, const unsigned char* data, UINT size, D3D12_RESOURCE_STATES read_state);
 	UINT Get_Sampler(DWORD stage);
 	void Release_Finished_Resources();
 
 	// Draw.cpp
 	bool Begin_Draw();
-	HRESULT Draw_Geometry(D3DPRIMITIVETYPE type, UINT primitive_count, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT index_count);
+	// Draws count vertices or indices; first is the first vertex or index, base_vertex is added to indices.
+	HRESULT Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT count, UINT first, INT base_vertex);
 	bool Upload_Vertices(const unsigned char* data, UINT stride, UINT count, D3D12_VERTEX_BUFFER_VIEW& view);
-	bool Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index32, UINT count, UINT subtract, D3D12_INDEX_BUFFER_VIEW& view, UINT& index_count);
+	bool Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index32, UINT count, D3D12_INDEX_BUFFER_VIEW& view, UINT& index_count);
 	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key);
 	ID3DBlob* Get_Shader(UINT64 hash, const std::string& source, const char* target);
 	void Fill_Vertex_Constants(FFVertexConstants& constants);

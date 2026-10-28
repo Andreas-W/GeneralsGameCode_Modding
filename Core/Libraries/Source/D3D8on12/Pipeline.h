@@ -45,6 +45,9 @@ struct VertexShaderKey
 	BYTE fogMode;				// D3DFOG_*, D3DFOG_NONE when fog is off
 	BYTE rangeFog;
 	BYTE stageCount;			// stages whose texture coordinates are needed
+	BYTE pointSprite;			// points are drawn as textured squares
+	BYTE pointScale;			// their size depends on the distance
+	BYTE pad[2];
 	struct Stage
 	{
 		BYTE coordIndex;		// texture coordinate set of the vertex
@@ -141,6 +144,8 @@ struct FFVertexConstants
 	float fog[4];				// start, end, density
 	int lightCount[4];
 	FFLight lights[FF_LIGHTS];
+	float pointSize[4];			// size, minimum, maximum
+	float pointScale[4];		// A, B, C
 };
 
 struct FFPixelConstants
@@ -156,6 +161,7 @@ UINT64 Hash_Bytes(const void* data, size_t size);
 
 // HLSL of the shaders that emulate the fixed function pipeline for a key.
 std::string Generate_Vertex_Shader(const VertexShaderKey& key);
+std::string Generate_Geometry_Shader(const VertexShaderKey& key);	// for point sprites
 std::string Generate_Pixel_Shader(const PixelShaderKey& key);
 
 // The input layout of a flexible vertex format, and the size of one vertex.
