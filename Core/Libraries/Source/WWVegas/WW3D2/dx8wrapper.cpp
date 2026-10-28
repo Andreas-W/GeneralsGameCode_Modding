@@ -1847,6 +1847,17 @@ HRESULT DX8Wrapper::Create_Pixel_Shader(const DWORD* function, DWORD* handle)
 	return D3DDevice->CreatePixelShader(function, handle);
 }
 
+HRESULT DX8Wrapper::Create_Pixel_Shader_From_Asm(const char* source, DWORD* handle)
+{
+	ID3DXBuffer* compiled = nullptr;
+	HRESULT hr = D3DXAssembleShader(source, strlen(source), 0, nullptr, &compiled, nullptr);
+	if (FAILED(hr))
+		return hr;
+	hr = Create_Pixel_Shader((DWORD*)compiled->GetBufferPointer(), handle);
+	compiled->Release();
+	return hr;
+}
+
 void DX8Wrapper::Delete_Vertex_Shader(DWORD handle)
 {
 	DX8_THREAD_ASSERT();
@@ -1958,6 +1969,12 @@ HRESULT DX8Wrapper::_Create_DX8_Font(HFONT font, ID3DXFont** d3dx_font)
 {
 	DX8_THREAD_ASSERT();
 	return D3DXCreateFont(D3DDevice, font, d3dx_font);
+}
+
+void DX8Wrapper::Generate_Mip_Levels(TextureBaseClass* texture)
+{
+	DX8_THREAD_ASSERT();
+	DX8_ErrorCode(D3DXFilterTexture(texture->Peek_D3D_Base_Texture(), nullptr, 0, D3DX_FILTER_BOX));
 }
 
 HRESULT DX8Wrapper::_Copy_DX8_Rects_Checked(IDirect3DSurface8* source, const RECT* source_rects, unsigned rect_count, IDirect3DSurface8* dest, const POINT* dest_points)

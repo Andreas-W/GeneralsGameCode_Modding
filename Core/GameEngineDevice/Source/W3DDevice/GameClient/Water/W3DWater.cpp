@@ -918,7 +918,6 @@ void WaterRenderObjClass::ReAcquireResources()
 
 	if (W3DShaderManager::getChipset() >= DC_GENERIC_PIXEL_SHADER_1_1)
 	{
-		ID3DXBuffer *compiledShader;
 		const char *shader =
 			"ps.1.1\n \
 			tex t0 \n\
@@ -932,11 +931,7 @@ void WaterRenderObjClass::ReAcquireResources()
 			mul r1.rgb, r1, v0.a\n\
 			+mul r0.a, r0, t3\n\
 			add r0.rgb, r0, r1\n";
-		hr = D3DXAssembleShader( shader, strlen(shader), 0, nullptr, &compiledShader, nullptr);
-		if (hr==0) {
-			hr = 	DX8Wrapper::Create_Pixel_Shader((DWORD*)compiledShader->GetBufferPointer(), &m_riverWaterPixelShader);
-			compiledShader->Release();
-		}
+		hr = DX8Wrapper::Create_Pixel_Shader_From_Asm(shader, &m_riverWaterPixelShader);
 		shader =
 			"ps.1.1\n \
 			tex t0 \n\
@@ -945,11 +940,7 @@ void WaterRenderObjClass::ReAcquireResources()
 			mul r0,v0,t0 ; blend vertex color into t0. \n\
 			mul r1.rgb,t2,c0 ; reduce t2 (environment mapped reflection) by constant\n\
 			add r0.rgb, r0, r1";
-		hr = D3DXAssembleShader( shader, strlen(shader), 0, nullptr, &compiledShader, nullptr);
-		if (hr==0) {
-			hr = 	DX8Wrapper::Create_Pixel_Shader((DWORD*)compiledShader->GetBufferPointer(), &m_waterPixelShader);
-			compiledShader->Release();
-		}
+		hr = DX8Wrapper::Create_Pixel_Shader_From_Asm(shader, &m_waterPixelShader);
 		shader =
 			"ps.1.1\n \
 			tex t0 ;get water texture\n\
@@ -960,11 +951,7 @@ void WaterRenderObjClass::ReAcquireResources()
 			mad r0.rgb, t1, t2, r0	; blend sparkles and noise \n\
 			mul r0.rgb, r0, t3 ; blend in black shroud \n\
 			;\n";
-		hr = D3DXAssembleShader( shader, strlen(shader), 0, nullptr, &compiledShader, nullptr);
-		if (hr==0) {
-			hr = 	DX8Wrapper::Create_Pixel_Shader((DWORD*)compiledShader->GetBufferPointer(), &m_trapezoidWaterPixelShader);
-			compiledShader->Release();
-		}
+		hr = DX8Wrapper::Create_Pixel_Shader_From_Asm(shader, &m_trapezoidWaterPixelShader);
 	}
 
 	//W3D Invalidate textures after losing the device and since we peek at the textures directly, it won't

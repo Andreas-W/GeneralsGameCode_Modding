@@ -532,6 +532,7 @@ public:
 	*/
 	static HRESULT Create_Vertex_Shader(const DWORD* declaration, const DWORD* function, DWORD* handle, DWORD usage);
 	static HRESULT Create_Pixel_Shader(const DWORD* function, DWORD* handle);
+	static HRESULT Create_Pixel_Shader_From_Asm(const char* source, DWORD* handle);
 	static void Delete_Vertex_Shader(DWORD handle);
 	static void Delete_Pixel_Shader(DWORD handle);
 
@@ -551,6 +552,9 @@ public:
 	static HRESULT _Create_DX8_Texture_Raw(unsigned width, unsigned height, unsigned levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture8** texture);
 	static HRESULT _Create_DX8_Image_Surface(unsigned width, unsigned height, D3DFORMAT format, IDirect3DSurface8** surface);
 	static HRESULT _Create_DX8_Font(HFONT font, ID3DXFont** d3dx_font);
+
+	// Rebuilds all lower mip levels of the texture from its top level with a box filter.
+	static void Generate_Mip_Levels(TextureBaseClass* texture);
 	static HRESULT _Copy_DX8_Rects_Checked(IDirect3DSurface8* source, const RECT* source_rects, unsigned rect_count, IDirect3DSurface8* dest, const POINT* dest_points);
 
 	static HRESULT _Get_DX8_Render_Target(IDirect3DSurface8** surface);
