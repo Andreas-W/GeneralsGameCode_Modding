@@ -228,10 +228,25 @@ private:
 	HRESULT Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT count, UINT first, INT base_vertex);
 	bool Upload_Vertices(const unsigned char* data, UINT stride, UINT count, D3D12_VERTEX_BUFFER_VIEW& view);
 	bool Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index32, UINT count, D3D12_INDEX_BUFFER_VIEW& view, UINT& index_count);
-	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key, const TargetState& targets);
+	// The shaders of a draw: generated fixed function ones, or translated D3D8 ones.
+	struct ShaderChoice
+	{
+		UINT64 vertexHash;
+		UINT64 pixelHash;
+		DWORD fvf;								// 0 for translated vertex shaders
+		const VertexShaderKey* vertexKey;		// fixed function, or null
+		const PixelShaderKey* pixelKey;
+		const TranslatedShader* vertexShader;	// translated, or null
+		const TranslatedShader* pixelShader;
+		bool pointSprite;
+	};
+	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, const ShaderChoice& shaders, const TargetState& targets);
 	ID3DBlob* Get_Shader(UINT64 hash, const std::string& source, const char* target);
+	const TranslatedShader* Get_Translated_Vertex_Shader(DWORD handle, UINT64& hash);
+	const TranslatedShader* Get_Translated_Pixel_Shader(const PixelShaderTranslation& info, const DWORD* function, UINT64& hash);
 	void Fill_Vertex_Constants(FFVertexConstants& constants);
 	void Fill_Pixel_Constants(FFPixelConstants& constants);
+	void Fill_Shader_Vertex_Constants(ShaderVertexConstants& constants);
 
 	HRESULT Create_Swap_Chain_Buffers();
 	void Release_Swap_Chain_Buffers();
@@ -293,6 +308,7 @@ private:
 	std::vector<UINT> m_freeTargetDsvs;
 
 	std::unordered_map<UINT64, ComPtr<ID3DBlob>> m_shaders;
+	std::unordered_map<UINT64, TranslatedShader> m_translatedShaders;
 	std::unordered_map<UINT64, ComPtr<ID3D12PipelineState>> m_pipelines;
 	ComPtr<ID3D12Fence> m_fence;
 	HANDLE m_fenceEvent;

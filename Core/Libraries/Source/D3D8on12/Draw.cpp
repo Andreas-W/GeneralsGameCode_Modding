@@ -366,16 +366,6 @@ bool Device::Begin_Draw()
 {
 	if (m_deviceRemoved)
 		return false;
-	if ((m_state.vertexShader & 1) != 0)
-	{
-		D3D8ON12_UNSUPPORTED("drawing with a programmable vertex shader");
-		return false;
-	}
-	if (m_state.pixelShader != 0)
-	{
-		D3D8ON12_UNSUPPORTED("drawing with a pixel shader");
-		return false;
-	}
 	Begin_Frame();
 	return true;
 }
@@ -431,16 +421,16 @@ ID3DBlob* Device::Get_Shader(UINT64 hash, const std::string& source, const char*
 	return code.Get();
 }
 
-ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key, const TargetState& targets)
+ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, const ShaderChoice& shaders, const TargetState& targets)
 {
 	const DWORD* rs = m_state.renderStates;
 	const bool has_depth = targets.dsvFormat != DXGI_FORMAT_UNKNOWN;
 
 	PipelineKey key;
 	memset(&key, 0, sizeof(key));
-	key.vertexShader = Hash_Bytes(&vs_key, sizeof(vs_key));
-	key.pixelShader = Hash_Bytes(&ps_key, sizeof(ps_key)) ^ 0x5bd1e995;
-	key.fvf = vs_key.fvf;
+	key.vertexShader = shaders.vertexHash;
+	key.pixelShader = shaders.pixelHash;
+	key.fvf = shaders.fvf;
 	key.topology = (BYTE)topology;
 	key.blendEnable = rs[D3DRS_ALPHABLENDENABLE] != FALSE;
 	if (key.blendEnable)
@@ -471,7 +461,7 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 		key.depthBias = (BYTE)rs[D3DRS_ZBIAS];
 	}
 	// Point sprites are never culled.
-	key.cullMode = vs_key.pointSprite ? (BYTE)D3DCULL_NONE : (BYTE)rs[D3DRS_CULLMODE];
+	key.cullMode = shaders.pointSprite ? (BYTE)D3DCULL_NONE : (BYTE)rs[D3DRS_CULLMODE];
 	key.fillMode = (BYTE)rs[D3DRS_FILLMODE];
 
 	const UINT64 hash = Hash_Bytes(&key, sizeof(key));
@@ -479,12 +469,21 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	if (found != m_pipelines.end())
 		return found->second.Get();
 
-	ID3DBlob* vs = Get_Shader(key.vertexShader, Generate_Vertex_Shader(vs_key), "vs_5_0");
-	ID3DBlob* ps = Get_Shader(key.pixelShader, Generate_Pixel_Shader(ps_key), "ps_5_0");
+	// Shader sources are only generated when the compiled shader is not cached yet.
+	ID3DBlob* vs = nullptr;
+	if (m_shaders.find(key.vertexShader) != m_shaders.end())
+		vs = m_shaders[key.vertexShader].Get();
+	else
+		vs = Get_Shader(key.vertexShader, shaders.vertexKey != nullptr ? Generate_Vertex_Shader(*shaders.vertexKey) : shaders.vertexShader->hlsl, "vs_5_0");
+	ID3DBlob* ps = nullptr;
+	if (m_shaders.find(key.pixelShader) != m_shaders.end())
+		ps = m_shaders[key.pixelShader].Get();
+	else
+		ps = Get_Shader(key.pixelShader, shaders.pixelKey != nullptr ? Generate_Pixel_Shader(*shaders.pixelKey) : shaders.pixelShader->hlsl, "ps_5_0");
 	ID3DBlob* gs = nullptr;
-	if (vs_key.pointSprite)
+	if (shaders.pointSprite && shaders.vertexKey != nullptr)
 	{
-		gs = Get_Shader(key.vertexShader ^ 0x6a09e667f3bcc908ull, Generate_Geometry_Shader(vs_key), "gs_5_0");
+		gs = Get_Shader(key.vertexShader ^ 0x6a09e667f3bcc908ull, Generate_Geometry_Shader(*shaders.vertexKey), "gs_5_0");
 		if (gs == nullptr)
 			vs = nullptr;
 	}
@@ -495,7 +494,10 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	}
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> elements;
-	Get_Input_Layout(key.fvf, elements);
+	if (shaders.vertexShader != nullptr)
+		elements = shaders.vertexShader->layout;
+	else
+		Get_Input_Layout(key.fvf, elements);
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
 	desc.pRootSignature = m_rootSignature.Get();
@@ -664,6 +666,56 @@ void Device::Fill_Pixel_Constants(FFPixelConstants& c)
 	}
 	c.alphaRef[0] = (rs[D3DRS_ALPHAREF] & 0xFF) / 255.0f;
 	c.alphaRef[1] = c.alphaRef[2] = c.alphaRef[3] = 0;
+	memcpy(c.shaderConstants, m_state.pixelShaderConstants, sizeof(c.shaderConstants));
+}
+
+void Device::Fill_Shader_Vertex_Constants(ShaderVertexConstants& c)
+{
+	memcpy(c.c, m_state.vertexShaderConstants, sizeof(c.c));
+	const D3DVIEWPORT8& vp = m_state.viewport;
+	c.viewport[0] = (float)vp.X;
+	c.viewport[1] = (float)vp.Y;
+	c.viewport[2] = (float)max(vp.Width, 1u);
+	c.viewport[3] = (float)max(vp.Height, 1u);
+}
+
+// The translation of a vertex shader created with CreateVertexShader, translated on first use.
+const TranslatedShader* Device::Get_Translated_Vertex_Shader(DWORD handle, UINT64& hash)
+{
+	const size_t index = handle >> 1;
+	if (index >= m_vertexShaders.size() || !m_vertexShaders[index].used)
+		return nullptr;
+	const ShaderData& shader = m_vertexShaders[index];
+	hash = Hash_Bytes(shader.declaration.data(), shader.declaration.size() * sizeof(DWORD))
+		^ (Hash_Bytes(shader.function.data(), shader.function.size() * sizeof(DWORD)) * 31) ^ 0x243f6a8885a308d3ull;
+
+	auto found = m_translatedShaders.find(hash);
+	if (found == m_translatedShaders.end())
+	{
+		TranslatedShader translated;
+		std::string error;
+		translated.ok = !shader.function.empty() && Translate_Vertex_Shader(shader.declaration.data(), shader.function.data(), translated.hlsl, translated.layout, error);
+		if (!translated.ok)
+			Log("could not translate a vertex shader: %s", shader.function.empty() ? "no byte code" : error.c_str());
+		found = m_translatedShaders.insert(std::make_pair(hash, translated)).first;
+	}
+	return found->second.ok ? &found->second : nullptr;
+}
+
+const TranslatedShader* Device::Get_Translated_Pixel_Shader(const PixelShaderTranslation& info, const DWORD* function, UINT64& hash)
+{
+	hash = Hash_Bytes(&info, sizeof(info)) ^ 0x13198a2e03707344ull;
+	auto found = m_translatedShaders.find(hash);
+	if (found == m_translatedShaders.end())
+	{
+		TranslatedShader translated;
+		std::string error;
+		translated.ok = Translate_Pixel_Shader(function, info, translated.hlsl, error);
+		if (!translated.ok)
+			Log("could not translate a pixel shader: %s", error.c_str());
+		found = m_translatedShaders.insert(std::make_pair(hash, translated)).first;
+	}
+	return found->second.ok ? &found->second : nullptr;
 }
 
 // ----------------------------------------------------------------------------
@@ -673,7 +725,9 @@ void Device::Fill_Pixel_Constants(FFPixelConstants& c)
 HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT count, UINT first, INT base_vertex)
 {
 	const DWORD* rs = m_state.renderStates;
-	const DWORD fvf = m_state.vertexShader;
+	const bool shader_vs = (m_state.vertexShader & 1) != 0;
+	const bool shader_ps = m_state.pixelShader != 0;
+	const DWORD fvf = shader_vs ? 0 : m_state.vertexShader;
 	const bool rhw = (fvf & D3DFVF_POSITION_MASK) == D3DFVF_XYZRHW;
 	const bool has_color0 = (fvf & D3DFVF_DIFFUSE) != 0;
 	const bool has_color1 = (fvf & D3DFVF_SPECULAR) != 0;
@@ -682,7 +736,21 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	PixelShaderKey ps_key;
 	memset(&ps_key, 0, sizeof(ps_key));
 	UINT srvs[FF_STAGES] = {};
-	for (UINT stage = 0; stage < FF_STAGES; ++stage)
+	PixelShaderTranslation ps_info;
+	memset(&ps_info, 0, sizeof(ps_info));
+	for (UINT stage = 0; shader_ps && stage < FF_STAGES; ++stage)
+	{
+		// Pixel shaders can read every stage that has a texture.
+		const DWORD* tss = m_state.textureStageStates[stage];
+		TextureType type_of_texture = TEXTURE_NONE;
+		srvs[stage] = Prepare_Texture(m_textures[stage], type_of_texture);
+		ps_info.stages[stage].textureType = (BYTE)type_of_texture;
+		ps_info.stages[stage].projected = (tss[D3DTSS_TEXTURETRANSFORMFLAGS] & D3DTTFF_PROJECTED) != 0;
+		ps_info.stages[stage].coordCount = (BYTE)(tss[D3DTSS_TEXTURETRANSFORMFLAGS] & 0xFF);
+		ps_key.stages[stage].textureType = (BYTE)type_of_texture;
+		ps_key.stageCount = FF_STAGES;
+	}
+	for (UINT stage = 0; !shader_ps && stage < FF_STAGES; ++stage)
 	{
 		const DWORD* tss = m_state.textureStageStates[stage];
 		if (tss[D3DTSS_COLOROP] == D3DTOP_DISABLE)
@@ -730,7 +798,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	}
 	vs_key.fogMode = ps_key.fog ? (fog_mode != D3DFOG_NONE ? fog_mode : (BYTE)D3DFOG_LINEAR) : (BYTE)D3DFOG_NONE;
 	vs_key.rangeFog = rs[D3DRS_RANGEFOGENABLE] != FALSE;
-	vs_key.stageCount = ps_key.stageCount;
+	vs_key.stageCount = ps_key.stageCount;	// all of them for pixel shaders
 	vs_key.pointSprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
 	vs_key.pointScale = vs_key.pointSprite && rs[D3DRS_POINTSCALEENABLE] != FALSE && !rhw;
 	for (UINT stage = 0; stage < vs_key.stageCount; ++stage)
@@ -742,18 +810,55 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		s.transformCount = (BYTE)(tss[D3DTSS_TEXTURETRANSFORMFLAGS] & 0xFF);
 	}
 
+	ShaderChoice shaders = {};
+	shaders.fvf = fvf;
+	shaders.pointSprite = vs_key.pointSprite != 0 && !shader_vs;
+	if (shader_vs)
+	{
+		shaders.vertexShader = Get_Translated_Vertex_Shader(m_state.vertexShader, shaders.vertexHash);
+		if (shaders.vertexShader == nullptr)
+			return D3D_OK;
+	}
+	else
+	{
+		shaders.vertexKey = &vs_key;
+		shaders.vertexHash = Hash_Bytes(&vs_key, sizeof(vs_key));
+	}
+	if (shader_ps)
+	{
+		const size_t index = m_state.pixelShader - 1;
+		if (index >= m_pixelShaders.size() || !m_pixelShaders[index].used)
+			return D3D_OK;
+		const std::vector<DWORD>& function = m_pixelShaders[index].function;
+		ps_info.fog = rs[D3DRS_FOGENABLE] != FALSE;
+		ps_info.alphaFunc = ps_key.alphaFunc;
+		ps_info.function = Hash_Bytes(function.data(), function.size() * sizeof(DWORD));
+		shaders.pixelShader = Get_Translated_Pixel_Shader(ps_info, function.data(), shaders.pixelHash);
+		if (shaders.pixelShader == nullptr)
+			return D3D_OK;
+	}
+	else
+	{
+		shaders.pixelKey = &ps_key;
+		shaders.pixelHash = Hash_Bytes(&ps_key, sizeof(ps_key)) ^ 0x5bd1e995;
+	}
+
 	TargetState targets;
 	if (!Prepare_Targets(targets))
 		return D3D_OK;
-	ID3D12PipelineState* pipeline = Get_Pipeline_State(Get_Topology_Type(type), vs_key, ps_key, targets);
+	ID3D12PipelineState* pipeline = Get_Pipeline_State(Get_Topology_Type(type), shaders, targets);
 	if (pipeline == nullptr)
 		return D3D_OK;
 
-	UploadAllocation vs_constants = Allocate_Upload(sizeof(FFVertexConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	const UINT vs_size = shader_vs ? sizeof(ShaderVertexConstants) : sizeof(FFVertexConstants);
+	UploadAllocation vs_constants = Allocate_Upload(vs_size, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 	UploadAllocation ps_constants = Allocate_Upload(sizeof(FFPixelConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 	if (vs_constants.cpu == nullptr || ps_constants.cpu == nullptr)
 		return D3D_OK;
-	Fill_Vertex_Constants(*(FFVertexConstants*)vs_constants.cpu);
+	if (shader_vs)
+		Fill_Shader_Vertex_Constants(*(ShaderVertexConstants*)vs_constants.cpu);
+	else
+		Fill_Vertex_Constants(*(FFVertexConstants*)vs_constants.cpu);
 	Fill_Pixel_Constants(*(FFPixelConstants*)ps_constants.cpu);
 
 	ID3D12GraphicsCommandList* list = m_commandList.Get();

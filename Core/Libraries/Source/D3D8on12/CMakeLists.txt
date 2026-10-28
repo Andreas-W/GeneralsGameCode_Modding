@@ -18,6 +18,7 @@ set(D3D8ON12_SRC
     Resources.cpp
     Resources.h
     ShaderGen.cpp
+    ShaderTranslate.cpp
     Targets.cpp
 )
 

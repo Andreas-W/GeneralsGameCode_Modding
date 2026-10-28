@@ -19,9 +19,8 @@
 // Caps.cpp
 // The capabilities the device reports to the engine.
 //
-// They describe a fixed function DX8 card with hardware transform and lighting and eight texture
-// stages. No vertex or pixel shader version is reported yet, so the engine uses its fixed function
-// paths for terrain, water and screen filters until the shaders are translated.
+// They describe a DX8 card with hardware transform and lighting, eight texture stages, and vertex and
+// pixel shaders 1.1, which ShaderTranslate.cpp turns into HLSL.
 
 #include "Interface.h"
 #include "Device.h"
@@ -128,9 +127,9 @@ void Fill_Device_Caps(UINT adapter, D3DCAPS8* caps)
 	caps->MaxStreams = MAX_STREAMS;
 	caps->MaxStreamStride = 255;
 
-	caps->VertexShaderVersion = 0;
+	caps->VertexShaderVersion = D3DVS_VERSION(1, 1);
 	caps->MaxVertexShaderConst = MAX_VERTEX_SHADER_CONSTANTS;
-	caps->PixelShaderVersion = 0;
+	caps->PixelShaderVersion = D3DPS_VERSION(1, 1);
 	caps->MaxPixelShaderValue = 1.0f;
 }
 

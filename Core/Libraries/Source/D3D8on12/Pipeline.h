@@ -156,6 +156,37 @@ struct FFPixelConstants
 	float bumpMatrix[FF_STAGES][4];	// 00, 01, 10, 11
 	float bumpLuminance[FF_STAGES][4];	// scale, offset
 	float alphaRef[4];
+	float shaderConstants[8][4];	// c0-c7 of pixel shaders
+};
+
+// Constants of translated vertex shaders.
+struct ShaderVertexConstants
+{
+	float c[96][4];
+	float viewport[4];
+};
+
+// What a translated pixel shader depends on besides its byte code.
+struct PixelShaderTranslation
+{
+	struct Stage
+	{
+		BYTE textureType;		// TEXTURE_*
+		BYTE projected;
+		BYTE coordCount;
+		BYTE pad;
+	} stages[FF_STAGES];
+	BYTE fog;					// fog and the alpha test follow the shader
+	BYTE alphaFunc;
+	BYTE pad[2];
+	UINT64 function;			// hash of the byte code
+};
+
+struct TranslatedShader
+{
+	bool ok;
+	std::string hlsl;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> layout;	// vertex shaders
 };
 
 UINT64 Hash_Bytes(const void* data, size_t size);
@@ -164,6 +195,11 @@ UINT64 Hash_Bytes(const void* data, size_t size);
 std::string Generate_Vertex_Shader(const VertexShaderKey& key);
 std::string Generate_Geometry_Shader(const VertexShaderKey& key);	// for point sprites
 std::string Generate_Pixel_Shader(const PixelShaderKey& key);
+
+// HLSL of D3D8 vertex and pixel shader byte code; ShaderTranslate.cpp. Translated vertex shaders write
+// all eight texture coordinates and read c0-c95; translated pixel shaders read all eight.
+bool Translate_Vertex_Shader(const DWORD* declaration, const DWORD* function, std::string& hlsl, std::vector<D3D12_INPUT_ELEMENT_DESC>& layout, std::string& error);
+bool Translate_Pixel_Shader(const DWORD* function, const PixelShaderTranslation& info, std::string& hlsl, std::string& error);
 
 // The input layout of a flexible vertex format, and the size of one vertex.
 void Get_Input_Layout(DWORD fvf, std::vector<D3D12_INPUT_ELEMENT_DESC>& elements);
