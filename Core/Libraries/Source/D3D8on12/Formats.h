@@ -42,6 +42,7 @@ struct FormatInfo
 	bool compressed;
 	bool converted;				// the D3D8 data is converted when uploaded to the Direct3D 12 resource
 	unsigned usage;				// FormatUsage flags
+	UINT swizzle;				// shader component mapping of the shader resource view
 };
 
 // Returns nullptr for formats this implementation does not know.
@@ -52,5 +53,11 @@ unsigned Get_Pitch(D3DFORMAT format, unsigned width);
 
 // Number of rows of a locked surface (rows of 4x4 blocks for compressed formats).
 unsigned Get_Row_Count(D3DFORMAT format, unsigned height);
+
+// Bytes per pixel (per 4x4 block for compressed formats) of the Direct3D 12 resource.
+unsigned Get_Resource_Bytes(const FormatInfo& info);
+
+// Converts one row (one row of blocks) from the D3D8 layout to the Direct3D 12 resource format.
+void Convert_Row(const FormatInfo& info, const unsigned char* source, unsigned char* dest, unsigned width);
 
 } // namespace D3D8On12

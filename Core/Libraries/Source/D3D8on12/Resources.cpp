@@ -196,6 +196,7 @@ Texture::Texture(Device* device, UINT width, UINT height, UINT levels, DWORD usa
 
 Texture::~Texture()
 {
+	m_device->Release_Gpu_Texture(m_gpu);
 	for (Surface* surface : m_levels)
 		delete surface;
 }
@@ -271,6 +272,7 @@ CubeTexture::CubeTexture(Device* device, UINT edge_length, UINT levels, DWORD us
 
 CubeTexture::~CubeTexture()
 {
+	m_device->Release_Gpu_Texture(m_gpu);
 	for (Surface* surface : m_surfaces)
 		delete surface;
 }

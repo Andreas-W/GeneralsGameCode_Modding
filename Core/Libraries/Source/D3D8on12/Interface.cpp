@@ -175,10 +175,10 @@ HRESULT STDMETHODCALLTYPE Direct3D::GetAdapterIdentifier(UINT adapter, DWORD, D3
 	memset(identifier, 0, sizeof(*identifier));
 	WideCharToMultiByte(CP_ACP, 0, info.desc.Description, -1, identifier->Description, sizeof(identifier->Description), nullptr, nullptr);
 	strcpy_s(identifier->Driver, "d3d8on12");
-	identifier->VendorId = info.desc.VendorId;
-	identifier->DeviceId = info.desc.DeviceId;
-	identifier->SubSysId = info.desc.SubSysId;
-	identifier->Revision = info.desc.Revision;
+	// No vendor or device: the engine picks render paths and driver workarounds from known DX8 era
+	// cards by these IDs, which would override what this device reports in its caps.
+	identifier->VendorId = 0;
+	identifier->DeviceId = 0;
 	memcpy(&identifier->DeviceIdentifier, &info.desc.AdapterLuid, sizeof(info.desc.AdapterLuid));
 	identifier->WHQLLevel = 1;
 

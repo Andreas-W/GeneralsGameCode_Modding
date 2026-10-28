@@ -22,6 +22,9 @@
 #pragma once
 
 #include "Private.h"
+#include "Pipeline.h"
+
+#include <unordered_map>
 
 namespace D3D8On12
 {
@@ -70,6 +73,9 @@ public:
 	HRESULT Init(D3DPRESENT_PARAMETERS* params);
 
 	ID3D12Device* D3D12_Device() const { return m_device.Get(); }
+
+	// Releases the Direct3D 12 copy of a texture once the GPU is done with the frames that used it.
+	void Release_Gpu_Texture(GpuTexture& gpu);
 
 	// IUnknown
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
@@ -178,6 +184,34 @@ private:
 		std::vector<DWORD> function;
 	};
 
+	struct UploadAllocation
+	{
+		unsigned char* cpu;
+		D3D12_GPU_VIRTUAL_ADDRESS gpu;
+		ID3D12Resource* resource;
+		UINT64 offset;
+	};
+
+	// Gpu.cpp
+	HRESULT Init_Gpu_Objects();
+	UploadAllocation Allocate_Upload(UINT64 size, UINT64 alignment);
+	UINT Allocate_Srv();
+	D3D12_CPU_DESCRIPTOR_HANDLE Srv_Cpu_Handle(UINT index) const;
+	D3D12_GPU_DESCRIPTOR_HANDLE Srv_Gpu_Handle(UINT index) const;
+	UINT Prepare_Texture(IDirect3DBaseTexture8* texture, TextureType& type);
+	UINT Get_Sampler(DWORD stage);
+	void Release_Finished_Resources();
+
+	// Draw.cpp
+	bool Begin_Draw();
+	HRESULT Draw_Geometry(D3DPRIMITIVETYPE type, UINT primitive_count, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT index_count);
+	bool Upload_Vertices(const unsigned char* data, UINT stride, UINT count, D3D12_VERTEX_BUFFER_VIEW& view);
+	bool Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index32, UINT count, UINT subtract, D3D12_INDEX_BUFFER_VIEW& view, UINT& index_count);
+	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key);
+	ID3DBlob* Get_Shader(UINT64 hash, const std::string& source, const char* target);
+	void Fill_Vertex_Constants(FFVertexConstants& constants);
+	void Fill_Pixel_Constants(FFPixelConstants& constants);
+
 	HRESULT Create_Swap_Chain_Buffers();
 	void Release_Swap_Chain_Buffers();
 	void Set_Default_State();
@@ -206,6 +240,31 @@ private:
 	ComPtr<ID3D12CommandAllocator> m_allocators[FRAME_COUNT];
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	ComPtr<ID3D12Resource> m_readbackBuffer;
+
+	ComPtr<ID3D12RootSignature> m_rootSignature;
+	ComPtr<ID3D12DescriptorHeap> m_srvHeap;		// shader visible
+	ComPtr<ID3D12DescriptorHeap> m_samplerHeap;	// shader visible
+	UINT m_srvDescriptorSize;
+	UINT m_samplerDescriptorSize;
+	std::vector<UINT> m_freeSrvs;
+	UINT m_nextSrv;
+	std::unordered_map<UINT64, UINT> m_samplers;
+	bool m_heapsBound;
+
+	ComPtr<ID3D12Resource> m_uploadBuffers[FRAME_COUNT];
+	unsigned char* m_uploadCpu[FRAME_COUNT];
+	UINT64 m_uploadOffset;
+	// Released resources and descriptors, with the fence value after which the GPU no longer uses them.
+	struct Garbage
+	{
+		UINT64 fence;
+		ComPtr<ID3D12Resource> resource;
+		UINT srv;
+	};
+	std::vector<Garbage> m_garbage;
+
+	std::unordered_map<UINT64, ComPtr<ID3DBlob>> m_shaders;
+	std::unordered_map<UINT64, ComPtr<ID3D12PipelineState>> m_pipelines;
 	ComPtr<ID3D12Fence> m_fence;
 	HANDLE m_fenceEvent;
 	UINT64 m_frameFenceValues[FRAME_COUNT];

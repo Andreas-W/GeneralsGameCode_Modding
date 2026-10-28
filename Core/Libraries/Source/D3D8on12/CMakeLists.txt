@@ -6,14 +6,18 @@ set(D3D8ON12_SRC
     Caps.cpp
     Device.cpp
     Device.h
+    Draw.cpp
     Formats.cpp
     Formats.h
+    Gpu.cpp
     Guids.cpp
     Interface.cpp
     Interface.h
+    Pipeline.h
     Private.h
     Resources.cpp
     Resources.h
+    ShaderGen.cpp
 )
 
 add_library(core_d3d8on12 STATIC)
@@ -28,6 +32,7 @@ target_include_directories(core_d3d8on12 INTERFACE
 target_link_libraries(core_d3d8on12 PUBLIC
     d3d8lib
     d3d12
+    d3dcompiler
     dxgi
     delayimp
 )
@@ -35,4 +40,5 @@ target_link_libraries(core_d3d8on12 PUBLIC
 # Executables that contain the renderer still start where Direct3D 12 is missing; only -dx12 needs it.
 target_link_options(core_d3d8on12 INTERFACE
     /DELAYLOAD:d3d12.dll
+    /DELAYLOAD:d3dcompiler_47.dll
 )

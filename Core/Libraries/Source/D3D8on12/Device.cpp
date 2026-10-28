@@ -19,8 +19,8 @@
 // Device.cpp
 // IDirect3DDevice8 on Direct3D 12.
 //
-// So far the device keeps all state, creates all resources, clears and presents the back buffer.
-// Drawing is not implemented yet: draw calls are accepted and dropped.
+// The device keeps all state, creates all resources, clears and presents the back buffer.
+// Drawing is in Draw.cpp, the shared Direct3D 12 objects in Gpu.cpp.
 
 #include "Device.h"
 #include "Formats.h"
@@ -81,6 +81,11 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_indices(nullptr),
 		m_baseVertexIndex(0),
 		m_recordingStateBlock(nullptr),
+		m_srvDescriptorSize(0),
+		m_samplerDescriptorSize(0),
+		m_nextSrv(0),
+		m_heapsBound(false),
+		m_uploadOffset(0),
 		m_cursor(nullptr),
 		m_cursorVisible(false),
 		m_currentPalette(0)
@@ -97,6 +102,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 	memset(m_textures, 0, sizeof(m_textures));
 	memset(m_streams, 0, sizeof(m_streams));
 	memset(m_palettes, 0, sizeof(m_palettes));
+	memset(m_uploadCpu, 0, sizeof(m_uploadCpu));
 
 	for (int i = 0; i < 256; ++i)
 		m_gammaRamp.red[i] = m_gammaRamp.green[i] = m_gammaRamp.blue[i] = (WORD)(i * 257);
@@ -105,6 +111,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 Device::~Device()
 {
 	Wait_For_GPU();
+	m_garbage.clear();
 
 	for (IDirect3DBaseTexture8*& texture : m_textures)
 	{
@@ -178,6 +185,10 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	if (FAILED(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))))
 		return D3DERR_NOTAVAILABLE;
 	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+
+	HRESULT gpu_result = Init_Gpu_Objects();
+	if (FAILED(gpu_result))
+		return gpu_result;
 
 	ComPtr<IDXGIFactory2> factory;
 	if (FAILED(m_adapter.adapter->GetParent(IID_PPV_ARGS(&factory))))
@@ -395,6 +406,9 @@ void Device::Begin_Frame()
 	ID3D12CommandAllocator* allocator = m_allocators[m_backBufferIndex].Get();
 	allocator->Reset();
 	m_commandList->Reset(allocator, nullptr);
+	m_heapsBound = false;
+	m_uploadOffset = 0;	// the upload buffer of this back buffer is free again
+	Release_Finished_Resources();
 
 	D3D12_RESOURCE_BARRIER barrier = {};
 	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -420,6 +434,7 @@ void Device::Flush_Commands()
 	ID3D12CommandAllocator* allocator = m_allocators[m_backBufferIndex].Get();
 	allocator->Reset();
 	m_commandList->Reset(allocator, nullptr);
+	m_heapsBound = false;
 }
 
 // Copies the back buffer into a surface in system memory of the same size. Between frames that is
@@ -1349,35 +1364,6 @@ HRESULT STDMETHODCALLTYPE Device::GetCurrentTexturePalette(UINT* palette)
 // ----------------------------------------------------------------------------
 // Drawing
 // ----------------------------------------------------------------------------
-
-HRESULT STDMETHODCALLTYPE Device::DrawPrimitive(D3DPRIMITIVETYPE, UINT, UINT)
-{
-	D3D8ON12_UNSUPPORTED("DrawPrimitive");
-	return D3D_OK;
-}
-
-HRESULT STDMETHODCALLTYPE Device::DrawIndexedPrimitive(D3DPRIMITIVETYPE, UINT, UINT, UINT, UINT)
-{
-	D3D8ON12_UNSUPPORTED("DrawIndexedPrimitive");
-	return D3D_OK;
-}
-
-HRESULT STDMETHODCALLTYPE Device::DrawPrimitiveUP(D3DPRIMITIVETYPE, UINT, CONST void*, UINT)
-{
-	D3D8ON12_UNSUPPORTED("DrawPrimitiveUP");
-	// Like D3D8, leave stream 0 and the indices unset.
-	SetStreamSource(0, nullptr, 0);
-	SetIndices(nullptr, 0);
-	return D3D_OK;
-}
-
-HRESULT STDMETHODCALLTYPE Device::DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE, UINT, UINT, UINT, CONST void*, D3DFORMAT, CONST void*, UINT)
-{
-	D3D8ON12_UNSUPPORTED("DrawIndexedPrimitiveUP");
-	SetStreamSource(0, nullptr, 0);
-	SetIndices(nullptr, 0);
-	return D3D_OK;
-}
 
 HRESULT STDMETHODCALLTYPE Device::ProcessVertices(UINT, UINT, UINT, IDirect3DVertexBuffer8*, DWORD)
 {

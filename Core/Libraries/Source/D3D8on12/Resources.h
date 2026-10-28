@@ -123,10 +123,12 @@ public:
 	HRESULT STDMETHODCALLTYPE AddDirtyRect(CONST RECT*) override { return D3D_OK; }
 
 	Surface* Level(UINT level) { return m_levels[level]; }
+	GpuTexture& Gpu() { return m_gpu; }
 
 private:
 	std::vector<Surface*> m_levels;
 	DWORD m_lod;
+	GpuTexture m_gpu;
 };
 
 class CubeTexture : public Resource<IDirect3DCubeTexture8, D3DRTYPE_CUBETEXTURE>
@@ -148,8 +150,10 @@ public:
 	HRESULT STDMETHODCALLTYPE AddDirtyRect(D3DCUBEMAP_FACES, CONST RECT*) override { return D3D_OK; }
 
 	Surface* Face(D3DCUBEMAP_FACES face, UINT level) { return m_surfaces[face * m_levelCount + level]; }
+	GpuTexture& Gpu() { return m_gpu; }
 
 private:
+	GpuTexture m_gpu;
 	std::vector<Surface*> m_surfaces;	// all levels of face 0, then of face 1, ...
 	UINT m_levelCount;
 	DWORD m_lod;

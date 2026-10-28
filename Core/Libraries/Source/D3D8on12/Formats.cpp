@@ -21,6 +21,8 @@
 
 #include "Formats.h"
 
+#include <string.h>
+
 namespace D3D8On12
 {
 
@@ -31,40 +33,48 @@ static const unsigned DISPLAY = FORMAT_DISPLAY;
 
 // Formats without a matching DXGI format are converted on upload. Palettized and 24-bit formats are
 // not offered: the engine falls back to other formats when CheckDeviceFormat refuses them.
+static const UINT DEFAULT = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+static const UINT LUMINANCE = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0, 0, 0, D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1);
+static const UINT LUMINANCE_ALPHA = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0, 0, 0, 1);
+static const UINT BUMP = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0, 1, D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1, D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1);
+
+// 16-bit formats are expanded to 32 bits, since Direct3D 12 hardware does not have to support all of
+// them. Palettized and 24-bit formats are not offered: the engine falls back to other formats when
+// CheckDeviceFormat refuses them.
 static const FormatInfo s_formats[] =
 {
-	//	D3D8 format				DXGI format								bytes	compr.	conv.	usage
-	{ D3DFMT_A8R8G8B8,		DXGI_FORMAT_B8G8R8A8_UNORM,			4,		false,	false,	TEX | RT },
-	{ D3DFMT_X8R8G8B8,		DXGI_FORMAT_B8G8R8X8_UNORM,			4,		false,	false,	TEX | RT | DISPLAY },
-	{ D3DFMT_R5G6B5,			DXGI_FORMAT_B5G6R5_UNORM,				2,		false,	false,	TEX },
-	{ D3DFMT_X1R5G5B5,		DXGI_FORMAT_B5G5R5A1_UNORM,			2,		false,	true,		TEX },
-	{ D3DFMT_A1R5G5B5,		DXGI_FORMAT_B5G5R5A1_UNORM,			2,		false,	false,	TEX },
-	{ D3DFMT_A4R4G4B4,		DXGI_FORMAT_B4G4R4A4_UNORM,			2,		false,	false,	TEX },
-	{ D3DFMT_X4R4G4B4,		DXGI_FORMAT_B4G4R4A4_UNORM,			2,		false,	true,		TEX },
-	{ D3DFMT_A8,				DXGI_FORMAT_A8_UNORM,					1,		false,	false,	TEX },
-	{ D3DFMT_L8,				DXGI_FORMAT_R8_UNORM,					1,		false,	false,	TEX },
-	{ D3DFMT_A8L8,			DXGI_FORMAT_R8G8_UNORM,					2,		false,	false,	TEX },
-	{ D3DFMT_V8U8,			DXGI_FORMAT_R8G8_SNORM,					2,		false,	false,	TEX },
-	{ D3DFMT_DXT1,			DXGI_FORMAT_BC1_UNORM,					8,		true,		false,	TEX },
-	{ D3DFMT_DXT2,			DXGI_FORMAT_BC2_UNORM,					16,		true,		false,	TEX },
-	{ D3DFMT_DXT3,			DXGI_FORMAT_BC2_UNORM,					16,		true,		false,	TEX },
-	{ D3DFMT_DXT4,			DXGI_FORMAT_BC3_UNORM,					16,		true,		false,	TEX },
-	{ D3DFMT_DXT5,			DXGI_FORMAT_BC3_UNORM,					16,		true,		false,	TEX },
-	{ D3DFMT_D16,				DXGI_FORMAT_D16_UNORM,					2,		false,	false,	DS },
-	{ D3DFMT_D16_LOCKABLE,	DXGI_FORMAT_D16_UNORM,					2,		false,	false,	DS },
-	{ D3DFMT_D24S8,			DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	DS },
-	{ D3DFMT_D24X8,			DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	DS },
+	//	D3D8 format				DXGI format								bytes	compr.	conv.	usage				swizzle
+	{ D3DFMT_A8R8G8B8,		DXGI_FORMAT_B8G8R8A8_UNORM,			4,		false,	false,	TEX | RT,			DEFAULT },
+	{ D3DFMT_X8R8G8B8,		DXGI_FORMAT_B8G8R8X8_UNORM,			4,		false,	false,	TEX | RT | DISPLAY,	DEFAULT },
+	{ D3DFMT_R5G6B5,			DXGI_FORMAT_B8G8R8A8_UNORM,			2,		false,	true,		TEX,				DEFAULT },
+	{ D3DFMT_X1R5G5B5,		DXGI_FORMAT_B8G8R8A8_UNORM,			2,		false,	true,		TEX,				DEFAULT },
+	{ D3DFMT_A1R5G5B5,		DXGI_FORMAT_B8G8R8A8_UNORM,			2,		false,	true,		TEX,				DEFAULT },
+	{ D3DFMT_A4R4G4B4,		DXGI_FORMAT_B8G8R8A8_UNORM,			2,		false,	true,		TEX,				DEFAULT },
+	{ D3DFMT_X4R4G4B4,		DXGI_FORMAT_B8G8R8A8_UNORM,			2,		false,	true,		TEX,				DEFAULT },
+	{ D3DFMT_A8,				DXGI_FORMAT_A8_UNORM,					1,		false,	false,	TEX,				DEFAULT },
+	{ D3DFMT_L8,				DXGI_FORMAT_R8_UNORM,					1,		false,	false,	TEX,				LUMINANCE },
+	{ D3DFMT_A8L8,			DXGI_FORMAT_R8G8_UNORM,					2,		false,	false,	TEX,				LUMINANCE_ALPHA },
+	{ D3DFMT_V8U8,			DXGI_FORMAT_R8G8_SNORM,					2,		false,	false,	TEX,				BUMP },
+	{ D3DFMT_DXT1,			DXGI_FORMAT_BC1_UNORM,					8,		true,		false,	TEX,				DEFAULT },
+	{ D3DFMT_DXT2,			DXGI_FORMAT_BC2_UNORM,					16,		true,		false,	TEX,				DEFAULT },
+	{ D3DFMT_DXT3,			DXGI_FORMAT_BC2_UNORM,					16,		true,		false,	TEX,				DEFAULT },
+	{ D3DFMT_DXT4,			DXGI_FORMAT_BC3_UNORM,					16,		true,		false,	TEX,				DEFAULT },
+	{ D3DFMT_DXT5,			DXGI_FORMAT_BC3_UNORM,					16,		true,		false,	TEX,				DEFAULT },
+	{ D3DFMT_D16,				DXGI_FORMAT_D16_UNORM,					2,		false,	false,	DS,					DEFAULT },
+	{ D3DFMT_D16_LOCKABLE,	DXGI_FORMAT_D16_UNORM,					2,		false,	false,	DS,					DEFAULT },
+	{ D3DFMT_D24S8,			DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	DS,					DEFAULT },
+	{ D3DFMT_D24X8,			DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	DS,					DEFAULT },
 
 	// Known so that locks and copies work, but refused by CheckDeviceFormat.
-	{ D3DFMT_R8G8B8,			DXGI_FORMAT_B8G8R8A8_UNORM,			3,		false,	true,		0 },
-	{ D3DFMT_P8,				DXGI_FORMAT_B8G8R8A8_UNORM,			1,		false,	true,		0 },
-	{ D3DFMT_A8P8,			DXGI_FORMAT_B8G8R8A8_UNORM,			2,		false,	true,		0 },
-	{ D3DFMT_A4L4,			DXGI_FORMAT_R8G8_UNORM,					1,		false,	true,		0 },
-	{ D3DFMT_L6V5U5,			DXGI_FORMAT_R8G8B8A8_SNORM,			2,		false,	true,		0 },
-	{ D3DFMT_X8L8V8U8,		DXGI_FORMAT_R8G8B8A8_SNORM,			4,		false,	true,		0 },
-	{ D3DFMT_D24X4S4,		DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	0 },
-	{ D3DFMT_D15S1,			DXGI_FORMAT_D24_UNORM_S8_UINT,		2,		false,	false,	0 },
-	{ D3DFMT_D32,				DXGI_FORMAT_D32_FLOAT,					4,		false,	false,	0 },
+	{ D3DFMT_R8G8B8,			DXGI_FORMAT_B8G8R8A8_UNORM,			3,		false,	true,		0,					DEFAULT },
+	{ D3DFMT_P8,				DXGI_FORMAT_B8G8R8A8_UNORM,			1,		false,	true,		0,					DEFAULT },
+	{ D3DFMT_A8P8,			DXGI_FORMAT_B8G8R8A8_UNORM,			2,		false,	true,		0,					DEFAULT },
+	{ D3DFMT_A4L4,			DXGI_FORMAT_R8G8_UNORM,					1,		false,	true,		0,					LUMINANCE_ALPHA },
+	{ D3DFMT_L6V5U5,			DXGI_FORMAT_R8G8B8A8_SNORM,			2,		false,	true,		0,					DEFAULT },
+	{ D3DFMT_X8L8V8U8,		DXGI_FORMAT_R8G8B8A8_SNORM,			4,		false,	true,		0,					DEFAULT },
+	{ D3DFMT_D24X4S4,		DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	0,					DEFAULT },
+	{ D3DFMT_D15S1,			DXGI_FORMAT_D24_UNORM_S8_UINT,		2,		false,	false,	0,					DEFAULT },
+	{ D3DFMT_D32,				DXGI_FORMAT_D32_FLOAT,					4,		false,	false,	0,					DEFAULT },
 };
 
 const FormatInfo* Get_Format_Info(D3DFORMAT format)
@@ -93,6 +103,79 @@ unsigned Get_Row_Count(D3DFORMAT format, unsigned height)
 	if (info != nullptr && info->compressed)
 		return (height + 3) / 4;
 	return height;
+}
+
+unsigned Get_Resource_Bytes(const FormatInfo& info)
+{
+	if (!info.converted)
+		return info.bytes;
+	switch (info.dxgi)
+	{
+	case DXGI_FORMAT_R8G8_UNORM:	return 2;
+	default:						return 4;
+	}
+}
+
+// Expands a channel of the given number of bits to 8 bits.
+static unsigned char Expand(unsigned value, unsigned bits)
+{
+	const unsigned max = (1u << bits) - 1;
+	return (unsigned char)((value * 255 + max / 2) / max);
+}
+
+void Convert_Row(const FormatInfo& info, const unsigned char* source, unsigned char* dest, unsigned width)
+{
+	if (!info.converted)
+	{
+		const unsigned bytes = info.compressed ? ((width + 3) / 4) * info.bytes : width * info.bytes;
+		memcpy(dest, source, bytes);
+		return;
+	}
+
+	for (unsigned x = 0; x < width; ++x)
+	{
+		unsigned char* out = dest + x * Get_Resource_Bytes(info);
+		const unsigned short pixel16 = (unsigned short)(source[x * 2] | (source[x * 2 + 1] << 8));
+
+		// Outputs are B, G, R, A in memory.
+		switch (info.format)
+		{
+		case D3DFMT_R5G6B5:
+			out[0] = Expand(pixel16 & 0x1F, 5);
+			out[1] = Expand((pixel16 >> 5) & 0x3F, 6);
+			out[2] = Expand((pixel16 >> 11) & 0x1F, 5);
+			out[3] = 255;
+			break;
+		case D3DFMT_X1R5G5B5:
+		case D3DFMT_A1R5G5B5:
+			out[0] = Expand(pixel16 & 0x1F, 5);
+			out[1] = Expand((pixel16 >> 5) & 0x1F, 5);
+			out[2] = Expand((pixel16 >> 10) & 0x1F, 5);
+			out[3] = (info.format == D3DFMT_X1R5G5B5 || (pixel16 & 0x8000) != 0) ? 255 : 0;
+			break;
+		case D3DFMT_A4R4G4B4:
+		case D3DFMT_X4R4G4B4:
+			out[0] = Expand(pixel16 & 0xF, 4);
+			out[1] = Expand((pixel16 >> 4) & 0xF, 4);
+			out[2] = Expand((pixel16 >> 8) & 0xF, 4);
+			out[3] = info.format == D3DFMT_X4R4G4B4 ? 255 : Expand(pixel16 >> 12, 4);
+			break;
+		case D3DFMT_R8G8B8:
+			out[0] = source[x * 3];
+			out[1] = source[x * 3 + 1];
+			out[2] = source[x * 3 + 2];
+			out[3] = 255;
+			break;
+		case D3DFMT_A4L4:
+			out[0] = Expand(source[x] & 0xF, 4);
+			out[1] = Expand(source[x] >> 4, 4);
+			break;
+		default:
+			// Palettized and bump formats with luminance are never offered; leave them black.
+			memset(out, 0, Get_Resource_Bytes(info));
+			break;
+		}
+	}
 }
 
 } // namespace D3D8On12

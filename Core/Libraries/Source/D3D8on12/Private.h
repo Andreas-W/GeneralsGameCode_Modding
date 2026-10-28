@@ -64,6 +64,14 @@ protected:
 	LONG m_refCount = 1;
 };
 
+// The Direct3D 12 copy of a texture. It is created and uploaded when the texture is first drawn with.
+struct GpuTexture
+{
+	ComPtr<ID3D12Resource> resource;
+	UINT srv = 0;	// descriptor in the shader visible heap, 0 while there is none
+	D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
+};
+
 // The adapters Direct3D 12 can create a device on, in the order IDirect3D8 reports them.
 struct AdapterInfo
 {
