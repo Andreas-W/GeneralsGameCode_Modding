@@ -351,59 +351,26 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 	}
 
 	Surface* top = subresources[0];
-	if (!top->Has_Data())
-	{
-		// Render target textures are not drawn into yet.
-		D3D8ON12_UNSUPPORTED("sampling a render target texture");
-		return type == TEXTURE_CUBE ? NULL_SRV_CUBE : NULL_SRV_2D;
-	}
-
 	const D3DSURFACE_DESC& top_desc = top->Desc();
 	const FormatInfo* info = Get_Format_Info(top_desc.Format);
 	if (info == nullptr)
 		return type == TEXTURE_CUBE ? NULL_SRV_CUBE : NULL_SRV_2D;
 
+	if (top->Get_Kind() == Surface::KIND_RENDER_TARGET)
+	{
+		// Drawn into by the GPU, nothing to upload.
+		if (!Ensure_Target(top) || gpu->srv == 0)
+			return type == TEXTURE_CUBE ? NULL_SRV_CUBE : NULL_SRV_2D;
+		Transition(*gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		return gpu->srv;
+	}
+	if (!top->Has_Data())
+		return type == TEXTURE_CUBE ? NULL_SRV_CUBE : NULL_SRV_2D;
+
 	if (gpu->resource == nullptr)
 	{
-		D3D12_HEAP_PROPERTIES heap = {};
-		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
-		D3D12_RESOURCE_DESC desc = {};
-		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		desc.Width = top_desc.Width;
-		desc.Height = top_desc.Height;
-		if (info->compressed)
-		{
-			// Block compressed resources must be a whole number of blocks.
-			desc.Width = (desc.Width + 3) & ~3ull;
-			desc.Height = (desc.Height + 3) & ~3u;
-		}
-		desc.DepthOrArraySize = (UINT16)faces;
-		desc.MipLevels = (UINT16)levels;
-		desc.Format = info->dxgi;
-		desc.SampleDesc.Count = 1;
-		if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&gpu->resource))))
-		{
-			Log("could not create a %ux%u texture", top_desc.Width, top_desc.Height);
+		if (!Create_Gpu_Resource(*gpu, top_desc.Format, top_desc.Width, top_desc.Height, levels, faces, 0, true))
 			return type == TEXTURE_CUBE ? NULL_SRV_CUBE : NULL_SRV_2D;
-		}
-		gpu->state = D3D12_RESOURCE_STATE_COPY_DEST;
-		gpu->srv = Allocate_Srv();
-
-		D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-		srv.Format = info->dxgi;
-		srv.Shader4ComponentMapping = info->swizzle;
-		if (type == TEXTURE_CUBE)
-		{
-			srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-			srv.TextureCube.MipLevels = levels;
-		}
-		else
-		{
-			srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			srv.Texture2D.MipLevels = levels;
-		}
-		m_device->CreateShaderResourceView(gpu->resource.Get(), &srv, Srv_Cpu_Handle(gpu->srv));
-
 		for (Surface* surface : subresources)
 			surface->Set_Dirty(true);
 	}

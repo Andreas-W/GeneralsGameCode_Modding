@@ -74,6 +74,7 @@ public:
 	// A surface with a container (a texture level) shares the reference count of the container.
 	Surface(Device* device, IUnknown* container, Kind kind, UINT width, UINT height, D3DFORMAT format,
 		DWORD usage, D3DPOOL pool, D3DMULTISAMPLE_TYPE multisample);
+	virtual ~Surface() override;
 
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
 	ULONG STDMETHODCALLTYPE AddRef() override;
@@ -94,7 +95,20 @@ public:
 	bool Is_Dirty() const { return m_dirty; }
 	void Set_Dirty(bool dirty) { m_dirty = dirty; }
 
+	// The resource the GPU draws into for render targets and depth buffers: the one of the texture
+	// for texture levels, an own one for standalone surfaces.
+	bool Has_Container() const { return m_container != nullptr; }
+	GpuTexture* Gpu_Target() { return m_gpu; }
+	UINT Subresource() const { return m_subresource; }
+	void Set_Gpu_Target(GpuTexture* gpu, UINT subresource) { m_gpu = gpu; m_subresource = subresource; }
+	UINT Target_View() const { return m_targetView; }	// render target or depth view, 0 for none
+	void Set_Target_View(UINT view) { m_targetView = view; }
+
 private:
+	GpuTexture m_ownGpu;
+	GpuTexture* m_gpu;
+	UINT m_subresource;
+	UINT m_targetView;
 	IUnknown* m_container;
 	Kind m_kind;
 	D3DSURFACE_DESC m_desc;

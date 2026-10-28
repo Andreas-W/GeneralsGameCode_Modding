@@ -113,6 +113,7 @@ struct PipelineKey
 	BYTE depthBias;
 	BYTE hasDepthBuffer;
 	BYTE pad[2];
+	DXGI_FORMAT targetFormat;
 	DXGI_FORMAT depthFormat;
 };
 

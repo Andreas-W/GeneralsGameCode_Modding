@@ -18,6 +18,7 @@ set(D3D8ON12_SRC
     Resources.cpp
     Resources.h
     ShaderGen.cpp
+    Targets.cpp
 )
 
 add_library(core_d3d8on12 STATIC)

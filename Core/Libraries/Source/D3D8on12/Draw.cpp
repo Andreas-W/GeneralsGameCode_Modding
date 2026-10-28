@@ -376,11 +376,6 @@ bool Device::Begin_Draw()
 		D3D8ON12_UNSUPPORTED("drawing with a pixel shader");
 		return false;
 	}
-	if (m_renderTarget != m_backBufferSurface)
-	{
-		D3D8ON12_UNSUPPORTED("drawing into a render target texture");
-		return false;
-	}
 	Begin_Frame();
 	return true;
 }
@@ -436,10 +431,10 @@ ID3DBlob* Device::Get_Shader(UINT64 hash, const std::string& source, const char*
 	return code.Get();
 }
 
-ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key)
+ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key, const TargetState& targets)
 {
 	const DWORD* rs = m_state.renderStates;
-	const bool has_depth = m_depthStencil != nullptr && m_depthStencil == m_autoDepthSurface && m_depthBuffer != nullptr;
+	const bool has_depth = targets.dsvFormat != DXGI_FORMAT_UNKNOWN;
 
 	PipelineKey key;
 	memset(&key, 0, sizeof(key));
@@ -455,10 +450,11 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 		key.blendOp = (BYTE)rs[D3DRS_BLENDOP];
 	}
 	key.colorWrite = (BYTE)(rs[D3DRS_COLORWRITEENABLE] & 0xF);
+	key.targetFormat = targets.rtvFormat;
 	key.hasDepthBuffer = has_depth;
 	if (has_depth)
 	{
-		key.depthFormat = m_depthBuffer->GetDesc().Format;
+		key.depthFormat = targets.dsvFormat;
 		key.depthEnable = rs[D3DRS_ZENABLE] != D3DZB_FALSE;
 		key.depthWrite = key.depthEnable && rs[D3DRS_ZWRITEENABLE] != FALSE;
 		key.depthFunc = key.depthEnable ? (BYTE)rs[D3DRS_ZFUNC] : 0;
@@ -561,7 +557,7 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	desc.InputLayout.NumElements = (UINT)elements.size();
 	desc.PrimitiveTopologyType = topology;
 	desc.NumRenderTargets = 1;
-	desc.RTVFormats[0] = DXGI_FORMAT_B8G8R8A8_UNORM;
+	desc.RTVFormats[0] = key.targetFormat;
 	desc.DSVFormat = has_depth ? key.depthFormat : DXGI_FORMAT_UNKNOWN;
 	desc.SampleDesc.Count = 1;
 
@@ -746,7 +742,10 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		s.transformCount = (BYTE)(tss[D3DTSS_TEXTURETRANSFORMFLAGS] & 0xFF);
 	}
 
-	ID3D12PipelineState* pipeline = Get_Pipeline_State(Get_Topology_Type(type), vs_key, ps_key);
+	TargetState targets;
+	if (!Prepare_Targets(targets))
+		return D3D_OK;
+	ID3D12PipelineState* pipeline = Get_Pipeline_State(Get_Topology_Type(type), vs_key, ps_key, targets);
 	if (pipeline == nullptr)
 		return D3D_OK;
 
@@ -766,11 +765,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	}
 	list->SetGraphicsRootSignature(m_rootSignature.Get());
 
-	D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-	rtv.ptr += m_backBufferIndex * m_rtvDescriptorSize;
-	const bool has_depth = m_depthStencil != nullptr && m_depthStencil == m_autoDepthSurface && m_depthBuffer != nullptr;
-	D3D12_CPU_DESCRIPTOR_HANDLE dsv = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
-	list->OMSetRenderTargets(1, &rtv, FALSE, has_depth ? &dsv : nullptr);
+	list->OMSetRenderTargets(1, &targets.rtv, FALSE, targets.dsvFormat != DXGI_FORMAT_UNKNOWN ? &targets.dsv : nullptr);
 	list->OMSetStencilRef(rs[D3DRS_STENCILREF] & 0xFF);
 
 	const D3DVIEWPORT8& vp = m_state.viewport;

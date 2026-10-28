@@ -86,6 +86,9 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_nextSrv(0),
 		m_heapsBound(false),
 		m_uploadOffset(0),
+		m_dsvDescriptorSize(0),
+		m_nextTargetRtv(1),
+		m_nextTargetDsv(1),
 		m_cursor(nullptr),
 		m_cursorVisible(false),
 		m_currentPalette(0)
@@ -187,6 +190,8 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
 	HRESULT gpu_result = Init_Gpu_Objects();
+	if (SUCCEEDED(gpu_result))
+		gpu_result = Init_Target_Heaps();
 	if (FAILED(gpu_result))
 		return gpu_result;
 
@@ -461,22 +466,8 @@ HRESULT Device::Read_Back_Buffer(Surface* dest)
 	UINT64 total_size = 0;
 	m_device->GetCopyableFootprints(&source_desc, 0, 1, 0, &footprint, nullptr, nullptr, &total_size);
 
-	if (m_readbackBuffer == nullptr || m_readbackBuffer->GetDesc().Width < total_size)
-	{
-		m_readbackBuffer.Reset();
-		D3D12_HEAP_PROPERTIES heap = {};
-		heap.Type = D3D12_HEAP_TYPE_READBACK;
-		D3D12_RESOURCE_DESC buffer_desc = {};
-		buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		buffer_desc.Width = total_size;
-		buffer_desc.Height = 1;
-		buffer_desc.DepthOrArraySize = 1;
-		buffer_desc.MipLevels = 1;
-		buffer_desc.SampleDesc.Count = 1;
-		buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_readbackBuffer))))
-			return D3DERR_OUTOFVIDEOMEMORY;
-	}
+	if (!Ensure_Readback_Buffer(total_size))
+		return D3DERR_OUTOFVIDEOMEMORY;
 
 	D3D12_RESOURCE_BARRIER barrier = {};
 	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -886,16 +877,16 @@ HRESULT STDMETHODCALLTYPE Device::CopyRects(IDirect3DSurface8* source_surface, C
 	if (source == nullptr || dest == nullptr || source->Desc().Format != dest->Desc().Format)
 		return D3DERR_INVALIDCALL;
 
-	if (source->Get_Kind() == Surface::KIND_BACK_BUFFER && dest->Has_Data())
+	if (!source->Has_Data() && dest->Has_Data())
 	{
 		const bool whole = source_rects == nullptr || rect_count == 0;
 		if (whole && dest->Desc().Width == source->Desc().Width && dest->Desc().Height == source->Desc().Height)
-			return Read_Back_Buffer(dest);
+			return Read_Surface(source, dest);
 
-		// Read the whole back buffer, then copy the rectangles out of it.
+		// Read the whole surface, then copy the rectangles out of it.
 		Surface* copy = new Surface(this, nullptr, Surface::KIND_MEMORY, source->Desc().Width, source->Desc().Height,
 			source->Desc().Format, 0, D3DPOOL_SYSTEMMEM, D3DMULTISAMPLE_NONE);
-		HRESULT hr = Read_Back_Buffer(copy);
+		HRESULT hr = Read_Surface(source, copy);
 		if (SUCCEEDED(hr))
 			hr = CopyRects(copy, source_rects, rect_count, dest_surface, dest_points);
 		copy->Release();
@@ -1042,25 +1033,20 @@ HRESULT STDMETHODCALLTYPE Device::Clear(DWORD count, CONST D3DRECT* rects, DWORD
 			return D3D_OK;
 	}
 
+	TargetState targets;
+	if (!Prepare_Targets(targets))
+		return D3D_OK;
+
 	if ((flags & D3DCLEAR_TARGET) != 0)
 	{
-		if (m_renderTarget == m_backBufferSurface)
+		const float rgba[4] =
 		{
-			const float rgba[4] =
-			{
-				((color >> 16) & 0xFF) / 255.0f,
-				((color >> 8) & 0xFF) / 255.0f,
-				(color & 0xFF) / 255.0f,
-				((color >> 24) & 0xFF) / 255.0f,
-			};
-			D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-			rtv.ptr += m_backBufferIndex * m_rtvDescriptorSize;
-			m_commandList->ClearRenderTargetView(rtv, rgba, (UINT)clear_rects.size(), clear_rects.data());
-		}
-		else
-		{
-			D3D8ON12_UNSUPPORTED("Clear on a render target texture");
-		}
+			((color >> 16) & 0xFF) / 255.0f,
+			((color >> 8) & 0xFF) / 255.0f,
+			(color & 0xFF) / 255.0f,
+			((color >> 24) & 0xFF) / 255.0f,
+		};
+		m_commandList->ClearRenderTargetView(targets.rtv, rgba, (UINT)clear_rects.size(), clear_rects.data());
 	}
 
 	D3D12_CLEAR_FLAGS depth_flags = (D3D12_CLEAR_FLAGS)0;
@@ -1068,11 +1054,8 @@ HRESULT STDMETHODCALLTYPE Device::Clear(DWORD count, CONST D3DRECT* rects, DWORD
 		depth_flags |= D3D12_CLEAR_FLAG_DEPTH;
 	if ((flags & D3DCLEAR_STENCIL) != 0)
 		depth_flags |= D3D12_CLEAR_FLAG_STENCIL;
-	if (depth_flags != 0 && m_depthStencil != nullptr && m_depthStencil == m_autoDepthSurface)
-	{
-		m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), depth_flags,
-			z, (UINT8)stencil, (UINT)clear_rects.size(), clear_rects.data());
-	}
+	if (depth_flags != 0 && targets.dsvFormat != DXGI_FORMAT_UNKNOWN)
+		m_commandList->ClearDepthStencilView(targets.dsv, depth_flags, z, (UINT8)stencil, (UINT)clear_rects.size(), clear_rects.data());
 	return D3D_OK;
 }
 

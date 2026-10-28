@@ -83,6 +83,8 @@
 #include "Win32Device/Common/Win32LocalFileSystem.h"
 #include "Win32Device/Common/Win32BIGFileSystem.h"
 
+extern int DX8Wrapper_UseDX12;
+
 
 static SubsystemInterfaceList TheSubsystemListRecord;
 
@@ -342,6 +344,10 @@ BOOL CWorldBuilderApp::InitInstance()
 	for (Int arg = 1; arg < __argc; arg++) {
 		if (_stricmp(__argv[arg], "-ignoreAsserts") == 0) {
 			ignoreAsserts = true;
+		}
+		// Renders with Direct3D 12 instead of Direct3D 8, in builds with RTS_BUILD_OPTION_DX12.
+		if (_stricmp(__argv[arg], "-dx12") == 0) {
+			DX8Wrapper_UseDX12 = 1;
 		}
 	}
 	GlobalData *globalData = new GlobalData();

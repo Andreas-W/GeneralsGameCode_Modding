@@ -77,6 +77,7 @@ public:
 	// Releases the Direct3D 12 copy of a texture once the GPU is done with the frames that used it.
 	void Release_Gpu_Texture(GpuTexture& gpu);
 	void Release_Gpu_Resource(ComPtr<ID3D12Resource>& resource);
+	void Free_Target_View(bool depth, UINT index);
 
 	// IUnknown
 	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
@@ -204,13 +205,30 @@ private:
 	UINT Get_Sampler(DWORD stage);
 	void Release_Finished_Resources();
 
+	// Targets.cpp
+	struct TargetState
+	{
+		D3D12_CPU_DESCRIPTOR_HANDLE rtv;
+		DXGI_FORMAT rtvFormat;
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv;
+		DXGI_FORMAT dsvFormat;		// DXGI_FORMAT_UNKNOWN without depth buffer
+	};
+	HRESULT Init_Target_Heaps();
+	D3D12_CPU_DESCRIPTOR_HANDLE Target_View_Handle(bool depth, UINT index) const;
+	void Transition(GpuTexture& gpu, D3D12_RESOURCE_STATES state);
+	bool Create_Gpu_Resource(GpuTexture& gpu, D3DFORMAT format, UINT width, UINT height, UINT levels, UINT faces, DWORD usage, bool sampled);
+	bool Ensure_Target(Surface* surface);
+	bool Prepare_Targets(TargetState& targets);
+	HRESULT Read_Surface(Surface* source, Surface* dest);
+	bool Ensure_Readback_Buffer(UINT64 size);
+
 	// Draw.cpp
 	bool Begin_Draw();
 	// Draws count vertices or indices; first is the first vertex or index, base_vertex is added to indices.
 	HRESULT Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_VIEW& vertices, const D3D12_INDEX_BUFFER_VIEW* indices, UINT count, UINT first, INT base_vertex);
 	bool Upload_Vertices(const unsigned char* data, UINT stride, UINT count, D3D12_VERTEX_BUFFER_VIEW& view);
 	bool Upload_Indices(D3DPRIMITIVETYPE type, const void* data, bool index32, UINT count, D3D12_INDEX_BUFFER_VIEW& view, UINT& index_count);
-	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key);
+	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, VertexShaderKey& vs_key, PixelShaderKey& ps_key, const TargetState& targets);
 	ID3DBlob* Get_Shader(UINT64 hash, const std::string& source, const char* target);
 	void Fill_Vertex_Constants(FFVertexConstants& constants);
 	void Fill_Pixel_Constants(FFPixelConstants& constants);
@@ -265,6 +283,14 @@ private:
 		UINT srv;
 	};
 	std::vector<Garbage> m_garbage;
+
+	ComPtr<ID3D12DescriptorHeap> m_targetRtvHeap;	// views of render target textures and surfaces
+	ComPtr<ID3D12DescriptorHeap> m_targetDsvHeap;
+	UINT m_dsvDescriptorSize;
+	UINT m_nextTargetRtv;
+	UINT m_nextTargetDsv;
+	std::vector<UINT> m_freeTargetRtvs;
+	std::vector<UINT> m_freeTargetDsvs;
 
 	std::unordered_map<UINT64, ComPtr<ID3DBlob>> m_shaders;
 	std::unordered_map<UINT64, ComPtr<ID3D12PipelineState>> m_pipelines;

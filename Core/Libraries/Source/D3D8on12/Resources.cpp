@@ -73,6 +73,9 @@ Surface::Surface(Device* device, IUnknown* container, Kind kind, UINT width, UIN
 		m_locked(false),
 		m_dirty(true)
 {
+	m_gpu = &m_ownGpu;
+	m_subresource = 0;
+	m_targetView = 0;
 	m_desc.Format = format;
 	m_desc.Type = D3DRTYPE_SURFACE;
 	m_desc.Usage = usage;
@@ -84,6 +87,12 @@ Surface::Surface(Device* device, IUnknown* container, Kind kind, UINT width, UIN
 
 	if (kind == KIND_MEMORY)
 		m_data.resize(m_desc.Size);
+}
+
+Surface::~Surface()
+{
+	m_device->Free_Target_View(m_kind == KIND_DEPTH_STENCIL, m_targetView);
+	m_device->Release_Gpu_Texture(m_ownGpu);
 }
 
 HRESULT STDMETHODCALLTYPE Surface::QueryInterface(REFIID riid, void** object)
@@ -189,6 +198,7 @@ Texture::Texture(Device* device, UINT width, UINT height, UINT levels, DWORD usa
 	for (UINT i = 0; i < levels; ++i)
 	{
 		m_levels.push_back(new Surface(device, this, kind, width, height, format, usage, pool, D3DMULTISAMPLE_NONE));
+		m_levels.back()->Set_Gpu_Target(&m_gpu, i);
 		width = Half(width);
 		height = Half(height);
 	}
@@ -265,6 +275,7 @@ CubeTexture::CubeTexture(Device* device, UINT edge_length, UINT levels, DWORD us
 		for (UINT i = 0; i < levels; ++i)
 		{
 			m_surfaces.push_back(new Surface(device, this, kind, size, size, format, usage, pool, D3DMULTISAMPLE_NONE));
+			m_surfaces.back()->Set_Gpu_Target(&m_gpu, face * levels + i);
 			size = Half(size);
 		}
 	}
