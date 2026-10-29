@@ -72,6 +72,11 @@ public:
 	// Creates the Direct3D 12 device and the swap chain. Returns a D3D8 error code on failure.
 	HRESULT Init(D3DPRESENT_PARAMETERS* params);
 
+	// The last release drops what the device holds; the device itself goes once its last resource does.
+	ULONG STDMETHODCALLTYPE Release() override;
+	void Child_Created();
+	void Child_Destroyed();
+
 	ID3D12Device* D3D12_Device() const { return m_device.Get(); }
 
 	// Releases the Direct3D 12 copy of a texture once the GPU is done with the frames that used it.
@@ -253,6 +258,7 @@ private:
 	void Release_Swap_Chain_Buffers();
 	void Set_Default_State();
 	void Begin_Frame();
+	void Release_Held_Objects();
 	void Resolve_Back_Buffer();
 	void Flush_Commands();
 	void Wait_For_GPU();
@@ -279,6 +285,7 @@ private:
 	// model swap chains can not be multisampled.
 	ComPtr<ID3D12Resource> m_multisampleTarget;
 	UINT m_sampleCount;
+	LONG m_liveChildren;
 	ComPtr<ID3D12CommandAllocator> m_allocators[FRAME_COUNT];
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	ComPtr<ID3D12Resource> m_readbackBuffer;

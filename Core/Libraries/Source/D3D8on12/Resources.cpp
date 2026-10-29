@@ -27,6 +27,18 @@ namespace D3D8On12
 {
 
 template <class Interface>
+DeviceChild<Interface>::DeviceChild(Device* device) : m_device(device)
+{
+	m_device->Child_Created();
+}
+
+template <class Interface>
+DeviceChild<Interface>::~DeviceChild()
+{
+	m_device->Child_Destroyed();
+}
+
+template <class Interface>
 HRESULT STDMETHODCALLTYPE DeviceChild<Interface>::GetDevice(IDirect3DDevice8** device)
 {
 	if (device == nullptr)

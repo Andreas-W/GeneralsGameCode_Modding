@@ -34,7 +34,8 @@ template <class Interface>
 class DeviceChild : public RefCounted<Interface>
 {
 public:
-	explicit DeviceChild(Device* device) : m_device(device) {}
+	explicit DeviceChild(Device* device);
+	virtual ~DeviceChild() override;
 
 	HRESULT STDMETHODCALLTYPE GetDevice(IDirect3DDevice8** device) override;
 	HRESULT STDMETHODCALLTYPE SetPrivateData(REFGUID, CONST void*, DWORD, DWORD) override { D3D8ON12_UNSUPPORTED("SetPrivateData"); return E_NOTIMPL; }
@@ -42,7 +43,10 @@ public:
 	HRESULT STDMETHODCALLTYPE FreePrivateData(REFGUID) override { return D3DERR_NOTFOUND; }
 
 protected:
-	Device* m_device;	// not reference counted; the engine releases all resources before the device
+	// Not reference counted, which would make cycles with the resources the device holds. The device
+	// counts its live resources instead and stays until the last one is gone, as in D3D8: the engine
+	// releases some textures only after the device.
+	Device* m_device;
 };
 
 template <class Interface, D3DRESOURCETYPE Type>

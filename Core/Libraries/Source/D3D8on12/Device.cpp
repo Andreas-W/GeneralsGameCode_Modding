@@ -88,6 +88,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_uploadOffset(0),
 		m_dsvDescriptorSize(0),
 		m_sampleCount(1),
+		m_liveChildren(0),
 		m_nextTargetRtv(1),
 		m_nextTargetDsv(1),
 		m_cursor(nullptr),
@@ -117,6 +118,48 @@ Device::~Device()
 	Wait_For_GPU();
 	m_garbage.clear();
 
+	for (StateValues* block : m_stateBlocks)
+		delete block;
+	delete m_recordingStateBlock;
+
+	if (m_cursor != nullptr)
+		DestroyIcon(m_cursor);
+	if (m_fenceEvent != nullptr)
+		CloseHandle(m_fenceEvent);
+
+	m_d3d->Release();
+}
+
+ULONG STDMETHODCALLTYPE Device::Release()
+{
+	const ULONG count = InterlockedDecrement(&m_refCount);
+	if (count == 0)
+	{
+		// Counts as a resource while the held ones are released, so that their going does not delete
+		// the device in the middle of it.
+		Child_Created();
+		Release_Held_Objects();
+		if (m_liveChildren > 1)
+			Log("device released while %ld resources are alive; it stays until they are released", m_liveChildren - 1);
+		Child_Destroyed();
+	}
+	return count;
+}
+
+void Device::Child_Created()
+{
+	InterlockedIncrement(&m_liveChildren);
+}
+
+void Device::Child_Destroyed()
+{
+	if (InterlockedDecrement(&m_liveChildren) == 0 && m_refCount == 0)
+		delete this;
+}
+
+// Releases the resources bound to the device and the ones it made for itself.
+void Device::Release_Held_Objects()
+{
 	for (IDirect3DBaseTexture8*& texture : m_textures)
 	{
 		if (texture != nullptr)
@@ -131,21 +174,11 @@ Device::~Device()
 	}
 	if (m_indices != nullptr)
 		m_indices->Release();
+	m_indices = nullptr;
 
 	Replace_Surface(m_renderTarget, nullptr);
 	Replace_Surface(m_depthStencil, nullptr);
 	Release_Swap_Chain_Buffers();
-
-	for (StateValues* block : m_stateBlocks)
-		delete block;
-	delete m_recordingStateBlock;
-
-	if (m_cursor != nullptr)
-		DestroyIcon(m_cursor);
-	if (m_fenceEvent != nullptr)
-		CloseHandle(m_fenceEvent);
-
-	m_d3d->Release();
 }
 
 HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
