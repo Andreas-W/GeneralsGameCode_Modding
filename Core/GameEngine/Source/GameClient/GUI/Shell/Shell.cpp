@@ -268,10 +268,13 @@ void Shell::recreateWindowLayouts()
 		}
 	}
 
-	// reconstruct the shell now
+	// reconstruct the shell now. construct() marks the shell active, which in a game would draw the
+	// main menu over it, so keep whether it was.
+	const Bool isShellActive = m_isShellActive;
 	deconstruct();
 	construct();
 	init();
+	m_isShellActive = isShellActive;
 
 	// restore the screen stack
 	Int screenIndex = 0;
