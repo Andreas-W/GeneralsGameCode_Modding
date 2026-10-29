@@ -134,12 +134,34 @@ bool Device::Create_Gpu_Resource(GpuTexture& gpu, D3DFORMAT format, UINT width, 
 	desc.Format = dxgi;
 	desc.SampleDesc.Count = 1;
 	desc.Flags = flags;
+
+	// Plain textures are taken from the pool of released ones when one of the same kind is there.
+	UINT64 pool_key = 0;
+	if (sampled && flags == D3D12_RESOURCE_FLAG_NONE)
+	{
+		const UINT kind[] = { (UINT)dxgi, swizzle, (UINT)desc.Width, desc.Height, levels, faces };
+		pool_key = Hash_Bytes(kind, sizeof(kind)) | 1;
+		for (size_t i = m_texturePool.size(); i-- > 0;)
+		{
+			if (m_texturePool[i].key == pool_key)
+			{
+				gpu.resource = m_texturePool[i].resource;
+				gpu.srv = m_texturePool[i].srv;
+				gpu.state = m_texturePool[i].state;
+				gpu.poolKey = pool_key;
+				m_texturePool.erase(m_texturePool.begin() + i);
+				return true;
+			}
+		}
+	}
+
 	if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, state, has_clear ? &clear : nullptr, IID_PPV_ARGS(&gpu.resource))))
 	{
 		Log("could not create a %ux%u texture of format %d", width, height, (int)format);
 		return false;
 	}
 	gpu.state = state;
+	gpu.poolKey = pool_key;
 
 	if (sampled)
 	{

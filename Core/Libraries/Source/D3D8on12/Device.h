@@ -189,6 +189,7 @@ private:
 		bool used;
 		std::vector<DWORD> declaration;
 		std::vector<DWORD> function;
+		UINT64 hash;	// of the declaration and the function
 	};
 
 	struct UploadAllocation
@@ -309,8 +310,23 @@ private:
 		UINT64 fence;
 		ComPtr<ID3D12Resource> resource;
 		UINT srv;
+		UINT64 poolKey;		// non-zero for a texture that can be used again, see m_texturePool
+		D3D12_RESOURCE_STATES state;
 	};
 	std::vector<Garbage> m_garbage;
+
+	// Textures the engine released, kept for a while to be used again for a texture of the same kind:
+	// text is drawn with a new texture whenever it changes, and creating resources is slow.
+	struct PooledTexture
+	{
+		UINT64 key;
+		UINT64 fence;	// when it was released
+		ComPtr<ID3D12Resource> resource;
+		UINT srv;
+		D3D12_RESOURCE_STATES state;
+	};
+	std::vector<PooledTexture> m_texturePool;
+	std::vector<Surface*> m_textureSubresources;	// Prepare_Texture's list, kept to not allocate per draw
 
 	ComPtr<ID3D12DescriptorHeap> m_targetRtvHeap;	// views of render target textures and surfaces
 	ComPtr<ID3D12DescriptorHeap> m_targetDsvHeap;

@@ -1506,6 +1506,8 @@ HRESULT STDMETHODCALLTYPE Device::CreateVertexShader(CONST DWORD* declaration, C
 	shader.declaration.assign(declaration, declaration + Get_Declaration_Length(declaration));
 	if (function != nullptr)
 		shader.function.assign(function, function + Get_Function_Length(function));
+	shader.hash = Hash_Bytes(shader.declaration.data(), shader.declaration.size() * sizeof(DWORD))
+		^ (Hash_Bytes(shader.function.data(), shader.function.size() * sizeof(DWORD)) * 31) ^ 0x243f6a8885a308d3ull;
 	m_vertexShaders.push_back(shader);
 	*handle = Vertex_Shader_Handle(m_vertexShaders.size() - 1);
 	return D3D_OK;
@@ -1637,6 +1639,7 @@ HRESULT STDMETHODCALLTYPE Device::CreatePixelShader(CONST DWORD* function, DWORD
 	ShaderData shader;
 	shader.used = true;
 	shader.function.assign(function, function + Get_Function_Length(function));
+	shader.hash = Hash_Bytes(shader.function.data(), shader.function.size() * sizeof(DWORD));
 	m_pixelShaders.push_back(shader);
 	*handle = (DWORD)m_pixelShaders.size();
 	return D3D_OK;

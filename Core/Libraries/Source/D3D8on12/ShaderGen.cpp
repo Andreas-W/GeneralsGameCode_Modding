@@ -29,17 +29,47 @@
 namespace D3D8On12
 {
 
+static UINT32 Hash_Mix(UINT32 hash, UINT32 word)
+{
+	word *= 0xcc9e2d51u;
+	word = _rotl(word, 15);
+	word *= 0x1b873593u;
+	hash ^= word;
+	hash = _rotl(hash, 13);
+	return hash * 5 + 0xe6546b64u;
+}
+
+static UINT32 Hash_Finish(UINT32 hash)
+{
+	hash ^= hash >> 16;
+	hash *= 0x85ebca6bu;
+	hash ^= hash >> 13;
+	hash *= 0xc2b2ae35u;
+	hash ^= hash >> 16;
+	return hash;
+}
+
+// MurmurHash3 words with two seeds for 64 bits. It runs for every draw, and works on 32 bit words as
+// x86 has no fast 64 bit multiply.
 UINT64 Hash_Bytes(const void* data, size_t size)
 {
-	// FNV-1a
-	UINT64 hash = 14695981039346656037ull;
 	const unsigned char* bytes = (const unsigned char*)data;
-	for (size_t i = 0; i < size; ++i)
+	UINT32 low = 0x9e3779b9u;
+	UINT32 high = 0x7f4a7c15u;
+	size_t i = 0;
+	for (; i + 4 <= size; i += 4)
 	{
-		hash ^= bytes[i];
-		hash *= 1099511628211ull;
+		UINT32 word;
+		memcpy(&word, bytes + i, 4);
+		low = Hash_Mix(low, word);
+		high = Hash_Mix(high, word ^ 0x5bd1e995u);
 	}
-	return hash;
+	UINT32 tail = 0;
+	for (size_t shift = 0; i < size; ++i, shift += 8)
+		tail |= (UINT32)bytes[i] << shift;
+	low = Hash_Mix(low, tail ^ (UINT32)size);
+	high = Hash_Mix(high, tail + (UINT32)size);
+	return ((UINT64)Hash_Finish(high) << 32) | Hash_Finish(low ^ high);
 }
 
 static void Append(std::string& text, const char* format, ...)

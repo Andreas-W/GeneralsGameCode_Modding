@@ -225,11 +225,12 @@ void Device::Release_Gpu_Texture(GpuTexture& gpu)
 {
 	if (gpu.resource != nullptr || gpu.srv != 0)
 	{
-		Garbage garbage = { m_nextFenceValue, gpu.resource, gpu.srv };
+		Garbage garbage = { m_nextFenceValue, gpu.resource, gpu.srv, gpu.poolKey, gpu.state };
 		m_garbage.push_back(garbage);
 	}
 	gpu.resource.Reset();
 	gpu.srv = 0;
+	gpu.poolKey = 0;
 }
 
 void Device::Release_Gpu_Resource(ComPtr<ID3D12Resource>& resource)
@@ -300,8 +301,15 @@ void Device::Release_Finished_Resources()
 	{
 		if (m_garbage[i].fence <= completed)
 		{
-			if (m_garbage[i].srv != 0)
+			if (m_garbage[i].poolKey != 0 && m_garbage[i].resource != nullptr)
+			{
+				PooledTexture pooled = { m_garbage[i].poolKey, m_garbage[i].fence, m_garbage[i].resource, m_garbage[i].srv, m_garbage[i].state };
+				m_texturePool.push_back(pooled);
+			}
+			else if (m_garbage[i].srv != 0)
+			{
 				m_freeSrvs.push_back(m_garbage[i].srv);
+			}
 		}
 		else
 		{
@@ -309,6 +317,20 @@ void Device::Release_Finished_Resources()
 		}
 	}
 	m_garbage.resize(kept);
+
+	// Pooled textures go when not used again for a while, the oldest first when there are too many.
+	const size_t TEXTURE_POOL_SIZE = 64;
+	const UINT64 TEXTURE_POOL_FRAMES = 120;
+	const size_t first = m_texturePool.size() > TEXTURE_POOL_SIZE ? m_texturePool.size() - TEXTURE_POOL_SIZE : 0;
+	kept = 0;
+	for (size_t i = 0; i < m_texturePool.size(); ++i)
+	{
+		if (i >= first && m_texturePool[i].fence + TEXTURE_POOL_FRAMES > completed)
+			m_texturePool[kept++] = m_texturePool[i];
+		else if (m_texturePool[i].srv != 0)
+			m_freeSrvs.push_back(m_texturePool[i].srv);
+	}
+	m_texturePool.resize(kept);
 }
 
 // Creates the Direct3D 12 texture on first use and uploads the levels that changed since the last
@@ -323,7 +345,8 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 	}
 
 	GpuTexture* gpu = nullptr;
-	std::vector<Surface*> subresources;	// in Direct3D 12 subresource order
+	std::vector<Surface*>& subresources = m_textureSubresources;	// in Direct3D 12 subresource order
+	subresources.clear();
 	UINT levels = 0;
 	UINT faces = 1;
 	if (base_texture->GetType() == D3DRTYPE_CUBETEXTURE)

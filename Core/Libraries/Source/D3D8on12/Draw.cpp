@@ -687,8 +687,7 @@ const TranslatedShader* Device::Get_Translated_Vertex_Shader(DWORD handle, UINT6
 	if (index >= m_vertexShaders.size() || !m_vertexShaders[index].used)
 		return nullptr;
 	const ShaderData& shader = m_vertexShaders[index];
-	hash = Hash_Bytes(shader.declaration.data(), shader.declaration.size() * sizeof(DWORD))
-		^ (Hash_Bytes(shader.function.data(), shader.function.size() * sizeof(DWORD)) * 31) ^ 0x243f6a8885a308d3ull;
+	hash = shader.hash;
 
 	auto found = m_translatedShaders.find(hash);
 	if (found == m_translatedShaders.end())
@@ -833,7 +832,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		const std::vector<DWORD>& function = m_pixelShaders[index].function;
 		ps_info.fog = rs[D3DRS_FOGENABLE] != FALSE;
 		ps_info.alphaFunc = ps_key.alphaFunc;
-		ps_info.function = Hash_Bytes(function.data(), function.size() * sizeof(DWORD));
+		ps_info.function = m_pixelShaders[index].hash;
 		shaders.pixelShader = Get_Translated_Pixel_Shader(ps_info, function.data(), shaders.pixelHash);
 		if (shaders.pixelShader == nullptr)
 			return D3D_OK;
