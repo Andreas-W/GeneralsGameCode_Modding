@@ -252,6 +252,11 @@ public:
 	virtual GameWindow *winGetGrabWindow();  ///< who is currently 'held' by mouse
 	virtual void winSetLoneWindow( GameWindow *window );  ///< set the open window
 
+	/// A window drawn above all others and checked first for the mouse while it is shown, such as the
+	/// open list of a combo box, which reaches out of its parent over the windows next to it.
+	void winSetPopup( GameWindow *window ) { m_popupWindow = window; }
+	void winClearPopup( GameWindow *window ) { if( m_popupWindow == window ) m_popupWindow = nullptr; }
+
 	// Finds the top-level window at the mouse position that matches the required and forbidden status masks.
 	virtual GameWindow* findWindowUnderMouse(GameWindow*& toolTipWindow, const ICoord2D* mousePos, unsigned int requiredStatusMask, unsigned int forbiddenStatusMask);
 	static bool isMouseWithinWindow(GameWindow* window, const ICoord2D* mousePos, unsigned int requiredStatusMask, unsigned int forbiddenStatusMask);
@@ -337,6 +342,8 @@ protected:
 	void processDestroyList();  ///< process windows waiting to be killed
 
 	Int drawWindow( GameWindow *window );  ///< draw this window
+	Bool isPopupShown();  ///< the popup and all its parents are shown
+	GameWindow *popupWindowAt( Int x, Int y, Bool ignoreEnabled );  ///< the window of the popup at the point, else null
 
 	void dumpWindow( GameWindow *window );  ///< for debugging
 
@@ -351,6 +358,8 @@ protected:
 	ModalWindow *m_modalHead;			// top of windows in the modal stack
 	GameWindow *m_grabWindow;			// window that grabbed the last down event
 	GameWindow *m_loneWindow;			// Set if we just opened a Lone Window
+	GameWindow *m_popupWindow;			// see winSetPopup
+	Bool m_drawingPopup;				// winRepaint is drawing the popup on top
 	GameWindowList m_tabList;			// we have to register a tab list to make a tab list.
 	const Image *m_cursorBitmap;
 	UnsignedInt m_captureFlags;
