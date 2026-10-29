@@ -226,8 +226,8 @@ cbuffer Params : register(b1)
 {
 	float3 Color;			// fog color
 	float Density;			// 0..1 maximum fog, 0 = 1
-	float Start;			// distance from the camera where fog begins, 0 = 1000
-	float End;				// distance where it is full, 0 = 2500
+	float Start;			// distance from the camera where fog begins, 0 = 700
+	float End;				// distance where it is full, 0 = 1600
 	float HeightStart;		// world height where height fog ends (above it none)
 	float HeightEnd;		// world height where height fog is full; height fog only when below HeightStart
 };
@@ -238,8 +238,8 @@ float4 main(PostProcessInput input) : SV_Target
 	if (depth >= 1)
 		return float4(color, 1);
 	float3 view = ViewPosition(input.uv, depth);
-	float start = Start > 0 ? Start : 1000;
-	float end = End > start ? End : start + 1500;
+	float start = Start > 0 ? Start : 700;
+	float end = End > start ? End : start + 900;
 	float fog = saturate((abs(view.z) - start) / (end - start));
 	if (HeightEnd < HeightStart)
 	{
@@ -300,7 +300,8 @@ float4 main(PostProcessInput input) : SV_Target
 )";
 
 // Input0: scene, Input1: bloom (optional), Input2: 256x16 color lookup table (optional),
-// Input3: ambient occlusion (optional, from PP_SSAO).
+// Input3: ambient occlusion (optional, from PP_SSAO). With a Tonemap the scene, bloom and exposure
+// are combined in linear light and brought to 0..1 by a tone curve before the grading.
 static const char s_colorGradeShader[] = R"(
 #include "PostProcess.hlsli"
 cbuffer Params : register(b1)
@@ -317,6 +318,9 @@ cbuffer Params : register(b1)
 	float GammaPad;
 	float3 Gain;			// highlights, 0.2 = 20 % more
 	float AOStrength;		// how much Input3 darkens, 0 = 1
+	float Tonemap;			// tone curve: 0 = none, 1 = ACES, 2 = filmic (Hable), 3 = Reinhard
+	float WhitePoint;		// linear brightness that becomes white with 2 and 3, 0 = 4
+	float HighlightExpand;	// 0..0.95, stretches the highlights of an 8 bit scene before the curve (0 with HDRScene)
 };
 float3 ApplyLut(float3 color)
 {
@@ -329,14 +333,38 @@ float3 ApplyLut(float3 color)
 	float3 high = Input2.Sample(LinearClamp, float2(x + min(slice + 1, 15) / 16, y)).rgb;
 	return lerp(low, high, blue - slice);
 }
+float3 Hable(float3 x)
+{
+	return ((x * (0.15 * x + 0.05) + 0.004) / (x * (0.15 * x + 0.5) + 0.06)) - 0.0667;
+}
+float3 ToneCurve(float3 color)
+{
+	float white = WhitePoint > 0 ? WhitePoint : 4;
+	if (Tonemap < 1.5)
+		return saturate((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14));
+	if (Tonemap < 2.5)
+		return saturate(Hable(color * 2) / Hable(white.xxx));
+	float luma = Luminance(color);
+	float mapped = luma * (1 + luma / (white * white)) / (1 + luma);
+	return saturate(color * (mapped / max(luma, 0.0001)));
+}
 float4 main(PostProcessInput input) : SV_Target
 {
 	float3 color = Input0.Sample(PointClamp, input.uv).rgb;
-	if (InputSize[3].x > 0)
-		color *= lerp(1, Input3.Sample(LinearClamp, input.uv).r, AOStrength > 0 ? AOStrength : 1);
-	if (InputSize[1].x > 0)
-		color += Input1.Sample(LinearClamp, input.uv).rgb * BloomIntensity;
-	color *= exp2(Exposure);
+	float ao = InputSize[3].x > 0 ? lerp(1, Input3.Sample(LinearClamp, input.uv).r, AOStrength > 0 ? AOStrength : 1) : 1;
+	float3 bloom = InputSize[1].x > 0 ? Input1.Sample(LinearClamp, input.uv).rgb * BloomIntensity : 0;
+	if (Tonemap > 0)
+	{
+		// The scene is stored gamma encoded; the curves expect linear light.
+		color = pow(max(color, 0), 2.2) * ao + pow(max(bloom, 0), 2.2);
+		float expand = clamp(HighlightExpand, 0, 0.95);
+		color /= max(1 - expand * saturate(Luminance(color)), 0.05);
+		color = pow(ToneCurve(color * exp2(Exposure)), 1 / 2.2);
+	}
+	else
+	{
+		color = (color * ao + bloom) * exp2(Exposure);
+	}
 	color = color * (1 + Gain) + Lift * (1 - color);
 	color = pow(max(color, 0), 1 / max(1 + Gamma, 0.01));
 	color = (color - 0.5) * (1 + Contrast) + 0.5;
