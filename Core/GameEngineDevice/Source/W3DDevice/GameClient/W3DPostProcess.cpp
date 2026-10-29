@@ -172,6 +172,53 @@ float4 main(PostProcessInput input) : SV_Target
 }
 )";
 
+// Input0: the image, Input1: Depth. Depth of field: sharp around the focus distance, blurred with
+// a disk in front of and behind it. Samples count only where their own blur reaches this pixel, so
+// sharp objects keep their edges against a blurred background and do not smear into it.
+static const char s_depthOfFieldShader[] = R"(
+#include "PostProcess.hlsli"
+cbuffer Params : register(b1)
+{
+	float FocusDistance;	// distance from the camera that is sharp, 0 = the distance at the screen center
+	float FocusRange;		// sharp this far in front of and behind the focus, 0 = 100
+	float BlurRange;		// distance beyond FocusRange until the blur is full, 0 = 300
+	float MaxBlur;			// full blur radius in pixels, 0 = 6
+	float FarOnly;			// 1 = only behind the focus, so units near the camera (aircraft) stay sharp
+};
+static const int TAPS = 24;
+float BlurAmount(float depth, float focus)
+{
+	float offset = LinearDepth(depth) - focus;
+	if (FarOnly > 0 && offset < 0)
+		return 0;
+	return saturate((abs(offset) - (FocusRange > 0 ? FocusRange : 100)) / (BlurRange > 0 ? BlurRange : 300));
+}
+float4 main(PostProcessInput input) : SV_Target
+{
+	float4 color = Input0.SampleLevel(PointClamp, input.uv, 0);
+	float focus = FocusDistance > 0 ? FocusDistance : LinearDepth(Input1.SampleLevel(PointClamp, float2(0.5, 0.5), 0).r);
+	float maxBlur = MaxBlur > 0 ? MaxBlur : 6;
+	float radius = BlurAmount(Input1.SampleLevel(PointClamp, input.uv, 0).r, focus) * maxBlur;
+	if (radius < 0.5)
+		return color;
+	float3 sum = color.rgb;
+	float total = 1;
+	[unroll]
+	for (int i = 0; i < TAPS; ++i)
+	{
+		// Evenly spread over the disk (golden angle spiral).
+		float distance = sqrt((i + 0.5) / TAPS) * radius;
+		float angle = i * 2.39996323;
+		float2 uv = input.uv + float2(cos(angle), sin(angle)) * distance * InputSize[0].zw;
+		float sampleRadius = BlurAmount(Input1.SampleLevel(PointClamp, uv, 0).r, focus) * maxBlur;
+		float weight = saturate(sampleRadius - distance + 1);
+		sum += Input0.SampleLevel(LinearClamp, uv, 0).rgb * weight;
+		total += weight;
+	}
+	return float4(sum / total, color.a);
+}
+)";
+
 // Input0: the image, Input1: Depth. Distance and height fog toward Color.
 static const char s_fogShader[] = R"(
 #include "PostProcess.hlsli"
@@ -456,6 +503,7 @@ static const BuiltInShader s_builtInShaders[] =
 	BUILT_IN("PP_SSAO", s_ssaoShader),
 	BUILT_IN("PP_DepthBlur", s_depthBlurShader),
 	BUILT_IN("PP_Fog", s_fogShader),
+	BUILT_IN("PP_DepthOfField", s_depthOfFieldShader),
 	BUILT_IN("PP_BloomExtract", s_bloomExtractShader),
 	BUILT_IN("PP_Blur", s_blurShader),
 	BUILT_IN("PP_ColorGrade", s_colorGradeShader),
