@@ -17,7 +17,7 @@
 */
 
 // GameMcpCmdView.cpp
-// Camera and screenshot commands of the MCP bridge. They need the window, so they fail headless.
+// Camera, screenshot and display mode commands of the MCP bridge. They need the window, so they fail headless.
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
@@ -28,6 +28,10 @@
 #include "Common/GameMcp.h"
 #include "Common/GlobalData.h"
 #include "GameClient/Display.h"
+#include "GameClient/HeaderTemplate.h"
+#include "GameClient/InGameUI.h"
+#include "GameClient/Mouse.h"
+#include "GameClient/Shell.h"
 #include "GameClient/View.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
@@ -93,6 +97,36 @@ McpJson cmdScreenshot(const McpJson &args)
 	return McpJson::makeObject().set("path", path).set("frame", TheGameLogic->getFrame()).set("camera", describeCamera());
 }
 
+McpJson describeDisplay()
+{
+	return McpJson::makeObject().set("width", (Int)TheDisplay->getWidth()).set("height", (Int)TheDisplay->getHeight())
+		.set("windowed", TheDisplay->getWindowed() != 0);
+}
+
+// Changes the resolution like the options menu, without saving it to Options.ini. The device is
+// reset, which is what this is for: testing what a reset does to the renderer.
+McpJson cmdDisplayMode(const McpJson &args)
+{
+	requireWindow();
+	const Int width = gameMcpArgInt(args, "width", TheDisplay->getWidth());
+	const Int height = gameMcpArgInt(args, "height", TheDisplay->getHeight());
+	const Bool windowed = gameMcpArgBool(args, "windowed", TheDisplay->getWindowed() != 0);
+	if (width == (Int)TheDisplay->getWidth() && height == (Int)TheDisplay->getHeight() && windowed == TheDisplay->getWindowed()) {
+		return describeDisplay();
+	}
+	if (!TheDisplay->setDisplayMode(width, height, TheDisplay->getBitDepth(), windowed)) {
+		gameMcpFail("the display mode %dx%d is not available", width, height);
+	}
+	TheWritableGlobalData->m_xResolution = width;
+	TheWritableGlobalData->m_yResolution = height;
+	TheHeaderTemplateManager->onResolutionChanged();
+	TheMouse->onResolutionChanged();
+	TheShell->recreateWindowLayouts();
+	TheInGameUI->recreateControlBar();
+	TheInGameUI->refreshCustomUiResources();
+	return describeDisplay();
+}
+
 } // namespace
 
 void gameMcpRegisterViewCommands()
@@ -100,6 +134,8 @@ void gameMcpRegisterViewCommands()
 	gameMcpRegisterCommand("view.camera", cmdCamera,
 		"{id? | x?, y?, angle?, pitch?, zoom?, reset?} Moves the camera (to an object or a position) and returns where it is.");
 	gameMcpRegisterCommand("view.screenshot", cmdScreenshot, "{path, quality=85} Writes what the window shows to a .jpg or .png file.");
+	gameMcpRegisterCommand("view.display_mode", cmdDisplayMode,
+		"{width?, height?, windowed?} Changes the resolution like the options menu (not saved) and returns the display mode.");
 }
 
 #endif // RTS_GAME_MCP

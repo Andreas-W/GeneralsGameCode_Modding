@@ -185,7 +185,7 @@ generalszh.exe -mcp -mcpGame "armed neighbors" -mcpPlayers FactionAmerica,Factio
 - **Orders** (as the owning player would click them; recorded in the replay; carried out on the next logic frame): `orders_move`, `orders_attack`, `orders_stop`, `orders_guard`, `orders_sell`, `orders_build`, `orders_produce`, `orders_upgrade`, `orders_special_power`, `orders_purchase_science`.
 - **Test changes** (direct, not in the replay): `objects_spawn`, `objects_destroy`, `objects_set` (health, position, veterancy, upgrade, status), `players_set` (money, rank, points, sciences, upgrades, instant build, special power delays).
 - **Scripts:** `scripts_run`, `scripts_set_active`, `scripts_flags`, `scripts_counters`.
-- **View** (window only, not minimized): `view_camera`, `view_screenshot`.
+- **View** (window only, not minimized): `view_camera`, `view_screenshot`, `view_display_mode` (resolution or windowed mode, not saved; resets the graphics device).
 - `game_command` runs any bridge command; `list_commands` lists them.
 
 ## Checking the bridge without MCP

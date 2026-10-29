@@ -465,5 +465,13 @@ def view_screenshot(id: int | None = None, x: float | None = None, y: float | No
     return Image(path=result["path"])
 
 
+@mcp.tool()
+def view_display_mode(width: int | None = None, height: int | None = None, windowed: bool | None = None) -> dict:
+    """Changes the resolution or the windowed mode like the options menu, without saving it to
+    Options.ini, and returns the display mode (no arguments: only returns it). This resets the
+    graphics device. Not available headless."""
+    return game.call("view.display_mode", width=width, height=height, windowed=windowed)
+
+
 if __name__ == "__main__":
     mcp.run()

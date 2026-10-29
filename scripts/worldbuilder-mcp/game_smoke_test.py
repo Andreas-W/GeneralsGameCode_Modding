@@ -136,6 +136,16 @@ def main() -> int:
             bridge.call("view.screenshot", path=path)
             check(os.path.getsize(path) > 1000, f"screenshot written ({path})")
 
+            print("display mode")
+            mode = bridge.call("view.display_mode")
+            changed = bridge.call("view.display_mode", width=1024, height=768)
+            check(changed["width"] == 1024 and changed["height"] == 768, "resolution changed")
+            step(bridge, 2)
+            bridge.call("view.screenshot", path=path)
+            check(os.path.getsize(path) > 1000, "screenshot after the resolution change")
+            restored = bridge.call("view.display_mode", width=mode["width"], height=mode["height"])
+            check(restored["width"] == mode["width"], "resolution restored")
+
             print("render speed")
             speed = bridge.call("game.set_speed", fps=30, render_fps=0)
             check(speed["speed_fps"] == 30, "logic speed kept with an uncapped render rate")
