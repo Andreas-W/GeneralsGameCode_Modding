@@ -42,6 +42,7 @@
 #include "Common/PerfTimer.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
+#include "Common/PlayerTemplate.h"
 #include "Common/Radar.h"
 #include "Common/Team.h"
 #include "Common/ThingFactory.h"
@@ -2160,6 +2161,15 @@ void InGameUI::update()
 
 	GameWindow *moneyWin = TheWindowManager->winGetWindowFromId( nullptr, moneyWindowKey );
 	GameWindow *powerWin = TheWindowManager->winGetWindowFromId( nullptr, powerWindowKey );
+
+	// a recreated control bar (resolution change) has a new money window that shows nothing yet
+	static GameWindow *lastMoneyWin = nullptr;
+	if( moneyWin != lastMoneyWin )
+	{
+		lastMoney = ~0u;
+		lastIncome = ~0u;
+		lastMoneyWin = moneyWin;
+	}
 //	if( moneyWin == nullptr )
 //	{
 //		NameKeyType moneyWindowKey = TheNameKeyGenerator->nameToKey( "ControlBar.wnd:MoneyDisplay" );
@@ -6398,8 +6408,17 @@ void InGameUI::resetIdleWorker()
 
 void InGameUI::recreateControlBar()
 {
-	GameWindow *win = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd"));
-	deleteInstance(win);
+	Player *observedPlayer = TheControlBar ? TheControlBar->getObservedPlayer() : nullptr;
+	Player *observerLookAtPlayer = TheControlBar ? TheControlBar->getObserverLookAtPlayer() : nullptr;
+
+	// The build tooltip remembers the command button it is shown for, which is destroyed below.
+	if (TheControlBar)
+		TheControlBar->deleteBuildTooltipLayout();
+
+	// winDestroy takes the children with it and unlinks the window at once, so that the new control
+	// bar finds its own windows by name and not the old ones.
+	GameWindow *win = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:ControlBarParent"));
+	TheWindowManager->winDestroy(win);
 
 	m_idleWorkerWin = nullptr;
 
@@ -6408,6 +6427,25 @@ void InGameUI::recreateControlBar()
 	delete TheControlBar;
 	TheControlBar = NEW ControlBar;
 	TheControlBar->init();
+
+	// the radar draws into a window of the control bar
+	if (TheRadar)
+		TheRadar->refreshRadarWindow();
+
+	// In a game, the new control bar still needs what the start of the game gave the old one: without
+	// the player's scheme it has no background and keeps the layout of the old resolution.
+	Player *localPlayer = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
+	if (TheGameLogic->isInGame() && !TheGameLogic->isInShellGame() && localPlayer != nullptr)
+	{
+		if (localPlayer->isPlayerActive() || localPlayer->isPlayerObserver())
+			TheControlBar->setControlBarSchemeByPlayer(localPlayer);
+		else
+			TheControlBar->setControlBarSchemeByPlayerTemplate(ThePlayerTemplateStore->findPlayerTemplate(NAMEKEY("FactionObserver")));
+		TheControlBar->initSpecialPowershortcutBar(localPlayer);
+		TheControlBar->setObservedPlayer(observedPlayer);
+		TheControlBar->setObserverLookAtPlayer(observerLookAtPlayer);
+		TheControlBar->markUIDirty();	// show what is selected
+	}
 }
 
 void InGameUI::refreshCustomUiResources()
