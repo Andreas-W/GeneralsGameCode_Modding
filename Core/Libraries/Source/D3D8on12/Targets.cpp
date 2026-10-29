@@ -57,6 +57,22 @@ D3D12_CPU_DESCRIPTOR_HANDLE Device::Target_View_Handle(bool depth, UINT index) c
 	return handle;
 }
 
+// A free view in the target RTV or DSV heap; 0 when the heap is full.
+UINT Device::Allocate_Target_View(bool depth)
+{
+	std::vector<UINT>& free_list = depth ? m_freeTargetDsvs : m_freeTargetRtvs;
+	UINT& next = depth ? m_nextTargetDsv : m_nextTargetRtv;
+	if (!free_list.empty())
+	{
+		const UINT index = free_list.back();
+		free_list.pop_back();
+		return index;
+	}
+	if (next < (depth ? TARGET_DSV_HEAP_SIZE : TARGET_RTV_HEAP_SIZE))
+		return next++;
+	return 0;
+}
+
 // Views are copied into command lists when they are recorded, so they can be reused right away.
 void Device::Free_Target_View(bool depth, UINT index)
 {
@@ -220,18 +236,7 @@ bool Device::Ensure_Target(Surface* surface)
 	if (surface->Target_View() == 0)
 	{
 		const bool depth = surface->Get_Kind() == Surface::KIND_DEPTH_STENCIL;
-		std::vector<UINT>& free_list = depth ? m_freeTargetDsvs : m_freeTargetRtvs;
-		UINT& next = depth ? m_nextTargetDsv : m_nextTargetRtv;
-		UINT index = 0;
-		if (!free_list.empty())
-		{
-			index = free_list.back();
-			free_list.pop_back();
-		}
-		else if (next < (depth ? TARGET_DSV_HEAP_SIZE : TARGET_RTV_HEAP_SIZE))
-		{
-			index = next++;
-		}
+		const UINT index = Allocate_Target_View(depth);
 		if (index == 0)
 		{
 			D3D8ON12_UNSUPPORTED("too many render targets");
@@ -351,16 +356,7 @@ bool Device::Use_Substitute_Depth(TargetState& targets, UINT width, UINT height,
 
 	if (found == nullptr)
 	{
-		UINT index = 0;
-		if (!m_freeTargetDsvs.empty())
-		{
-			index = m_freeTargetDsvs.back();
-			m_freeTargetDsvs.pop_back();
-		}
-		else if (m_nextTargetDsv < TARGET_DSV_HEAP_SIZE)
-		{
-			index = m_nextTargetDsv++;
-		}
+		const UINT index = Allocate_Target_View(true);
 		if (index == 0)
 		{
 			D3D8ON12_UNSUPPORTED("too many render targets");

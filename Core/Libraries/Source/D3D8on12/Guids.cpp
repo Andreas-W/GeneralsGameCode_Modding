@@ -22,3 +22,4 @@
 #include <windows.h>
 #include <initguid.h>
 #include <d3d8.h>
+#include "d3d8on12_ext.h"

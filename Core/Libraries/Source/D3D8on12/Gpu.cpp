@@ -511,6 +511,12 @@ UINT Device::Get_Sampler(DWORD stage)
 	desc.MinLOD = (float)tss[D3DTSS_MAXMIPLEVEL];
 	desc.MaxLOD = mip_filter == D3DTEXF_NONE ? desc.MinLOD : D3D12_FLOAT32_MAX;
 
+	return Find_Sampler(desc);
+}
+
+// The index of a sampler with this description in the sampler heap, created on first use.
+UINT Device::Find_Sampler(const D3D12_SAMPLER_DESC& desc)
+{
 	const UINT64 hash = Hash_Bytes(&desc, sizeof(desc));
 	auto found = m_samplers.find(hash);
 	if (found != m_samplers.end())

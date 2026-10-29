@@ -23,6 +23,7 @@
 // Drawing is in Draw.cpp, the shared Direct3D 12 objects in Gpu.cpp.
 
 #include "Device.h"
+#include "PostProcess.h"
 #include "Formats.h"
 #include "Interface.h"
 #include "Resources.h"
@@ -89,6 +90,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_dsvDescriptorSize(0),
 		m_sampleCount(1),
 		m_windowProc(nullptr),
+		m_postProcessor(nullptr),
 		m_liveChildren(0),
 		m_nextTargetRtv(1),
 		m_nextTargetDsv(1),
@@ -118,6 +120,8 @@ Device::~Device()
 {
 	Wait_For_GPU();
 	m_garbage.clear();
+
+	delete m_postProcessor;
 
 	// A swap chain must not be released while it is fullscreen.
 	if (m_swapChain != nullptr)
@@ -166,6 +170,8 @@ void Device::Child_Destroyed()
 void Device::Release_Held_Objects()
 {
 	Unhook_Window();
+	if (m_postProcessor != nullptr)
+		m_postProcessor->Clear_Chain();
 	for (IDirect3DBaseTexture8*& texture : m_textures)
 	{
 		if (texture != nullptr)
@@ -662,6 +668,14 @@ HRESULT STDMETHODCALLTYPE Device::QueryInterface(REFIID riid, void** object)
 	{
 		AddRef();
 		*object = static_cast<IDirect3DDevice8*>(this);
+		return S_OK;
+	}
+	if (riid == IID_ID3D8On12PostProcess)
+	{
+		if (m_postProcessor == nullptr)
+			m_postProcessor = new PostProcessor(this);
+		AddRef();
+		*object = static_cast<ID3D8On12PostProcess*>(m_postProcessor);
 		return S_OK;
 	}
 	*object = nullptr;

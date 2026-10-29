@@ -63,8 +63,12 @@ struct StreamBinding
 	UINT stride;
 };
 
+class PostProcessor;
+
 class Device : public RefCounted<IDirect3DDevice8>
 {
+	friend class PostProcessor;
+
 public:
 	Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3DDEVTYPE device_type, HWND focus_window, DWORD behavior_flags);
 	virtual ~Device() override;
@@ -82,6 +86,7 @@ public:
 	// Releases the Direct3D 12 copy of a texture once the GPU is done with the frames that used it.
 	void Release_Gpu_Texture(GpuTexture& gpu);
 	void Release_Gpu_Resource(ComPtr<ID3D12Resource>& resource);
+	UINT Allocate_Target_View(bool depth);
 	void Free_Target_View(bool depth, UINT index);
 
 	// IUnknown
@@ -209,6 +214,7 @@ private:
 	UINT Prepare_Texture(IDirect3DBaseTexture8* texture, TextureType& type);
 	D3D12_GPU_VIRTUAL_ADDRESS Prepare_Buffer(GpuBuffer& gpu, const unsigned char* data, UINT size, D3D12_RESOURCE_STATES read_state);
 	UINT Get_Sampler(DWORD stage);
+	UINT Find_Sampler(const D3D12_SAMPLER_DESC& desc);
 	void Release_Finished_Resources();
 
 	// Targets.cpp
@@ -388,6 +394,9 @@ private:
 	D3DGAMMARAMP m_gammaRamp;
 	PALETTEENTRY m_palettes[256][256];
 	UINT m_currentPalette;
+
+	PostProcessor* m_postProcessor;	// created when the engine asks for it
+	std::vector<ComPtr<ID3D12PipelineState>> m_retiredPipelines;	// of released shaders, kept until the GPU is done
 };
 
 } // namespace D3D8On12

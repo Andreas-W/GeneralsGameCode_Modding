@@ -3,6 +3,7 @@
 
 set(D3D8ON12_SRC
     d3d8on12.h
+    d3d8on12_ext.h
     Caps.cpp
     Device.cpp
     Device.h
@@ -14,6 +15,8 @@ set(D3D8ON12_SRC
     Interface.cpp
     Interface.h
     Pipeline.h
+    PostProcess.cpp
+    PostProcess.h
     Private.h
     Resources.cpp
     Resources.h
