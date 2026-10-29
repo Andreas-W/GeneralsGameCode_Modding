@@ -120,4 +120,17 @@ struct GameMcpShadowMap
 };
 extern GameMcpShadowMap TheGameMcpShadowMap;
 
+/// HLSL materials of the Direct3D 12 renderer; set by the display device, all null without one.
+struct GameMcpMaterials
+{
+	bool (*isAvailable)();
+	bool (*isRunning)();
+	void (*setEnabled)(bool enabled);
+	void (*reload)();
+	bool (*setParameter)(const char *material, const char *name, const Real *values, Int count);
+	void (*getState)(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, AsciiString &error);
+	void (*collectTextures)(std::vector<AsciiString> &names);
+};
+extern GameMcpMaterials TheGameMcpMaterials;
+
 #endif // RTS_GAME_MCP

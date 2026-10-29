@@ -487,6 +487,20 @@ def render_postprocess(enabled: bool | None = None, reload: bool = False, pass_n
 
 
 @mcp.tool()
+def render_materials(enabled: bool | None = None, reload: bool = False, material: str | None = None,
+                     param: str | None = None, values: list[float] | None = None, textures: bool = False) -> dict:
+    """HLSL materials of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]): Material blocks in
+    Data\\INI\\Material.ini give every model mesh drawn with one of their base textures a pixel shader (built-in
+    MAT_Standard or Data\\Shaders\\Material\\<Shader>.hlsl) with normal, specular and emissive maps.
+    enabled turns them on or off (not saved); reload reads the INI and shaders again; material + param + values
+    (1 to 4 numbers) change a parameter live. textures=true returns the base texture names drawn since the last
+    such call (call once, step a frame or two, call again) - use them for Textures = ... Returns the materials,
+    how many textures each got, and the last compile error."""
+    return game.call("render.materials", enabled=enabled, reload=reload or None, material=material, param=param,
+                     values=values, textures=textures or None)
+
+
+@mcp.tool()
 def render_shadows(enabled: bool | None = None, size: int | None = None, softness: float | None = None,
                    bias: float | None = None, depth_bias: int | None = None, slope_bias: float | None = None,
                    darkness: float | None = None, min_sun_elevation: float | None = None,

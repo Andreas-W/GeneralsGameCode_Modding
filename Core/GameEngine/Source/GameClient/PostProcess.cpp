@@ -27,6 +27,7 @@
 
 PostProcessSettings* ThePostProcessSettings = nullptr;
 ShadowMapSettings* TheShadowMapSettings = nullptr;
+MaterialSettings* TheMaterialSettings = nullptr;
 
 //-------------------------------------------------------------------------------------------------
 static void parseInputs( INI *ini, void *instance, void *store, const void *userData )
@@ -168,6 +169,63 @@ void INI::parseShadowMapDefinition( INI *ini )
 	if (TheShadowMapSettings == nullptr)
 		TheShadowMapSettings = new ShadowMapSettings;
 	ini->initFromINI( TheShadowMapSettings, ShadowMapSettings::s_fieldParseTable );
+}
+
+//-------------------------------------------------------------------------------------------------
+MaterialTemplate::MaterialTemplate()
+{
+	m_shader = "MAT_Standard";
+	// Not _n, _s, _e: the game's own night, snow and other variants of building textures use those.
+	m_maps[0] = "_nrm";
+	m_maps[1] = "_spec";
+	m_maps[2] = "_emis";
+	m_maps[3] = "None";
+}
+
+const FieldParse MaterialTemplate::s_fieldParseTable[] =
+{
+	{ "Textures",		parseInputs,			nullptr,	offsetof( MaterialTemplate, m_textures ) },
+	{ "Shader",			INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_shader ) },
+	{ "NormalMap",		INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[0] ) },
+	{ "SpecularMap",	INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[1] ) },
+	{ "EmissiveMap",	INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[2] ) },
+	{ "ExtraMap",		INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[3] ) },
+	{ "Param",			parseParameter,			nullptr,	offsetof( MaterialTemplate, m_parameters ) },
+	{ nullptr, nullptr, nullptr, 0 },
+};
+
+//-------------------------------------------------------------------------------------------------
+MaterialSettings::~MaterialSettings()
+{
+	for (size_t i = 0; i < m_materials.size(); ++i)
+		delete m_materials[i];
+}
+
+//-------------------------------------------------------------------------------------------------
+MaterialTemplate* MaterialSettings::findOrCreateMaterial(const AsciiString& name)
+{
+	for (size_t i = 0; i < m_materials.size(); ++i)
+		if (m_materials[i]->m_name.compareNoCase(name) == 0)
+			return m_materials[i];
+	MaterialTemplate *material = new MaterialTemplate;
+	material->m_name = name;
+	m_materials.push_back(material);
+	return material;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A material defined again (for example by the mod after the defaults) is replaced as a whole. */
+//-------------------------------------------------------------------------------------------------
+void INI::parseMaterialDefinition( INI *ini )
+{
+	if (TheMaterialSettings == nullptr)
+		TheMaterialSettings = new MaterialSettings;
+
+	AsciiString name = ini->getNextToken();
+	MaterialTemplate *material = TheMaterialSettings->findOrCreateMaterial(name);
+	*material = MaterialTemplate();
+	material->m_name = name;
+	ini->initFromINI( material, MaterialTemplate::s_fieldParseTable );
 }
 
 //-------------------------------------------------------------------------------------------------

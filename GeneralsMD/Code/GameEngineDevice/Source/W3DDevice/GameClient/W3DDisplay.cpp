@@ -79,6 +79,7 @@ static void drawFramerateBar();
 #include "W3DDevice/GameClient/W3DWater.h"
 #include "W3DDevice/GameClient/W3DVideoBuffer.h"
 #include "W3DDevice/GameClient/W3DShaderManager.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
 #include "W3DDevice/GameClient/W3DPostProcess.h"
 #include "W3DDevice/GameClient/W3DDebugDisplay.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
@@ -472,6 +473,9 @@ W3DDisplay::~W3DDisplay()
 	if (!TheGlobalData->m_headless)
 		delete TheW3DPostProcess;
 		TheW3DPostProcess = nullptr;
+		// Before the assets go: it holds map textures.
+		delete TheW3DMaterials;
+		TheW3DMaterials = nullptr;
 		W3DShaderManager::shutdown();
 	m_assetManager->Free_Assets();
 	delete m_assetManager;
@@ -765,6 +769,23 @@ static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Rea
 	debug = TheW3DShadowMap != nullptr && TheW3DShadowMap->getDebug();
 }
 static void mcpShadowMapSetDebug(bool debug) { if (TheW3DShadowMap) TheW3DShadowMap->setDebug(debug); }
+static bool mcpMaterialsAvailable() { return TheW3DMaterials != nullptr && TheW3DMaterials->isAvailable(); }
+static bool mcpMaterialsRunning() { return TheW3DMaterials != nullptr && TheW3DMaterials->isRunning(); }
+static void mcpMaterialsSetEnabled(bool enabled) { if (TheW3DMaterials) TheW3DMaterials->setEnabled(enabled); }
+static void mcpMaterialsReload() { if (TheW3DMaterials) TheW3DMaterials->reload(); }
+static bool mcpMaterialsSetParameter(const char *material, const char *name, const Real *values, Int count)
+{
+	return TheW3DMaterials != nullptr && TheW3DMaterials->setParameter(material, name, values, count);
+}
+static void mcpMaterialsGetState(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, AsciiString &error)
+{
+	if (TheW3DMaterials)
+	{
+		TheW3DMaterials->getMaterials(names, meshTextures);
+		error = TheW3DMaterials->getError();
+	}
+}
+static void mcpMaterialsCollectTextures(std::vector<AsciiString> &names) { if (TheW3DMaterials) TheW3DMaterials->collectTextures(names); }
 #endif
 
 void W3DDisplay::init()
@@ -779,6 +800,13 @@ void W3DDisplay::init()
 	TheGameMcpShadowMap.isAvailable = mcpShadowMapAvailable;
 	TheGameMcpShadowMap.getState = mcpShadowMapGetState;
 	TheGameMcpShadowMap.setDebug = mcpShadowMapSetDebug;
+	TheGameMcpMaterials.isAvailable = mcpMaterialsAvailable;
+	TheGameMcpMaterials.isRunning = mcpMaterialsRunning;
+	TheGameMcpMaterials.setEnabled = mcpMaterialsSetEnabled;
+	TheGameMcpMaterials.reload = mcpMaterialsReload;
+	TheGameMcpMaterials.setParameter = mcpMaterialsSetParameter;
+	TheGameMcpMaterials.getState = mcpMaterialsGetState;
+	TheGameMcpMaterials.collectTextures = mcpMaterialsCollectTextures;
 #endif
 
 
@@ -987,6 +1015,8 @@ void W3DDisplay::init()
 
 		TheW3DPostProcess = new W3DPostProcess;
 		TheW3DPostProcess->init();
+		TheW3DMaterials = new W3DMaterials;
+		TheW3DMaterials->init();
 
 		// Create and initialize the debug display
 		m_nativeDebugDisplay = NEW W3DDebugDisplay();

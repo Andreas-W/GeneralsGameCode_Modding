@@ -219,6 +219,57 @@ McpJson cmdShadows(const McpJson &args)
 	return result;
 }
 
+// Materials: turns them on or off (not saved), reloads the Material INI and shaders, sets a parameter of a
+// material, or lists the base textures drawn since the last call (to find names for Textures = ...).
+McpJson cmdMaterials(const McpJson &args)
+{
+	requireWindow();
+	if (TheGameMcpMaterials.isAvailable == nullptr) {
+		gameMcpFail("the display has no materials");
+	}
+	if (args.has("enabled")) {
+		TheGameMcpMaterials.setEnabled(gameMcpArgBool(args, "enabled", true));
+	}
+	if (gameMcpArgBool(args, "reload", false)) {
+		TheGameMcpMaterials.reload();
+	}
+	if (args.has("param")) {
+		const std::string material = gameMcpArgString(args, "material");
+		const std::string param = gameMcpArgString(args, "param");
+		const McpJson &list = args.get("values");
+		Real values[4] = { 0, 0, 0, 0 };
+		Int count = 0;
+		if (list.isArray()) {
+			for (size_t i = 0; i < list.size() && count < 4; ++i)
+				values[count++] = (Real)list.at(i).asNumber();
+		} else {
+			values[count++] = (Real)gameMcpArgNumber(args, "values");
+		}
+		if (!TheGameMcpMaterials.setParameter(material.c_str(), param.c_str(), values, count)) {
+			gameMcpFail("no running material '%s' with a parameter '%s'", material.c_str(), param.c_str());
+		}
+	}
+
+	std::vector<AsciiString> names;
+	std::vector<Int> meshTextures;
+	AsciiString error;
+	TheGameMcpMaterials.getState(names, meshTextures, error);
+	McpJson materials = McpJson::makeArray();
+	for (size_t i = 0; i < names.size(); ++i)
+		materials.push(McpJson::makeObject().set("name", names[i].str()).set("textures_used", (Int)meshTextures[i]));
+	McpJson result = McpJson::makeObject().set("available", TheGameMcpMaterials.isAvailable())
+		.set("running", TheGameMcpMaterials.isRunning()).set("materials", materials).set("error", error.str());
+	if (gameMcpArgBool(args, "textures", false)) {
+		std::vector<AsciiString> textures;
+		TheGameMcpMaterials.collectTextures(textures);
+		McpJson list = McpJson::makeArray();
+		for (size_t i = 0; i < textures.size(); ++i)
+			list.push(textures[i].str());
+		result.set("textures", list);
+	}
+	return result;
+}
+
 } // namespace
 
 void gameMcpRegisterViewCommands()
@@ -231,6 +282,10 @@ void gameMcpRegisterViewCommands()
 	gameMcpRegisterCommand("render.postprocess", cmdPostProcess,
 		"{enabled?, reload?, pass?, param?, values?} Post-processing of the Direct3D 12 renderer: turns it on or off (not saved), "
 		"reloads the PostProcess INI and shaders, or sets a parameter of a running pass; returns its state.");
+	gameMcpRegisterCommand("render.materials", cmdMaterials,
+		"{enabled?, reload?, material?, param?, values?, textures?} HLSL materials of the Direct3D 12 renderer: turns them on or off "
+		"(not saved), reloads the Material INI and shaders, sets a parameter of a material, or (textures=true) returns the base "
+		"textures drawn since the last such call; returns the materials and how many textures each got.");
 	gameMcpRegisterCommand("render.shadows", cmdShadows,
 		"{enabled?, size?, softness?, bias?, depth_bias?, slope_bias?, darkness?, min_sun_elevation?, debug?} Shadow maps of the Direct3D 12 renderer: "
 		"changes the ShadowMap settings (not saved; debug shows the amount of shadow as grey) and returns the state.");

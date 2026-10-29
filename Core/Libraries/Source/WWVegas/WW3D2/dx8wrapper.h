@@ -569,6 +569,8 @@ public:
 	static struct ID3D8On12PostProcess* Get_Post_Process();
 	// Shadow maps of the Direct3D 12 renderer; null with Direct3D 8.
 	static struct ID3D8On12ShadowMap* Get_Shadow_Mapper();
+	// HLSL materials of the Direct3D 12 renderer; null with Direct3D 8.
+	static struct ID3D8On12Materials* Get_Materials();
 
 	static HRESULT Set_Cursor_Properties(unsigned hotspot_x, unsigned hotspot_y, IDirect3DSurface8* cursor_bitmap);
 	static void Set_Cursor_Position(int x, int y, DWORD flags);
@@ -736,6 +738,7 @@ protected:
 	static IDirect3DDevice8 *			D3DDevice;				//d3ddevice8;
 	static struct ID3D8On12PostProcess*	PostProcess;
 	static struct ID3D8On12ShadowMap*	ShadowMapper;
+	static struct ID3D8On12Materials*	Materials;
 
 	static IDirect3DSurface8 *			CurrentRenderTarget;
 	static IDirect3DSurface8 *			CurrentDepthBuffer;

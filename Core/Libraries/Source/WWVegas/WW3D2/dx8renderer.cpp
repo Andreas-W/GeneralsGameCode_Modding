@@ -1676,6 +1676,8 @@ unsigned DX8TextureCategoryClass::Add_Mesh(
 
 // ----------------------------------------------------------------------------
 
+MeshMaterialBinderClass *TheMeshMaterialBinder = nullptr;
+
 void DX8TextureCategoryClass::Render()
 {
 	#ifdef WWDEBUG
@@ -1720,6 +1722,8 @@ void DX8TextureCategoryClass::Render()
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_SRCBLEND,D3DBLEND_DESTCOLOR);
 	}
 
+
+	const bool material_bound = TheMeshMaterialBinder != nullptr && TheMeshMaterialBinder->Begin(Peek_Texture(0));
 
 	bool renderTasksRemaining=false;
 
@@ -1965,6 +1969,9 @@ void DX8TextureCategoryClass::Render()
 		delete prt;
 		prt = next_prt;
 	}
+
+	if (material_bound)
+		TheMeshMaterialBinder->End();
 
 	if (!renderTasksRemaining)
 	{

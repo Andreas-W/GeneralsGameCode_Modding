@@ -67,6 +67,21 @@ class CameraClass;
 #define RECORD_RENDER(I,P) render_stats[I].count++; render_stats[I].polys+=P;
 
 /**
+** Lets the display device give the meshes drawn with a base texture another look, such as the HLSL
+** materials of the Direct3D 12 renderer. Begin is called before the meshes of a texture category are
+** drawn and returns whether it set something up; End is then called after them.
+*/
+class MeshMaterialBinderClass
+{
+public:
+	virtual ~MeshMaterialBinderClass() {}
+	virtual bool Begin(TextureClass *base_texture) = 0;
+	virtual void End() = 0;
+};
+
+extern MeshMaterialBinderClass *TheMeshMaterialBinder;	///< null without one
+
+/**
 ** DX8TextureCategoryClass
 ** This class is used for each Material-Texture-Shader combination that is encountered during rendering.
 ** Each polygon_renderer that uses the same 'TextureCategory' will be linked to the 'TextureCategory' object.

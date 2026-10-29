@@ -43,7 +43,17 @@
 //	  MinSunElevation = 0			; degrees; a lower sun is raised to this, which shortens the shadows
 //	End
 //
-// Only the Direct3D 12 renderer runs post-processing and shadow maps.
+//	Material AmericaTanks			; in Data\INI\Material.ini: a pixel shader for every mesh drawn with these textures
+//	  Textures = AVTank AVPaladin	; base textures, without extension, case-insensitive
+//	  Shader = MAT_Standard			; Data\Shaders\Material\<Shader>.hlsl, else a built-in shader
+//	  NormalMap = _nrm				; per texture <texture>_nrm (the default); a file name; or None
+//	  SpecularMap = _spec			; the same, default _spec (red = strength, green = gloss)
+//	  EmissiveMap = _emis			; the same, default _emis (glow color)
+//	  ExtraMap = None				; a sixth texture for custom shaders, default none
+//	  Param = Gloss 24				; a variable of the shader's Params cbuffer, 1 to 4 values
+//	End
+//
+// Only the Direct3D 12 renderer runs post-processing, shadow maps and materials.
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
@@ -113,3 +123,29 @@ public:
 };
 
 extern ShadowMapSettings* TheShadowMapSettings;	///< null without a ShadowMap block
+
+class MaterialTemplate
+{
+public:
+	MaterialTemplate();
+
+	AsciiString m_name;
+	std::vector<AsciiString> m_textures;
+	AsciiString m_shader;
+	AsciiString m_maps[4];				///< normal, specular, emissive, extra
+	std::vector<PostProcessParameter> m_parameters;
+
+	static const FieldParse s_fieldParseTable[];
+};
+
+class MaterialSettings
+{
+public:
+	~MaterialSettings();
+
+	MaterialTemplate* findOrCreateMaterial(const AsciiString& name);
+
+	std::vector<MaterialTemplate*> m_materials;
+};
+
+extern MaterialSettings* TheMaterialSettings;	///< null without Material blocks

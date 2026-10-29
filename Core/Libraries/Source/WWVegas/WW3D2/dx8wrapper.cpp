@@ -155,6 +155,7 @@ IDirect3D8 *					DX8Wrapper::D3DInterface								= nullptr;
 IDirect3DDevice8 *			DX8Wrapper::D3DDevice									= nullptr;
 ID3D8On12PostProcess *		DX8Wrapper::PostProcess								= nullptr;
 ID3D8On12ShadowMap *			DX8Wrapper::ShadowMapper								= nullptr;
+ID3D8On12Materials *			DX8Wrapper::Materials									= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentRenderTarget						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentDepthBuffer						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::DefaultRenderTarget						= nullptr;
@@ -712,6 +713,10 @@ void DX8Wrapper::Release_Device()
 		if (ShadowMapper) {
 			ShadowMapper->Release();
 			ShadowMapper=nullptr;
+		}
+		if (Materials) {
+			Materials->Release();
+			Materials=nullptr;
 		}
 		D3DDevice->Release();
 		D3DDevice=nullptr;
@@ -2040,6 +2045,20 @@ ID3D8On12ShadowMap* DX8Wrapper::Get_Shadow_Mapper()
 			ShadowMapper = nullptr;
 	}
 	return ShadowMapper;
+#else
+	return nullptr;
+#endif
+}
+
+ID3D8On12Materials* DX8Wrapper::Get_Materials()
+{
+#ifdef RTS_RENDERER_DX12
+	if (Materials == nullptr && D3DDevice != nullptr && DX8Wrapper_UseDX12)
+	{
+		if (FAILED(D3DDevice->QueryInterface(IID_ID3D8On12Materials, (void**)&Materials)))
+			Materials = nullptr;
+	}
+	return Materials;
 #else
 	return nullptr;
 #endif

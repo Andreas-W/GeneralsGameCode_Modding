@@ -144,6 +144,7 @@ static const BlockParse theTypeTable[] =
 	{ "PostProcess",                    INI::parsePostProcessDefinition },
 	{ "PostProcessPass",                INI::parsePostProcessPassDefinition },
 	{ "ShadowMap",                      INI::parseShadowMapDefinition },
+	{ "Material",                       INI::parseMaterialDefinition },
 	{ "Rank",                           INI::parseRankDefinition },
 	{ "ReallyLowMHz",                   parseReallyLowMHz },
 	{ "Road",                           INI::parseTerrainRoadDefinition },
