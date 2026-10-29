@@ -88,6 +88,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_uploadOffset(0),
 		m_dsvDescriptorSize(0),
 		m_sampleCount(1),
+		m_windowProc(nullptr),
 		m_liveChildren(0),
 		m_nextTargetRtv(1),
 		m_nextTargetDsv(1),
@@ -117,6 +118,10 @@ Device::~Device()
 {
 	Wait_For_GPU();
 	m_garbage.clear();
+
+	// A swap chain must not be released while it is fullscreen.
+	if (m_swapChain != nullptr)
+		m_swapChain->SetFullscreenState(FALSE, nullptr);
 
 	for (StateValues* block : m_stateBlocks)
 		delete block;
@@ -160,6 +165,7 @@ void Device::Child_Destroyed()
 // Releases the resources bound to the device and the ones it made for itself.
 void Device::Release_Held_Objects()
 {
+	Unhook_Window();
 	for (IDirect3DBaseTexture8*& texture : m_textures)
 	{
 		if (texture != nullptr)
@@ -255,6 +261,7 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	swap_desc.BufferCount = FRAME_COUNT;
 	swap_desc.Scaling = DXGI_SCALING_STRETCH;
 	swap_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swap_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	ComPtr<IDXGISwapChain1> swap_chain;
 	if (FAILED(factory->CreateSwapChainForHwnd(m_queue.Get(), m_window, &swap_desc, nullptr, nullptr, &swap_chain)))
@@ -265,6 +272,7 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	swap_chain.As(&m_swapChain);
 	// The engine switches between windowed and fullscreen itself.
 	factory->MakeWindowAssociation(m_window, DXGI_MWA_NO_ALT_ENTER);
+	Hook_Window();
 
 	D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
 	heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -278,6 +286,9 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	if (FAILED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_dsvHeap))))
 		return D3DERR_OUTOFVIDEOMEMORY;
 
+	// A fullscreen device that can not take the screen yet (another window is in front) starts windowed
+	// and is lost until the engine resets it.
+	Apply_Window_Mode();
 	HRESULT hr = Create_Swap_Chain_Buffers();
 	if (FAILED(hr))
 		return hr;
@@ -663,7 +674,131 @@ HRESULT STDMETHODCALLTYPE Device::QueryInterface(REFIID riid, void** object)
 
 HRESULT STDMETHODCALLTYPE Device::TestCooperativeLevel()
 {
-	return m_deviceRemoved ? D3DERR_DEVICELOST : D3D_OK;
+	if (m_deviceRemoved)
+		return D3DERR_DEVICELOST;
+	if (Is_Fullscreen_Lost())
+	{
+		// As in D3D8: lost while another application has the screen, to be reset once ours is active.
+		const HWND foreground = GetForegroundWindow();
+		const bool active = foreground != nullptr && GetAncestor(foreground, GA_ROOT) == GetAncestor(m_window, GA_ROOT) && !IsIconic(m_window);
+		return active ? D3DERR_DEVICENOTRESET : D3DERR_DEVICELOST;
+	}
+	return D3D_OK;
+}
+
+// Like the D3D8 runtime, the device watches its window: a fullscreen device gives the screen back and
+// minimizes the window when the application loses the focus. DXGI does that by itself only when the
+// application presents again, which the engine does not while minimized.
+void Device::Hook_Window()
+{
+	if (m_window == nullptr || m_windowProc != nullptr)
+		return;
+	const bool unicode = IsWindowUnicode(m_window) != FALSE;
+	SetPropW(m_window, L"D3D8On12Device", this);
+	m_windowProc = (WNDPROC)(unicode ? SetWindowLongPtrW(m_window, GWLP_WNDPROC, (LONG_PTR)Window_Proc)
+		: SetWindowLongPtrA(m_window, GWLP_WNDPROC, (LONG_PTR)Window_Proc));
+}
+
+void Device::Unhook_Window()
+{
+	if (m_windowProc == nullptr)
+		return;
+	if (IsWindow(m_window))
+	{
+		const bool unicode = IsWindowUnicode(m_window) != FALSE;
+		// Only when nothing hooked the window after the device, which would be cut off.
+		if ((WNDPROC)GetWindowLongPtrW(m_window, GWLP_WNDPROC) == Window_Proc)
+		{
+			if (unicode)
+				SetWindowLongPtrW(m_window, GWLP_WNDPROC, (LONG_PTR)m_windowProc);
+			else
+				SetWindowLongPtrA(m_window, GWLP_WNDPROC, (LONG_PTR)m_windowProc);
+		}
+		RemovePropW(m_window, L"D3D8On12Device");
+	}
+	m_windowProc = nullptr;
+}
+
+LRESULT CALLBACK Device::Window_Proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
+{
+	Device* device = (Device*)GetPropW(window, L"D3D8On12Device");
+	if (device == nullptr || device->m_windowProc == nullptr)
+		return DefWindowProcW(window, message, wparam, lparam);
+
+	if (message == WM_ACTIVATEAPP && !wparam && !device->m_presentParams.Windowed && device->m_swapChain != nullptr)
+	{
+		BOOL fullscreen = FALSE;
+		device->m_swapChain->GetFullscreenState(&fullscreen, nullptr);
+		if (fullscreen)
+		{
+			device->m_swapChain->SetFullscreenState(FALSE, nullptr);
+			ShowWindow(window, SW_MINIMIZE);
+		}
+	}
+	return IsWindowUnicode(window) ? CallWindowProcW(device->m_windowProc, window, message, wparam, lparam)
+		: CallWindowProcA(device->m_windowProc, window, message, wparam, lparam);
+}
+
+// A fullscreen device whose swap chain is not fullscreen: DXGI leaves fullscreen when the window loses
+// the focus (alt-tab), or it could not take the screen yet.
+bool Device::Is_Fullscreen_Lost()
+{
+	if (m_presentParams.Windowed || m_swapChain == nullptr)
+		return false;
+	BOOL fullscreen = FALSE;
+	if (FAILED(m_swapChain->GetFullscreenState(&fullscreen, nullptr)))
+		return false;
+	return !fullscreen;
+}
+
+// Brings the swap chain into the window mode and size of the present parameters. Fullscreen changes
+// the display mode like D3D8. Needs the back buffers to be released.
+HRESULT Device::Apply_Window_Mode()
+{
+	const UINT width = m_presentParams.BackBufferWidth;
+	const UINT height = m_presentParams.BackBufferHeight;
+	BOOL fullscreen = FALSE;
+	m_swapChain->GetFullscreenState(&fullscreen, nullptr);
+
+	HRESULT result = D3D_OK;
+	if (!m_presentParams.Windowed)
+	{
+		DXGI_MODE_DESC mode = {};
+		mode.Width = width;
+		mode.Height = height;
+		mode.RefreshRate.Numerator = m_presentParams.FullScreen_RefreshRateInHz;
+		mode.RefreshRate.Denominator = m_presentParams.FullScreen_RefreshRateInHz != 0 ? 1 : 0;
+		mode.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		m_swapChain->ResizeTarget(&mode);
+		if (!fullscreen)
+		{
+			const HRESULT hr = m_swapChain->SetFullscreenState(TRUE, nullptr);
+			if (FAILED(hr))
+			{
+				Log("could not go fullscreen yet: 0x%08X", hr);
+				result = D3DERR_DEVICELOST;
+			}
+			else
+			{
+				// Recommended after the switch, so that the mode is not stretched to the old size.
+				mode.RefreshRate.Numerator = 0;
+				mode.RefreshRate.Denominator = 0;
+				m_swapChain->ResizeTarget(&mode);
+			}
+		}
+	}
+	else if (fullscreen)
+	{
+		m_swapChain->SetFullscreenState(FALSE, nullptr);
+	}
+
+	if (FAILED(m_swapChain->ResizeBuffers(FRAME_COUNT, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH)))
+	{
+		Log("ResizeBuffers failed");
+		return D3DERR_DEVICELOST;
+	}
+	m_backBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+	return result;
 }
 
 UINT STDMETHODCALLTYPE Device::GetAvailableTextureMem()
@@ -799,12 +934,10 @@ HRESULT STDMETHODCALLTYPE Device::Reset(D3DPRESENT_PARAMETERS* params)
 	m_presentParams = new_params;
 	*params = new_params;
 
-	if (FAILED(m_swapChain->ResizeBuffers(FRAME_COUNT, new_params.BackBufferWidth, new_params.BackBufferHeight, DXGI_FORMAT_B8G8R8A8_UNORM, 0)))
-	{
-		Log("ResizeBuffers failed");
-		return D3DERR_DEVICELOST;
-	}
+	const HRESULT mode_result = Apply_Window_Mode();
 	memset(m_frameFenceValues, 0, sizeof(m_frameFenceValues));
+	if (FAILED(mode_result))
+		return mode_result;
 
 	HRESULT hr = Create_Swap_Chain_Buffers();
 	if (FAILED(hr))
@@ -853,6 +986,8 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 		m_deviceRemoved = true;
 		return D3DERR_DEVICELOST;
 	}
+	if (Is_Fullscreen_Lost())
+		return D3DERR_DEVICELOST;
 	return D3D_OK;
 }
 

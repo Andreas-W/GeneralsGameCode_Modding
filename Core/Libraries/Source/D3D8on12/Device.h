@@ -257,6 +257,11 @@ private:
 
 	HRESULT Create_Swap_Chain_Buffers();
 	void Release_Swap_Chain_Buffers();
+	HRESULT Apply_Window_Mode();
+	bool Is_Fullscreen_Lost();
+	void Hook_Window();
+	void Unhook_Window();
+	static LRESULT CALLBACK Window_Proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
 	void Set_Default_State();
 	void Begin_Frame();
 	void Release_Held_Objects();
@@ -272,6 +277,7 @@ private:
 	D3DDEVICE_CREATION_PARAMETERS m_creationParams;
 	D3DPRESENT_PARAMETERS m_presentParams;
 	HWND m_window;
+	WNDPROC m_windowProc;	// the window's own procedure while the device hooks it, else null
 
 	ComPtr<ID3D12Device> m_device;
 	ComPtr<ID3D12InfoQueue> m_infoQueue;	// only with the debug layer
