@@ -566,8 +566,9 @@ std::string Generate_Pixel_Shader(const PixelShaderKey& key)
 		}
 		else
 		{
-			// D3D8 reads opaque white from stages without a texture.
-			Append(text, "		float4 texture%u = float4(1, 1, 1, 1);\n", stage);
+			// A stage without a texture reads the current color as its texture: the engine's screen
+			// fades select the texture of an empty stage 0 to get the vertex color.
+			Append(text, "		float4 texture%u = current;\n", stage);
 		}
 
 		if (s.colorOp == D3DTOP_BUMPENVMAP || s.colorOp == D3DTOP_BUMPENVMAPLUMINANCE)

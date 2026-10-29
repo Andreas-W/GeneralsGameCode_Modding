@@ -32,6 +32,14 @@
 namespace D3D8On12
 {
 
+// True when the environment variable is set to something other than 0.
+static bool Is_Enabled_In_Environment(const char* name)
+{
+	char value[8];
+	const DWORD length = GetEnvironmentVariableA(name, value, sizeof(value));
+	return length > 0 && length < sizeof(value) && strcmp(value, "0") != 0;
+}
+
 void Log(const char* format, ...)
 {
 	char text[1024];
@@ -49,8 +57,7 @@ void Log(const char* format, ...)
 	if (!s_checked)
 	{
 		s_checked = true;
-		char value[8];
-		if (GetEnvironmentVariableA("D3D8ON12_LOG", value, sizeof(value)) > 0)
+		if (Is_Enabled_In_Environment("D3D8ON12_LOG"))
 			s_file = _fsopen("d3d8on12.log", "w", _SH_DENYWR);
 	}
 	if (s_file != nullptr)
@@ -62,8 +69,7 @@ void Log(const char* format, ...)
 
 static void Enable_Debug_Layer()
 {
-	char value[8];
-	if (GetEnvironmentVariableA("D3D8ON12_DEBUG", value, sizeof(value)) == 0)
+	if (!Is_Enabled_In_Environment("D3D8ON12_DEBUG"))
 		return;
 	ComPtr<ID3D12Debug> debug;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))

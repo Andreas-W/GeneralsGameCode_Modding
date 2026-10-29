@@ -104,8 +104,8 @@ bool Device::Create_Gpu_Resource(GpuTexture& gpu, D3DFORMAT format, UINT width, 
 			dxgi = DXGI_FORMAT_B8G8R8A8_UNORM;
 			swizzle = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0, 1, 2, D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1);
 		}
-		clear.Format = dxgi;
-		has_clear = true;
+		// No clear value: the engine clears render targets to many colors, and a mismatch makes the
+		// debug layer warn on every clear.
 	}
 	else if (usage & D3DUSAGE_DEPTHSTENCIL)
 	{
