@@ -74,4 +74,9 @@ struct ID3D8On12PostProcess : public IUnknown
 
 	// Runs the chain over the back buffer, which must be the current render target. time is in seconds.
 	virtual HRESULT STDMETHODCALLTYPE Run(float time) = 0;
+
+	// Draws the back buffer in 16 bit float from the next frame on, so that the scene keeps brightness
+	// above 1 (additive effects) for the passes, such as a tone curve. The Scene input is then float too;
+	// the last pass should write 0..1. Present and back buffer reads clamp it to 8 bit.
+	virtual void STDMETHODCALLTYPE Set_HDR_Scene(BOOL enable) = 0;
 };

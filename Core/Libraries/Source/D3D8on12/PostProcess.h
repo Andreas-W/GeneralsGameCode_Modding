@@ -51,9 +51,11 @@ public:
 	HRESULT STDMETHODCALLTYPE Set_Parameter(UINT pass, const char* name, const float* values, UINT count) override;
 	void STDMETHODCALLTYPE Set_Camera(const D3DMATRIX* view, const D3DMATRIX* projection) override;
 	HRESULT STDMETHODCALLTYPE Run(float time) override;
+	void STDMETHODCALLTYPE Set_HDR_Scene(BOOL enable) override;
 
 	// Releases the textures of the chain; called when the engine releases the device.
 	void Clear_Chain();
+	void Present_Scene();
 
 private:
 	struct Variable
@@ -90,6 +92,7 @@ private:
 	ID3D12PipelineState* Get_Pipeline(Shader& shader, DXGI_FORMAT format, UINT samples);
 	bool Ensure_Target(Target& target, UINT width, UINT height, DXGI_FORMAT format);
 	void Release_Target(Target& target);
+	bool Bind_Root();
 	bool Copy_Scene(UINT width, UINT height);
 	bool Copy_Depth(UINT width, UINT height);
 
@@ -100,6 +103,7 @@ private:
 	Target m_scene;
 	Target m_depth;				// R32_FLOAT copy of the depth buffer, made when a pass reads the depth
 	UINT m_depthShaders[2];		// for a depth buffer without and with multisampling
+	UINT m_presentShaders[2];	// for an HDR scene target without and with multisampling
 	D3DMATRIX m_view;
 	D3DMATRIX m_projection;
 	UINT m_linearSampler;

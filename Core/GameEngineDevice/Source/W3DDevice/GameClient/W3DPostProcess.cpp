@@ -609,6 +609,7 @@ void W3DPostProcess::release()
 #ifdef RTS_RENDERER_DX12
 	if (m_postProcess != nullptr && m_postProcess == DX8Wrapper::Get_Post_Process())
 	{
+		m_postProcess->Set_HDR_Scene(FALSE);
 		m_postProcess->Set_Chain(nullptr, 0);
 		for (size_t i = 0; i < m_shaders.size(); ++i)
 			m_postProcess->Release_Shader(m_shaders[i]);
@@ -628,17 +629,22 @@ void W3DPostProcess::release()
 void W3DPostProcess::run(CameraClass *camera)
 {
 #ifdef RTS_RENDERER_DX12
-	if (!TheGlobalData->m_postProcessing || ThePostProcessSettings == nullptr || ThePostProcessSettings->m_chain.empty())
-		return;
 	ID3D8On12PostProcess *postProcess = DX8Wrapper::Get_Post_Process();
 	if (postProcess == nullptr)
 		return;
+	// A float back buffer only while a chain brings the scene back to 0..1.
+	if (!TheGlobalData->m_postProcessing || ThePostProcessSettings == nullptr || ThePostProcessSettings->m_chain.empty())
+	{
+		postProcess->Set_HDR_Scene(FALSE);
+		return;
+	}
 	if (postProcess != m_postProcess)
 	{
 		// First run, or the device was created again.
 		release();
 		build(postProcess);
 	}
+	postProcess->Set_HDR_Scene(!m_passNames.empty() && ThePostProcessSettings->m_hdrScene);
 	if (m_passNames.empty())
 		return;
 

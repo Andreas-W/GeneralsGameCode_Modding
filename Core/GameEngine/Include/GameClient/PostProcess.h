@@ -29,6 +29,7 @@
 //
 //	PostProcess
 //	  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade
+//	  HDRScene = Yes				; draw the scene in 16 bit float, so additive effects keep brightness above 1
 //	End
 //
 // Only the Direct3D 12 renderer runs post-processing.
@@ -68,6 +69,7 @@ public:
 class PostProcessSettings
 {
 public:
+	PostProcessSettings();
 	~PostProcessSettings();
 
 	const PostProcessPassTemplate* findPass(const AsciiString& name) const;
@@ -75,6 +77,7 @@ public:
 
 	std::vector<PostProcessPassTemplate*> m_passes;
 	std::vector<AsciiString> m_chain;	///< names of the passes that run, in order
+	Bool m_hdrScene;					///< the scene is drawn in 16 bit float while the chain runs
 
 	static const FieldParse s_fieldParseTable[];
 };

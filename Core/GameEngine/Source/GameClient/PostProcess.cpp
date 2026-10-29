@@ -82,8 +82,15 @@ const FieldParse PostProcessPassTemplate::s_fieldParseTable[] =
 const FieldParse PostProcessSettings::s_fieldParseTable[] =
 {
 	{ "Passes",		parseInputs,			nullptr,	offsetof( PostProcessSettings, m_chain ) },
+	{ "HDRScene",	INI::parseBool,			nullptr,	offsetof( PostProcessSettings, m_hdrScene ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };
+
+//-------------------------------------------------------------------------------------------------
+PostProcessSettings::PostProcessSettings() :
+	m_hdrScene(FALSE)
+{
+}
 
 //-------------------------------------------------------------------------------------------------
 PostProcessSettings::~PostProcessSettings()

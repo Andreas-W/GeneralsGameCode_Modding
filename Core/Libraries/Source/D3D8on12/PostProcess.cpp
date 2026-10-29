@@ -82,6 +82,22 @@ static const char s_depthCopyShaderMS[] =
 	"Texture2DMS<float> Depth : register(t0);\n"
 	"float main(float4 position : SV_Position) : SV_Target { return Depth.Load(int2(position.xy), 0); }\n";
 
+// Copies the HDR scene into the 8 bit swap chain buffer; the multisampled one averages the samples.
+static const char s_presentShader[] =
+	"Texture2D Scene : register(t0);\n"
+	"float4 main(float4 position : SV_Position) : SV_Target { return saturate(Scene.Load(int3(position.xy, 0))); }\n";
+static const char s_presentShaderMS[] =
+	"Texture2DMS<float4> Scene : register(t0);\n"
+	"float4 main(float4 position : SV_Position) : SV_Target\n"
+	"{\n"
+	"	uint width, height, samples;\n"
+	"	Scene.GetDimensions(width, height, samples);\n"
+	"	float4 sum = 0;\n"
+	"	for (uint i = 0; i < samples; ++i)\n"
+	"		sum += saturate(Scene.Load(int2(position.xy), i));\n"
+	"	return sum / samples;\n"
+	"}\n";
+
 // One triangle that covers the screen, with texture coordinates 0..1 over it.
 static const char s_vertexShader[] =
 	"struct PostProcessInput { float4 position : SV_Position; float2 uv : TEXCOORD0; };\n"
@@ -199,6 +215,7 @@ PostProcessor::PostProcessor(Device* device)
 	m_scene.format = DXGI_FORMAT_UNKNOWN;
 	m_depth = m_scene;
 	m_depthShaders[0] = m_depthShaders[1] = 0;
+	m_presentShaders[0] = m_presentShaders[1] = 0;
 	memset(&m_view, 0, sizeof(m_view));
 	m_view._11 = m_view._22 = m_view._33 = m_view._44 = 1.0f;
 	m_projection = m_view;
@@ -210,6 +227,87 @@ void STDMETHODCALLTYPE PostProcessor::Set_Camera(const D3DMATRIX* view, const D3
 		m_view = *view;
 	if (projection != nullptr)
 		m_projection = *projection;
+}
+
+void STDMETHODCALLTYPE PostProcessor::Set_HDR_Scene(BOOL enable)
+{
+	m_device->m_hdrRequested = enable != FALSE;
+}
+
+// Binds the heaps and root signature with every root parameter set, for the internal passes; the
+// chain's passes then replace what they use.
+bool PostProcessor::Bind_Root()
+{
+	Device& device = *m_device;
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	if (!device.m_heapsBound)
+	{
+		ID3D12DescriptorHeap* heaps[] = { device.m_srvHeap.Get(), device.m_samplerHeap.Get() };
+		list->SetDescriptorHeaps(2, heaps);
+		device.m_heapsBound = true;
+	}
+	list->SetGraphicsRootSignature(device.m_rootSignature.Get());
+	list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	Device::UploadAllocation dummy = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (dummy.cpu == nullptr)
+		return false;
+	list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, dummy.gpu);
+	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, dummy.gpu);
+	for (UINT slot = 0; slot < FF_STAGES; ++slot)
+	{
+		list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + slot, device.Srv_Gpu_Handle(NULL_SRV_2D));
+		list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + slot, device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart());
+	}
+	return true;
+}
+
+// Draws the HDR scene target into the swap chain buffer of this frame, clamped to 0..1 (Present and
+// back buffer reads); with multisampling the shader averages the samples.
+void PostProcessor::Present_Scene()
+{
+	Device& device = *m_device;
+	const bool multisampled = device.m_sampleCount > 1;
+	UINT& shader = m_presentShaders[multisampled ? 1 : 0];
+	if (shader == 0)
+	{
+		const char* source = multisampled ? s_presentShaderMS : s_presentShader;
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(source, (UINT)strlen(source), "PostProcessPresent", nullptr, &shader, &messages)))
+		{
+			Log("could not compile the present shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			return;
+		}
+	}
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[shader - 1], DXGI_FORMAT_B8G8R8A8_UNORM, 1);
+	if (pipeline == nullptr || !Bind_Root())
+		return;
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	D3D12_RESOURCE_BARRIER barrier = {};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Transition.pResource = device.m_sceneTarget.Get();
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	list->ResourceBarrier(1, &barrier);
+
+	const UINT width = device.m_presentParams.BackBufferWidth;
+	const UINT height = device.m_presentParams.BackBufferHeight;
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
+	rtv.ptr += device.m_backBufferIndex * device.m_rtvDescriptorSize;
+	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES, device.Srv_Gpu_Handle(device.m_sceneSrv));
+	list->DrawInstanced(3, 1, 0, 0);
+
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	list->ResourceBarrier(1, &barrier);
 }
 
 // Copies the depth buffer into m_depth, which passes then read as their Depth input.
@@ -520,13 +618,13 @@ void PostProcessor::Release_Target(Target& target)
 // Copies what is drawn into the back buffer so far into a texture the passes can read.
 bool PostProcessor::Copy_Scene(UINT width, UINT height)
 {
-	if (!Ensure_Target(m_scene, width, height, DXGI_FORMAT_B8G8R8A8_UNORM))
+	Device& device = *m_device;
+	if (!Ensure_Target(m_scene, width, height, device.m_sceneFormat))
 		return false;
 
-	Device& device = *m_device;
 	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
-	const bool multisampled = device.m_multisampleTarget != nullptr;
-	ID3D12Resource* source = multisampled ? device.m_multisampleTarget.Get() : device.m_backBuffers[device.m_backBufferIndex].Get();
+	const bool multisampled = device.m_sampleCount > 1;
+	ID3D12Resource* source = device.m_sceneTarget != nullptr ? device.m_sceneTarget.Get() : device.m_backBuffers[device.m_backBufferIndex].Get();
 
 	D3D12_RESOURCE_BARRIER barrier = {};
 	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -538,7 +636,7 @@ bool PostProcessor::Copy_Scene(UINT width, UINT height)
 	device.Transition(m_scene.gpu, multisampled ? D3D12_RESOURCE_STATE_RESOLVE_DEST : D3D12_RESOURCE_STATE_COPY_DEST);
 
 	if (multisampled)
-		list->ResolveSubresource(m_scene.gpu.resource.Get(), 0, source, 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+		list->ResolveSubresource(m_scene.gpu.resource.Get(), 0, source, 0, device.m_sceneFormat);
 	else
 		list->CopyResource(m_scene.gpu.resource.Get(), source);
 
@@ -576,35 +674,15 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 	}
 
 	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
-	if (!device.m_heapsBound)
-	{
-		ID3D12DescriptorHeap* heaps[] = { device.m_srvHeap.Get(), device.m_samplerHeap.Get() };
-		list->SetDescriptorHeaps(2, heaps);
-		device.m_heapsBound = true;
-	}
-	list->SetGraphicsRootSignature(device.m_rootSignature.Get());
-	list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	if (!Bind_Root())
+		return E_FAIL;
 
 	bool uses_depth = false;
 	for (const Pass& pass : m_passes)
 		for (UINT input = 0; input < INPUT_COUNT; ++input)
 			uses_depth = uses_depth || pass.desc.inputs[input] == D3D8ON12_PP_INPUT_DEPTH;
-	if (uses_depth)
-	{
-		// The copy pass leaves the other root parameters to the passes, which set all of them.
-		Device::UploadAllocation dummy = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-		if (dummy.cpu == nullptr)
-			return E_FAIL;
-		list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, dummy.gpu);
-		list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, dummy.gpu);
-		for (UINT slot = 0; slot < FF_STAGES; ++slot)
-		{
-			list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + slot, device.Srv_Gpu_Handle(NULL_SRV_2D));
-			list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + slot, device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart());
-		}
-		if (!Copy_Depth(width, height))
-			uses_depth = false;
-	}
+	if (uses_depth && !Copy_Depth(width, height))
+		uses_depth = false;
 
 	for (size_t index = 0; index < m_passes.size(); ++index)
 	{
@@ -621,8 +699,8 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 		if (last)
 		{
 			rtv = device.m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-			rtv.ptr += (device.m_multisampleTarget != nullptr ? FRAME_COUNT : device.m_backBufferIndex) * device.m_rtvDescriptorSize;
-			format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			rtv.ptr += (device.m_sceneTarget != nullptr ? FRAME_COUNT : device.m_backBufferIndex) * device.m_rtvDescriptorSize;
+			format = device.m_sceneFormat;
 			samples = device.m_sampleCount;
 		}
 		else

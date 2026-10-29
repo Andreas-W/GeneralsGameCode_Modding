@@ -287,8 +287,8 @@ bool Device::Prepare_Targets(TargetState& targets)
 	if (m_renderTarget == m_backBufferSurface)
 	{
 		targets.rtv = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-		targets.rtv.ptr += (m_multisampleTarget != nullptr ? FRAME_COUNT : m_backBufferIndex) * m_rtvDescriptorSize;
-		targets.rtvFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+		targets.rtv.ptr += (m_sceneTarget != nullptr ? FRAME_COUNT : m_backBufferIndex) * m_rtvDescriptorSize;
+		targets.rtvFormat = m_sceneFormat;
 		targets.sampleCount = m_sampleCount;
 	}
 	else

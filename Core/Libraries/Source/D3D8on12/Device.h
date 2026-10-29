@@ -262,6 +262,8 @@ private:
 	void Fill_Shader_Vertex_Constants(ShaderVertexConstants& constants);
 
 	HRESULT Create_Swap_Chain_Buffers();
+	HRESULT Create_Scene_Target();
+	void Release_Scene_Target();
 	void Release_Swap_Chain_Buffers();
 	HRESULT Apply_Window_Mode();
 	bool Is_Fullscreen_Lost();
@@ -296,9 +298,13 @@ private:
 	ComPtr<ID3D12Resource> m_depthBuffer;	// typeless when shaders can read it, see m_depthFormat
 	DXGI_FORMAT m_depthFormat;				// the depth format it is drawn with
 	UINT m_depthSrv;						// view for shaders, 0 when there is none
-	// With multisampling the back buffer is drawn here and resolved into the swap chain buffer, as flip
-	// model swap chains can not be multisampled.
-	ComPtr<ID3D12Resource> m_multisampleTarget;
+	// With multisampling or an HDR scene the back buffer is drawn here and copied into the swap chain
+	// buffer at Present, as flip model swap chains can not be multisampled or float.
+	ComPtr<ID3D12Resource> m_sceneTarget;
+	DXGI_FORMAT m_sceneFormat;	// the format the back buffer is drawn in
+	UINT m_sceneSrv;			// view for shaders of the HDR scene target, else 0
+	bool m_hdrScene;			// the back buffer is 16 bit float, for post-processing
+	bool m_hdrRequested;		// changes m_hdrScene at the start of the next frame
 	UINT m_sampleCount;
 	LONG m_liveChildren;
 	ComPtr<ID3D12CommandAllocator> m_allocators[FRAME_COUNT];

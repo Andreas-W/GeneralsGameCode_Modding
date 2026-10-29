@@ -89,6 +89,10 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_uploadOffset(0),
 		m_dsvDescriptorSize(0),
 		m_sampleCount(1),
+		m_sceneFormat(DXGI_FORMAT_B8G8R8A8_UNORM),
+		m_sceneSrv(0),
+		m_hdrScene(false),
+		m_hdrRequested(false),
 		m_depthFormat(DXGI_FORMAT_UNKNOWN),
 		m_depthSrv(0),
 		m_windowProc(nullptr),
@@ -327,27 +331,11 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 	if (multisample > 16 || (m_adapter.sampleCounts & (1 << multisample)) == 0 || m_presentParams.SwapEffect != D3DSWAPEFFECT_DISCARD)
 		multisample = D3DMULTISAMPLE_NONE;
 	m_sampleCount = multisample == D3DMULTISAMPLE_NONE ? 1 : (UINT)multisample;
+	HRESULT hr = Create_Scene_Target();
+	if (FAILED(hr))
+		return hr;
 	if (m_sampleCount > 1)
-	{
-		D3D12_HEAP_PROPERTIES heap = {};
-		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
-		D3D12_RESOURCE_DESC desc = {};
-		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		desc.Width = width;
-		desc.Height = height;
-		desc.DepthOrArraySize = 1;
-		desc.MipLevels = 1;
-		desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-		desc.SampleDesc.Count = m_sampleCount;
-		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-		// The game clears the back buffer to black each frame, with changing alpha.
-		D3D12_CLEAR_VALUE clear = {};
-		clear.Format = desc.Format;
-		if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, IID_PPV_ARGS(&m_multisampleTarget))))
-			return D3DERR_OUTOFVIDEOMEMORY;
-		m_device->CreateRenderTargetView(m_multisampleTarget.Get(), nullptr, rtv);
 		Log("back buffer multisampled with %u samples", m_sampleCount);
-	}
 
 	m_backBufferSurface = new Surface(this, nullptr, Surface::KIND_BACK_BUFFER, width, height,
 		m_presentParams.BackBufferFormat, D3DUSAGE_RENDERTARGET, D3DPOOL_DEFAULT, multisample);
@@ -407,12 +395,71 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 	return D3D_OK;
 }
 
+// Creates the target the back buffer is drawn in when that can not be the swap chain buffer: with
+// multisampling or an HDR scene. Its view comes after the swap chain buffers in the RTV heap.
+HRESULT Device::Create_Scene_Target()
+{
+	m_sceneFormat = m_hdrScene ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_B8G8R8A8_UNORM;
+	if (m_sampleCount == 1 && !m_hdrScene)
+		return D3D_OK;
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Width = m_presentParams.BackBufferWidth;
+	desc.Height = m_presentParams.BackBufferHeight;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = m_sceneFormat;
+	desc.SampleDesc.Count = m_sampleCount;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	// The game clears the back buffer to black each frame, with changing alpha.
+	D3D12_CLEAR_VALUE clear = {};
+	clear.Format = desc.Format;
+	if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, IID_PPV_ARGS(&m_sceneTarget))))
+		return D3DERR_OUTOFVIDEOMEMORY;
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
+	rtv.ptr += FRAME_COUNT * m_rtvDescriptorSize;
+	m_device->CreateRenderTargetView(m_sceneTarget.Get(), nullptr, rtv);
+
+	// Present draws the HDR scene into the swap chain buffer with a shader (PostProcessor::Present_Scene).
+	if (m_hdrScene)
+	{
+		D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+		srv.Format = m_sceneFormat;
+		srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		if (m_sampleCount > 1)
+		{
+			srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
+		}
+		else
+		{
+			srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			srv.Texture2D.MipLevels = 1;
+		}
+		m_sceneSrv = Allocate_Srv();
+		m_device->CreateShaderResourceView(m_sceneTarget.Get(), &srv, Srv_Cpu_Handle(m_sceneSrv));
+		Log("back buffer drawn in 16 bit float for post-processing");
+	}
+	return D3D_OK;
+}
+
+// The GPU must be done with the scene target.
+void Device::Release_Scene_Target()
+{
+	m_sceneTarget.Reset();
+	if (m_sceneSrv != 0)
+		m_freeSrvs.push_back(m_sceneSrv);
+	m_sceneSrv = 0;
+}
+
 void Device::Release_Swap_Chain_Buffers()
 {
 	for (ComPtr<ID3D12Resource>& buffer : m_backBuffers)
 		buffer.Reset();
 	m_depthBuffer.Reset();
-	m_multisampleTarget.Reset();
+	Release_Scene_Target();
 	// The GPU is idle here (Reset waits for it), so the view can be used again right away.
 	if (m_depthSrv != 0)
 		m_freeSrvs.push_back(m_depthSrv);
@@ -523,6 +570,20 @@ void Device::Begin_Frame()
 	if (m_recording)
 		return;
 
+	// Post-processing asked for another back buffer format; between frames nothing is bound to it.
+	if (m_hdrRequested != m_hdrScene && m_backBuffers[0] != nullptr)
+	{
+		Wait_For_GPU();
+		Release_Scene_Target();
+		m_hdrScene = m_hdrRequested;
+		if (FAILED(Create_Scene_Target()))
+		{
+			Log("could not create the HDR back buffer");
+			m_hdrScene = m_hdrRequested = false;
+			Create_Scene_Target();
+		}
+	}
+
 	// Wait until the GPU is done with the last frame that used this back buffer and allocator.
 	if (m_fence->GetCompletedValue() < m_frameFenceValues[m_backBufferIndex])
 	{
@@ -548,15 +609,22 @@ void Device::Begin_Frame()
 	m_recording = true;
 }
 
-// Resolves the multisample target into the swap chain buffer of this frame. Both stay render targets.
+// Copies the scene target into the swap chain buffer of this frame: a resolve with multisampling, a
+// shader for the HDR scene. Both stay render targets.
 void Device::Resolve_Back_Buffer()
 {
-	if (m_multisampleTarget == nullptr || !m_recording)
+	if (m_sceneTarget == nullptr || !m_recording)
 		return;
+	if (m_hdrScene)
+	{
+		if (m_postProcessor != nullptr)
+			m_postProcessor->Present_Scene();
+		return;
+	}
 
 	D3D12_RESOURCE_BARRIER barriers[2] = {};
 	barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barriers[0].Transition.pResource = m_multisampleTarget.Get();
+	barriers[0].Transition.pResource = m_sceneTarget.Get();
 	barriers[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
@@ -565,7 +633,7 @@ void Device::Resolve_Back_Buffer()
 	barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_RESOLVE_DEST;
 	m_commandList->ResourceBarrier(2, barriers);
 
-	m_commandList->ResolveSubresource(m_backBuffers[m_backBufferIndex].Get(), 0, m_multisampleTarget.Get(), 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+	m_commandList->ResolveSubresource(m_backBuffers[m_backBufferIndex].Get(), 0, m_sceneTarget.Get(), 0, DXGI_FORMAT_B8G8R8A8_UNORM);
 
 	barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
 	barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
