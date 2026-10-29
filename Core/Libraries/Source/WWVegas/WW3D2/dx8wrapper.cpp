@@ -154,6 +154,7 @@ D3DCOLOR							DX8Wrapper::FogColor										= 0;
 IDirect3D8 *					DX8Wrapper::D3DInterface								= nullptr;
 IDirect3DDevice8 *			DX8Wrapper::D3DDevice									= nullptr;
 ID3D8On12PostProcess *		DX8Wrapper::PostProcess								= nullptr;
+ID3D8On12ShadowMap *			DX8Wrapper::ShadowMapper								= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentRenderTarget						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentDepthBuffer						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::DefaultRenderTarget						= nullptr;
@@ -707,6 +708,10 @@ void DX8Wrapper::Release_Device()
 		if (PostProcess) {
 			PostProcess->Release();
 			PostProcess=nullptr;
+		}
+		if (ShadowMapper) {
+			ShadowMapper->Release();
+			ShadowMapper=nullptr;
 		}
 		D3DDevice->Release();
 		D3DDevice=nullptr;
@@ -2021,6 +2026,20 @@ ID3D8On12PostProcess* DX8Wrapper::Get_Post_Process()
 			PostProcess = nullptr;
 	}
 	return PostProcess;
+#else
+	return nullptr;
+#endif
+}
+
+ID3D8On12ShadowMap* DX8Wrapper::Get_Shadow_Mapper()
+{
+#ifdef RTS_RENDERER_DX12
+	if (ShadowMapper == nullptr && D3DDevice != nullptr && DX8Wrapper_UseDX12)
+	{
+		if (FAILED(D3DDevice->QueryInterface(IID_ID3D8On12ShadowMap, (void**)&ShadowMapper)))
+			ShadowMapper = nullptr;
+	}
+	return ShadowMapper;
 #else
 	return nullptr;
 #endif

@@ -82,6 +82,7 @@ static void drawFramerateBar();
 #include "W3DDevice/GameClient/W3DPostProcess.h"
 #include "W3DDevice/GameClient/W3DDebugDisplay.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
 #include "W3DDevice/GameClient/W3DScreenshot.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
 #include "WWMath/wwmath.h"
@@ -753,6 +754,17 @@ static void mcpPostProcessGetPasses(std::vector<AsciiString> &passes, AsciiStrin
 		error = TheW3DPostProcess->getError();
 	}
 }
+static bool mcpShadowMapAvailable() { return DX8Wrapper::Get_Shadow_Mapper() != nullptr; }
+static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, bool &debug)
+{
+	active = TheW3DShadowMap != nullptr && TheW3DShadowMap->isActive();
+	rendered = TheW3DShadowMap != nullptr && TheW3DShadowMap->wasRendered();
+	casters = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getCasterCount() : 0;
+	coverage = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getCoverage() : 0.0f;
+	sunElevation = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getSunElevation() : 0.0f;
+	debug = TheW3DShadowMap != nullptr && TheW3DShadowMap->getDebug();
+}
+static void mcpShadowMapSetDebug(bool debug) { if (TheW3DShadowMap) TheW3DShadowMap->setDebug(debug); }
 #endif
 
 void W3DDisplay::init()
@@ -764,6 +776,9 @@ void W3DDisplay::init()
 	TheGameMcpPostProcess.reload = mcpPostProcessReload;
 	TheGameMcpPostProcess.setParameter = mcpPostProcessSetParameter;
 	TheGameMcpPostProcess.getPasses = mcpPostProcessGetPasses;
+	TheGameMcpShadowMap.isAvailable = mcpShadowMapAvailable;
+	TheGameMcpShadowMap.getState = mcpShadowMapGetState;
+	TheGameMcpShadowMap.setDebug = mcpShadowMapSetDebug;
 #endif
 
 
@@ -1995,6 +2010,9 @@ AGAIN:
 			//before we enter main rendering loop.
 			if (TheW3DProjectedShadowManager)
 				TheW3DProjectedShadowManager->updateRenderTargetTextures();
+
+			if (TheW3DShadowMap)
+				TheW3DShadowMap->update(primaryW3DView->get3DCamera());
 		}
 
 		Debug_Statistics::End_Statistics();	//record number of polygons rendered in RenderTargetTextures.

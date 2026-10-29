@@ -149,6 +149,11 @@ def main() -> int:
             print("post-processing")
             post = bridge.call("render.postprocess")
             check("available" in post and "passes" in post, f"render.postprocess answers (available: {post['available']})")
+            shadows = bridge.call("render.shadows")
+            check("available" in shadows and "active" in shadows, f"render.shadows answers (available: {shadows['available']})")
+            if shadows["available"] and shadows["active"]:
+                step(bridge, 2)
+                check(bridge.call("render.shadows")["rendered"], "shadow map drawn")
 
             print("render speed")
             speed = bridge.call("game.set_speed", fps=30, render_fps=0)

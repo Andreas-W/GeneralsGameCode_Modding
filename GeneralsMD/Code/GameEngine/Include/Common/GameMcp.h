@@ -111,4 +111,13 @@ struct GameMcpPostProcess
 };
 extern GameMcpPostProcess TheGameMcpPostProcess;
 
+/// Shadow maps of the Direct3D 12 renderer; set by the display device, all null without one.
+struct GameMcpShadowMap
+{
+	bool (*isAvailable)();
+	void (*getState)(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, bool &debug);
+	void (*setDebug)(bool debug);
+};
+extern GameMcpShadowMap TheGameMcpShadowMap;
+
 #endif // RTS_GAME_MCP

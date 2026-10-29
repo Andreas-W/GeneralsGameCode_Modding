@@ -47,6 +47,7 @@
 #include "W3DDevice/GameClient/W3DVolumetricShadow.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
 #include "WW3D2/statistics.h"
 #include "Common/Debug.h"
 #include "Common/PerfTimer.h"
@@ -91,7 +92,8 @@ void DoShadows(RenderInfoClass & rinfo, Bool stencilPass)
 
 			//This function gets called many times by the W3D renderer
 			//so we use this flag to make sure shadows rendered only once per frame.
-			if (TheW3DShadowManager->isShadowScene())
+			// Shadow maps of the Direct3D 12 renderer replace the volumes when they are on.
+			if (TheW3DShadowManager->isShadowScene() && !(TheW3DShadowMap && TheW3DShadowMap->apply()))
 				TheW3DVolumetricShadowManager->renderShadows(projectionCount);
 	}
 	if (TheW3DShadowManager && stencilPass)	//reset so no more shadow processing this frame.
@@ -126,10 +128,13 @@ W3DShadowManager::W3DShadowManager( void )
 
 	TheW3DVolumetricShadowManager = NEW W3DVolumetricShadowManager;
 	TheProjectedShadowManager = TheW3DProjectedShadowManager = NEW W3DProjectedShadowManager;
+	TheW3DShadowMap = NEW W3DShadowMap;
 }
 
 W3DShadowManager::~W3DShadowManager()
 {
+	delete TheW3DShadowMap;
+	TheW3DShadowMap = nullptr;
 	delete TheW3DVolumetricShadowManager;
 	TheW3DVolumetricShadowManager = nullptr;
 	delete TheW3DProjectedShadowManager;

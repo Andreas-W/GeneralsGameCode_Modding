@@ -48,6 +48,8 @@ struct W3DVolumetricShadowRenderTask : public W3DBufferManager::W3DRenderTask
 // ShadowManager -------------------------------------------------------------
 class W3DVolumetricShadowManager
 {
+	friend class W3DShadowMap;	///< draws the casters into a shadow map
+
 
 public:
 
@@ -89,6 +91,7 @@ extern W3DVolumetricShadowManager *TheW3DVolumetricShadowManager;
 class W3DVolumetricShadow	: public Shadow
 {
 	friend class W3DVolumetricShadowManager;
+	friend class W3DShadowMap;
 
 	enum
 	{

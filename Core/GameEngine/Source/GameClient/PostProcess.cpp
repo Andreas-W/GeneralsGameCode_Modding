@@ -26,6 +26,7 @@
 #include "GameClient/PostProcess.h"
 
 PostProcessSettings* ThePostProcessSettings = nullptr;
+ShadowMapSettings* TheShadowMapSettings = nullptr;
 
 //-------------------------------------------------------------------------------------------------
 static void parseInputs( INI *ini, void *instance, void *store, const void *userData )
@@ -133,6 +134,40 @@ void INI::parsePostProcessPassDefinition( INI *ini )
 	*pass = PostProcessPassTemplate();
 	pass->m_name = name;
 	ini->initFromINI( pass, PostProcessPassTemplate::s_fieldParseTable );
+}
+
+//-------------------------------------------------------------------------------------------------
+ShadowMapSettings::ShadowMapSettings() :
+	m_enabled(TRUE),
+	m_size(2048),
+	m_softness(1.5f),
+	m_bias(2.0f),
+	m_depthBias(0),
+	m_slopeBias(2.0f),
+	m_darkness(1.0f),
+	m_minSunElevation(0.0f)
+{
+}
+
+const FieldParse ShadowMapSettings::s_fieldParseTable[] =
+{
+	{ "Enabled",	INI::parseBool,			nullptr,	offsetof( ShadowMapSettings, m_enabled ) },
+	{ "Size",		INI::parseInt,			nullptr,	offsetof( ShadowMapSettings, m_size ) },
+	{ "Softness",	INI::parseReal,			nullptr,	offsetof( ShadowMapSettings, m_softness ) },
+	{ "Bias",		INI::parseReal,			nullptr,	offsetof( ShadowMapSettings, m_bias ) },
+	{ "DepthBias",	INI::parseInt,			nullptr,	offsetof( ShadowMapSettings, m_depthBias ) },
+	{ "SlopeBias",	INI::parseReal,			nullptr,	offsetof( ShadowMapSettings, m_slopeBias ) },
+	{ "Darkness",	INI::parseReal,			nullptr,	offsetof( ShadowMapSettings, m_darkness ) },
+	{ "MinSunElevation",	INI::parseReal,	nullptr,	offsetof( ShadowMapSettings, m_minSunElevation ) },
+	{ nullptr, nullptr, nullptr, 0 },
+};
+
+//-------------------------------------------------------------------------------------------------
+void INI::parseShadowMapDefinition( INI *ini )
+{
+	if (TheShadowMapSettings == nullptr)
+		TheShadowMapSettings = new ShadowMapSettings;
+	ini->initFromINI( TheShadowMapSettings, ShadowMapSettings::s_fieldParseTable );
 }
 
 //-------------------------------------------------------------------------------------------------

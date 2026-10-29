@@ -486,5 +486,22 @@ def render_postprocess(enabled: bool | None = None, reload: bool = False, pass_n
                      **({"pass": pass_name} if pass_name else {}))
 
 
+@mcp.tool()
+def render_shadows(enabled: bool | None = None, size: int | None = None, softness: float | None = None,
+                   bias: float | None = None, depth_bias: int | None = None, slope_bias: float | None = None,
+                   darkness: float | None = None, min_sun_elevation: float | None = None,
+                   debug: bool | None = None) -> dict:
+    """Shadow maps of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]); they replace the
+    stencil shadow volumes when the PostProcess INI has a ShadowMap block (or enabled=true here) and the
+    3D shadows option is on. The values change the ShadowMap settings live, not the INI: size (texels of
+    the map), softness (soft edge radius in texels), bias (world units towards the sun before the test),
+    depth_bias / slope_bias (rasterizer bias of the casters against acne), darkness (scales the map's
+    shadow color), min_sun_elevation (degrees; a lower sun is raised to it, which shortens the shadows).
+    debug=true shows the amount of shadow as grey. Returns the settings and the state: available, active,
+    rendered this frame, number of casters, width of the area the map covers, sun elevation used."""
+    return game.call("render.shadows", enabled=enabled, size=size, softness=softness, bias=bias, depth_bias=depth_bias,
+                     slope_bias=slope_bias, darkness=darkness, min_sun_elevation=min_sun_elevation, debug=debug)
+
+
 if __name__ == "__main__":
     mcp.run()

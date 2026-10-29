@@ -143,6 +143,7 @@ static const BlockParse theTypeTable[] =
 	{ "PlayerTemplate",                 INI::parsePlayerTemplateDefinition },
 	{ "PostProcess",                    INI::parsePostProcessDefinition },
 	{ "PostProcessPass",                INI::parsePostProcessPassDefinition },
+	{ "ShadowMap",                      INI::parseShadowMapDefinition },
 	{ "Rank",                           INI::parseRankDefinition },
 	{ "ReallyLowMHz",                   parseReallyLowMHz },
 	{ "Road",                           INI::parseTerrainRoadDefinition },

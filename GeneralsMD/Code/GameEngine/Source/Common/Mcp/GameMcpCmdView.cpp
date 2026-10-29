@@ -31,6 +31,7 @@
 #include "GameClient/HeaderTemplate.h"
 #include "GameClient/InGameUI.h"
 #include "GameClient/Mouse.h"
+#include "GameClient/PostProcess.h"
 #include "GameClient/Shell.h"
 #include "GameClient/View.h"
 #include "GameLogic/GameLogic.h"
@@ -169,6 +170,55 @@ McpJson cmdPostProcess(const McpJson &args)
 		.set("passes", names).set("error", error.str());
 }
 
+// Shadow maps: changes the ShadowMap settings while the game runs (not saved) and returns the state.
+McpJson cmdShadows(const McpJson &args)
+{
+	requireWindow();
+	if (TheGameMcpShadowMap.isAvailable == nullptr) {
+		gameMcpFail("the display has no shadow maps");
+	}
+	static const char *const settingNames[] = { "enabled", "size", "softness", "bias", "depth_bias", "slope_bias", "darkness",
+		"min_sun_elevation" };
+	for (size_t i = 0; i < ARRAY_SIZE(settingNames); ++i) {
+		if (args.has(settingNames[i]) && TheShadowMapSettings == nullptr) {
+			TheShadowMapSettings = new ShadowMapSettings;
+		}
+	}
+	if (TheShadowMapSettings != nullptr) {
+		ShadowMapSettings &settings = *TheShadowMapSettings;
+		settings.m_enabled = gameMcpArgBool(args, "enabled", settings.m_enabled != FALSE);
+		settings.m_size = gameMcpArgInt(args, "size", settings.m_size);
+		settings.m_softness = (Real)gameMcpArgNumber(args, "softness", settings.m_softness);
+		settings.m_bias = (Real)gameMcpArgNumber(args, "bias", settings.m_bias);
+		settings.m_depthBias = gameMcpArgInt(args, "depth_bias", settings.m_depthBias);
+		settings.m_slopeBias = (Real)gameMcpArgNumber(args, "slope_bias", settings.m_slopeBias);
+		settings.m_darkness = (Real)gameMcpArgNumber(args, "darkness", settings.m_darkness);
+		settings.m_minSunElevation = (Real)gameMcpArgNumber(args, "min_sun_elevation", settings.m_minSunElevation);
+	}
+	if (args.has("debug")) {
+		TheGameMcpShadowMap.setDebug(gameMcpArgBool(args, "debug", false));
+	}
+
+	bool active = false;
+	bool rendered = false;
+	Int casters = 0;
+	Real coverage = 0.0f;
+	Real sunElevation = 0.0f;
+	bool debug = false;
+	TheGameMcpShadowMap.getState(active, rendered, casters, coverage, sunElevation, debug);
+	McpJson result = McpJson::makeObject().set("available", TheGameMcpShadowMap.isAvailable())
+		.set("configured", TheShadowMapSettings != nullptr).set("shadow_volumes_option", TheGlobalData->m_useShadowVolumes != 0)
+		.set("active", active).set("rendered", rendered).set("casters", (Int)casters).set("coverage", (Real)coverage)
+		.set("sun_elevation", (Real)sunElevation).set("debug", debug);
+	if (TheShadowMapSettings != nullptr) {
+		const ShadowMapSettings &settings = *TheShadowMapSettings;
+		result.set("enabled", settings.m_enabled != 0).set("size", (Int)settings.m_size).set("softness", (Real)settings.m_softness)
+			.set("bias", (Real)settings.m_bias).set("depth_bias", (Int)settings.m_depthBias).set("slope_bias", (Real)settings.m_slopeBias)
+			.set("darkness", (Real)settings.m_darkness).set("min_sun_elevation", (Real)settings.m_minSunElevation);
+	}
+	return result;
+}
+
 } // namespace
 
 void gameMcpRegisterViewCommands()
@@ -181,6 +231,9 @@ void gameMcpRegisterViewCommands()
 	gameMcpRegisterCommand("render.postprocess", cmdPostProcess,
 		"{enabled?, reload?, pass?, param?, values?} Post-processing of the Direct3D 12 renderer: turns it on or off (not saved), "
 		"reloads the PostProcess INI and shaders, or sets a parameter of a running pass; returns its state.");
+	gameMcpRegisterCommand("render.shadows", cmdShadows,
+		"{enabled?, size?, softness?, bias?, depth_bias?, slope_bias?, darkness?, min_sun_elevation?, debug?} Shadow maps of the Direct3D 12 renderer: "
+		"changes the ShadowMap settings (not saved; debug shows the amount of shadow as grey) and returns the state.");
 }
 
 #endif // RTS_GAME_MCP

@@ -32,7 +32,18 @@
 //	  HDRScene = Yes				; draw the scene in 16 bit float, so additive effects keep brightness above 1
 //	End
 //
-// Only the Direct3D 12 renderer runs post-processing.
+//	ShadowMap						; soft shadows from a depth map instead of the stencil shadow volumes
+//	  Enabled = Yes
+//	  Size = 2048					; texels of the square map that covers the visible area
+//	  Softness = 1.5				; radius of the soft edge in texels
+//	  Bias = 2						; world units a point is moved towards the sun before the test
+//	  DepthBias = 0					; rasterizer depth bias of the casters
+//	  SlopeBias = 2					; rasterizer slope scaled depth bias of the casters
+//	  Darkness = 1					; scales how much the map's shadow color darkens
+//	  MinSunElevation = 0			; degrees; a lower sun is raised to this, which shortens the shadows
+//	End
+//
+// Only the Direct3D 12 renderer runs post-processing and shadow maps.
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
@@ -83,3 +94,22 @@ public:
 };
 
 extern PostProcessSettings* ThePostProcessSettings;
+
+class ShadowMapSettings
+{
+public:
+	ShadowMapSettings();
+
+	Bool m_enabled;
+	Int m_size;
+	Real m_softness;
+	Real m_bias;
+	Int m_depthBias;
+	Real m_slopeBias;
+	Real m_darkness;
+	Real m_minSunElevation;
+
+	static const FieldParse s_fieldParseTable[];
+};
+
+extern ShadowMapSettings* TheShadowMapSettings;	///< null without a ShadowMap block

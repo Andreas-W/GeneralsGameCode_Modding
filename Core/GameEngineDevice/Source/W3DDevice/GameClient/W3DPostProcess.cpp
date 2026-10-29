@@ -592,6 +592,8 @@ W3DPostProcess::~W3DPostProcess()
 	release();
 	delete ThePostProcessSettings;
 	ThePostProcessSettings = nullptr;
+	delete TheShadowMapSettings;
+	TheShadowMapSettings = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -606,6 +608,8 @@ void W3DPostProcess::loadSettings()
 {
 	delete ThePostProcessSettings;
 	ThePostProcessSettings = nullptr;
+	delete TheShadowMapSettings;
+	TheShadowMapSettings = nullptr;
 
 	INI ini;
 	ini.loadFileDirectory("Data\\INI\\Default\\PostProcess", INI_LOAD_OVERWRITE, nullptr, TRUE, TRUE);
