@@ -336,6 +336,20 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> m_targetRtvHeap;	// views of render target textures and surfaces
 	ComPtr<ID3D12DescriptorHeap> m_targetDsvHeap;
+
+	// Depth buffers the device draws with instead of a bound one that is larger than the render target
+	// or has another sample count, which D3D8 allows and Direct3D 12 does not. One per size.
+	struct SubstituteDepth
+	{
+		UINT width;
+		UINT height;
+		UINT samples;
+		DXGI_FORMAT format;
+		ComPtr<ID3D12Resource> resource;
+		UINT view;
+	};
+	std::vector<SubstituteDepth> m_substituteDepths;
+	bool Use_Substitute_Depth(TargetState& targets, UINT width, UINT height, DXGI_FORMAT format);
 	UINT m_dsvDescriptorSize;
 	UINT m_nextTargetRtv;
 	UINT m_nextTargetDsv;

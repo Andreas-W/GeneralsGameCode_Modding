@@ -300,32 +300,102 @@ bool Device::Prepare_Targets(TargetState& targets)
 	height = m_renderTarget->Desc().Height;
 
 	targets.dsvFormat = DXGI_FORMAT_UNKNOWN;
-	if (m_depthStencil != nullptr && m_depthStencil->Desc().Width == width && m_depthStencil->Desc().Height == height)
+	if (m_depthStencil == nullptr)
+		return true;
+
+	// Only the automatic depth buffer is multisampled, like the back buffer.
+	const bool auto_depth = m_depthStencil == m_autoDepthSurface && m_depthBuffer != nullptr;
+	if (!auto_depth && (m_depthStencil->Get_Kind() != Surface::KIND_DEPTH_STENCIL || !Ensure_Target(m_depthStencil)))
+		return true;
+	ID3D12Resource* depth = auto_depth ? m_depthBuffer.Get() : m_depthStencil->Gpu_Target()->resource.Get();
+	const D3D12_RESOURCE_DESC depth_desc = depth->GetDesc();
+
+	if (depth_desc.Width == width && depth_desc.Height == height && depth_desc.SampleDesc.Count == targets.sampleCount)
 	{
-		// Only the automatic depth buffer is multisampled, like the back buffer.
-		const bool auto_depth = m_depthStencil == m_autoDepthSurface && m_depthBuffer != nullptr;
-		const UINT depth_samples = auto_depth ? m_depthBuffer->GetDesc().SampleDesc.Count : 1;
-		if (depth_samples != targets.sampleCount)
-		{
-			D3D8ON12_UNSUPPORTED("a depth buffer with another sample count than the render target");
-		}
-		else if (auto_depth)
+		if (auto_depth)
 		{
 			targets.dsv = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
-			targets.dsvFormat = m_depthBuffer->GetDesc().Format;
 		}
-		else if (m_depthStencil->Get_Kind() == Surface::KIND_DEPTH_STENCIL && Ensure_Target(m_depthStencil))
+		else
 		{
-			GpuTexture* gpu = m_depthStencil->Gpu_Target();
-			Transition(*gpu, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			Transition(*m_depthStencil->Gpu_Target(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			targets.dsv = Target_View_Handle(true, m_depthStencil->Target_View());
-			targets.dsvFormat = gpu->resource->GetDesc().Format;
+		}
+		targets.dsvFormat = depth_desc.Format;
+	}
+	else if (depth_desc.Width >= width && depth_desc.Height >= height)
+	{
+		// D3D8 draws with the top left part of a larger depth buffer, as the water reflection does with
+		// the screen's. The substitute does not share the contents, which the engine clears for such
+		// targets anyway.
+		Use_Substitute_Depth(targets, width, height, depth_desc.Format);
+	}
+	else
+	{
+		D3D8ON12_UNSUPPORTED("a depth buffer smaller than the render target");
+	}
+	return true;
+}
+
+bool Device::Use_Substitute_Depth(TargetState& targets, UINT width, UINT height, DXGI_FORMAT format)
+{
+	SubstituteDepth* found = nullptr;
+	for (SubstituteDepth& substitute : m_substituteDepths)
+	{
+		if (substitute.width == width && substitute.height == height && substitute.samples == targets.sampleCount && substitute.format == format)
+		{
+			found = &substitute;
+			break;
 		}
 	}
-	else if (m_depthStencil != nullptr)
+
+	if (found == nullptr)
 	{
-		D3D8ON12_UNSUPPORTED("a depth buffer of another size than the render target");
+		UINT index = 0;
+		if (!m_freeTargetDsvs.empty())
+		{
+			index = m_freeTargetDsvs.back();
+			m_freeTargetDsvs.pop_back();
+		}
+		else if (m_nextTargetDsv < TARGET_DSV_HEAP_SIZE)
+		{
+			index = m_nextTargetDsv++;
+		}
+		if (index == 0)
+		{
+			D3D8ON12_UNSUPPORTED("too many render targets");
+			return false;
+		}
+
+		D3D12_HEAP_PROPERTIES heap = {};
+		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+		D3D12_RESOURCE_DESC desc = {};
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		desc.Width = width;
+		desc.Height = height;
+		desc.DepthOrArraySize = 1;
+		desc.MipLevels = 1;
+		desc.Format = format;
+		desc.SampleDesc.Count = targets.sampleCount;
+		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+		D3D12_CLEAR_VALUE clear = {};
+		clear.Format = format;
+		clear.DepthStencil.Depth = 1.0f;
+
+		SubstituteDepth substitute = { width, height, targets.sampleCount, format, nullptr, index };
+		if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, IID_PPV_ARGS(&substitute.resource))))
+		{
+			m_freeTargetDsvs.push_back(index);
+			Log("could not create a %ux%u depth buffer", width, height);
+			return false;
+		}
+		m_device->CreateDepthStencilView(substitute.resource.Get(), nullptr, Target_View_Handle(true, index));
+		m_substituteDepths.push_back(substitute);
+		found = &m_substituteDepths.back();
 	}
+
+	targets.dsv = Target_View_Handle(true, found->view);
+	targets.dsvFormat = format;
 	return true;
 }
 
