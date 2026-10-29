@@ -21,7 +21,7 @@
 //
 //	PostProcessPass BloomExtract
 //	  Shader = PP_BloomExtract		; Data\Shaders\PostProcess\PP_BloomExtract.hlsl, else a built-in shader
-//	  Inputs = Scene				; Scene, an earlier pass, or Texture:<file>, for Input0..Input3
+//	  Inputs = Scene				; Scene, Depth, None, an earlier pass, or Texture:<file>, for Input0..Input3
 //	  Scale = 2						; output size = screen size / Scale (the last pass draws into the screen)
 //	  HDR = Yes						; 16 bit float output
 //	  Param = Threshold 0.75		; a variable of the shader's Params cbuffer, 1 to 4 values

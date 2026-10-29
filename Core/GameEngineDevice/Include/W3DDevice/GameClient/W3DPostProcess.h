@@ -27,6 +27,7 @@
 
 #include <vector>
 
+class CameraClass;
 class TextureClass;
 struct ID3D8On12PostProcess;
 
@@ -38,7 +39,7 @@ public:
 
 	void init();		///< reads the PostProcess INI; the chain is built on the first run
 	void reload();		///< reads the INI and the shader files again
-	void run();			///< after the 3D scene, before the interface
+	void run(CameraClass *camera);	///< after the 3D scene of this camera, before the interface
 
 	Bool setParameter(const AsciiString& pass, const AsciiString& name, const Real* values, Int count);
 

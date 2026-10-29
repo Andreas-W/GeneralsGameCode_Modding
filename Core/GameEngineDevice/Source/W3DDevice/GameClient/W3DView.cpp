@@ -2069,7 +2069,7 @@ void W3DView::draw()
 
 	// Post-process the world before health bars, text and the 2D scene, which belong to the interface.
 	if (TheW3DPostProcess)
-		TheW3DPostProcess->run();
+		TheW3DPostProcess->run(m_3DCamera);
 
 	Region3D axisAlignedRegion;
 	getAxisAlignedViewRegion(axisAlignedRegion);

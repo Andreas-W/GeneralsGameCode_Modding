@@ -30,6 +30,7 @@
 #include "Common/INI.h"
 #include "GameClient/PostProcess.h"
 #include "WW3D2/assetmgr.h"
+#include "WW3D2/camera.h"
 #include "WW3D2/dx8wrapper.h"
 #include "WW3D2/texture.h"
 
@@ -47,6 +48,158 @@ static const char *SHADER_DIRECTORY = "Data\\Shaders\\PostProcess\\";
 // Built-in shaders. Parameters left out of the INI are 0, so every parameter is neutral at 0 or
 // falls back to a sensible value.
 //-------------------------------------------------------------------------------------------------
+
+// Input0: Depth. Shows the distance from the camera as grey, white at Far (0 = 2000) world units.
+static const char s_depthViewShader[] = R"(
+#include "PostProcess.hlsli"
+cbuffer Params : register(b1)
+{
+	float Far;
+};
+float4 main(PostProcessInput input) : SV_Target
+{
+	float distance = LinearDepth(Input0.Sample(PointClamp, input.uv).r);
+	return float4(saturate(distance / (Far > 0 ? Far : 2000)).xxx, 1);
+}
+)";
+
+// Input0: Depth. Ambient occlusion: how much of the hemisphere above each surface point is blocked
+// by nearby geometry, from samples in view space checked against the depth. 1 = open, 0 = closed.
+static const char s_ssaoShader[] = R"(
+#include "PostProcess.hlsli"
+cbuffer Params : register(b1)
+{
+	float Radius;		// reach of the occlusion in world units, 0 = 8
+	float Intensity;	// 0 = 1
+	float Bias;			// world units a sample must be behind the surface to count, 0 = 0.5
+	float Power;		// contrast of the result, 0 = 1.5
+};
+static const float3 KERNEL[12] =
+{
+	float3(0.0673, 0.0000, 0.2462),
+	float3(-0.0896, 0.0821, 0.2421),
+	float3(0.0147, -0.1680, 0.2443),
+	float3(0.1337, 0.1743, 0.2507),
+	float3(-0.2741, -0.0485, 0.2590),
+	float3(0.2924, -0.1860, 0.2671),
+	float3(-0.1104, 0.4108, 0.2726),
+	float3(-0.2375, -0.4573, 0.2734),
+	float3(0.5790, 0.2114, 0.2674),
+	float3(-0.6733, 0.2779, 0.2521),
+	float3(0.3606, -0.7706, 0.2256),
+	float3(0.2941, 0.9376, 0.1854),
+};
+float DepthAt(float2 uv) { return Input0.SampleLevel(PointClamp, uv, 0).r; }
+float4 main(PostProcessInput input) : SV_Target
+{
+	float depth = DepthAt(input.uv);
+	if (depth >= 1)
+		return float4(1, 1, 1, 1);
+	float radius = Radius > 0 ? Radius : 8;
+	float3 center = ViewPosition(input.uv, depth);
+	// Depth steps grow with the distance, so the bias does too.
+	float bias = (Bias > 0 ? Bias : 0.5) + abs(center.z) * 0.002;
+
+	// The normal from the neighbors on the side with the smaller depth step, so edges stay sharp;
+	// two pixels away, so the steps of the depth buffer do not tilt it.
+	float2 texel = InputSize[0].zw * 2;
+	float3 right = ViewPosition(input.uv + float2(texel.x, 0), DepthAt(input.uv + float2(texel.x, 0)));
+	float3 left = ViewPosition(input.uv - float2(texel.x, 0), DepthAt(input.uv - float2(texel.x, 0)));
+	float3 down = ViewPosition(input.uv + float2(0, texel.y), DepthAt(input.uv + float2(0, texel.y)));
+	float3 up = ViewPosition(input.uv - float2(0, texel.y), DepthAt(input.uv - float2(0, texel.y)));
+	float3 dx = abs(right.z - center.z) < abs(center.z - left.z) ? right - center : center - left;
+	float3 dy = abs(down.z - center.z) < abs(center.z - up.z) ? down - center : center - up;
+	float3 normal = normalize(cross(dx, dy));
+	if (dot(normal, -center) < 0)
+		normal = -normal;
+
+	// A different rotation of the samples for each pixel; the blur afterwards smooths the noise.
+	float noise = frac(52.9829189 * frac(dot(input.position.xy, float2(0.06711056, 0.00583715))));
+	float3 random = float3(cos(noise * 6.2831853), sin(noise * 6.2831853), 0.5);
+	float3 tangent = normalize(random - normal * dot(random, normal));
+	float3 bitangent = cross(normal, tangent);
+
+	float occlusion = 0;
+	[unroll]
+	for (int i = 0; i < 12; ++i)
+	{
+		float3 sample = center + (tangent * KERNEL[i].x + bitangent * KERNEL[i].y + normal * KERNEL[i].z) * radius;
+		float4 clip = mul(float4(sample, 1), Projection);
+		float2 uv = float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
+		if (any(uv < 0) || any(uv > 1))
+			continue;
+		float3 surface = ViewPosition(uv, DepthAt(uv));
+		// Blocked when the visible surface there is nearer to the camera than the sample point.
+		float blocked = abs(surface.z) < abs(sample.z) - bias ? 1 : 0;
+		float range = smoothstep(0, 1, radius / max(abs(center.z - surface.z), 0.0001));
+		occlusion += blocked * range;
+	}
+	float ao = saturate(1 - occlusion / 12 * (Intensity > 0 ? Intensity : 1));
+	ao = pow(ao, Power > 0 ? Power : 1.5);
+	return float4(ao, ao, ao, 1);
+}
+)";
+
+// Input0: the image to blur (such as ambient occlusion), Input1: Depth. A blur along Direction that
+// does not mix across depth edges, so occlusion stays on its object.
+static const char s_depthBlurShader[] = R"(
+#include "PostProcess.hlsli"
+cbuffer Params : register(b1)
+{
+	float2 Direction;	// 1 0 for horizontal, 0 1 for vertical
+	float Sharpness;	// how strictly depth edges are kept, 0 = 1
+};
+static const float WEIGHTS[4] = { 0.2270270, 0.1945946, 0.1216216, 0.0540540 };
+float4 main(PostProcessInput input) : SV_Target
+{
+	float centerDepth = LinearDepth(Input1.SampleLevel(PointClamp, input.uv, 0).r);
+	float2 step = Direction * InputSize[0].zw;
+	float sharpness = Sharpness > 0 ? Sharpness : 1;
+	float4 sum = 0;
+	float total = 0;
+	[unroll]
+	for (int i = -3; i <= 3; ++i)
+	{
+		float2 uv = input.uv + step * i;
+		float depth = LinearDepth(Input1.SampleLevel(PointClamp, uv, 0).r);
+		float weight = WEIGHTS[abs(i)] * exp(-abs(depth - centerDepth) / max(centerDepth * 0.01, 0.001) * sharpness);
+		sum += Input0.SampleLevel(LinearClamp, uv, 0) * weight;
+		total += weight;
+	}
+	return sum / max(total, 0.0001);
+}
+)";
+
+// Input0: the image, Input1: Depth. Distance and height fog toward Color.
+static const char s_fogShader[] = R"(
+#include "PostProcess.hlsli"
+cbuffer Params : register(b1)
+{
+	float3 Color;			// fog color
+	float Density;			// 0..1 maximum fog, 0 = 1
+	float Start;			// distance from the camera where fog begins, 0 = 1000
+	float End;				// distance where it is full, 0 = 2500
+	float HeightStart;		// world height where height fog ends (above it none)
+	float HeightEnd;		// world height where height fog is full; height fog only when below HeightStart
+};
+float4 main(PostProcessInput input) : SV_Target
+{
+	float3 color = Input0.Sample(PointClamp, input.uv).rgb;
+	float depth = Input1.SampleLevel(PointClamp, input.uv, 0).r;
+	if (depth >= 1)
+		return float4(color, 1);
+	float3 view = ViewPosition(input.uv, depth);
+	float start = Start > 0 ? Start : 1000;
+	float end = End > start ? End : start + 1500;
+	float fog = saturate((abs(view.z) - start) / (end - start));
+	if (HeightEnd < HeightStart)
+	{
+		float height = WorldPosition(view).z;
+		fog = max(fog, saturate((HeightStart - height) / (HeightStart - HeightEnd)));
+	}
+	return float4(lerp(color, Color, fog * (Density > 0 ? Density : 1)), 1);
+}
+)";
 
 static const char s_copyShader[] = R"(
 #include "PostProcess.hlsli"
@@ -97,7 +250,8 @@ float4 main(PostProcessInput input) : SV_Target
 }
 )";
 
-// Input0: scene, Input1: bloom (optional), Input2: 256x16 color lookup table (optional).
+// Input0: scene, Input1: bloom (optional), Input2: 256x16 color lookup table (optional),
+// Input3: ambient occlusion (optional, from PP_SSAO).
 static const char s_colorGradeShader[] = R"(
 #include "PostProcess.hlsli"
 cbuffer Params : register(b1)
@@ -113,6 +267,7 @@ cbuffer Params : register(b1)
 	float3 Gamma;			// midtones, 0.2 = 20 % brighter
 	float GammaPad;
 	float3 Gain;			// highlights, 0.2 = 20 % more
+	float AOStrength;		// how much Input3 darkens, 0 = 1
 };
 float3 ApplyLut(float3 color)
 {
@@ -128,6 +283,8 @@ float3 ApplyLut(float3 color)
 float4 main(PostProcessInput input) : SV_Target
 {
 	float3 color = Input0.Sample(PointClamp, input.uv).rgb;
+	if (InputSize[3].x > 0)
+		color *= lerp(1, Input3.Sample(LinearClamp, input.uv).r, AOStrength > 0 ? AOStrength : 1);
 	if (InputSize[1].x > 0)
 		color += Input1.Sample(LinearClamp, input.uv).rgb * BloomIntensity;
 	color *= exp2(Exposure);
@@ -293,6 +450,10 @@ struct BuiltInShader
 static const BuiltInShader s_builtInShaders[] =
 {
 	BUILT_IN("PP_Copy", s_copyShader),
+	BUILT_IN("PP_DepthView", s_depthViewShader),
+	BUILT_IN("PP_SSAO", s_ssaoShader),
+	BUILT_IN("PP_DepthBlur", s_depthBlurShader),
+	BUILT_IN("PP_Fog", s_fogShader),
 	BUILT_IN("PP_BloomExtract", s_bloomExtractShader),
 	BUILT_IN("PP_Blur", s_blurShader),
 	BUILT_IN("PP_ColorGrade", s_colorGradeShader),
@@ -414,7 +575,7 @@ void W3DPostProcess::release()
 }
 
 //-------------------------------------------------------------------------------------------------
-void W3DPostProcess::run()
+void W3DPostProcess::run(CameraClass *camera)
 {
 #ifdef RTS_RENDERER_DX12
 	if (!TheGlobalData->m_postProcessing || ThePostProcessSettings == nullptr || ThePostProcessSettings->m_chain.empty())
@@ -428,8 +589,21 @@ void W3DPostProcess::run()
 		release();
 		build(postProcess);
 	}
-	if (!m_passNames.empty())
-		postProcess->Run((timeGetTime() - m_startTime) * 0.001f);
+	if (m_passNames.empty())
+		return;
+
+	// The matrices exactly as the renderer got them for this camera, for passes that read the depth.
+	if (camera != nullptr)
+	{
+		camera->Apply();
+		DX8Wrapper::Apply_Render_State_Changes();
+		D3DMATRIX view;
+		D3DMATRIX projection;
+		DX8Wrapper::_Get_DX8_Transform(D3DTS_VIEW, view);
+		DX8Wrapper::_Get_DX8_Transform(D3DTS_PROJECTION, projection);
+		postProcess->Set_Camera(&view, &projection);
+	}
+	postProcess->Run((timeGetTime() - m_startTime) * 0.001f);
 #endif
 }
 
@@ -505,6 +679,14 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 			{
 				desc.inputs[input] = D3D8ON12_PP_INPUT_SCENE;
 			}
+			else if (name.compareNoCase("Depth") == 0)
+			{
+				desc.inputs[input] = D3D8ON12_PP_INPUT_DEPTH;
+			}
+			else if (name.compareNoCase("None") == 0)
+			{
+				desc.inputs[input] = D3D8ON12_PP_INPUT_NONE;
+			}
 			else if (name.startsWithNoCase("Texture:"))
 			{
 				TextureClass *texture = WW3DAssetManager::Get_Instance()->Get_Texture(name.str() + 8, MIP_LEVELS_1, WW3D_FORMAT_UNKNOWN, false,
@@ -528,7 +710,7 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 					++earlier;
 				if (earlier == names.size())
 				{
-					m_error.format("PostProcess: pass %s: input %s is neither Scene, Texture:<file> nor an earlier pass", pass->m_name.str(), name.str());
+					m_error.format("PostProcess: pass %s: input %s is neither Scene, Depth, None, Texture:<file> nor an earlier pass", pass->m_name.str(), name.str());
 					break;
 				}
 				desc.inputs[input] = D3D8ON12_PP_INPUT_PASS + (UINT)earlier;
