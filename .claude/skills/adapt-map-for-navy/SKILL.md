@@ -72,7 +72,9 @@ Delete the old water polygon (`polygons_delete`) and add one over the whole map,
 
 ## 5. Naval AI markers
 
-Names the AI looks up (see `ai_skirmish_check`); `<N>` is the player number of `Player_<N>_Start`:
+Names the AI looks up (see `ai_skirmish_check`); `<N>` is the player number of `Player_<N>_Start`.
+
+Every marker stays inside the playable area: `0 ≤ x ≤ playable_max_x` and `0 ≤ y ≤ playable_max_y` from `map_info`, with ~50 units to spare. That holds for shipyards, every point of the naval paths (flank routes around the map edge too) and the corners of the naval areas. The border beyond may be open water, but it is off the playable map.
 
 - **Shipyards** `Shipyard<N>_1`, `_2`, … numbered from 1 without gaps; at least 2, up to 4. They sit off a soft shoreline, 3–4 cells into the water (1–2 cells was too close to the shore).
   `python -I navy_tool.py yards --out $WORK --water $WATER --starts N,x,y … --dumps <same dumps>` suggests 3 per player (`--count`): sea vertices 3–4 cells from land (`--min-d` / `--max-d`), no land higher than 15 above the water within 6 cells (no cliff), nearest to that player's start and closer to it than to any other start, within 1300 units, at least 300 apart. Use start positions **after** the resize. Add them with `waypoints_add(name=…, x, y)`.
@@ -81,7 +83,7 @@ Names the AI looks up (see `ai_skirmish_check`); `<N>` is the player number of `
   - `Naval<N>` comes along the main sea lane from the enemy's side.
   - `NavalFlank<N>` swings around the other side of the land mass.
 
-  Keep every point in deep water: `python -I navy_tool.py check --out $WORK x,y …` prints the distance from shore in cells; use 18 or more, and -1 means land. Add them with `waypoints_add(name="Naval1_1", x, y, path_labels=["Naval1"])`, then each next point with `link_from` the previous name. Waypoints at the same spot are fine but hard to click in WorldBuilder.
+  Keep every point in deep water and inside the playable area: `python -I navy_tool.py check --out $WORK x,y …` prints the distance from shore in cells; use 18 or more, and -1 means land. Where a flank route has to pass close to the map edge, accept less depth rather than leaving the playable area. Add them with `waypoints_add(name="Naval1_1", x, y, path_labels=["Naval1"])`, then each next point with `link_from` the previous name. Waypoints at the same spot are fine but hard to click in WorldBuilder.
 - Land paths: `ai_skirmish_check` also reports land approach paths. Labels like `CenterPath1` / `BackdoorPath1` are ignored by the AI (it wants `Center1` / `Backdoor1`). Ask the user before renaming. To rename, `objects_set_properties(ids, properties={"waypointPathLabel1": "Center1"})`; take the ids from a fresh `waypoints_list`, because object ids change after every `map_open`.
 
 ## 6. .wak file (water waves)
