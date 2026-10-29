@@ -69,9 +69,9 @@ static const char s_ssaoShader[] = R"(
 #include "PostProcess.hlsli"
 cbuffer Params : register(b1)
 {
-	float Radius;		// reach of the occlusion in world units, 0 = 8
+	float Radius;		// reach of the occlusion in world units, 0 = 20
 	float Intensity;	// 0 = 1
-	float Bias;			// world units a sample must be behind the surface to count, 0 = 0.5
+	float Bias;			// world units a sample must be behind the surface to count, 0 = 2
 	float Power;		// contrast of the result, 0 = 1.5
 };
 static const float3 KERNEL[12] =
@@ -95,10 +95,10 @@ float4 main(PostProcessInput input) : SV_Target
 	float depth = DepthAt(input.uv);
 	if (depth >= 1)
 		return float4(1, 1, 1, 1);
-	float radius = Radius > 0 ? Radius : 8;
+	float radius = Radius > 0 ? Radius : 20;
 	float3 center = ViewPosition(input.uv, depth);
 	// Depth steps grow with the distance, so the bias does too.
-	float bias = (Bias > 0 ? Bias : 0.5) + abs(center.z) * 0.002;
+	float bias = (Bias > 0 ? Bias : 2) + abs(center.z) * 0.004;
 
 	// The normal from the neighbors on the side with the smaller depth step, so edges stay sharp;
 	// two pixels away, so the steps of the depth buffer do not tilt it.
@@ -129,9 +129,11 @@ float4 main(PostProcessInput input) : SV_Target
 		if (any(uv < 0) || any(uv > 1))
 			continue;
 		float3 surface = ViewPosition(uv, DepthAt(uv));
-		// Blocked when the visible surface there is nearer to the camera than the sample point.
-		float blocked = abs(surface.z) < abs(sample.z) - bias ? 1 : 0;
-		float range = smoothstep(0, 1, radius / max(abs(center.z - surface.z), 0.0001));
+		// Blocked when the visible surface there is nearer to the camera than the sample point; a soft
+		// step, so the depth steps of flat ground do not show as stripes.
+		float blocked = saturate((abs(sample.z) - bias - abs(surface.z)) / bias);
+		// Surfaces far in front (a tree before the ground behind it) do not count, against dark halos.
+		float range = 1 - smoothstep(radius, radius * 2, abs(center.z - surface.z));
 		occlusion += blocked * range;
 	}
 	float ao = saturate(1 - occlusion / 12 * (Intensity > 0 ? Intensity : 1));
