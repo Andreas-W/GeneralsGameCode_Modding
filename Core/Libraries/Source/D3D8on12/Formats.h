@@ -60,4 +60,9 @@ unsigned Get_Resource_Bytes(const FormatInfo& info);
 // Converts one row (one row of blocks) from the D3D8 layout to the Direct3D 12 resource format.
 void Convert_Row(const FormatInfo& info, const unsigned char* source, unsigned char* dest, unsigned width);
 
+// For a depth format: the typeless format of a depth buffer that shaders can read too, and the format
+// they read its depth with. DXGI_FORMAT_UNKNOWN for other formats.
+DXGI_FORMAT Get_Depth_Typeless_Format(DXGI_FORMAT depth);
+DXGI_FORMAT Get_Depth_Read_Format(DXGI_FORMAT depth);
+
 } // namespace D3D8On12

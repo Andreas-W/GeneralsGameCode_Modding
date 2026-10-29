@@ -33,6 +33,7 @@ enum D3D8ON12_PP_INPUT
 	D3D8ON12_PP_INPUT_NONE = 0,
 	D3D8ON12_PP_INPUT_SCENE = 1,	// the 3D scene as drawn so far
 	D3D8ON12_PP_INPUT_TEXTURE = 2,	// the texture of the same slot in D3D8ON12_PP_PASS::textures
+	D3D8ON12_PP_INPUT_DEPTH = 3,	// depth of the scene, 0 (near) .. 1 (far), one float per pixel
 	D3D8ON12_PP_INPUT_PASS = 16,	// + n: the output of the earlier pass n
 };
 
@@ -50,8 +51,9 @@ struct D3D8ON12_PP_PASS
 //
 // Shaders are HLSL pixel shaders (ps_5_0) with the entry point main. They include "PostProcess.hlsli",
 // which the device provides: Input0..Input3, the samplers LinearClamp and PointClamp, the screen and
-// output sizes, the time, and the struct PostProcessInput with the texture coordinate uv. Parameters are
-// the variables of a cbuffer named Params.
+// output sizes, the time, the camera (View, Projection and their inverses, as set with Set_Camera),
+// helpers to get view and world positions from depth, and the struct PostProcessInput with the
+// texture coordinate uv. Parameters are the variables of a cbuffer named Params.
 struct ID3D8On12PostProcess : public IUnknown
 {
 	// Compiles a shader. Other #include files are read through include, which may be null. On failure the
@@ -65,6 +67,10 @@ struct ID3D8On12PostProcess : public IUnknown
 
 	// Sets a variable of the Params cbuffer of a pass in the chain; E_INVALIDARG for an unknown name.
 	virtual HRESULT STDMETHODCALLTYPE Set_Parameter(UINT pass, const char* name, const float* values, UINT count) = 0;
+
+	// The camera of the scene for the next Run: view and projection matrices as given to SetTransform
+	// (row major, row vectors).
+	virtual void STDMETHODCALLTYPE Set_Camera(const D3DMATRIX* view, const D3DMATRIX* projection) = 0;
 
 	// Runs the chain over the back buffer, which must be the current render target. time is in seconds.
 	virtual HRESULT STDMETHODCALLTYPE Run(float time) = 0;

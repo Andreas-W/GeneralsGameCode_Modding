@@ -89,6 +89,8 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_uploadOffset(0),
 		m_dsvDescriptorSize(0),
 		m_sampleCount(1),
+		m_depthFormat(DXGI_FORMAT_UNKNOWN),
+		m_depthSrv(0),
 		m_windowProc(nullptr),
 		m_postProcessor(nullptr),
 		m_liveChildren(0),
@@ -354,6 +356,9 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 	{
 		const FormatInfo* info = Get_Format_Info(m_presentParams.AutoDepthStencilFormat);
 		const DXGI_FORMAT format = info != nullptr ? info->dxgi : DXGI_FORMAT_D24_UNORM_S8_UINT;
+		// Typeless, so that post-processing can read the depth (d3d8on12_ext.h).
+		const DXGI_FORMAT typeless = Get_Depth_Typeless_Format(format);
+		m_depthFormat = format;
 
 		D3D12_HEAP_PROPERTIES heap = {};
 		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -363,7 +368,7 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 		desc.Height = height;
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;
-		desc.Format = format;
+		desc.Format = typeless != DXGI_FORMAT_UNKNOWN ? typeless : format;
 		desc.SampleDesc.Count = m_sampleCount;
 		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 		D3D12_CLEAR_VALUE clear = {};
@@ -371,7 +376,27 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 		clear.DepthStencil.Depth = 1.0f;
 		if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear, IID_PPV_ARGS(&m_depthBuffer))))
 			return D3DERR_OUTOFVIDEOMEMORY;
-		m_device->CreateDepthStencilView(m_depthBuffer.Get(), nullptr, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsv = {};
+		dsv.Format = format;
+		dsv.ViewDimension = m_sampleCount > 1 ? D3D12_DSV_DIMENSION_TEXTURE2DMS : D3D12_DSV_DIMENSION_TEXTURE2D;
+		m_device->CreateDepthStencilView(m_depthBuffer.Get(), &dsv, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+		if (typeless != DXGI_FORMAT_UNKNOWN)
+		{
+			D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+			srv.Format = Get_Depth_Read_Format(format);
+			srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			if (m_sampleCount > 1)
+			{
+				srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
+			}
+			else
+			{
+				srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+				srv.Texture2D.MipLevels = 1;
+			}
+			m_depthSrv = Allocate_Srv();
+			m_device->CreateShaderResourceView(m_depthBuffer.Get(), &srv, Srv_Cpu_Handle(m_depthSrv));
+		}
 
 		m_autoDepthSurface = new Surface(this, nullptr, Surface::KIND_DEPTH_STENCIL, width, height,
 			m_presentParams.AutoDepthStencilFormat, D3DUSAGE_DEPTHSTENCIL, D3DPOOL_DEFAULT, multisample);
@@ -388,6 +413,10 @@ void Device::Release_Swap_Chain_Buffers()
 		buffer.Reset();
 	m_depthBuffer.Reset();
 	m_multisampleTarget.Reset();
+	// The GPU is idle here (Reset waits for it), so the view can be used again right away.
+	if (m_depthSrv != 0)
+		m_freeSrvs.push_back(m_depthSrv);
+	m_depthSrv = 0;
 
 	if (m_backBufferSurface != nullptr)
 		m_backBufferSurface->Release();

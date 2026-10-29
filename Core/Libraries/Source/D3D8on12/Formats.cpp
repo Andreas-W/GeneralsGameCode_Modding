@@ -178,4 +178,28 @@ void Convert_Row(const FormatInfo& info, const unsigned char* source, unsigned c
 	}
 }
 
+DXGI_FORMAT Get_Depth_Typeless_Format(DXGI_FORMAT depth)
+{
+	switch (depth)
+	{
+	case DXGI_FORMAT_D16_UNORM: return DXGI_FORMAT_R16_TYPELESS;
+	case DXGI_FORMAT_D24_UNORM_S8_UINT: return DXGI_FORMAT_R24G8_TYPELESS;
+	case DXGI_FORMAT_D32_FLOAT: return DXGI_FORMAT_R32_TYPELESS;
+	case DXGI_FORMAT_D32_FLOAT_S8X24_UINT: return DXGI_FORMAT_R32G8X24_TYPELESS;
+	default: return DXGI_FORMAT_UNKNOWN;
+	}
+}
+
+DXGI_FORMAT Get_Depth_Read_Format(DXGI_FORMAT depth)
+{
+	switch (depth)
+	{
+	case DXGI_FORMAT_D16_UNORM: return DXGI_FORMAT_R16_UNORM;
+	case DXGI_FORMAT_D24_UNORM_S8_UINT: return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	case DXGI_FORMAT_D32_FLOAT: return DXGI_FORMAT_R32_FLOAT;
+	case DXGI_FORMAT_D32_FLOAT_S8X24_UINT: return DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS;
+	default: return DXGI_FORMAT_UNKNOWN;
+	}
+}
+
 } // namespace D3D8On12

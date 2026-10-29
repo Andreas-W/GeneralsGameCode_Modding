@@ -47,6 +47,10 @@ static const char s_header[] =
 	"	float4 InputSize[4];	// the same for Input0..Input3\n"
 	"	float Time;				// seconds\n"
 	"	float3 PostProcessPad;\n"
+	"	row_major float4x4 View;			// world to view, as given to Set_Camera\n"
+	"	row_major float4x4 InverseView;\n"
+	"	row_major float4x4 Projection;		// view to clip\n"
+	"	row_major float4x4 InverseProjection;\n"
 	"};\n"
 	"Texture2D Input0 : register(t0);\n"
 	"Texture2D Input1 : register(t1);\n"
@@ -59,7 +63,24 @@ static const char s_header[] =
 	"	float4 position : SV_Position;\n"
 	"	float2 uv : TEXCOORD0;\n"
 	"};\n"
-	"float Luminance(float3 color) { return dot(color, float3(0.299, 0.587, 0.114)); }\n";
+	"float Luminance(float3 color) { return dot(color, float3(0.299, 0.587, 0.114)); }\n"
+	"// Position in view space of the pixel at uv with this depth (from a Depth input).\n"
+	"float3 ViewPosition(float2 uv, float depth)\n"
+	"{\n"
+	"	float4 position = mul(float4(uv.x * 2 - 1, 1 - uv.y * 2, depth, 1), InverseProjection);\n"
+	"	return position.xyz / position.w;\n"
+	"}\n"
+	"float3 WorldPosition(float3 viewPosition) { return mul(float4(viewPosition, 1), InverseView).xyz; }\n"
+	"// Distance from the camera plane in world units.\n"
+	"float LinearDepth(float depth) { return abs(ViewPosition(float2(0.5, 0.5), depth).z); }\n";
+
+// Copies the depth buffer into a float texture without multisampling (sample 0 of each pixel).
+static const char s_depthCopyShader[] =
+	"Texture2D<float> Depth : register(t0);\n"
+	"float main(float4 position : SV_Position) : SV_Target { return Depth.Load(int3(position.xy, 0)); }\n";
+static const char s_depthCopyShaderMS[] =
+	"Texture2DMS<float> Depth : register(t0);\n"
+	"float main(float4 position : SV_Position) : SV_Target { return Depth.Load(int2(position.xy), 0); }\n";
 
 // One triangle that covers the screen, with texture coordinates 0..1 over it.
 static const char s_vertexShader[] =
@@ -79,7 +100,57 @@ struct CommonConstants
 	float inputSize[INPUT_COUNT][4];
 	float time;
 	float pad[3];
+	D3DMATRIX view;
+	D3DMATRIX inverseView;
+	D3DMATRIX projection;
+	D3DMATRIX inverseProjection;
 };
+
+// Inverse of a 4x4 matrix by Gauss-Jordan elimination; the identity when it is singular.
+static D3DMATRIX Invert(const D3DMATRIX& matrix)
+{
+	float a[4][8];
+	for (int row = 0; row < 4; ++row)
+		for (int column = 0; column < 4; ++column)
+		{
+			a[row][column] = matrix.m[row][column];
+			a[row][column + 4] = row == column ? 1.0f : 0.0f;
+		}
+	for (int column = 0; column < 4; ++column)
+	{
+		int pivot = column;
+		for (int row = column + 1; row < 4; ++row)
+			if (fabsf(a[row][column]) > fabsf(a[pivot][column]))
+				pivot = row;
+		D3DMATRIX identity = {};
+		identity._11 = identity._22 = identity._33 = identity._44 = 1.0f;
+		if (fabsf(a[pivot][column]) < 1e-12f)
+			return identity;
+		if (pivot != column)
+			for (int i = 0; i < 8; ++i)
+			{
+				const float swap = a[column][i];
+				a[column][i] = a[pivot][i];
+				a[pivot][i] = swap;
+			}
+		const float scale = 1.0f / a[column][column];
+		for (int i = 0; i < 8; ++i)
+			a[column][i] *= scale;
+		for (int row = 0; row < 4; ++row)
+		{
+			if (row == column)
+				continue;
+			const float factor = a[row][column];
+			for (int i = 0; i < 8; ++i)
+				a[row][i] -= factor * a[column][i];
+		}
+	}
+	D3DMATRIX inverse;
+	for (int row = 0; row < 4; ++row)
+		for (int column = 0; column < 4; ++column)
+			inverse.m[row][column] = a[row][column + 4];
+	return inverse;
+}
 
 static void Set_Size(float* size, UINT width, UINT height)
 {
@@ -126,6 +197,70 @@ PostProcessor::PostProcessor(Device* device)
 	m_scene.width = 0;
 	m_scene.height = 0;
 	m_scene.format = DXGI_FORMAT_UNKNOWN;
+	m_depth = m_scene;
+	m_depthShaders[0] = m_depthShaders[1] = 0;
+	memset(&m_view, 0, sizeof(m_view));
+	m_view._11 = m_view._22 = m_view._33 = m_view._44 = 1.0f;
+	m_projection = m_view;
+}
+
+void STDMETHODCALLTYPE PostProcessor::Set_Camera(const D3DMATRIX* view, const D3DMATRIX* projection)
+{
+	if (view != nullptr)
+		m_view = *view;
+	if (projection != nullptr)
+		m_projection = *projection;
+}
+
+// Copies the depth buffer into m_depth, which passes then read as their Depth input.
+bool PostProcessor::Copy_Depth(UINT width, UINT height)
+{
+	Device& device = *m_device;
+	if (device.m_depthBuffer == nullptr || device.m_depthSrv == 0)
+		return false;
+	const bool multisampled = device.m_sampleCount > 1;
+	UINT& shader = m_depthShaders[multisampled ? 1 : 0];
+	if (shader == 0)
+	{
+		const char* source = multisampled ? s_depthCopyShaderMS : s_depthCopyShader;
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(source, (UINT)strlen(source), "PostProcessDepth", nullptr, &shader, &messages)))
+		{
+			Log("could not compile the depth copy shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			return false;
+		}
+	}
+	if (!Ensure_Target(m_depth, width, height, DXGI_FORMAT_R32_FLOAT))
+		return false;
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[shader - 1], DXGI_FORMAT_R32_FLOAT, 1);
+	if (pipeline == nullptr)
+		return false;
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	D3D12_RESOURCE_BARRIER barrier = {};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Transition.pResource = device.m_depthBuffer.Get();
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	list->ResourceBarrier(1, &barrier);
+	device.Transition(m_depth.gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.Target_View_Handle(false, m_depth.rtv);
+	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES, device.Srv_Gpu_Handle(device.m_depthSrv));
+	list->DrawInstanced(3, 1, 0, 0);
+
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	list->ResourceBarrier(1, &barrier);
+	device.Transition(m_depth.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	return true;
 }
 
 // The device is idle when it deletes the post-processor, so the resources can go right away.
@@ -450,6 +585,27 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 	list->SetGraphicsRootSignature(device.m_rootSignature.Get());
 	list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+	bool uses_depth = false;
+	for (const Pass& pass : m_passes)
+		for (UINT input = 0; input < INPUT_COUNT; ++input)
+			uses_depth = uses_depth || pass.desc.inputs[input] == D3D8ON12_PP_INPUT_DEPTH;
+	if (uses_depth)
+	{
+		// The copy pass leaves the other root parameters to the passes, which set all of them.
+		Device::UploadAllocation dummy = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+		if (dummy.cpu == nullptr)
+			return E_FAIL;
+		list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, dummy.gpu);
+		list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, dummy.gpu);
+		for (UINT slot = 0; slot < FF_STAGES; ++slot)
+		{
+			list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + slot, device.Srv_Gpu_Handle(NULL_SRV_2D));
+			list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + slot, device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart());
+		}
+		if (!Copy_Depth(width, height))
+			uses_depth = false;
+	}
+
 	for (size_t index = 0; index < m_passes.size(); ++index)
 	{
 		Pass& pass = m_passes[index];
@@ -494,6 +650,10 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 		Set_Size(constants.screenSize, width, height);
 		Set_Size(constants.outputSize, output_width, output_height);
 		constants.time = time;
+		constants.view = m_view;
+		constants.inverseView = Invert(m_view);
+		constants.projection = m_projection;
+		constants.inverseProjection = Invert(m_projection);
 		memset(params.cpu, 0, max((UINT)pass.params.size(), 16u));
 		if (!pass.params.empty())
 			memcpy(params.cpu, pass.params.data(), pass.params.size());
@@ -506,6 +666,14 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 			{
 				srvs[input] = m_scene.gpu.srv;
 				Set_Size(constants.inputSize[input], width, height);
+			}
+			else if (source == D3D8ON12_PP_INPUT_DEPTH)
+			{
+				if (uses_depth)
+				{
+					srvs[input] = m_depth.gpu.srv;
+					Set_Size(constants.inputSize[input], width, height);
+				}
 			}
 			else if (source == D3D8ON12_PP_INPUT_TEXTURE && pass.desc.textures[input] != nullptr)
 			{

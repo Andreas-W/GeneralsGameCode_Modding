@@ -314,6 +314,8 @@ bool Device::Prepare_Targets(TargetState& targets)
 		return true;
 	ID3D12Resource* depth = auto_depth ? m_depthBuffer.Get() : m_depthStencil->Gpu_Target()->resource.Get();
 	const D3D12_RESOURCE_DESC depth_desc = depth->GetDesc();
+	// The automatic depth buffer is typeless; it is drawn with its depth format.
+	const DXGI_FORMAT depth_format = auto_depth ? m_depthFormat : depth_desc.Format;
 
 	if (depth_desc.Width == width && depth_desc.Height == height && depth_desc.SampleDesc.Count == targets.sampleCount)
 	{
@@ -326,14 +328,14 @@ bool Device::Prepare_Targets(TargetState& targets)
 			Transition(*m_depthStencil->Gpu_Target(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 			targets.dsv = Target_View_Handle(true, m_depthStencil->Target_View());
 		}
-		targets.dsvFormat = depth_desc.Format;
+		targets.dsvFormat = depth_format;
 	}
 	else if (depth_desc.Width >= width && depth_desc.Height >= height)
 	{
 		// D3D8 draws with the top left part of a larger depth buffer, as the water reflection does with
 		// the screen's. The substitute does not share the contents, which the engine clears for such
 		// targets anyway.
-		Use_Substitute_Depth(targets, width, height, depth_desc.Format);
+		Use_Substitute_Depth(targets, width, height, depth_format);
 	}
 	else
 	{

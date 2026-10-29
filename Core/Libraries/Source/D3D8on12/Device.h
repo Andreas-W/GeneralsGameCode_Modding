@@ -293,7 +293,9 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	UINT m_rtvDescriptorSize;
 	ComPtr<ID3D12Resource> m_backBuffers[FRAME_COUNT];
-	ComPtr<ID3D12Resource> m_depthBuffer;
+	ComPtr<ID3D12Resource> m_depthBuffer;	// typeless when shaders can read it, see m_depthFormat
+	DXGI_FORMAT m_depthFormat;				// the depth format it is drawn with
+	UINT m_depthSrv;						// view for shaders, 0 when there is none
 	// With multisampling the back buffer is drawn here and resolved into the swap chain buffer, as flip
 	// model swap chains can not be multisampled.
 	ComPtr<ID3D12Resource> m_multisampleTarget;

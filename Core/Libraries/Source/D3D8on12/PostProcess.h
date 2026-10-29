@@ -49,6 +49,7 @@ public:
 	void STDMETHODCALLTYPE Release_Shader(UINT shader) override;
 	HRESULT STDMETHODCALLTYPE Set_Chain(const D3D8ON12_PP_PASS* passes, UINT count) override;
 	HRESULT STDMETHODCALLTYPE Set_Parameter(UINT pass, const char* name, const float* values, UINT count) override;
+	void STDMETHODCALLTYPE Set_Camera(const D3DMATRIX* view, const D3DMATRIX* projection) override;
 	HRESULT STDMETHODCALLTYPE Run(float time) override;
 
 	// Releases the textures of the chain; called when the engine releases the device.
@@ -90,12 +91,17 @@ private:
 	bool Ensure_Target(Target& target, UINT width, UINT height, DXGI_FORMAT format);
 	void Release_Target(Target& target);
 	bool Copy_Scene(UINT width, UINT height);
+	bool Copy_Depth(UINT width, UINT height);
 
 	Device* m_device;
 	std::vector<Shader> m_shaders;	// handle = index + 1
 	std::vector<Pass> m_passes;
 	ComPtr<ID3DBlob> m_vertexShader;
 	Target m_scene;
+	Target m_depth;				// R32_FLOAT copy of the depth buffer, made when a pass reads the depth
+	UINT m_depthShaders[2];		// for a depth buffer without and with multisampling
+	D3DMATRIX m_view;
+	D3DMATRIX m_projection;
 	UINT m_linearSampler;
 	UINT m_pointSampler;
 };
