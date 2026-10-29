@@ -98,6 +98,66 @@ static const char s_presentShaderMS[] =
 	"	return sum / samples;\n"
 	"}\n";
 
+// Input0: depth of the scene, t4: the shadow map. The amount of shadow from soft depth comparisons
+// around the point's place in the map, turned into the color the back buffer is multiplied with.
+static const char s_shadowShader[] =
+	"#include \"PostProcess.hlsli\"\n"
+	"cbuffer Params : register(b1)\n"
+	"{\n"
+	"	row_major float4x4 ShadowViewProjection;\n"
+	"	float4 ShadowColor;\n"
+	"	float3 ToLight;\n"
+	"	float Bias;\n"
+	"	float Softness;\n"
+	"	float MapTexel;\n"
+	"	float Debug;\n"
+	"};\n"
+	"Texture2D<float> ShadowDepth : register(t4);\n"
+	"SamplerComparisonState ShadowCompare : register(s4);\n"
+	"static const float2 POISSON[12] =\n"
+	"{\n"
+	"	float2(-0.326, -0.406), float2(-0.840, -0.074), float2(-0.696, 0.457), float2(-0.203, 0.621),\n"
+	"	float2(0.962, -0.195), float2(0.473, -0.480), float2(0.519, 0.767), float2(0.185, -0.893),\n"
+	"	float2(0.507, 0.064), float2(0.896, 0.412), float2(-0.322, -0.933), float2(-0.792, -0.598),\n"
+	"};\n"
+	"float4 main(PostProcessInput input) : SV_Target\n"
+	"{\n"
+	"	float depth = Input0.SampleLevel(PointClamp, input.uv, 0).r;\n"
+	"	if (depth >= 1)\n"
+	"		return float4(1, 1, 1, 1);\n"
+	"	float3 world = WorldPosition(ViewPosition(input.uv, depth)) + ToLight * Bias;\n"
+	"	float4 clip = mul(float4(world, 1), ShadowViewProjection);\n"
+	"	float3 ndc = clip.xyz / clip.w;\n"
+	"	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);\n"
+	"	if (clip.w <= 0 || any(uv < 0) || any(uv > 1) || ndc.z > 1)\n"
+	"		return float4(1, 1, 1, 1);\n"
+	"	// The samples turned by a different angle for each pixel, so the soft edge has no steps.\n"
+	"	float angle = 6.2831853 * frac(52.9829189 * frac(dot(input.position.xy, float2(0.06711056, 0.00583715))));\n"
+	"	float2x2 turn = float2x2(cos(angle), -sin(angle), sin(angle), cos(angle));\n"
+	"	float lit = 0;\n"
+	"	[unroll]\n"
+	"	for (int i = 0; i < 12; ++i)\n"
+	"		lit += ShadowDepth.SampleCmpLevelZero(ShadowCompare, uv + mul(POISSON[i], turn) * Softness * MapTexel, ndc.z);\n"
+	"	// Fades out towards the border of the map instead of ending in a line.\n"
+	"	float2 border = min(uv, 1 - uv);\n"
+	"	float shadow = (1 - lit / 12) * saturate(min(border.x, border.y) * 20);\n"
+	"	if (Debug > 0)\n"
+	"		return float4((1 - shadow).xxx, 1);\n"
+	"	return lerp(float4(1, 1, 1, 1), ShadowColor, shadow);\n"
+	"}\n";
+
+struct ShadowConstants
+{
+	D3DMATRIX viewProjection;
+	float color[4];
+	float toLight[3];
+	float bias;
+	float softness;
+	float mapTexel;
+	float debug;
+	float pad;
+};
+
 // One triangle that covers the screen, with texture coordinates 0..1 over it.
 static const char s_vertexShader[] =
 	"struct PostProcessInput { float4 position : SV_Position; float2 uv : TEXCOORD0; };\n"
@@ -168,6 +228,16 @@ static D3DMATRIX Invert(const D3DMATRIX& matrix)
 	return inverse;
 }
 
+static D3DMATRIX Multiply(const D3DMATRIX& a, const D3DMATRIX& b)
+{
+	D3DMATRIX result;
+	for (int row = 0; row < 4; ++row)
+		for (int column = 0; column < 4; ++column)
+			result.m[row][column] = a.m[row][0] * b.m[0][column] + a.m[row][1] * b.m[1][column] + a.m[row][2] * b.m[2][column]
+				+ a.m[row][3] * b.m[3][column];
+	return result;
+}
+
 static void Set_Size(float* size, UINT width, UINT height)
 {
 	size[0] = (float)width;
@@ -216,6 +286,8 @@ PostProcessor::PostProcessor(Device* device)
 	m_depth = m_scene;
 	m_depthShaders[0] = m_depthShaders[1] = 0;
 	m_presentShaders[0] = m_presentShaders[1] = 0;
+	m_shadowShader = 0;
+	m_shadowSampler = 0;
 	memset(&m_view, 0, sizeof(m_view));
 	m_view._11 = m_view._22 = m_view._33 = m_view._44 = 1.0f;
 	m_projection = m_view;
@@ -308,6 +380,95 @@ void PostProcessor::Present_Scene()
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	list->ResourceBarrier(1, &barrier);
+}
+
+HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX& light_view, const D3DMATRIX& light_projection,
+	const D3D8ON12_SHADOW_PARAMS& params, const D3DMATRIX& view, const D3DMATRIX& projection)
+{
+	Device& device = *m_device;
+	if (device.m_renderTarget != device.m_backBufferSurface || device.m_backBuffers[0] == nullptr)
+		return D3DERR_INVALIDCALL;
+	if (m_shadowShader == 0)
+	{
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(s_shadowShader, (UINT)strlen(s_shadowShader), "ShadowMap", nullptr, &m_shadowShader, &messages)))
+		{
+			Log("could not compile the shadow shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			m_shadowShader = 0;
+			return E_FAIL;
+		}
+	}
+	if (m_shadowSampler == 0)
+	{
+		D3D12_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+		m_shadowSampler = device.Find_Sampler(sampler);
+	}
+	if (m_pointSampler == 0)
+	{
+		D3D12_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		m_pointSampler = device.Find_Sampler(sampler);
+	}
+
+	const UINT width = device.m_presentParams.BackBufferWidth;
+	const UINT height = device.m_presentParams.BackBufferHeight;
+	const bool debug = params.debug != FALSE;
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_shadowShader - 1], device.m_sceneFormat, device.m_sampleCount, !debug);
+	device.Begin_Frame();
+	if (pipeline == nullptr || !Bind_Root() || !Copy_Depth(width, height))
+		return E_FAIL;
+
+	Device::UploadAllocation common = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	Device::UploadAllocation constants = device.Allocate_Upload(sizeof(ShadowConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (common.cpu == nullptr || constants.cpu == nullptr)
+		return E_FAIL;
+	CommonConstants& c = *(CommonConstants*)common.cpu;
+	memset(&c, 0, sizeof(c));
+	Set_Size(c.screenSize, width, height);
+	Set_Size(c.outputSize, width, height);
+	Set_Size(c.inputSize[0], width, height);
+	c.view = view;
+	c.inverseView = Invert(view);
+	c.projection = projection;
+	c.inverseProjection = Invert(projection);
+	ShadowConstants& s = *(ShadowConstants*)constants.cpu;
+	memset(&s, 0, sizeof(s));
+	s.viewProjection = Multiply(light_view, light_projection);
+	memcpy(s.color, params.color, sizeof(s.color));
+	memcpy(s.toLight, params.toLight, sizeof(s.toLight));
+	s.bias = params.bias;
+	s.softness = params.softness;
+	s.mapTexel = 1.0f / map_size;
+	s.debug = debug ? 1.0f : 0.0f;
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
+	rtv.ptr += (device.m_sceneTarget != nullptr ? FRAME_COUNT : device.m_backBufferIndex) * device.m_rtvDescriptorSize;
+	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, common.gpu);
+	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, constants.gpu);
+	D3D12_GPU_DESCRIPTOR_HANDLE point = device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
+	point.ptr += (UINT64)m_pointSampler * device.m_samplerDescriptorSize;
+	D3D12_GPU_DESCRIPTOR_HANDLE compare = device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
+	compare.ptr += (UINT64)m_shadowSampler * device.m_samplerDescriptorSize;
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 0, device.Srv_Gpu_Handle(m_depth.gpu.srv));
+	list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + 1, point);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 4, device.Srv_Gpu_Handle(map_srv));
+	list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + 4, compare);
+	list->DrawInstanced(3, 1, 0, 0);
+	return D3D_OK;
 }
 
 // Copies the depth buffer into m_depth, which passes then read as their Depth input.
@@ -525,9 +686,9 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Set_Parameter(UINT pass, const char* na
 	return D3D_OK;
 }
 
-ID3D12PipelineState* PostProcessor::Get_Pipeline(Shader& shader, DXGI_FORMAT format, UINT samples)
+ID3D12PipelineState* PostProcessor::Get_Pipeline(Shader& shader, DXGI_FORMAT format, UINT samples, bool multiply)
 {
-	const UINT64 key = ((UINT64)format << 8) | samples;
+	const UINT64 key = ((UINT64)format << 8) | samples | (multiply ? 1ull << 40 : 0);
 	auto found = shader.pipelines.find(key);
 	if (found != shader.pipelines.end())
 		return found->second.Get();
@@ -550,6 +711,19 @@ ID3D12PipelineState* PostProcessor::Get_Pipeline(Shader& shader, DXGI_FORMAT for
 	desc.PS.pShaderBytecode = shader.code->GetBufferPointer();
 	desc.PS.BytecodeLength = shader.code->GetBufferSize();
 	desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	if (multiply)
+	{
+		// The target times the shader's output, color and alpha.
+		D3D12_RENDER_TARGET_BLEND_DESC& blend = desc.BlendState.RenderTarget[0];
+		blend.BlendEnable = TRUE;
+		blend.SrcBlend = D3D12_BLEND_DEST_COLOR;
+		blend.DestBlend = D3D12_BLEND_ZERO;
+		blend.BlendOp = D3D12_BLEND_OP_ADD;
+		blend.SrcBlendAlpha = D3D12_BLEND_DEST_ALPHA;
+		blend.DestBlendAlpha = D3D12_BLEND_ZERO;
+		blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+		blend.LogicOp = D3D12_LOGIC_OP_NOOP;
+	}
 	desc.SampleMask = UINT_MAX;
 	desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;

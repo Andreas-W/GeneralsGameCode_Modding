@@ -113,9 +113,11 @@ struct PipelineKey
 	BYTE depthBias;
 	BYTE hasDepthBuffer;
 	BYTE sampleCount;
-	BYTE pad;
+	BYTE shadowPass;			// drawn into the shadow map, with its depth bias
 	DXGI_FORMAT targetFormat;
 	DXGI_FORMAT depthFormat;
+	INT shadowDepthBias;
+	float shadowSlopeBias;
 };
 
 // Constants of the generated vertex shaders, laid out like the cbuffer in ShaderGen.cpp.

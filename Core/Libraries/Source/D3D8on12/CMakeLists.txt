@@ -17,6 +17,8 @@ set(D3D8ON12_SRC
     Pipeline.h
     PostProcess.cpp
     PostProcess.h
+    ShadowMap.cpp
+    ShadowMap.h
     Private.h
     Resources.cpp
     Resources.h

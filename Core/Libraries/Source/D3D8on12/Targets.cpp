@@ -22,6 +22,7 @@
 // and reads surfaces back into system memory.
 
 #include "Device.h"
+#include "ShadowMap.h"
 #include "Formats.h"
 #include "Resources.h"
 
@@ -282,6 +283,17 @@ bool Device::Ensure_Target(Surface* surface)
 // size than the render target can not be used with it in Direct3D 12, so it is left out.
 bool Device::Prepare_Targets(TargetState& targets)
 {
+	// Shadow casters draw depth only.
+	if (m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing())
+	{
+		targets.rtv.ptr = 0;
+		targets.rtvFormat = DXGI_FORMAT_UNKNOWN;
+		targets.sampleCount = 1;
+		targets.dsv = m_shadowMapper->Depth_View();
+		targets.dsvFormat = DXGI_FORMAT_D32_FLOAT;
+		return true;
+	}
+
 	UINT width = 0;
 	UINT height = 0;
 	if (m_renderTarget == m_backBufferSurface)

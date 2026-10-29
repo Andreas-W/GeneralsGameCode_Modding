@@ -80,3 +80,35 @@ struct ID3D8On12PostProcess : public IUnknown
 	// the last pass should write 0..1. Present and back buffer reads clamp it to 8 bit.
 	virtual void STDMETHODCALLTYPE Set_HDR_Scene(BOOL enable) = 0;
 };
+
+// {9B4F2C71-5E0A-4D83-B6C2-71A8E3D05F16}
+DEFINE_GUID(IID_ID3D8On12ShadowMap, 0x9b4f2c71, 0x5e0a, 0x4d83, 0xb6, 0xc2, 0x71, 0xa8, 0xe3, 0xd0, 0x5f, 0x16);
+
+struct D3D8ON12_SHADOW_PARAMS
+{
+	float color[4];		// r, g, b, a the back buffer is multiplied with where it is fully in shadow
+	float toLight[3];	// world space direction towards the light, normalized
+	float bias;			// world units a point is moved towards the light before the depth test
+	float softness;		// radius of the soft edge in shadow map texels
+	BOOL debug;			// write the shadow amount as grey instead of darkening
+};
+
+// A depth map of shadow casters seen from the light, which then darkens the scene.
+//
+// Between Begin_Shadow_Map and End_Shadow_Map, draws go into the shadow map only: depth, no color, the
+// whole map as viewport (clears too). Draws that do not write depth, or blend without an alpha test,
+// are left out, so glows and glass do not cast shadows. Apply_Shadows then multiplies the back buffer
+// where the depth buffer's points are hidden from the light.
+struct ID3D8On12ShadowMap : public IUnknown
+{
+	// depthBias and slopeBias are the rasterizer depth bias of the casters, against shadow acne.
+	virtual HRESULT STDMETHODCALLTYPE Begin_Shadow_Map(UINT size, INT depthBias, float slopeBias) = 0;
+
+	// The camera the casters were drawn with: view and projection as given to SetTransform.
+	virtual HRESULT STDMETHODCALLTYPE End_Shadow_Map(const D3DMATRIX* view, const D3DMATRIX* projection) = 0;
+
+	// Darkens the back buffer, which must be the current render target, by the last shadow map. view and
+	// projection are the scene camera's, to find the world positions of the depth buffer.
+	virtual HRESULT STDMETHODCALLTYPE Apply_Shadows(const D3D8ON12_SHADOW_PARAMS* params, const D3DMATRIX* view,
+		const D3DMATRIX* projection) = 0;
+};

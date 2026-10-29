@@ -24,6 +24,7 @@
 
 #include "Device.h"
 #include "PostProcess.h"
+#include "ShadowMap.h"
 #include "Formats.h"
 #include "Interface.h"
 #include "Resources.h"
@@ -97,6 +98,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_depthSrv(0),
 		m_windowProc(nullptr),
 		m_postProcessor(nullptr),
+		m_shadowMapper(nullptr),
 		m_liveChildren(0),
 		m_nextTargetRtv(1),
 		m_nextTargetDsv(1),
@@ -127,6 +129,7 @@ Device::~Device()
 	Wait_For_GPU();
 	m_garbage.clear();
 
+	delete m_shadowMapper;
 	delete m_postProcessor;
 
 	// A swap chain must not be released while it is fullscreen.
@@ -225,10 +228,12 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	if (m_infoQueue != nullptr)
 	{
 		// D3D8 has no optimized clear values, and the game clears with changing colors (the alpha is
-		// the map's water opacity), so these only say the clear is slower.
+		// the map's water opacity), so these only say the clear is slower. Shadow casters are drawn
+		// with their usual pixel shaders (for the alpha test) and no render target.
 		D3D12_MESSAGE_ID deny[] = {
 			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
 			D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
+			D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET,
 		};
 		D3D12_INFO_QUEUE_FILTER filter = {};
 		filter.DenyList.NumIDs = ARRAYSIZE(deny);
@@ -769,14 +774,27 @@ HRESULT STDMETHODCALLTYPE Device::QueryInterface(REFIID riid, void** object)
 	}
 	if (riid == IID_ID3D8On12PostProcess)
 	{
-		if (m_postProcessor == nullptr)
-			m_postProcessor = new PostProcessor(this);
 		AddRef();
-		*object = static_cast<ID3D8On12PostProcess*>(m_postProcessor);
+		*object = static_cast<ID3D8On12PostProcess*>(Get_Post_Processor());
+		return S_OK;
+	}
+	if (riid == IID_ID3D8On12ShadowMap)
+	{
+		if (m_shadowMapper == nullptr)
+			m_shadowMapper = new ShadowMapper(this);
+		AddRef();
+		*object = static_cast<ID3D8On12ShadowMap*>(m_shadowMapper);
 		return S_OK;
 	}
 	*object = nullptr;
 	return E_NOINTERFACE;
+}
+
+PostProcessor* Device::Get_Post_Processor()
+{
+	if (m_postProcessor == nullptr)
+		m_postProcessor = new PostProcessor(this);
+	return m_postProcessor;
 }
 
 // ----------------------------------------------------------------------------
@@ -1360,8 +1378,13 @@ HRESULT STDMETHODCALLTYPE Device::Clear(DWORD count, CONST D3DRECT* rects, DWORD
 {
 	Begin_Frame();
 
-	// D3D8 clears the viewport, or the given rectangles within it.
-	const D3DVIEWPORT8& vp = m_state.viewport;
+	// D3D8 clears the viewport, or the given rectangles within it. The shadow map is always cleared whole.
+	D3DVIEWPORT8 vp = m_state.viewport;
+	if (m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing())
+	{
+		vp.X = vp.Y = 0;
+		vp.Width = vp.Height = m_shadowMapper->Size();
+	}
 	std::vector<D3D12_RECT> clear_rects;
 	if (count == 0 || rects == nullptr)
 	{
@@ -1388,7 +1411,7 @@ HRESULT STDMETHODCALLTYPE Device::Clear(DWORD count, CONST D3DRECT* rects, DWORD
 	if (!Prepare_Targets(targets))
 		return D3D_OK;
 
-	if ((flags & D3DCLEAR_TARGET) != 0)
+	if ((flags & D3DCLEAR_TARGET) != 0 && targets.rtvFormat != DXGI_FORMAT_UNKNOWN)
 	{
 		const float rgba[4] =
 		{
@@ -1403,7 +1426,7 @@ HRESULT STDMETHODCALLTYPE Device::Clear(DWORD count, CONST D3DRECT* rects, DWORD
 	D3D12_CLEAR_FLAGS depth_flags = (D3D12_CLEAR_FLAGS)0;
 	if ((flags & D3DCLEAR_ZBUFFER) != 0)
 		depth_flags |= D3D12_CLEAR_FLAG_DEPTH;
-	if ((flags & D3DCLEAR_STENCIL) != 0)
+	if ((flags & D3DCLEAR_STENCIL) != 0 && !(m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing()))
 		depth_flags |= D3D12_CLEAR_FLAG_STENCIL;
 	if (depth_flags != 0 && targets.dsvFormat != DXGI_FORMAT_UNKNOWN)
 		m_commandList->ClearDepthStencilView(targets.dsv, depth_flags, z, (UINT8)stencil, (UINT)clear_rects.size(), clear_rects.data());

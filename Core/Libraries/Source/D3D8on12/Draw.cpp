@@ -24,6 +24,7 @@
 // like D3DLOCK_NOOVERWRITE.
 
 #include "Device.h"
+#include "ShadowMap.h"
 #include "Formats.h"
 #include "Resources.h"
 
@@ -464,6 +465,12 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	// Point sprites are never culled.
 	key.cullMode = shaders.pointSprite ? (BYTE)D3DCULL_NONE : (BYTE)rs[D3DRS_CULLMODE];
 	key.fillMode = (BYTE)rs[D3DRS_FILLMODE];
+	if (m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing())
+	{
+		key.shadowPass = 1;
+		key.shadowDepthBias = m_shadowMapper->Depth_Bias();
+		key.shadowSlopeBias = m_shadowMapper->Slope_Bias();
+	}
 
 	const UINT64 hash = Hash_Bytes(&key, sizeof(key));
 	auto found = m_pipelines.find(hash);
@@ -539,6 +546,11 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	raster.CullMode = key.cullMode == D3DCULL_CCW ? D3D12_CULL_MODE_BACK : (key.cullMode == D3DCULL_CW ? D3D12_CULL_MODE_FRONT : D3D12_CULL_MODE_NONE);
 	raster.FrontCounterClockwise = FALSE;
 	raster.DepthBias = -(INT)key.depthBias * 4;
+	if (key.shadowPass)
+	{
+		raster.DepthBias += key.shadowDepthBias;
+		raster.SlopeScaledDepthBias = key.shadowSlopeBias;
+	}
 	raster.DepthClipEnable = TRUE;
 
 	D3D12_DEPTH_STENCIL_DESC& depth = desc.DepthStencilState;
@@ -559,7 +571,7 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	desc.InputLayout.pInputElementDescs = elements.data();
 	desc.InputLayout.NumElements = (UINT)elements.size();
 	desc.PrimitiveTopologyType = topology;
-	desc.NumRenderTargets = 1;
+	desc.NumRenderTargets = key.targetFormat != DXGI_FORMAT_UNKNOWN ? 1 : 0;
 	desc.RTVFormats[0] = key.targetFormat;
 	desc.DSVFormat = has_depth ? key.depthFormat : DXGI_FORMAT_UNKNOWN;
 	desc.SampleDesc.Count = key.sampleCount;
@@ -843,6 +855,12 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		shaders.pixelHash = Hash_Bytes(&ps_key, sizeof(ps_key)) ^ 0x5bd1e995;
 	}
 
+	// The shadow map only needs what writes depth; blended draws without an alpha test are glows and glass.
+	const bool shadow_pass = m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing();
+	if (shadow_pass && (rs[D3DRS_ZENABLE] == D3DZB_FALSE || rs[D3DRS_ZWRITEENABLE] == FALSE || (shaders.fvf & D3DFVF_POSITION_MASK) == D3DFVF_XYZRHW
+		|| (rs[D3DRS_ALPHABLENDENABLE] != FALSE && rs[D3DRS_ALPHATESTENABLE] == FALSE)))
+		return D3D_OK;
+
 	TargetState targets;
 	if (!Prepare_Targets(targets))
 		return D3D_OK;
@@ -870,10 +888,16 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	}
 	list->SetGraphicsRootSignature(m_rootSignature.Get());
 
-	list->OMSetRenderTargets(1, &targets.rtv, FALSE, targets.dsvFormat != DXGI_FORMAT_UNKNOWN ? &targets.dsv : nullptr);
+	list->OMSetRenderTargets(targets.rtvFormat != DXGI_FORMAT_UNKNOWN ? 1 : 0, &targets.rtv, FALSE,
+		targets.dsvFormat != DXGI_FORMAT_UNKNOWN ? &targets.dsv : nullptr);
 	list->OMSetStencilRef(rs[D3DRS_STENCILREF] & 0xFF);
 
-	const D3DVIEWPORT8& vp = m_state.viewport;
+	D3DVIEWPORT8 vp = m_state.viewport;
+	if (shadow_pass)
+	{
+		vp.X = vp.Y = 0;
+		vp.Width = vp.Height = m_shadowMapper->Size();
+	}
 	D3D12_VIEWPORT viewport = { (float)vp.X, (float)vp.Y, (float)vp.Width, (float)vp.Height, vp.MinZ, vp.MaxZ };
 	D3D12_RECT scissor = { (LONG)vp.X, (LONG)vp.Y, (LONG)(vp.X + vp.Width), (LONG)(vp.Y + vp.Height) };
 	list->RSSetViewports(1, &viewport);
