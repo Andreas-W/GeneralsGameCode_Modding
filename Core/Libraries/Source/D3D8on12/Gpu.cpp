@@ -43,6 +43,7 @@ static const UINT ROOT_VERTEX_CONSTANTS = 0;
 static const UINT ROOT_PIXEL_CONSTANTS = 1;
 static const UINT ROOT_TEXTURES = 2;							// one table per stage
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;	// one table per stage
+static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;	// b2, the Params of material shaders
 
 static ComPtr<ID3D12Resource> Create_Buffer(ID3D12Device* device, D3D12_HEAP_TYPE heap_type, UINT64 size, D3D12_RESOURCE_STATES state)
 {
@@ -64,9 +65,10 @@ static ComPtr<ID3D12Resource> Create_Buffer(ID3D12Device* device, D3D12_HEAP_TYP
 
 HRESULT Device::Init_Gpu_Objects()
 {
-	// Root signature: vertex and pixel constants, then a texture table and a sampler table per stage.
+	// Root signature: vertex and pixel constants, then a texture table and a sampler table per stage,
+	// then the material parameters.
 	D3D12_DESCRIPTOR_RANGE ranges[2 * FF_STAGES] = {};
-	D3D12_ROOT_PARAMETER params[ROOT_SAMPLERS + FF_STAGES] = {};
+	D3D12_ROOT_PARAMETER params[ROOT_MATERIAL_CONSTANTS + 1] = {};
 
 	params[ROOT_VERTEX_CONSTANTS].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[ROOT_VERTEX_CONSTANTS].Descriptor.ShaderRegister = 0;
@@ -98,8 +100,12 @@ HRESULT Device::Init_Gpu_Objects()
 		sampler_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	}
 
+	params[ROOT_MATERIAL_CONSTANTS].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	params[ROOT_MATERIAL_CONSTANTS].Descriptor.ShaderRegister = 2;
+	params[ROOT_MATERIAL_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
 	D3D12_ROOT_SIGNATURE_DESC root_desc = {};
-	root_desc.NumParameters = ROOT_SAMPLERS + FF_STAGES;
+	root_desc.NumParameters = ROOT_MATERIAL_CONSTANTS + 1;
 	root_desc.pParameters = params;
 	root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 

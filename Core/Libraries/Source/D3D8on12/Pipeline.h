@@ -47,7 +47,8 @@ struct VertexShaderKey
 	BYTE stageCount;			// stages whose texture coordinates are needed
 	BYTE pointSprite;			// points are drawn as textured squares
 	BYTE pointScale;			// their size depends on the distance
-	BYTE pad[2];
+	BYTE materialOutputs;		// also writes the view position and normal, for material pixel shaders
+	BYTE pad;
 	struct Stage
 	{
 		BYTE coordIndex;		// texture coordinate set of the vertex
@@ -160,6 +161,8 @@ struct FFPixelConstants
 	float bumpLuminance[FF_STAGES][4];	// scale, offset
 	float alphaRef[4];
 	float shaderConstants[8][4];	// c0-c7 of pixel shaders
+	float materialTime[4];		// seconds, for material shaders
+	int materialFlags[4];		// stages with a texture (bits), lit, alpha test function, specular on
 };
 
 // Constants of translated vertex shaders.

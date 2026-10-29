@@ -19,6 +19,10 @@ set(D3D8ON12_SRC
     PostProcess.h
     ShadowMap.cpp
     ShadowMap.h
+    ShaderCompiler.cpp
+    ShaderCompiler.h
+    Materials.cpp
+    Materials.h
     Private.h
     Resources.cpp
     Resources.h

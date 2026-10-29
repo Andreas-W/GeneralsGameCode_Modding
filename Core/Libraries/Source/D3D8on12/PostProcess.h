@@ -22,6 +22,7 @@
 #pragma once
 
 #include "Private.h"
+#include "ShaderCompiler.h"
 #include "d3d8on12_ext.h"
 
 #include <string>
@@ -62,11 +63,7 @@ public:
 		const D3D8ON12_SHADOW_PARAMS& params, const D3DMATRIX& view, const D3DMATRIX& projection);
 
 private:
-	struct Variable
-	{
-		UINT offset;
-		UINT size;
-	};
+	typedef ShaderVariable Variable;
 
 	struct Shader
 	{

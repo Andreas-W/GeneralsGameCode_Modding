@@ -243,6 +243,8 @@ static void Append_Vertex_Output(std::string& text, const VertexShaderKey& key)
 		Append(text, "	float4 tex%u : TEXCOORD%u;\n", stage, stage);
 	if (key.pointSprite)
 		text += "	float pointSize : POINTSIZE;\n";
+	if (key.materialOutputs)
+		text += "	float3 viewPosition : VIEWPOS;\n	float3 viewNormal : VIEWNORMAL;\n";
 	text += "};\n";
 }
 
@@ -359,6 +361,12 @@ std::string Generate_Vertex_Shader(const VertexShaderKey& key)
 	else
 	{
 		text += "	output.diffuse = vertexDiffuse;\n	output.specular = vertexSpecular;\n";
+	}
+
+	if (key.materialOutputs)
+	{
+		text += "	output.viewPosition = viewPosition;\n";
+		text += has_normal && !rhw ? "	output.viewNormal = viewNormal;\n" : "	output.viewNormal = float3(0, 0, 0);\n";
 	}
 
 	if (key.fogMode == D3DFOG_NONE)

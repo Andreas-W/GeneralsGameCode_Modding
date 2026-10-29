@@ -65,11 +65,13 @@ struct StreamBinding
 
 class PostProcessor;
 class ShadowMapper;
+class MaterialSystem;
 
 class Device : public RefCounted<IDirect3DDevice8>
 {
 	friend class PostProcessor;
 	friend class ShadowMapper;
+	friend class MaterialSystem;
 
 public:
 	Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3DDEVTYPE device_type, HWND focus_window, DWORD behavior_flags);
@@ -253,6 +255,7 @@ private:
 		const PixelShaderKey* pixelKey;
 		const TranslatedShader* vertexShader;	// translated, or null
 		const TranslatedShader* pixelShader;
+		ID3DBlob* pixelCode;					// a material's compiled pixel shader, or null
 		bool pointSprite;
 	};
 	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, const ShaderChoice& shaders, const TargetState& targets);
@@ -409,6 +412,7 @@ private:
 
 	PostProcessor* m_postProcessor;	// created when the engine asks for it
 	ShadowMapper* m_shadowMapper;	// the same
+	MaterialSystem* m_materialSystem;	// the same
 	std::vector<ComPtr<ID3D12PipelineState>> m_retiredPipelines;	// of released shaders, kept until the GPU is done
 };
 

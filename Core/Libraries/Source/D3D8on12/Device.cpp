@@ -25,6 +25,7 @@
 #include "Device.h"
 #include "PostProcess.h"
 #include "ShadowMap.h"
+#include "Materials.h"
 #include "Formats.h"
 #include "Interface.h"
 #include "Resources.h"
@@ -99,6 +100,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_windowProc(nullptr),
 		m_postProcessor(nullptr),
 		m_shadowMapper(nullptr),
+		m_materialSystem(nullptr),
 		m_liveChildren(0),
 		m_nextTargetRtv(1),
 		m_nextTargetDsv(1),
@@ -129,6 +131,7 @@ Device::~Device()
 	Wait_For_GPU();
 	m_garbage.clear();
 
+	delete m_materialSystem;
 	delete m_shadowMapper;
 	delete m_postProcessor;
 
@@ -776,6 +779,14 @@ HRESULT STDMETHODCALLTYPE Device::QueryInterface(REFIID riid, void** object)
 	{
 		AddRef();
 		*object = static_cast<ID3D8On12PostProcess*>(Get_Post_Processor());
+		return S_OK;
+	}
+	if (riid == IID_ID3D8On12Materials)
+	{
+		if (m_materialSystem == nullptr)
+			m_materialSystem = new MaterialSystem(this);
+		AddRef();
+		*object = static_cast<ID3D8On12Materials*>(m_materialSystem);
 		return S_OK;
 	}
 	if (riid == IID_ID3D8On12ShadowMap)

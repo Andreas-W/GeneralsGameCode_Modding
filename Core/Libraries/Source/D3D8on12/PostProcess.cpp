@@ -21,6 +21,7 @@
 
 #include "PostProcess.h"
 #include "Device.h"
+#include "ShaderCompiler.h"
 
 #include <d3dcompiler.h>
 #include <d3d12shader.h>
@@ -32,11 +33,10 @@ static const UINT ROOT_VERTEX_CONSTANTS = 0;
 static const UINT ROOT_PIXEL_CONSTANTS = 1;
 static const UINT ROOT_TEXTURES = 2;
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;
+static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;
 static const UINT NULL_SRV_2D = 0;
 static const UINT INPUT_COUNT = 4;
 
-// {5A58797D-A72C-478D-8BA2-EFC6B0EFE88E}, defined here instead of linking dxguid, which also defines the D3D8 IDs.
-static const IID IID_ShaderReflection = { 0x5a58797d, 0xa72c, 0x478d, { 0x8b, 0xa2, 0xef, 0xc6, 0xb0, 0xef, 0xe8, 0x8e } };
 
 // What every pass shader includes. It describes how Run binds the inputs and constants.
 static const char s_header[] =
@@ -246,34 +246,6 @@ static void Set_Size(float* size, UINT width, UINT height)
 	size[3] = height != 0 ? 1.0f / height : 0.0f;
 }
 
-// Resolves "PostProcess.hlsli" itself and leaves other files to the engine.
-class IncludeHandler : public ID3DInclude
-{
-public:
-	explicit IncludeHandler(ID3DInclude* engine) : m_engine(engine) {}
-
-	HRESULT STDMETHODCALLTYPE Open(D3D_INCLUDE_TYPE type, LPCSTR name, LPCVOID parent, LPCVOID* data, UINT* bytes) override
-	{
-		if (_stricmp(name, "PostProcess.hlsli") == 0)
-		{
-			*data = s_header;
-			*bytes = sizeof(s_header) - 1;
-			return S_OK;
-		}
-		return m_engine != nullptr ? m_engine->Open(type, name, parent, data, bytes) : E_FAIL;
-	}
-
-	HRESULT STDMETHODCALLTYPE Close(LPCVOID data) override
-	{
-		if (data == s_header)
-			return S_OK;
-		return m_engine != nullptr ? m_engine->Close(data) : S_OK;
-	}
-
-private:
-	ID3DInclude* m_engine;
-};
-
 PostProcessor::PostProcessor(Device* device)
 	: m_device(device),
 		m_linearSampler(0),
@@ -326,6 +298,7 @@ bool PostProcessor::Bind_Root()
 		return false;
 	list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, dummy.gpu);
 	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, dummy.gpu);
+	list->SetGraphicsRootConstantBufferView(ROOT_MATERIAL_CONSTANTS, dummy.gpu);
 	for (UINT slot = 0; slot < FF_STAGES; ++slot)
 	{
 		list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + slot, device.Srv_Gpu_Handle(NULL_SRV_2D));
@@ -563,40 +536,14 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Create_Shader(const char* source, UINT 
 	if (errors != nullptr)
 		*errors = nullptr;
 
-	IncludeHandler handler(include);
 	Shader compiled;
 	compiled.used = true;
 	compiled.paramsSize = 0;
-	ComPtr<ID3DBlob> messages;
-	const HRESULT hr = D3DCompile(source, length, name, nullptr, &handler, "main", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0,
-		&compiled.code, &messages);
+	const HRESULT hr = Compile_Pixel_Shader(source, length, name, "PostProcess.hlsli", s_header, include, compiled.code, errors);
 	if (FAILED(hr))
-	{
-		if (errors != nullptr)
-			*errors = messages.Detach();
 		return hr;
-	}
-
 	// Parameters are set by name, at the offsets the compiler gave the Params variables.
-	ComPtr<ID3D12ShaderReflection> reflection;
-	if (SUCCEEDED(D3DReflect(compiled.code->GetBufferPointer(), compiled.code->GetBufferSize(), IID_ShaderReflection, (void**)reflection.GetAddressOf())))
-	{
-		ID3D12ShaderReflectionConstantBuffer* params = reflection->GetConstantBufferByName("Params");
-		D3D12_SHADER_BUFFER_DESC buffer_desc;
-		if (params != nullptr && SUCCEEDED(params->GetDesc(&buffer_desc)))
-		{
-			compiled.paramsSize = buffer_desc.Size;
-			for (UINT i = 0; i < buffer_desc.Variables; ++i)
-			{
-				D3D12_SHADER_VARIABLE_DESC variable_desc;
-				if (SUCCEEDED(params->GetVariableByIndex(i)->GetDesc(&variable_desc)))
-				{
-					Variable variable = { variable_desc.StartOffset, variable_desc.Size };
-					compiled.variables[variable_desc.Name] = variable;
-				}
-			}
-		}
-	}
+	Reflect_Constant_Buffer(compiled.code.Get(), "Params", compiled.paramsSize, compiled.variables);
 
 	for (size_t i = 0; i < m_shaders.size(); ++i)
 	{

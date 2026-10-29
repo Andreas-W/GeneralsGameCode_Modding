@@ -112,3 +112,37 @@ struct ID3D8On12ShadowMap : public IUnknown
 	virtual HRESULT STDMETHODCALLTYPE Apply_Shadows(const D3D8ON12_SHADOW_PARAMS* params, const D3DMATRIX* view,
 		const D3DMATRIX* projection) = 0;
 };
+
+// {3E7A9C15-D24B-4F68-8E09-B5C1A47D6E23}
+DEFINE_GUID(IID_ID3D8On12Materials, 0x3e7a9c15, 0xd24b, 0x4f68, 0x8e, 0x09, 0xb5, 0xc1, 0xa4, 0x7d, 0x6e, 0x23);
+
+// Pixel shaders that replace the fixed function look of draws, such as model meshes with normal maps.
+//
+// Shaders are HLSL pixel shaders (ps_5_0) with the entry point main. They include "Material.hlsli",
+// which the device provides: the struct MaterialInput (the vertex shader's colors, two texture coordinate
+// sets, view space position and normal), the fixed function constants (transforms, lights, material
+// colors, fog, alpha test), the textures of stages 0..5 with their samplers (BaseTexture, DetailTexture,
+// NormalMap, SpecularMap, EmissiveMap, ExtraMap), Time, and helpers for lighting, tangent frames, fog and
+// the alpha test. Parameters are the variables of a cbuffer named Params (register b2).
+//
+// A material applies to the draws after Set_Material, except pretransformed and point sprite draws, draws
+// with D3D8 shaders and the shadow map pass, which keep the fixed function pipeline.
+struct ID3D8On12Materials : public IUnknown
+{
+	// Compiles a shader. Other #include files are read through include, which may be null. On failure the
+	// compiler messages are returned in errors (when not null) and the result is a failure code.
+	virtual HRESULT STDMETHODCALLTYPE Create_Shader(const char* source, UINT length, const char* name, ID3DInclude* include,
+		UINT* shader, ID3DBlob** errors) = 0;
+	virtual void STDMETHODCALLTYPE Release_Shader(UINT shader) = 0;
+
+	// A material is a shader with its own parameter values; all start at 0.
+	virtual HRESULT STDMETHODCALLTYPE Create_Material(UINT shader, UINT* material) = 0;
+	virtual void STDMETHODCALLTYPE Release_Material(UINT material) = 0;
+	// Sets a variable of the Params cbuffer of a material; E_INVALIDARG for an unknown name.
+	virtual HRESULT STDMETHODCALLTYPE Set_Material_Parameter(UINT material, const char* name, const float* values, UINT count) = 0;
+
+	// The material of the following draws; 0 for the fixed function pipeline. maps (4 entries, or null) are
+	// the normal, specular, emissive and extra maps for stages 2..5, each null where there is none; they
+	// are not referenced and must stay alive while the material is set.
+	virtual void STDMETHODCALLTYPE Set_Material(UINT material, IDirect3DBaseTexture8* const* maps) = 0;
+};

@@ -25,6 +25,7 @@
 
 #include "Device.h"
 #include "ShadowMap.h"
+#include "Materials.h"
 #include "Formats.h"
 #include "Resources.h"
 
@@ -39,6 +40,9 @@ static const UINT ROOT_VERTEX_CONSTANTS = 0;
 static const UINT ROOT_PIXEL_CONSTANTS = 1;
 static const UINT ROOT_TEXTURES = 2;
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;
+static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;
+// Stages a material shader reads: base, detail, normal, specular, emissive and one more map.
+static const UINT MATERIAL_STAGES = 6;
 
 static UINT Get_Vertex_Count(D3DPRIMITIVETYPE type, UINT primitive_count)
 {
@@ -484,7 +488,9 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	else
 		vs = Get_Shader(key.vertexShader, shaders.vertexKey != nullptr ? Generate_Vertex_Shader(*shaders.vertexKey) : shaders.vertexShader->hlsl, "vs_5_0");
 	ID3DBlob* ps = nullptr;
-	if (m_shaders.find(key.pixelShader) != m_shaders.end())
+	if (shaders.pixelCode != nullptr)
+		ps = shaders.pixelCode;
+	else if (m_shaders.find(key.pixelShader) != m_shaders.end())
 		ps = m_shaders[key.pixelShader].Get();
 	else
 		ps = Get_Shader(key.pixelShader, shaders.pixelKey != nullptr ? Generate_Pixel_Shader(*shaders.pixelKey) : shaders.pixelShader->hlsl, "ps_5_0");
@@ -795,6 +801,27 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	ps_key.fog = fog_mode != D3DFOG_NONE || (rs[D3DRS_FOGENABLE] && rhw);
 	ps_key.specular = rs[D3DRS_SPECULARENABLE] != FALSE;
 
+	// A material replaces the fixed function pixel shader of ordinary 3D draws, not in the shadow map.
+	const bool shadow_pass = m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing();
+	const bool point_sprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
+	MaterialSystem::Binding material = {};
+	const bool use_material = m_materialSystem != nullptr && !shader_vs && !shader_ps && !rhw && !point_sprite && !shadow_pass
+		&& m_materialSystem->Current(material);
+	UINT material_maps = 0;
+	if (use_material)
+	{
+		// Base texture as bound, the detail texture when the draw uses it; the maps come with the material, not
+		// from the stages, which other code (the terrain shaders) may have left textures in.
+		for (UINT stage = 0; stage < MATERIAL_STAGES; ++stage)
+		{
+			TextureType type_of_texture = TEXTURE_NONE;
+			IDirect3DBaseTexture8* texture = stage == 0 ? m_textures[0] : stage == 1 ? (ps_key.stageCount > 1 ? m_textures[1] : nullptr) : material.maps[stage - 2];
+			srvs[stage] = Prepare_Texture(texture, type_of_texture);
+			if (type_of_texture == TEXTURE_2D)
+				material_maps |= 1u << stage;
+		}
+	}
+
 	// Vertex shader key.
 	VertexShaderKey vs_key;
 	memset(&vs_key, 0, sizeof(vs_key));
@@ -811,6 +838,12 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	vs_key.fogMode = ps_key.fog ? (fog_mode != D3DFOG_NONE ? fog_mode : (BYTE)D3DFOG_LINEAR) : (BYTE)D3DFOG_NONE;
 	vs_key.rangeFog = rs[D3DRS_RANGEFOGENABLE] != FALSE;
 	vs_key.stageCount = ps_key.stageCount;	// all of them for pixel shaders
+	if (use_material)
+	{
+		// The same outputs for every mesh, so that one compiled material shader fits all of them.
+		vs_key.stageCount = 2;
+		vs_key.materialOutputs = 1;
+	}
 	vs_key.pointSprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
 	vs_key.pointScale = vs_key.pointSprite && rs[D3DRS_POINTSCALEENABLE] != FALSE && !rhw;
 	for (UINT stage = 0; stage < vs_key.stageCount; ++stage)
@@ -849,6 +882,11 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		if (shaders.pixelShader == nullptr)
 			return D3D_OK;
 	}
+	else if (use_material)
+	{
+		shaders.pixelCode = material.code;
+		shaders.pixelHash = material.hash;
+	}
 	else
 	{
 		shaders.pixelKey = &ps_key;
@@ -856,7 +894,6 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	}
 
 	// The shadow map only needs what writes depth; blended draws without an alpha test are glows and glass.
-	const bool shadow_pass = m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing();
 	if (shadow_pass && (rs[D3DRS_ZENABLE] == D3DZB_FALSE || rs[D3DRS_ZWRITEENABLE] == FALSE || (shaders.fvf & D3DFVF_POSITION_MASK) == D3DFVF_XYZRHW
 		|| (rs[D3DRS_ALPHABLENDENABLE] != FALSE && rs[D3DRS_ALPHATESTENABLE] == FALSE)))
 		return D3D_OK;
@@ -878,6 +915,24 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	else
 		Fill_Vertex_Constants(*(FFVertexConstants*)vs_constants.cpu);
 	Fill_Pixel_Constants(*(FFPixelConstants*)ps_constants.cpu);
+	D3D12_GPU_VIRTUAL_ADDRESS material_constants = ps_constants.gpu;
+	if (use_material)
+	{
+		FFPixelConstants& pc = *(FFPixelConstants*)ps_constants.cpu;
+		pc.materialTime[0] = m_materialSystem->Time();
+		pc.materialFlags[0] = (int)material_maps;
+		pc.materialFlags[1] = vs_key.lighting;
+		pc.materialFlags[2] = ps_key.alphaFunc;
+		pc.materialFlags[3] = ps_key.specular;
+		if (!material.params->empty())
+		{
+			UploadAllocation params = Allocate_Upload((UINT)material.params->size(), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+			if (params.cpu == nullptr)
+				return D3D_OK;
+			memcpy(params.cpu, material.params->data(), material.params->size());
+			material_constants = params.gpu;
+		}
+	}
 
 	ID3D12GraphicsCommandList* list = m_commandList.Get();
 	if (!m_heapsBound)
@@ -906,12 +961,15 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	list->SetPipelineState(pipeline);
 	list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, vs_constants.gpu);
 	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, ps_constants.gpu);
+	list->SetGraphicsRootConstantBufferView(ROOT_MATERIAL_CONSTANTS, material_constants);
 	for (UINT stage = 0; stage < FF_STAGES; ++stage)
 	{
 		// Every table of the root signature must be set, also those the shader does not read.
-		const UINT srv = stage < ps_key.stageCount ? srvs[stage] : 0;
+		const bool bound = use_material ? stage < MATERIAL_STAGES && (material_maps & (1u << stage)) != 0
+			: stage < ps_key.stageCount && ps_key.stages[stage].textureType != TEXTURE_NONE;
+		const UINT srv = use_material ? (stage < MATERIAL_STAGES ? srvs[stage] : 0) : (stage < ps_key.stageCount ? srvs[stage] : 0);
 		list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + stage, Srv_Gpu_Handle(srv));
-		const UINT sampler = stage < ps_key.stageCount && ps_key.stages[stage].textureType != TEXTURE_NONE ? Get_Sampler(stage) : 0;
+		const UINT sampler = bound ? Get_Sampler(stage) : 0;
 		D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle = m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
 		sampler_handle.ptr += (UINT64)sampler * m_samplerDescriptorSize;
 		list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + stage, sampler_handle);
