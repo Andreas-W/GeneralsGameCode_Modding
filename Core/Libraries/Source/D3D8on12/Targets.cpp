@@ -260,8 +260,9 @@ bool Device::Prepare_Targets(TargetState& targets)
 	if (m_renderTarget == m_backBufferSurface)
 	{
 		targets.rtv = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-		targets.rtv.ptr += m_backBufferIndex * m_rtvDescriptorSize;
+		targets.rtv.ptr += (m_multisampleTarget != nullptr ? FRAME_COUNT : m_backBufferIndex) * m_rtvDescriptorSize;
 		targets.rtvFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+		targets.sampleCount = m_sampleCount;
 	}
 	else
 	{
@@ -271,6 +272,7 @@ bool Device::Prepare_Targets(TargetState& targets)
 		Transition(*gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		targets.rtv = Target_View_Handle(false, m_renderTarget->Target_View());
 		targets.rtvFormat = gpu->resource->GetDesc().Format;
+		targets.sampleCount = 1;
 	}
 	width = m_renderTarget->Desc().Width;
 	height = m_renderTarget->Desc().Height;
@@ -278,7 +280,14 @@ bool Device::Prepare_Targets(TargetState& targets)
 	targets.dsvFormat = DXGI_FORMAT_UNKNOWN;
 	if (m_depthStencil != nullptr && m_depthStencil->Desc().Width == width && m_depthStencil->Desc().Height == height)
 	{
-		if (m_depthStencil == m_autoDepthSurface && m_depthBuffer != nullptr)
+		// Only the automatic depth buffer is multisampled, like the back buffer.
+		const bool auto_depth = m_depthStencil == m_autoDepthSurface && m_depthBuffer != nullptr;
+		const UINT depth_samples = auto_depth ? m_depthBuffer->GetDesc().SampleDesc.Count : 1;
+		if (depth_samples != targets.sampleCount)
+		{
+			D3D8ON12_UNSUPPORTED("a depth buffer with another sample count than the render target");
+		}
+		else if (auto_depth)
 		{
 			targets.dsv = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
 			targets.dsvFormat = m_depthBuffer->GetDesc().Format;

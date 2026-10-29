@@ -212,6 +212,7 @@ private:
 		DXGI_FORMAT rtvFormat;
 		D3D12_CPU_DESCRIPTOR_HANDLE dsv;
 		DXGI_FORMAT dsvFormat;		// DXGI_FORMAT_UNKNOWN without depth buffer
+		UINT sampleCount;
 	};
 	HRESULT Init_Target_Heaps();
 	D3D12_CPU_DESCRIPTOR_HANDLE Target_View_Handle(bool depth, UINT index) const;
@@ -252,6 +253,7 @@ private:
 	void Release_Swap_Chain_Buffers();
 	void Set_Default_State();
 	void Begin_Frame();
+	void Resolve_Back_Buffer();
 	void Flush_Commands();
 	void Wait_For_GPU();
 	void Log_Debug_Messages();
@@ -273,6 +275,10 @@ private:
 	UINT m_rtvDescriptorSize;
 	ComPtr<ID3D12Resource> m_backBuffers[FRAME_COUNT];
 	ComPtr<ID3D12Resource> m_depthBuffer;
+	// With multisampling the back buffer is drawn here and resolved into the swap chain buffer, as flip
+	// model swap chains can not be multisampled.
+	ComPtr<ID3D12Resource> m_multisampleTarget;
+	UINT m_sampleCount;
 	ComPtr<ID3D12CommandAllocator> m_allocators[FRAME_COUNT];
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	ComPtr<ID3D12Resource> m_readbackBuffer;

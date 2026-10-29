@@ -87,6 +87,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_heapsBound(false),
 		m_uploadOffset(0),
 		m_dsvDescriptorSize(0),
+		m_sampleCount(1),
 		m_nextTargetRtv(1),
 		m_nextTargetDsv(1),
 		m_cursor(nullptr),
@@ -170,6 +171,19 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	}
 
 	m_device.As(&m_infoQueue);
+	if (m_infoQueue != nullptr)
+	{
+		// D3D8 has no optimized clear values, and the game clears with changing colors (the alpha is
+		// the map's water opacity), so these only say the clear is slower.
+		D3D12_MESSAGE_ID deny[] = {
+			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+			D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
+		};
+		D3D12_INFO_QUEUE_FILTER filter = {};
+		filter.DenyList.NumIDs = ARRAYSIZE(deny);
+		filter.DenyList.pIDList = deny;
+		m_infoQueue->AddStorageFilterEntries(&filter);
+	}
 
 	D3D12_COMMAND_QUEUE_DESC queue_desc = {};
 	queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -221,7 +235,7 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 
 	D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
 	heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	heap_desc.NumDescriptors = FRAME_COUNT;
+	heap_desc.NumDescriptors = FRAME_COUNT + 1;	// the swap chain buffers and the multisample target
 	if (FAILED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_rtvHeap))))
 		return D3DERR_OUTOFVIDEOMEMORY;
 	m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -255,8 +269,36 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 
 	const UINT width = m_presentParams.BackBufferWidth;
 	const UINT height = m_presentParams.BackBufferHeight;
+
+	// Multisampling needs the discard swap effect in D3D8, like the resolve here.
+	D3DMULTISAMPLE_TYPE multisample = m_presentParams.MultiSampleType;
+	if (multisample > 16 || (m_adapter.sampleCounts & (1 << multisample)) == 0 || m_presentParams.SwapEffect != D3DSWAPEFFECT_DISCARD)
+		multisample = D3DMULTISAMPLE_NONE;
+	m_sampleCount = multisample == D3DMULTISAMPLE_NONE ? 1 : (UINT)multisample;
+	if (m_sampleCount > 1)
+	{
+		D3D12_HEAP_PROPERTIES heap = {};
+		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+		D3D12_RESOURCE_DESC desc = {};
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		desc.Width = width;
+		desc.Height = height;
+		desc.DepthOrArraySize = 1;
+		desc.MipLevels = 1;
+		desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		desc.SampleDesc.Count = m_sampleCount;
+		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+		// The game clears the back buffer to black each frame, with changing alpha.
+		D3D12_CLEAR_VALUE clear = {};
+		clear.Format = desc.Format;
+		if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear, IID_PPV_ARGS(&m_multisampleTarget))))
+			return D3DERR_OUTOFVIDEOMEMORY;
+		m_device->CreateRenderTargetView(m_multisampleTarget.Get(), nullptr, rtv);
+		Log("back buffer multisampled with %u samples", m_sampleCount);
+	}
+
 	m_backBufferSurface = new Surface(this, nullptr, Surface::KIND_BACK_BUFFER, width, height,
-		m_presentParams.BackBufferFormat, D3DUSAGE_RENDERTARGET, D3DPOOL_DEFAULT, D3DMULTISAMPLE_NONE);
+		m_presentParams.BackBufferFormat, D3DUSAGE_RENDERTARGET, D3DPOOL_DEFAULT, multisample);
 
 	if (m_presentParams.EnableAutoDepthStencil)
 	{
@@ -272,7 +314,7 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;
 		desc.Format = format;
-		desc.SampleDesc.Count = 1;
+		desc.SampleDesc.Count = m_sampleCount;
 		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 		D3D12_CLEAR_VALUE clear = {};
 		clear.Format = format;
@@ -282,7 +324,7 @@ HRESULT Device::Create_Swap_Chain_Buffers()
 		m_device->CreateDepthStencilView(m_depthBuffer.Get(), nullptr, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 
 		m_autoDepthSurface = new Surface(this, nullptr, Surface::KIND_DEPTH_STENCIL, width, height,
-			m_presentParams.AutoDepthStencilFormat, D3DUSAGE_DEPTHSTENCIL, D3DPOOL_DEFAULT, D3DMULTISAMPLE_NONE);
+			m_presentParams.AutoDepthStencilFormat, D3DUSAGE_DEPTHSTENCIL, D3DPOOL_DEFAULT, multisample);
 	}
 
 	Replace_Surface(m_renderTarget, m_backBufferSurface);
@@ -295,6 +337,7 @@ void Device::Release_Swap_Chain_Buffers()
 	for (ComPtr<ID3D12Resource>& buffer : m_backBuffers)
 		buffer.Reset();
 	m_depthBuffer.Reset();
+	m_multisampleTarget.Reset();
 
 	if (m_backBufferSurface != nullptr)
 		m_backBufferSurface->Release();
@@ -426,6 +469,32 @@ void Device::Begin_Frame()
 	m_recording = true;
 }
 
+// Resolves the multisample target into the swap chain buffer of this frame. Both stay render targets.
+void Device::Resolve_Back_Buffer()
+{
+	if (m_multisampleTarget == nullptr || !m_recording)
+		return;
+
+	D3D12_RESOURCE_BARRIER barriers[2] = {};
+	barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barriers[0].Transition.pResource = m_multisampleTarget.Get();
+	barriers[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+	barriers[1] = barriers[0];
+	barriers[1].Transition.pResource = m_backBuffers[m_backBufferIndex].Get();
+	barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_RESOLVE_DEST;
+	m_commandList->ResourceBarrier(2, barriers);
+
+	m_commandList->ResolveSubresource(m_backBuffers[m_backBufferIndex].Get(), 0, m_multisampleTarget.Get(), 0, DXGI_FORMAT_B8G8R8A8_UNORM);
+
+	barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+	barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_RESOLVE_DEST;
+	barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	m_commandList->ResourceBarrier(2, barriers);
+}
+
 // Runs the commands recorded so far and waits for them, then continues recording the same frame.
 void Device::Flush_Commands()
 {
@@ -460,6 +529,8 @@ HRESULT Device::Read_Back_Buffer(Surface* dest)
 	}
 	ID3D12Resource* source = m_backBuffers[index].Get();
 	Begin_Frame();
+	if (in_frame)
+		Resolve_Back_Buffer();
 
 	D3D12_RESOURCE_DESC source_desc = source->GetDesc();
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
@@ -715,6 +786,7 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 		return D3DERR_DEVICELOST;
 
 	Begin_Frame();
+	Resolve_Back_Buffer();
 
 	D3D12_RESOURCE_BARRIER barrier = {};
 	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;

@@ -135,8 +135,28 @@ bool Direct3D::Init()
 
 		if ((info.desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0)
 			continue;
-		if (FAILED(D3D12CreateDevice(info.adapter.Get(), D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr)))
+		ComPtr<ID3D12Device> device;
+		if (FAILED(D3D12CreateDevice(info.adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device))))
 			continue;
+
+		// Sample counts that work for both the back buffer and the depth buffer.
+		info.sampleCounts = 1 << 1;
+		for (UINT count = 2; count <= 16; count *= 2)
+		{
+			bool supported = true;
+			const DXGI_FORMAT formats[] = { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT };
+			for (DXGI_FORMAT format : formats)
+			{
+				D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS levels = {};
+				levels.Format = format;
+				levels.SampleCount = count;
+				if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &levels, sizeof(levels))) || levels.NumQualityLevels == 0)
+					supported = false;
+			}
+			if (supported)
+				info.sampleCounts |= 1 << count;
+		}
+		device.Reset();
 
 		Enumerate_Modes(info);
 		char name[128];
@@ -266,8 +286,11 @@ HRESULT STDMETHODCALLTYPE Direct3D::CheckDeviceMultiSampleType(UINT adapter, D3D
 {
 	if (adapter >= m_adapters.size() || type != D3DDEVTYPE_HAL)
 		return D3DERR_NOTAVAILABLE;
-	// Multisampling is not implemented yet.
-	return multisample == D3DMULTISAMPLE_NONE ? D3D_OK : D3DERR_NOTAVAILABLE;
+	if (multisample == D3DMULTISAMPLE_NONE)
+		return D3D_OK;
+	if (multisample > 16 || (m_adapters[adapter].sampleCounts & (1 << multisample)) == 0)
+		return D3DERR_NOTAVAILABLE;
+	return D3D_OK;
 }
 
 HRESULT STDMETHODCALLTYPE Direct3D::CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE type, D3DFORMAT, D3DFORMAT, D3DFORMAT depth_stencil_format)

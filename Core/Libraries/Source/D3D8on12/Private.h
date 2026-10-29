@@ -88,6 +88,7 @@ struct AdapterInfo
 	ComPtr<IDXGIAdapter1> adapter;
 	DXGI_ADAPTER_DESC1 desc;
 	std::vector<D3DDISPLAYMODE> modes;
+	UINT sampleCounts;		// bit n set: n samples work for the back buffer and depth formats
 };
 
 } // namespace D3D8On12

@@ -441,6 +441,7 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	}
 	key.colorWrite = (BYTE)(rs[D3DRS_COLORWRITEENABLE] & 0xF);
 	key.targetFormat = targets.rtvFormat;
+	key.sampleCount = (BYTE)targets.sampleCount;
 	key.hasDepthBuffer = has_depth;
 	if (has_depth)
 	{
@@ -561,7 +562,7 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	desc.NumRenderTargets = 1;
 	desc.RTVFormats[0] = key.targetFormat;
 	desc.DSVFormat = has_depth ? key.depthFormat : DXGI_FORMAT_UNKNOWN;
-	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Count = key.sampleCount;
 
 	ComPtr<ID3D12PipelineState> pipeline;
 	if (FAILED(m_device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipeline))))
