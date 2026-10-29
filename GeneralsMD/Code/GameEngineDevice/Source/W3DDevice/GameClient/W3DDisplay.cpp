@@ -79,6 +79,7 @@ static void drawFramerateBar();
 #include "W3DDevice/GameClient/W3DWater.h"
 #include "W3DDevice/GameClient/W3DVideoBuffer.h"
 #include "W3DDevice/GameClient/W3DShaderManager.h"
+#include "W3DDevice/GameClient/W3DPostProcess.h"
 #include "W3DDevice/GameClient/W3DDebugDisplay.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
 #include "W3DDevice/GameClient/W3DScreenshot.h"
@@ -468,6 +469,8 @@ W3DDisplay::~W3DDisplay()
 	// shutdown
 	Debug_Statistics::Shutdown_Statistics();
 	if (!TheGlobalData->m_headless)
+		delete TheW3DPostProcess;
+		TheW3DPostProcess = nullptr;
 		W3DShaderManager::shutdown();
 	m_assetManager->Free_Assets();
 	delete m_assetManager;
@@ -734,10 +737,33 @@ void W3DDisplay::init2DScene()
 /** Initialize or re-initialize the W3D display system.  Here we need to
   * create our window, and get our 3D hardware setup and online */
 //=============================================================================
+#ifdef RTS_GAME_MCP
+static bool mcpPostProcessAvailable() { return TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable(); }
+static bool mcpPostProcessRunning() { return TheW3DPostProcess != nullptr && TheW3DPostProcess->isRunning(); }
+static void mcpPostProcessReload() { if (TheW3DPostProcess) TheW3DPostProcess->reload(); }
+static bool mcpPostProcessSetParameter(const char *pass, const char *name, const Real *values, Int count)
+{
+	return TheW3DPostProcess != nullptr && TheW3DPostProcess->setParameter(pass, name, values, count);
+}
+static void mcpPostProcessGetPasses(std::vector<AsciiString> &passes, AsciiString &error)
+{
+	if (TheW3DPostProcess)
+	{
+		passes = TheW3DPostProcess->getPasses();
+		error = TheW3DPostProcess->getError();
+	}
+}
+#endif
+
 void W3DDisplay::init()
 {
 #ifdef RTS_GAME_MCP
 	TheGameMcpScreenshot = W3D_WriteScreenshotFile;
+	TheGameMcpPostProcess.isAvailable = mcpPostProcessAvailable;
+	TheGameMcpPostProcess.isRunning = mcpPostProcessRunning;
+	TheGameMcpPostProcess.reload = mcpPostProcessReload;
+	TheGameMcpPostProcess.setParameter = mcpPostProcessSetParameter;
+	TheGameMcpPostProcess.getPasses = mcpPostProcessGetPasses;
 #endif
 
 
@@ -943,6 +969,9 @@ void W3DDisplay::init()
 		init2DScene();
 		init3DScene();
 		W3DShaderManager::init();
+
+		TheW3DPostProcess = new W3DPostProcess;
+		TheW3DPostProcess->init();
 
 		// Create and initialize the debug display
 		m_nativeDebugDisplay = NEW W3DDebugDisplay();

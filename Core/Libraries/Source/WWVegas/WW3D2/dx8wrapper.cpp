@@ -89,6 +89,7 @@
 
 #ifdef RTS_RENDERER_DX12
 #include <d3d8on12.h>
+#include <d3d8on12_ext.h>
 #endif
 
 const int DEFAULT_RESOLUTION_WIDTH = 640;
@@ -152,6 +153,7 @@ D3DCOLOR							DX8Wrapper::FogColor										= 0;
 
 IDirect3D8 *					DX8Wrapper::D3DInterface								= nullptr;
 IDirect3DDevice8 *			DX8Wrapper::D3DDevice									= nullptr;
+ID3D8On12PostProcess *		DX8Wrapper::PostProcess								= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentRenderTarget						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentDepthBuffer						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::DefaultRenderTarget						= nullptr;
@@ -702,6 +704,10 @@ void DX8Wrapper::Release_Device()
 		** Release the device
 		*/
 
+		if (PostProcess) {
+			PostProcess->Release();
+			PostProcess=nullptr;
+		}
 		D3DDevice->Release();
 		D3DDevice=nullptr;
 	}
@@ -2004,6 +2010,20 @@ HRESULT DX8Wrapper::_Set_DX8_Render_Target(IDirect3DSurface8* render_target, IDi
 	DX8_THREAD_ASSERT();
 	Increment_DX8_CallCount();
 	return D3DDevice->SetRenderTarget(render_target, depth_buffer);
+}
+
+ID3D8On12PostProcess* DX8Wrapper::Get_Post_Process()
+{
+#ifdef RTS_RENDERER_DX12
+	if (PostProcess == nullptr && D3DDevice != nullptr && DX8Wrapper_UseDX12)
+	{
+		if (FAILED(D3DDevice->QueryInterface(IID_ID3D8On12PostProcess, (void**)&PostProcess)))
+			PostProcess = nullptr;
+	}
+	return PostProcess;
+#else
+	return nullptr;
+#endif
 }
 
 HRESULT DX8Wrapper::Test_Cooperative_Level()

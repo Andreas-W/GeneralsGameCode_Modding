@@ -38,6 +38,7 @@
 
 GameMcp *TheGameMcp = nullptr;
 GameMcpScreenshotFunc TheGameMcpScreenshot = nullptr;
+GameMcpPostProcess TheGameMcpPostProcess = { nullptr, nullptr, nullptr, nullptr, nullptr };
 
 namespace
 {

@@ -473,5 +473,18 @@ def view_display_mode(width: int | None = None, height: int | None = None, windo
     return game.call("view.display_mode", width=width, height=height, windowed=windowed)
 
 
+@mcp.tool()
+def render_postprocess(enabled: bool | None = None, reload: bool = False, pass_name: str | None = None,
+                       param: str | None = None, values: list[float] | None = None) -> dict:
+    """Post-processing of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]).
+    enabled turns the PostProcess chain on or off (not saved); reload reads Data\\INI\\PostProcess.ini and
+    the shaders in Data\\Shaders\\PostProcess again (the chain is rebuilt on the next drawn frame);
+    pass_name + param + values (1 to 4 numbers) change a parameter of a running pass, not the INI.
+    Returns whether it is available (DX12) and running, the passes and the last build error.
+    Without arguments it only returns the state."""
+    return game.call("render.postprocess", enabled=enabled, reload=reload or None, param=param, values=values,
+                     **({"pass": pass_name} if pass_name else {}))
+
+
 if __name__ == "__main__":
     mcp.run()

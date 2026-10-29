@@ -40,6 +40,7 @@
 
 #include <deque>
 #include <string>
+#include <vector>
 
 class GameMcp
 {
@@ -98,5 +99,16 @@ extern GameMcp *TheGameMcp;	///< null unless the game was started with -mcp
 /// Writes what the display shows to a file; set by the display device, null without one (headless).
 typedef bool (*GameMcpScreenshotFunc)(const char *pathname, ScreenshotFormat format, Int jpegQuality);
 extern GameMcpScreenshotFunc TheGameMcpScreenshot;
+
+/// Post-processing of the Direct3D 12 renderer; set by the display device, all null without one.
+struct GameMcpPostProcess
+{
+	bool (*isAvailable)();
+	bool (*isRunning)();
+	void (*reload)();
+	bool (*setParameter)(const char *pass, const char *name, const Real *values, Int count);
+	void (*getPasses)(std::vector<AsciiString> &passes, AsciiString &error);
+};
+extern GameMcpPostProcess TheGameMcpPostProcess;
 
 #endif // RTS_GAME_MCP

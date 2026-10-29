@@ -565,6 +565,9 @@ public:
 	static bool Has_Device() { return D3DDevice != nullptr; }
 	static HRESULT Test_Cooperative_Level();
 
+	// Post-processing of the Direct3D 12 renderer (d3d8on12_ext.h); null with Direct3D 8.
+	static struct ID3D8On12PostProcess* Get_Post_Process();
+
 	static HRESULT Set_Cursor_Properties(unsigned hotspot_x, unsigned hotspot_y, IDirect3DSurface8* cursor_bitmap);
 	static void Set_Cursor_Position(int x, int y, DWORD flags);
 	static bool Show_Cursor(bool show);
@@ -729,6 +732,7 @@ protected:
 
 	static IDirect3D8 *					D3DInterface;			//d3d8;
 	static IDirect3DDevice8 *			D3DDevice;				//d3ddevice8;
+	static struct ID3D8On12PostProcess*	PostProcess;
 
 	static IDirect3DSurface8 *			CurrentRenderTarget;
 	static IDirect3DSurface8 *			CurrentDepthBuffer;

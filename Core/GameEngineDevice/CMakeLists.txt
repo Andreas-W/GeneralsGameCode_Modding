@@ -66,6 +66,7 @@ set(GAMEENGINEDEVICE_SRC
     Include/W3DDevice/GameClient/W3DShaderManager.h
 #    Include/W3DDevice/GameClient/W3DShadow.h
 #    Include/W3DDevice/GameClient/W3DShroud.h
+    Include/W3DDevice/GameClient/W3DPostProcess.h
     Include/W3DDevice/GameClient/W3DSmudge.h
     Include/W3DDevice/GameClient/W3DSnow.h
 #    Include/W3DDevice/GameClient/W3DStatusCircle.h
@@ -171,6 +172,7 @@ set(GAMEENGINEDEVICE_SRC
 #    Source/W3DDevice/GameClient/W3DScene.cpp
     Source/W3DDevice/GameClient/W3DShaderManager.cpp
 #    Source/W3DDevice/GameClient/W3DShroud.cpp
+    Source/W3DDevice/GameClient/W3DPostProcess.cpp
     Source/W3DDevice/GameClient/W3DSmudge.cpp
     Source/W3DDevice/GameClient/W3DSnow.cpp
 #    Source/W3DDevice/GameClient/W3DStatusCircle.cpp
@@ -229,6 +231,13 @@ target_link_libraries(corei_gameenginedevice_private INTERFACE
     corei_main
     stb
 )
+
+# W3DPostProcess talks to the post-processing of the Direct3D 12 renderer.
+if(RTS_BUILD_OPTION_DX12)
+    target_link_libraries(corei_gameenginedevice_private INTERFACE
+        core_d3d8on12
+    )
+endif()
 
 target_link_libraries(corei_gameenginedevice_public INTERFACE
     binkstub

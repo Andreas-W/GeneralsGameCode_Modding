@@ -638,6 +638,18 @@ Bool OptionPreferences::getExtraAnimationsDisabled()
 	return TRUE;
 }
 
+Bool OptionPreferences::getPostProcessing()
+{
+	OptionPreferences::const_iterator it = find("PostProcessing");
+	if (it == end())
+		return TheGlobalData->m_postProcessing;
+
+	if (stricmp(it->second.str(), "yes") == 0) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
 Bool OptionPreferences::getUseHeatEffects()
 {
 	OptionPreferences::const_iterator it = find("HeatEffects");

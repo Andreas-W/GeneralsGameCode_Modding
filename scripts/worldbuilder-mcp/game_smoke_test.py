@@ -146,6 +146,10 @@ def main() -> int:
             restored = bridge.call("view.display_mode", width=mode["width"], height=mode["height"])
             check(restored["width"] == mode["width"], "resolution restored")
 
+            print("post-processing")
+            post = bridge.call("render.postprocess")
+            check("available" in post and "passes" in post, f"render.postprocess answers (available: {post['available']})")
+
             print("render speed")
             speed = bridge.call("game.set_speed", fps=30, render_fps=0)
             check(speed["speed_fps"] == 30, "logic speed kept with an uncapped render rate")

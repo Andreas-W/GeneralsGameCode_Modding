@@ -196,6 +196,10 @@ static GameWindow *   checkUnlockFps   = nullptr;
 static NameKeyType    checkHeatEffectsID = NAMEKEY_INVALID;
 static GameWindow *   checkHeatEffects   = nullptr;
 
+// Only in option menus that have the gadget (Direct3D 12 post-processing).
+static NameKeyType    checkPostProcessingID = NAMEKEY_INVALID;
+static GameWindow *   checkPostProcessing   = nullptr;
+
 static NameKeyType    comboBoxRenderFpsID = NAMEKEY_INVALID;
 static GameWindow *   comboBoxRenderFps   = nullptr;
 
@@ -359,6 +363,12 @@ static void setDefaults()
 		GadgetCheckBoxSetChecked( checkHeatEffects, TheGlobalData->m_useHeatEffects);
 
 		//-------------------------------------------------------------------------------------------------
+ 		// Post-processing
+		//
+		if (checkPostProcessing)
+			GadgetCheckBoxSetChecked( checkPostProcessing, TheGlobalData->m_postProcessing);
+
+		//-------------------------------------------------------------------------------------------------
  		// Building Occlusion checkbox
 		//
 		GadgetCheckBoxSetChecked( checkBuildingOcclusion, TheGlobalData->m_enableBehindBuildingMarkers);
@@ -450,6 +460,12 @@ static void saveOptions()
 
 		TheWritableGlobalData->m_useHeatEffects = GadgetCheckBoxIsChecked( checkHeatEffects );
 		(*pref)["HeatEffects"] = TheGlobalData->m_useHeatEffects ? "yes" : "no";
+
+		if (checkPostProcessing)
+		{
+			TheWritableGlobalData->m_postProcessing = GadgetCheckBoxIsChecked( checkPostProcessing );
+			(*pref)["PostProcessing"] = TheGlobalData->m_postProcessing ? "yes" : "no";
+		}
 
 		// Never write this out
 		//TheWritableGlobalData->m_useFpsLimit = !GadgetCheckBoxIsChecked( checkUnlockFps );
@@ -1114,6 +1130,9 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 	checkHeatEffectsID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckHeatEffects" );
 	checkHeatEffects   = TheWindowManager->winGetWindowFromId( nullptr, checkHeatEffectsID);
 
+	checkPostProcessingID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckPostProcessing" );
+	checkPostProcessing   = TheWindowManager->winGetWindowFromId( nullptr, checkPostProcessingID);
+
 	checkUnlockFpsID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckUnlockFPS" );
 	checkUnlockFps   = TheWindowManager->winGetWindowFromId( nullptr, checkUnlockFpsID);
 
@@ -1355,6 +1374,8 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 	GadgetCheckBoxSetChecked( checkNoDynamicLod, !TheGlobalData->m_enableDynamicLOD);
 
 	GadgetCheckBoxSetChecked( checkHeatEffects, TheGlobalData->m_useHeatEffects);
+	if (checkPostProcessing)
+		GadgetCheckBoxSetChecked( checkPostProcessing, TheGlobalData->m_postProcessing);
 
 	GadgetCheckBoxSetChecked( checkUnlockFps, !TheGlobalData->m_useFpsLimit);
 

@@ -112,6 +112,7 @@ public:
 	Bool getTreesEnabled();
 	Bool getExtraAnimationsDisabled();
 	Bool getUseHeatEffects();
+	Bool getPostProcessing();
 	Bool getDynamicLODEnabled();
 	Bool getFPSLimitEnabled();
 	Bool getBuildingOcclusionEnabled();

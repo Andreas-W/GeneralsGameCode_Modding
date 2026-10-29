@@ -127,6 +127,48 @@ McpJson cmdDisplayMode(const McpJson &args)
 	return describeDisplay();
 }
 
+// Turns the post-processing chain on or off (not saved), reloads its INI and shaders, or changes a
+// parameter of a pass while the game runs.
+McpJson cmdPostProcess(const McpJson &args)
+{
+	requireWindow();
+	if (TheGameMcpPostProcess.isAvailable == nullptr) {
+		gameMcpFail("the display has no post-processing");
+	}
+	if (args.has("enabled")) {
+		TheWritableGlobalData->m_postProcessing = gameMcpArgBool(args, "enabled", true);
+	}
+	if (gameMcpArgBool(args, "reload", false)) {
+		TheGameMcpPostProcess.reload();
+	}
+	if (args.has("param")) {
+		const std::string pass = gameMcpArgString(args, "pass");
+		const std::string param = gameMcpArgString(args, "param");
+		const McpJson &list = args.get("values");
+		Real values[4] = { 0, 0, 0, 0 };
+		Int count = 0;
+		if (list.isArray()) {
+			for (size_t i = 0; i < list.size() && count < 4; ++i)
+				values[count++] = (Real)list.at(i).asNumber();
+		} else {
+			values[count++] = (Real)gameMcpArgNumber(args, "values");
+		}
+		if (!TheGameMcpPostProcess.setParameter(pass.c_str(), param.c_str(), values, count)) {
+			gameMcpFail("no running pass '%s' with a parameter '%s'", pass.c_str(), param.c_str());
+		}
+	}
+
+	std::vector<AsciiString> passes;
+	AsciiString error;
+	TheGameMcpPostProcess.getPasses(passes, error);
+	McpJson names = McpJson::makeArray();
+	for (size_t i = 0; i < passes.size(); ++i)
+		names.push(passes[i].str());
+	return McpJson::makeObject().set("available", TheGameMcpPostProcess.isAvailable())
+		.set("enabled", TheGlobalData->m_postProcessing != 0).set("running", TheGameMcpPostProcess.isRunning())
+		.set("passes", names).set("error", error.str());
+}
+
 } // namespace
 
 void gameMcpRegisterViewCommands()
@@ -136,6 +178,9 @@ void gameMcpRegisterViewCommands()
 	gameMcpRegisterCommand("view.screenshot", cmdScreenshot, "{path, quality=85} Writes what the window shows to a .jpg or .png file.");
 	gameMcpRegisterCommand("view.display_mode", cmdDisplayMode,
 		"{width?, height?, windowed?} Changes the resolution like the options menu (not saved) and returns the display mode.");
+	gameMcpRegisterCommand("render.postprocess", cmdPostProcess,
+		"{enabled?, reload?, pass?, param?, values?} Post-processing of the Direct3D 12 renderer: turns it on or off (not saved), "
+		"reloads the PostProcess INI and shaders, or sets a parameter of a running pass; returns its state.");
 }
 
 #endif // RTS_GAME_MCP
