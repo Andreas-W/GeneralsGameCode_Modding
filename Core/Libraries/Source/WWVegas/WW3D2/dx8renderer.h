@@ -80,6 +80,7 @@ public:
 };
 
 extern MeshMaterialBinderClass *TheMeshMaterialBinder;	///< null without one
+extern bool TheMeshMaterialBound;	///< the binder bound a material for the meshes being drawn now
 
 /**
 ** DX8TextureCategoryClass

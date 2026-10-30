@@ -1677,6 +1677,7 @@ unsigned DX8TextureCategoryClass::Add_Mesh(
 // ----------------------------------------------------------------------------
 
 MeshMaterialBinderClass *TheMeshMaterialBinder = nullptr;
+bool TheMeshMaterialBound = false;
 
 void DX8TextureCategoryClass::Render()
 {
@@ -1724,6 +1725,7 @@ void DX8TextureCategoryClass::Render()
 
 
 	const bool material_bound = TheMeshMaterialBinder != nullptr && TheMeshMaterialBinder->Begin(Peek_Texture(0));
+	TheMeshMaterialBound = material_bound;
 
 	bool renderTasksRemaining=false;
 
@@ -1972,6 +1974,7 @@ void DX8TextureCategoryClass::Render()
 
 	if (material_bound)
 		TheMeshMaterialBinder->End();
+	TheMeshMaterialBound = false;
 
 	if (!renderTasksRemaining)
 	{
