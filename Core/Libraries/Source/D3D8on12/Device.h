@@ -413,6 +413,15 @@ private:
 	};
 	std::vector<SubstituteDepth> m_substituteDepths;
 	bool Use_Substitute_Depth(TargetState& targets, UINT width, UINT height, DXGI_FORMAT format);
+	// D3D8 draws a render target texture with the screen's depth buffer, which is multisampled when the
+	// back buffer is. Such a texture is drawn through this multisampled stand-in, resolved into it before
+	// it is read or another target is set (the screen filters render the scene this way).
+	GpuTexture m_proxyTarget;
+	UINT m_proxyView;
+	Surface* m_proxySurface;	// the texture level drawn through the stand-in; the current render target
+	bool m_proxyDirty;
+	bool Use_Proxy_Target(TargetState& targets);
+	void Resolve_Proxy_Target();
 	UINT m_dsvDescriptorSize;
 	UINT m_nextTargetRtv;
 	UINT m_nextTargetDsv;

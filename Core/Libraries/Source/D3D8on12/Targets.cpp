@@ -307,11 +307,14 @@ bool Device::Prepare_Targets(TargetState& targets)
 	{
 		if (!Ensure_Target(m_renderTarget))
 			return false;
-		GpuTexture* gpu = m_renderTarget->Gpu_Target();
-		Transition(*gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		targets.rtv = Target_View_Handle(false, m_renderTarget->Target_View());
-		targets.rtvFormat = gpu->resource->GetDesc().Format;
-		targets.sampleCount = 1;
+		if (!Use_Proxy_Target(targets))
+		{
+			GpuTexture* gpu = m_renderTarget->Gpu_Target();
+			Transition(*gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			targets.rtv = Target_View_Handle(false, m_renderTarget->Target_View());
+			targets.rtvFormat = gpu->resource->GetDesc().Format;
+			targets.sampleCount = 1;
+		}
 	}
 	width = m_renderTarget->Desc().Width;
 	height = m_renderTarget->Desc().Height;
@@ -354,6 +357,77 @@ bool Device::Prepare_Targets(TargetState& targets)
 		D3D8ON12_UNSUPPORTED("a depth buffer smaller than the render target");
 	}
 	return true;
+}
+
+bool Device::Use_Proxy_Target(TargetState& targets)
+{
+	const D3DSURFACE_DESC& desc = m_renderTarget->Desc();
+	if (m_sampleCount <= 1 || m_depthStencil != m_autoDepthSurface || m_depthBuffer == nullptr || !m_renderTarget->Has_Container()
+		|| desc.Width != m_presentParams.BackBufferWidth || desc.Height != m_presentParams.BackBufferHeight)
+		return false;
+
+	const DXGI_FORMAT format = m_renderTarget->Gpu_Target()->resource->GetDesc().Format;
+	if (m_proxySurface != nullptr && m_proxySurface != m_renderTarget)
+		Resolve_Proxy_Target();
+	if (m_proxyTarget.resource != nullptr)
+	{
+		const D3D12_RESOURCE_DESC current = m_proxyTarget.resource->GetDesc();
+		if (current.Width != desc.Width || current.Height != desc.Height || current.Format != format || current.SampleDesc.Count != m_sampleCount)
+			Release_Gpu_Texture(m_proxyTarget);
+	}
+	if (m_proxyTarget.resource == nullptr)
+	{
+		if (m_proxyView == 0)
+			m_proxyView = Allocate_Target_View(false);
+		if (m_proxyView == 0)
+			return false;
+		D3D12_HEAP_PROPERTIES heap = {};
+		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+		D3D12_RESOURCE_DESC resource_desc = {};
+		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		resource_desc.Width = desc.Width;
+		resource_desc.Height = desc.Height;
+		resource_desc.DepthOrArraySize = 1;
+		resource_desc.MipLevels = 1;
+		resource_desc.Format = format;
+		resource_desc.SampleDesc.Count = m_sampleCount;
+		resource_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+		D3D12_CLEAR_VALUE clear = {};
+		clear.Format = format;
+		if (FAILED(m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clear,
+			IID_PPV_ARGS(&m_proxyTarget.resource))))
+		{
+			Log("could not create a %ux%u multisampled render target", desc.Width, desc.Height);
+			return false;
+		}
+		m_proxyTarget.state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		m_device->CreateRenderTargetView(m_proxyTarget.resource.Get(), nullptr, Target_View_Handle(false, m_proxyView));
+	}
+
+	Transition(m_proxyTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	m_proxySurface = m_renderTarget;
+	m_proxyDirty = true;
+	targets.rtv = Target_View_Handle(false, m_proxyView);
+	targets.rtvFormat = format;
+	targets.sampleCount = m_sampleCount;
+	return true;
+}
+
+// Copies what was drawn through the stand-in into its texture.
+void Device::Resolve_Proxy_Target()
+{
+	if (!m_proxyDirty || m_proxySurface == nullptr || m_proxyTarget.resource == nullptr)
+		return;
+	m_proxyDirty = false;
+	GpuTexture* gpu = m_proxySurface->Gpu_Target();
+	if (gpu->resource == nullptr)
+		return;
+	Begin_Frame();
+	Transition(m_proxyTarget, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+	Transition(*gpu, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+	m_commandList->ResolveSubresource(gpu->resource.Get(), m_proxySurface->Subresource(), m_proxyTarget.resource.Get(), 0,
+		m_proxyTarget.resource->GetDesc().Format);
+	Transition(m_proxyTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
 }
 
 bool Device::Use_Substitute_Depth(TargetState& targets, UINT width, UINT height, DXGI_FORMAT format)
@@ -422,6 +496,8 @@ HRESULT Device::Read_Surface(Surface* source, Surface* dest)
 		return D3DERR_INVALIDCALL;
 
 	Begin_Frame();
+	if (source == m_proxySurface)
+		Resolve_Proxy_Target();
 	GpuTexture* gpu = source->Gpu_Target();
 	const D3D12_RESOURCE_DESC resource_desc = gpu->resource->GetDesc();
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;

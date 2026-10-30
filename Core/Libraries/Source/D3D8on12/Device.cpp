@@ -112,6 +112,9 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_lastPixelMaterial(false),
 		m_viewLightCount(0),
 		m_viewLightsChanged(true),
+		m_proxyView(0),
+		m_proxySurface(nullptr),
+		m_proxyDirty(false),
 		m_timestampFrequency(0),
 		m_liveChildren(0),
 		m_nextTargetRtv(1),
@@ -485,6 +488,11 @@ void Device::Release_Swap_Chain_Buffers()
 		buffer.Reset();
 	m_depthBuffer.Reset();
 	Release_Scene_Target();
+	m_proxyTarget.resource.Reset();
+	Free_Target_View(false, m_proxyView);
+	m_proxyView = 0;
+	m_proxySurface = nullptr;
+	m_proxyDirty = false;
 	// The GPU is idle here (Reset waits for it), so the view can be used again right away.
 	if (m_depthSrv != 0)
 		m_freeSrvs.push_back(m_depthSrv);
@@ -1379,6 +1387,11 @@ HRESULT STDMETHODCALLTYPE Device::GetFrontBuffer(IDirect3DSurface8*)
 HRESULT STDMETHODCALLTYPE Device::SetRenderTarget(IDirect3DSurface8* render_target, IDirect3DSurface8* depth_stencil)
 {
 	// A null render target keeps the current one; a null depth buffer means none.
+	if (m_proxySurface != nullptr && render_target != nullptr && render_target != m_proxySurface)
+	{
+		Resolve_Proxy_Target();
+		m_proxySurface = nullptr;
+	}
 	if (render_target != nullptr)
 		Replace_Surface(m_renderTarget, static_cast<Surface*>(render_target));
 	Replace_Surface(m_depthStencil, static_cast<Surface*>(depth_stencil));

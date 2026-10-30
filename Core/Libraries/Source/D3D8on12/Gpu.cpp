@@ -397,6 +397,8 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 		// Drawn into by the GPU, nothing to upload.
 		if (!Ensure_Target(top) || gpu->srv == 0)
 			return type == TEXTURE_CUBE ? NULL_SRV_CUBE : NULL_SRV_2D;
+		if (m_proxySurface != nullptr && m_proxySurface->Gpu_Target() == gpu)
+			Resolve_Proxy_Target();
 		Transition(*gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		return gpu->srv;
 	}
