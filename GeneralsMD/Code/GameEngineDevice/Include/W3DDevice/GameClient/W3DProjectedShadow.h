@@ -80,6 +80,7 @@ class W3DProjectedShadowManager	: public ProjectedShadowManager
 		void updateShadowNumbers(ShadowType shadowType, Int addNum);
 
 	private:
+		friend class W3DShadowMap;	///< draws the trees into a shadow map
 		W3DProjectedShadow *m_shadowList;
 		W3DProjectedShadow *m_decalList;
 		TextureClass	*m_dynamicRenderTarget;	///<offscreen video memory texture used to render all shadow textures.
@@ -105,6 +106,7 @@ extern W3DProjectedShadowManager *TheW3DProjectedShadowManager;
 class W3DProjectedShadow	: public Shadow
 {
 	friend class W3DProjectedShadowManager;
+	friend class W3DShadowMap;
 
 	public:
 		W3DProjectedShadow();

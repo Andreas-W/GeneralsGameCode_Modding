@@ -198,6 +198,7 @@ public:
 	void setBounds(const Region2D &bounds) {m_bounds = bounds;}
 	/// Draws the trees.  Uses camera for culling.
 	void drawTrees(CameraClass * camera, RefRenderObjListIterator *pDynamicLightsIterator);
+	void drawShadowCasters();	///< the trees last loaded, for the depth of a shadow map
 	/// Called when the view changes, and sort key needs to be recalculated.
 	/// Normally sortKey gets calculated when a tree becomes visible.
 	void doFullUpdate() {m_updateAllKeys = true;};

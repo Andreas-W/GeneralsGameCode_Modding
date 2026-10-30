@@ -81,6 +81,7 @@ enum
 #include "W3DDevice/GameClient/W3DShadow.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
 #include "WW3D2/camera.h"
 #include "WW3D2/dx8wrapper.h"
 #include "WW3D2/dx8renderer.h"
@@ -1504,8 +1505,8 @@ void W3DTreeBuffer::drawTrees(CameraClass * camera, RefRenderObjListIterator *pD
 	}
 
 	Int curTree;
-	// Draw tree shadows.
-	if (m_shadow && TheW3DProjectedShadowManager && TheGlobalData->m_useShadowDecals) {
+	// Draw tree shadows, unless the trees cast them into the shadow map.
+	if (m_shadow && TheW3DProjectedShadowManager && TheGlobalData->m_useShadowDecals && !(TheW3DShadowMap && TheW3DShadowMap->drawsTrees())) {
 		for (curTree=0; curTree<m_numTrees; curTree++) {
 			Int type = m_trees[curTree].treeType;
 			if (type<0) { // deleted.
@@ -1727,6 +1728,31 @@ void W3DTreeBuffer::drawTrees(CameraClass * camera, RefRenderObjListIterator *pD
 	DX8Wrapper::Set_Pixel_Shader(0);
 	DX8Wrapper::Invalidate_Cached_Render_States();	//code above mucks around with W3D states so make sure we reset
 
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Draws the trees as they were last loaded, alpha tested so that the leaves cast their outline;
+	* without sway, lighting or shroud, which do not matter for depth. */
+//-------------------------------------------------------------------------------------------------
+void W3DTreeBuffer::drawShadowCasters()
+{
+	if (m_treeTexture == nullptr || m_curNumTreeIndices[0] == 0) {
+		return;
+	}
+	DX8Wrapper::Set_Shader(detailAlphaShader);
+	DX8Wrapper::Set_Texture(0, m_treeTexture);
+	DX8Wrapper::Set_Texture(1, nullptr);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_TEXCOORDINDEX, 0);
+	DX8Wrapper::Set_Vertex_Shader(DX8_FVF_XYZNDUV1);
+	DX8Wrapper::Set_Transform(D3DTS_WORLD, Matrix3D(true));
+	for (Int bNdx = 0; bNdx < MAX_BUFFERS; bNdx++) {
+		if (m_curNumTreeIndices[bNdx] == 0) {
+			break;
+		}
+		DX8Wrapper::Set_Index_Buffer(m_indexTree[bNdx], 0);
+		DX8Wrapper::Set_Vertex_Buffer(m_vertexTree[bNdx]);
+		DX8Wrapper::Draw_Triangles(0, m_curNumTreeIndices[bNdx]/3, 0, m_curNumTreeVertices[bNdx]);
+	}
 }
 
 //-------------------------------------------------------------------------------------------------

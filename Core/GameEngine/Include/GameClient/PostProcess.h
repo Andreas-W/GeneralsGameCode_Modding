@@ -41,6 +41,8 @@
 //	  SlopeBias = 2					; rasterizer slope scaled depth bias of the casters
 //	  Darkness = 1					; scales how much the map's shadow color darkens
 //	  MinSunElevation = 0			; degrees; a lower sun is raised to this, which shortens the shadows
+//	  Terrain = Yes					; hills and cliffs cast shadows too
+//	  Trees = Yes					; trees cast shadows into the map instead of their decal shadows
 //	End
 //
 //	Material AmericaTanks			; in Data\INI\Material.ini: a pixel shader for every mesh drawn with these textures
@@ -118,6 +120,8 @@ public:
 	Real m_slopeBias;
 	Real m_darkness;
 	Real m_minSunElevation;
+	Bool m_terrain;
+	Bool m_trees;
 
 	static const FieldParse s_fieldParseTable[];
 };

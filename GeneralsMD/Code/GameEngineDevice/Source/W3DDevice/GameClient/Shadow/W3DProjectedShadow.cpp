@@ -56,6 +56,7 @@
 #include "GameClient/Drawable.h"
 #include "W3DDevice/GameClient/Module/W3DModelDraw.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
 
 
 /** @todo: We're going to have a pool of a couple rendertargets to use
@@ -1356,6 +1357,9 @@ Int W3DProjectedShadowManager::renderShadows(RenderInfoClass & rinfo)
 			{
 				if (shadow->m_type & SHADOW_DECAL)
 				{
+					// Trees cast into the shadow map instead.
+					if (TheW3DShadowMap && TheW3DShadowMap->drawsTrees() && W3DShadowMap::isTree(shadow->m_robj))
+						continue;
 					if (lastShadowDecalTexture == nullptr)
 						lastShadowDecalTexture=m_shadowList->m_shadowTexture[0];
 					if (lastShadowType == SHADOW_NONE)

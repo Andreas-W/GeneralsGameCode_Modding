@@ -165,6 +165,8 @@ Bool W3DShadowManager::init()
 they may not exist on the next map*/
 void W3DShadowManager::Reset()
 {
+	if (TheW3DShadowMap)
+		TheW3DShadowMap->releaseTerrain();
 
 	if (TheW3DVolumetricShadowManager)
 		TheW3DVolumetricShadowManager->reset();

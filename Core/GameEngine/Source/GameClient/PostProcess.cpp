@@ -146,7 +146,9 @@ ShadowMapSettings::ShadowMapSettings() :
 	m_depthBias(0),
 	m_slopeBias(2.0f),
 	m_darkness(1.0f),
-	m_minSunElevation(0.0f)
+	m_minSunElevation(0.0f),
+	m_terrain(TRUE),
+	m_trees(TRUE)
 {
 }
 
@@ -160,6 +162,8 @@ const FieldParse ShadowMapSettings::s_fieldParseTable[] =
 	{ "SlopeBias",	INI::parseReal,			nullptr,	offsetof( ShadowMapSettings, m_slopeBias ) },
 	{ "Darkness",	INI::parseReal,			nullptr,	offsetof( ShadowMapSettings, m_darkness ) },
 	{ "MinSunElevation",	INI::parseReal,	nullptr,	offsetof( ShadowMapSettings, m_minSunElevation ) },
+	{ "Terrain",	INI::parseBool,			nullptr,	offsetof( ShadowMapSettings, m_terrain ) },
+	{ "Trees",		INI::parseBool,			nullptr,	offsetof( ShadowMapSettings, m_trees ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };
 

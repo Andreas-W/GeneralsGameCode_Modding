@@ -23,13 +23,22 @@
 #include "W3DDevice/GameClient/W3DShadowMap.h"
 
 #include "Common/GlobalData.h"
+#include "Common/MapObject.h"
+#include "GameClient/Drawable.h"
+#include "GameClient/DrawableInfo.h"
 #include "GameClient/PostProcess.h"
 #include "W3DDevice/GameClient/BaseHeightMap.h"
+#include "W3DDevice/GameClient/W3DProjectedShadow.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
+#include "W3DDevice/GameClient/W3DTreeBuffer.h"
 #include "W3DDevice/GameClient/W3DVolumetricShadow.h"
+#include "W3DDevice/GameClient/WorldHeightMap.h"
 #include "WW3D2/camera.h"
+#include "WW3D2/dx8indexbuffer.h"
 #include "WW3D2/dx8renderer.h"
+#include "WW3D2/dx8vertexbuffer.h"
 #include "WW3D2/dx8wrapper.h"
+#include "WWMath/colmath.h"
 #include "WW3D2/rinfo.h"
 #include "WW3D2/rendobj.h"
 #include "WW3D2/ww3d.h"
@@ -46,6 +55,8 @@ static const Real SUN_DISTANCE = 10000.0f;
 static const Real CASTER_HEIGHT = 200.0f;
 // The map is never wider than this, so that far zoom does not blur the shadows away.
 static const Real MAX_HALF_COVERAGE = 4000.0f;
+// Terrain cells per side of a chunk of the terrain mesh.
+static const Int TERRAIN_CHUNK_CELLS = 64;
 
 W3DShadowMap *TheW3DShadowMap = nullptr;
 
@@ -55,7 +66,9 @@ W3DShadowMap::W3DShadowMap() :
 	m_rendered(FALSE),
 	m_debug(FALSE),
 	m_casterCount(0),
-	m_coverage(0.0f)
+	m_coverage(0.0f),
+	m_terrainIndices(nullptr),
+	m_terrainMap(nullptr)
 {
 	m_lightCamera = NEW_REF( CameraClass, () );
 }
@@ -63,7 +76,116 @@ W3DShadowMap::W3DShadowMap() :
 //-------------------------------------------------------------------------------------------------
 W3DShadowMap::~W3DShadowMap()
 {
+	releaseTerrain();
 	REF_PTR_RELEASE(m_lightCamera);
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DShadowMap::releaseTerrain()
+{
+	for (size_t i = 0; i < m_terrainChunks.size(); ++i)
+		REF_PTR_RELEASE(m_terrainChunks[i].vertices);
+	m_terrainChunks.clear();
+	REF_PTR_RELEASE(m_terrainIndices);
+	m_terrainMap = nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The whole height map, border included, as chunks of positions; the terrain renderer only holds
+	* the part around the view, and hills outside it still cast shadows into it. */
+//-------------------------------------------------------------------------------------------------
+void W3DShadowMap::buildTerrain(WorldHeightMap *map)
+{
+	releaseTerrain();
+	const Int width = map->getXExtent();
+	const Int height = map->getYExtent();
+	const Int border = map->getBorderSizeInline();
+	if (width < 2 || height < 2)
+		return;
+	const Int side = TERRAIN_CHUNK_CELLS + 1;
+
+	m_terrainIndices = NEW_REF(DX8IndexBufferClass, (TERRAIN_CHUNK_CELLS * TERRAIN_CHUNK_CELLS * 6));
+	{
+		DX8IndexBufferClass::WriteLockClass lock(m_terrainIndices);
+		UnsignedShort *index = lock.Get_Index_Array();
+		for (Int y = 0; y < TERRAIN_CHUNK_CELLS; ++y)
+		{
+			for (Int x = 0; x < TERRAIN_CHUNK_CELLS; ++x)
+			{
+				const UnsignedShort corner = (UnsignedShort)(y * side + x);
+				*index++ = corner;
+				*index++ = corner + 1;
+				*index++ = corner + side;
+				*index++ = corner + 1;
+				*index++ = corner + side + 1;
+				*index++ = corner + side;
+			}
+		}
+	}
+
+	const HeightSampleType *data = map->getDataPtr();
+	for (Int originY = 0; originY < height - 1; originY += TERRAIN_CHUNK_CELLS)
+	{
+		for (Int originX = 0; originX < width - 1; originX += TERRAIN_CHUNK_CELLS)
+		{
+			TerrainChunk chunk;
+			chunk.vertices = NEW_REF(DX8VertexBufferClass, (DX8_FVF_XYZ, side * side, DX8VertexBufferClass::USAGE_DEFAULT));
+			Vector3 low(1e30f, 1e30f, 1e30f);
+			Vector3 high(-1e30f, -1e30f, -1e30f);
+			{
+				DX8VertexBufferClass::WriteLockClass lock(chunk.vertices);
+				Vector3 *vertex = (Vector3 *)lock.Get_Vertex_Array();
+				for (Int y = 0; y < side; ++y)
+				{
+					const Int mapY = min(originY + y, height - 1);
+					for (Int x = 0; x < side; ++x)
+					{
+						const Int mapX = min(originX + x, width - 1);
+						vertex->Set((mapX - border) * MAP_XY_FACTOR, (mapY - border) * MAP_XY_FACTOR, data[mapX + mapY * width] * MAP_HEIGHT_SCALE);
+						low.Update_Min(*vertex);
+						high.Update_Max(*vertex);
+						++vertex;
+					}
+				}
+			}
+			chunk.box.Init_Min_Max(low, high);
+			m_terrainChunks.push_back(chunk);
+		}
+	}
+	m_terrainMap = map;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DShadowMap::drawTerrain()
+{
+	if (TheTerrainRenderObject == nullptr || TheTerrainRenderObject->getMap() == nullptr)
+		return;
+	if (m_terrainMap != TheTerrainRenderObject->getMap())
+		buildTerrain(TheTerrainRenderObject->getMap());
+	if (m_terrainChunks.empty())
+		return;
+
+	// Both sides, so that hills shadow the sun side too where the light grazes them.
+	ShaderClass shader = ShaderClass::_PresetOpaqueShader;
+	shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
+	DX8Wrapper::Set_Shader(shader);
+	DX8Wrapper::Set_Texture(0, nullptr);
+	DX8Wrapper::Set_Texture(1, nullptr);
+	DX8Wrapper::Set_Material(nullptr);
+	DX8Wrapper::Set_Transform(D3DTS_WORLD, Matrix3D(true));
+	DX8Wrapper::Set_Index_Buffer(m_terrainIndices, 0);
+	const FrustumClass &frustum = m_lightCamera->Get_Frustum();
+	const Int side = TERRAIN_CHUNK_CELLS + 1;
+	for (size_t i = 0; i < m_terrainChunks.size(); ++i)
+	{
+		const TerrainChunk &chunk = m_terrainChunks[i];
+		if (CollisionMath::Overlap_Test(frustum, chunk.box) == CollisionMath::OUTSIDE)
+			continue;
+		DX8Wrapper::Set_Vertex_Buffer(chunk.vertices);
+		DX8Wrapper::Draw_Triangles(0, TERRAIN_CHUNK_CELLS * TERRAIN_CHUNK_CELLS * 2, 0, side * side);
+	}
+	DX8Wrapper::Set_Vertex_Buffer(nullptr);
+	DX8Wrapper::Set_Index_Buffer(nullptr, 0);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -75,6 +197,19 @@ Bool W3DShadowMap::isActive()
 
 //-------------------------------------------------------------------------------------------------
 /** The direction towards the sun of the shadow volumes, raised to MinSunElevation. */
+//-------------------------------------------------------------------------------------------------
+Bool W3DShadowMap::drawsTrees()
+{
+	return isActive() && TheShadowMapSettings->m_trees;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DShadowMap::isTree(RenderObjClass *robj)
+{
+	const DrawableInfo *info = robj ? (const DrawableInfo *)robj->Get_User_Data() : nullptr;
+	return info != nullptr && info->m_drawable != nullptr && info->m_drawable->isKindOf(KINDOF_SHRUBBERY);
+}
+
 //-------------------------------------------------------------------------------------------------
 Bool W3DShadowMap::getToLight(Vector3 &toLight)
 {
@@ -196,6 +331,25 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 				shadow->m_robj->Render(rinfo);
 				++m_casterCount;
 			}
+		}
+		if (settings.m_terrain)
+			drawTerrain();
+		if (settings.m_trees)
+		{
+			// Trees are models with decal shadows, or drawn by the terrain's tree buffer.
+			if (TheW3DProjectedShadowManager != nullptr)
+			{
+				for (W3DProjectedShadow *shadow = TheW3DProjectedShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
+				{
+					if ((shadow->m_type & SHADOW_DECAL) && shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && isTree(shadow->m_robj))
+					{
+						shadow->m_robj->Render(rinfo);
+						++m_casterCount;
+					}
+				}
+			}
+			if (TheTerrainRenderObject != nullptr && TheTerrainRenderObject->getTreeBuffer() != nullptr)
+				TheTerrainRenderObject->getTreeBuffer()->drawShadowCasters();
 		}
 		WW3D::Flush(rinfo);
 		WW3D::Set_Depth_Only_Pass(false);

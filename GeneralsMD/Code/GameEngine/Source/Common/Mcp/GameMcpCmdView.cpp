@@ -178,7 +178,7 @@ McpJson cmdShadows(const McpJson &args)
 		gameMcpFail("the display has no shadow maps");
 	}
 	static const char *const settingNames[] = { "enabled", "size", "softness", "bias", "depth_bias", "slope_bias", "darkness",
-		"min_sun_elevation" };
+		"min_sun_elevation", "terrain", "trees" };
 	for (size_t i = 0; i < ARRAY_SIZE(settingNames); ++i) {
 		if (args.has(settingNames[i]) && TheShadowMapSettings == nullptr) {
 			TheShadowMapSettings = new ShadowMapSettings;
@@ -194,6 +194,8 @@ McpJson cmdShadows(const McpJson &args)
 		settings.m_slopeBias = (Real)gameMcpArgNumber(args, "slope_bias", settings.m_slopeBias);
 		settings.m_darkness = (Real)gameMcpArgNumber(args, "darkness", settings.m_darkness);
 		settings.m_minSunElevation = (Real)gameMcpArgNumber(args, "min_sun_elevation", settings.m_minSunElevation);
+		settings.m_terrain = gameMcpArgBool(args, "terrain", settings.m_terrain != FALSE);
+		settings.m_trees = gameMcpArgBool(args, "trees", settings.m_trees != FALSE);
 	}
 	if (args.has("debug")) {
 		TheGameMcpShadowMap.setDebug(gameMcpArgBool(args, "debug", false));
@@ -214,7 +216,8 @@ McpJson cmdShadows(const McpJson &args)
 		const ShadowMapSettings &settings = *TheShadowMapSettings;
 		result.set("enabled", settings.m_enabled != 0).set("size", (Int)settings.m_size).set("softness", (Real)settings.m_softness)
 			.set("bias", (Real)settings.m_bias).set("depth_bias", (Int)settings.m_depthBias).set("slope_bias", (Real)settings.m_slopeBias)
-			.set("darkness", (Real)settings.m_darkness).set("min_sun_elevation", (Real)settings.m_minSunElevation);
+			.set("darkness", (Real)settings.m_darkness).set("min_sun_elevation", (Real)settings.m_minSunElevation)
+			.set("terrain", settings.m_terrain != 0).set("trees", settings.m_trees != 0);
 	}
 	return result;
 }
@@ -315,7 +318,7 @@ void gameMcpRegisterViewCommands()
 		"(not saved), reloads the Material INI and shaders, sets a parameter of a material, or (textures=true) returns the base "
 		"textures drawn since the last such call; returns the materials and how many textures each got.");
 	gameMcpRegisterCommand("render.shadows", cmdShadows,
-		"{enabled?, size?, softness?, bias?, depth_bias?, slope_bias?, darkness?, min_sun_elevation?, debug?} Shadow maps of the Direct3D 12 renderer: "
+		"{enabled?, size?, softness?, bias?, depth_bias?, slope_bias?, darkness?, min_sun_elevation?, terrain?, trees?, debug?} Shadow maps of the Direct3D 12 renderer: "
 		"changes the ShadowMap settings (not saved; debug shows the amount of shadow as grey) and returns the state.");
 }
 
