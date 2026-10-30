@@ -76,11 +76,14 @@ class MeshMaterialBinderClass
 public:
 	virtual ~MeshMaterialBinderClass() {}
 	virtual bool Begin(TextureClass *base_texture) = 0;
+	virtual bool Begin_Particle(TextureClass *texture) { return false; }	///< the material of a particle texture
 	virtual void End() = 0;
 };
 
+enum MeshMaterialKind { MESH_MATERIAL_NONE, MESH_MATERIAL_MESH, MESH_MATERIAL_PARTICLE };
+
 extern MeshMaterialBinderClass *TheMeshMaterialBinder;	///< null without one
-extern bool TheMeshMaterialBound;	///< the binder bound a material for the meshes being drawn now
+extern int TheMeshMaterialBound;	///< MeshMaterialKind the binder bound for what is drawn now
 
 /**
 ** DX8TextureCategoryClass

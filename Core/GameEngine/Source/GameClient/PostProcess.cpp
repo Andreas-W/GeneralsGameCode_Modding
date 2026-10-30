@@ -178,8 +178,11 @@ void INI::parseShadowMapDefinition( INI *ini )
 }
 
 //-------------------------------------------------------------------------------------------------
+static const char *const s_materialUseNames[] = { "MESHES", "PARTICLES", "TERRAIN", "WATER", nullptr };
+
 MaterialTemplate::MaterialTemplate()
 {
+	m_use = USE_MESHES;
 	m_shader = "MAT_Standard";
 	// Not _n, _s, _e: the game's own night, snow and other variants of building textures use those.
 	m_maps[0] = "_nrm";
@@ -190,6 +193,7 @@ MaterialTemplate::MaterialTemplate()
 
 const FieldParse MaterialTemplate::s_fieldParseTable[] =
 {
+	{ "Use",			INI::parseIndexList,	s_materialUseNames,	offsetof( MaterialTemplate, m_use ) },
 	{ "Textures",		parseInputs,			nullptr,	offsetof( MaterialTemplate, m_textures ) },
 	{ "Shader",			INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_shader ) },
 	{ "NormalMap",		INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[0] ) },

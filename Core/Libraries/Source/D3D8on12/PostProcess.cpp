@@ -400,6 +400,24 @@ void PostProcessor::Present_Scene()
 	list->ResourceBarrier(1, &barrier);
 }
 
+bool PostProcessor::Capture_For_Materials(bool color, UINT& depth_srv, UINT& color_srv)
+{
+	Device& device = *m_device;
+	if (device.m_backBuffers[0] == nullptr)
+		return false;
+	device.Begin_Frame();
+	const UINT width = device.m_presentParams.BackBufferWidth;
+	const UINT height = device.m_presentParams.BackBufferHeight;
+	// Bind_Root sets everything the copy passes need and makes the next draw bind its state again.
+	if (!Bind_Root() || !Copy_Depth(width, height))
+		return false;
+	depth_srv = m_depth.gpu.srv;
+	color_srv = 0;
+	if (color && Copy_Scene(width, height))
+		color_srv = m_scene.gpu.srv;
+	return true;
+}
+
 HRESULT PostProcessor::Copy_Back_Buffer(Surface* dest, const RECT& rect, const POINT& point)
 {
 	Device& device = *m_device;

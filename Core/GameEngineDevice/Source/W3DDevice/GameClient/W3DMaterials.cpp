@@ -24,6 +24,7 @@
 
 #include "Common/File.h"
 #include "Common/FileSystem.h"
+#include "Common/GlobalData.h"
 #include "Common/INI.h"
 #include "GameClient/PostProcess.h"
 #include "WW3D2/assetmgr.h"
@@ -129,6 +130,49 @@ float4 main(MaterialInput input) : SV_Target
 }
 )";
 
+// Particles: the texture times the particle colour, unlit. Soft where it meets the scene behind it,
+// glowing, pulsing, scrolling, and bending the scene behind it (heat haze).
+static const char s_particleShader[] = R"(
+#include "Material.hlsli"
+cbuffer Params : register(b2)
+{
+	float SoftDistance;		// world units over which the particle fades where it meets the scene, 0 = hard edges
+	float EmissiveStrength;	// brightness factor, 0 = 1; above 1 feeds bloom
+	float PulseRate;		// pulses per second, 0 = steady
+	float PulseMin;			// darkest point of a pulse, 0..1
+	float2 ScrollSpeed;		// texture coordinates per second
+	float Distortion;		// how far the scene behind is bent, in screen fractions (0.02 is strong), 0 = none
+	float DistortionSpeed;	// texture coordinates per second the distortion pattern moves
+	float Additive;			// set by the game: 1 for additive particle systems (they fade by colour, not alpha)
+};
+float4 main(MaterialInput input) : SV_Target
+{
+	float2 uv = input.tex0.xy + ScrollSpeed * Time;
+	float4 base = BaseTexture.Sample(BaseSampler, uv);
+	float4 color = base * input.diffuse;
+	float fade = 1;
+	if (SoftDistance > 0)
+		fade = saturate(DepthBehind(input) / SoftDistance);
+	if (Distortion != 0 && HasSceneColor())
+	{
+		// The pattern: the normal map if there is one, else the texture's red and green.
+		float2 pattern = HasMap(MAP_NORMAL) ? NormalMap.Sample(NormalSampler, uv + DistortionSpeed * Time).xy : base.rg;
+		float strength = color.a * fade;
+		float2 screen = ScreenUV(input) + (pattern * 2 - 1) * Distortion * strength;
+		return Finish(float4(SceneColorAt(screen), strength), float3(0, 0, 0), input);
+	}
+	float glow = EmissiveStrength > 0 ? EmissiveStrength : 1;
+	if (PulseRate > 0)
+		glow *= lerp(saturate(PulseMin), 1, 0.5 + 0.5 * sin(Time * PulseRate * 6.2831853));
+	color.a *= fade;
+	if (Additive > 0)
+		color.rgb *= fade;
+	float3 lit = color.rgb * min(glow, 1);
+	float3 extra = glow > 1 ? color.rgb * (glow - 1) : float3(0, 0, 0);
+	return Finish(float4(lit, color.a), extra * (Additive > 0 ? 1 : color.a), input);
+}
+)";
+
 struct BuiltInMaterialShader
 {
 	const char *name;
@@ -139,6 +183,7 @@ struct BuiltInMaterialShader
 static const BuiltInMaterialShader s_builtInShaders[] =
 {
 	{ "MAT_Standard", s_standardShader, sizeof(s_standardShader) - 1 },
+	{ "MAT_Particle", s_particleShader, sizeof(s_particleShader) - 1 },
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -203,8 +248,13 @@ W3DMaterials::W3DMaterials() :
 	m_built(FALSE),
 	m_enabled(TRUE),
 	m_bound(FALSE),
-	m_collecting(FALSE)
+	m_collecting(FALSE),
+	m_terrainMaterial(-1),
+	m_waterMaterial(-1),
+	m_particleColor(FALSE)
 {
+	for (Int i = 0; i < 4; ++i)
+		m_waterMaps[i] = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -263,6 +313,12 @@ void W3DMaterials::clearEntries()
 		for (Int i = 0; i < 4; ++i)
 			REF_PTR_RELEASE(it->second.maps[i]);
 	m_entries.clear();
+	for (std::map<TextureClass *, Entry>::iterator it = m_particleEntries.begin(); it != m_particleEntries.end(); ++it)
+		for (Int i = 0; i < 4; ++i)
+			REF_PTR_RELEASE(it->second.maps[i]);
+	m_particleEntries.clear();
+	for (Int i = 0; i < 4; ++i)
+		REF_PTR_RELEASE(m_waterMaps[i]);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -282,6 +338,10 @@ void W3DMaterials::release()
 	m_shaders.clear();
 	m_builtMaterials.clear();
 	m_textureMaterial.clear();
+	m_particleMaterial.clear();
+	m_terrainMaterial = -1;
+	m_waterMaterial = -1;
+	m_particleColor = FALSE;
 	m_materials = nullptr;
 	m_built = FALSE;
 	m_bound = FALSE;
@@ -372,8 +432,34 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 				DEBUG_LOG(("Material %s: the shader has no parameter %s", settings->m_name.str(), parameter.m_name.str()));
 		}
 		m_builtMaterials.push_back(built);
-		for (size_t i = 0; i < settings->m_textures.size(); ++i)
-			m_textureMaterial[baseTextureName(settings->m_textures[i].str())] = (Int)m_builtMaterials.size() - 1;
+		const Int builtIndex = (Int)m_builtMaterials.size() - 1;
+		switch (settings->m_use)
+		{
+		case MaterialTemplate::USE_PARTICLES:
+			for (size_t i = 0; i < settings->m_textures.size(); ++i)
+				m_particleMaterial[baseTextureName(settings->m_textures[i].str())] = builtIndex;
+			for (size_t i = 0; i < settings->m_parameters.size(); ++i)
+				if (settings->m_parameters[i].m_name.compareNoCase("Distortion") == 0 && settings->m_parameters[i].m_values[0] != 0.0f)
+					m_particleColor = TRUE;
+			break;
+		case MaterialTemplate::USE_TERRAIN:
+			m_terrainMaterial = builtIndex;
+			break;
+		case MaterialTemplate::USE_WATER:
+			// The maps are file names.
+			m_waterMaterial = builtIndex;
+			for (Int i = 0; i < 4; ++i)
+			{
+				REF_PTR_RELEASE(m_waterMaps[i]);
+				if (settings->m_maps[i].isNotEmpty() && settings->m_maps[i].getCharAt(0) != '_')
+					m_waterMaps[i] = findMap(settings->m_name, settings->m_maps[i]);
+			}
+			break;
+		default:
+			for (size_t i = 0; i < settings->m_textures.size(); ++i)
+				m_textureMaterial[baseTextureName(settings->m_textures[i].str())] = builtIndex;
+			break;
+		}
 	}
 #endif
 }
@@ -406,10 +492,11 @@ TextureClass *W3DMaterials::findMap(const AsciiString& baseName, const AsciiStri
 }
 
 //-------------------------------------------------------------------------------------------------
-const W3DMaterials::Entry& W3DMaterials::lookup(TextureClass *baseTexture)
+const W3DMaterials::Entry& W3DMaterials::lookup(TextureClass *baseTexture, const std::map<std::string, Int>& table,
+	std::map<TextureClass *, Entry>& entries)
 {
-	std::map<TextureClass *, Entry>::iterator found = m_entries.find(baseTexture);
-	if (found != m_entries.end())
+	std::map<TextureClass *, Entry>::iterator found = entries.find(baseTexture);
+	if (found != entries.end())
 		return found->second;
 
 	Entry entry;
@@ -418,8 +505,8 @@ const W3DMaterials::Entry& W3DMaterials::lookup(TextureClass *baseTexture)
 		entry.maps[i] = nullptr;
 #ifdef RTS_RENDERER_DX12
 	const std::string name = baseTextureName(baseTexture->Get_Texture_Name().str());
-	std::map<std::string, Int>::const_iterator material = m_textureMaterial.find(name);
-	if (material != m_textureMaterial.end())
+	std::map<std::string, Int>::const_iterator material = table.find(name);
+	if (material != table.end())
 	{
 		entry.material = material->second;
 		Built& built = m_builtMaterials[entry.material];
@@ -429,31 +516,34 @@ const W3DMaterials::Entry& W3DMaterials::lookup(TextureClass *baseTexture)
 			entry.maps[i] = findMap(baseName, built.settings->m_maps[i]);
 	}
 #endif
-	return m_entries[baseTexture] = entry;
+	return entries[baseTexture] = entry;
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Before the meshes of a texture category: their base texture decides the material. */
-//-------------------------------------------------------------------------------------------------
-bool W3DMaterials::Begin(TextureClass *baseTexture)
+ID3D8On12Materials *W3DMaterials::prepare()
 {
 #ifdef RTS_RENDERER_DX12
-	if (!m_enabled || baseTexture == nullptr)
-		return false;
+	if (!m_enabled || TheMaterialSettings == nullptr)
+		return nullptr;
 	ID3D8On12Materials *materials = DX8Wrapper::Get_Materials();
 	if (materials == nullptr)
-		return false;
-	if (m_collecting)
-		m_seenTextures.insert(baseTextureName(baseTexture->Get_Texture_Name().str()));
-	if (TheMaterialSettings == nullptr)
-		return false;
+		return nullptr;
 	if (materials != m_materials || !m_built)
 	{
 		// First use, or the device was created again.
 		release();
 		build(materials);
 	}
-	const Entry& entry = lookup(baseTexture);
+	return materials;
+#else
+	return nullptr;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+bool W3DMaterials::bindEntry(const Entry& entry)
+{
+#ifdef RTS_RENDERER_DX12
 	if (entry.material < 0)
 		return false;
 	// The maps go to the renderer directly: the stage textures of DX8Wrapper can be out of date, as the
@@ -469,9 +559,156 @@ bool W3DMaterials::Begin(TextureClass *baseTexture)
 			maps[i] = entry.maps[i]->Peek_D3D_Base_Texture();
 		}
 	}
-	materials->Set_Material(m_builtMaterials[entry.material].id, maps);
+	m_materials->Set_Material(m_builtMaterials[entry.material].id, maps);
 	m_bound = TRUE;
 	return true;
+#else
+	return false;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+bool W3DMaterials::bindParticle(TextureClass *particleTexture, Int additive)
+{
+	if (particleTexture == nullptr || prepare() == nullptr || m_particleMaterial.empty())
+		return false;
+	const Entry& entry = lookup(particleTexture, m_particleMaterial, m_particleEntries);
+#ifdef RTS_RENDERER_DX12
+	if (entry.material >= 0 && additive >= 0)
+	{
+		const Real value = (Real)additive;
+		m_materials->Set_Material_Parameter(m_builtMaterials[entry.material].id, "Additive", &value, 1);
+	}
+#endif
+	return bindEntry(entry);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The sun of the terrain lighting, in world space, for materials that light by themselves. */
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setSunParameters(UINT material)
+{
+#ifdef RTS_RENDERER_DX12
+	const Coord3D& position = TheGlobalData->m_terrainLightPos[0];
+	Real length = sqrtf(position.x * position.x + position.y * position.y + position.z * position.z);
+	if (length <= 0.0f)
+		length = 1.0f;
+	// The light position points from the light; towards the sun is the other way.
+	const Real toSun[3] = { -position.x / length, -position.y / length, -position.z / length };
+	const RGBColor& diffuse = TheGlobalData->m_terrainDiffuse[0];
+	const RGBColor& ambient = TheGlobalData->m_terrainAmbient[0];
+	const Real sunColor[3] = { diffuse.red, diffuse.green, diffuse.blue };
+	const Real ambientColor[3] = { ambient.red, ambient.green, ambient.blue };
+	m_materials->Set_Material_Parameter(material, "SunDirection", toSun, 3);
+	m_materials->Set_Material_Parameter(material, "SunColor", sunColor, 3);
+	m_materials->Set_Material_Parameter(material, "AmbientColor", ambientColor, 3);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+bool W3DMaterials::bindTerrain(IDirect3DBaseTexture8 *const *maps)
+{
+#ifdef RTS_RENDERER_DX12
+	if (prepare() == nullptr || m_terrainMaterial < 0)
+		return false;
+	const UINT id = m_builtMaterials[m_terrainMaterial].id;
+	setSunParameters(id);
+	m_materials->Set_Material(id, maps);
+	m_bound = TRUE;
+	return true;
+#else
+	return false;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+bool W3DMaterials::bindWater()
+{
+#ifdef RTS_RENDERER_DX12
+	if (prepare() == nullptr || m_waterMaterial < 0)
+		return false;
+	const UINT id = m_builtMaterials[m_waterMaterial].id;
+	setSunParameters(id);
+	Entry entry;
+	entry.material = m_waterMaterial;
+	for (Int i = 0; i < 4; ++i)
+		entry.maps[i] = m_waterMaps[i];
+	return bindEntry(entry);
+#else
+	return false;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::hasTerrain()
+{
+	return prepare() != nullptr && m_terrainMaterial >= 0;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::hasWater()
+{
+	return prepare() != nullptr && m_waterMaterial >= 0;
+}
+
+//-------------------------------------------------------------------------------------------------
+const MaterialTemplate *W3DMaterials::getTerrainSettings()
+{
+	return hasTerrain() ? m_builtMaterials[m_terrainMaterial].settings : nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setTerrainParameter(const char *name, const Real *values, Int count)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && m_terrainMaterial >= 0)
+		m_materials->Set_Material_Parameter(m_builtMaterials[m_terrainMaterial].id, name, values, (UINT)count);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setWaterParameter(const char *name, const Real *values, Int count)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && m_waterMaterial >= 0)
+		m_materials->Set_Material_Parameter(m_builtMaterials[m_waterMaterial].id, name, values, (UINT)count);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::captureBeforeWater()
+{
+#ifdef RTS_RENDERER_DX12
+	if (hasWater())
+		m_materials->Capture_Scene(FALSE);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::captureBeforeParticles()
+{
+#ifdef RTS_RENDERER_DX12
+	if (prepare() != nullptr && !m_particleMaterial.empty())
+		m_materials->Capture_Scene(m_particleColor);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Before the meshes of a texture category: their base texture decides the material. */
+//-------------------------------------------------------------------------------------------------
+bool W3DMaterials::Begin(TextureClass *baseTexture)
+{
+#ifdef RTS_RENDERER_DX12
+	if (!m_enabled || baseTexture == nullptr)
+		return false;
+	ID3D8On12Materials *materials = DX8Wrapper::Get_Materials();
+	if (materials == nullptr)
+		return false;
+	if (m_collecting)
+		m_seenTextures.insert(baseTextureName(baseTexture->Get_Texture_Name().str()));
+	if (prepare() == nullptr)
+		return false;
+	return bindEntry(lookup(baseTexture, m_textureMaterial, m_entries));
 #else
 	return false;
 #endif

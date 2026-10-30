@@ -35,6 +35,7 @@
 class TextureClass;
 class MaterialTemplate;
 struct ID3D8On12Materials;
+struct IDirect3DBaseTexture8;
 
 class W3DMaterials : public MeshMaterialBinderClass
 {
@@ -55,7 +56,28 @@ public:
 
 	// MeshMaterialBinderClass
 	virtual bool Begin(TextureClass *baseTexture);
+	virtual bool Begin_Particle(TextureClass *texture) { return bindParticle(texture); }
 	virtual void End();
+
+	/// The material of a particle texture (Use = Particles); End() unbinds it. additive tells the shader how
+	/// the system blends (1 = additive, 0 = other, -1 = keep what it was told before).
+	bool bindParticle(TextureClass *particleTexture, Int additive = -1);
+	/// The terrain or water material (Use = Terrain / Water), with maps the caller made (terrain) or, for
+	/// null, the material's own (water); End() unbinds it. Returns false when there is none.
+	bool bindTerrain(IDirect3DBaseTexture8 *const *maps);
+	bool bindWater();
+	Bool hasTerrain();
+	Bool hasWater();
+	const MaterialTemplate *getTerrainSettings();	///< for its map suffixes; null without a terrain material
+	/// Sets a parameter of the terrain or water material, which the game passes per frame (texture
+	/// matrices, sun); quietly does nothing when the shader has no such parameter.
+	void setTerrainParameter(const char *name, const Real *values, Int count);
+	void setWaterParameter(const char *name, const Real *values, Int count);
+
+	/// Copies of the scene for the materials: the depth before the water when a water material runs, the
+	/// depth and colour before the particles when particle materials run. Call at those points.
+	void captureBeforeWater();
+	void captureBeforeParticles();
 
 private:
 	struct Built
@@ -72,10 +94,13 @@ private:
 	};
 
 	void loadSettings();
+	ID3D8On12Materials *prepare();			///< the device's materials, built for it; null when they do not run
+	void setSunParameters(UINT material);
 	void build(ID3D8On12Materials *materials);
 	void release();
 	void clearEntries();
-	const Entry& lookup(TextureClass *baseTexture);
+	const Entry& lookup(TextureClass *baseTexture, const std::map<std::string, Int>& table, std::map<TextureClass *, Entry>& entries);
+	bool bindEntry(const Entry& entry);
 	TextureClass *findMap(const AsciiString& baseName, const AsciiString& spec);
 
 	ID3D8On12Materials *m_materials;		///< the device the materials were built for
@@ -86,7 +111,13 @@ private:
 	std::vector<unsigned int> m_shaders;
 	std::vector<Built> m_builtMaterials;
 	std::map<std::string, Int> m_textureMaterial;		///< base texture name (lower case, no extension) -> m_builtMaterials index
+	std::map<std::string, Int> m_particleMaterial;		///< the same for particle textures
 	std::map<TextureClass *, Entry> m_entries;
+	std::map<TextureClass *, Entry> m_particleEntries;
+	Int m_terrainMaterial;								///< m_builtMaterials index, -1 for none
+	Int m_waterMaterial;
+	TextureClass *m_waterMaps[4];
+	Bool m_particleColor;								///< a particle material wants the scene colour (Distortion)
 	std::set<std::string> m_seenTextures;
 	AsciiString m_error;
 };

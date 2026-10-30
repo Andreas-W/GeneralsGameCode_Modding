@@ -52,6 +52,7 @@ public:
 	void STDMETHODCALLTYPE Release_Material(UINT material) override;
 	HRESULT STDMETHODCALLTYPE Set_Material_Parameter(UINT material, const char* name, const float* values, UINT count) override;
 	void STDMETHODCALLTYPE Set_Material(UINT material, IDirect3DBaseTexture8* const* maps) override;
+	HRESULT STDMETHODCALLTYPE Capture_Scene(BOOL color) override;
 
 	// What the current material draws with; false for the fixed function pipeline.
 	struct Binding
@@ -65,6 +66,13 @@ public:
 
 	// Seconds since the device was created, for animated materials.
 	float Time() const;
+
+	// The copies of Capture_Scene for t6 and t7, 0 without; samplers for them.
+	UINT Scene_Depth() const { return m_sceneDepth; }
+	UINT Scene_Color() const { return m_sceneColor; }
+	UINT Scene_Sampler(UINT stage);
+	// Forgets the copies; when the frame is presented and when the device is reset.
+	void Release_Scene() { m_sceneDepth = m_sceneColor = 0; }
 
 private:
 	struct Shader
@@ -88,6 +96,10 @@ private:
 	std::vector<Material> m_materials;	// handle = index + 1
 	UINT m_current;
 	IDirect3DBaseTexture8* m_maps[4];
+	UINT m_sceneDepth;
+	UINT m_sceneColor;
+	UINT m_pointSampler;
+	UINT m_linearSampler;
 	LARGE_INTEGER m_startTime;
 	LARGE_INTEGER m_frequency;
 };

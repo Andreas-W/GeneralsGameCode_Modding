@@ -20,6 +20,7 @@
 
 #include "Materials.h"
 #include "Device.h"
+#include "PostProcess.h"
 
 #include <string.h>
 
@@ -82,6 +83,10 @@ SamplerState NormalSampler : register(s2);
 SamplerState SpecularSampler : register(s3);
 SamplerState EmissiveSampler : register(s4);
 SamplerState ExtraSampler : register(s5);
+Texture2D<float> SceneDepth : register(t6);	// depth drawn before Capture_Scene, 0 (near) .. 1 (far)
+Texture2D SceneColor : register(t7);		// the scene drawn before Capture_Scene(TRUE)
+SamplerState SceneDepthSampler : register(s6);
+SamplerState SceneColorSampler : register(s7);
 struct MaterialInput
 {
 	float4 position : SV_Position;
@@ -99,9 +104,46 @@ static const uint MAP_NORMAL = 2;
 static const uint MAP_SPECULAR = 3;
 static const uint MAP_EMISSIVE = 4;
 static const uint MAP_EXTRA = 5;
+static const uint MAP_SCENE_DEPTH = 6;
+static const uint MAP_SCENE_COLOR = 7;
 #define Time (MaterialTime.x)
 bool HasMap(uint slot) { return ((uint)MaterialFlags.x >> slot) & 1; }
 bool IsLit() { return MaterialFlags.y != 0; }
+bool HasSceneDepth() { return HasMap(MAP_SCENE_DEPTH); }
+bool HasSceneColor() { return HasMap(MAP_SCENE_COLOR); }
+// Where the pixel is on the screen, 0..1, for SceneDepth and SceneColor.
+float2 ScreenUV(MaterialInput input)
+{
+	float width, height;
+	SceneColor.GetDimensions(width, height);
+	if (width <= 0)
+		SceneDepth.GetDimensions(width, height);
+	return input.position.xy / max(float2(width, height), 1);
+}
+// Distance in front of the camera of a view space point (W3D cameras look down -z, so this follows
+// the projection's w).
+float ViewDistance(float viewZ) { return viewZ * Projection._34 + Projection._44; }
+// Distance from the camera of what was drawn at that screen point before the capture.
+float SceneViewDepth(float2 uv)
+{
+	float depth = SceneDepth.SampleLevel(SceneDepthSampler, uv, 0);
+	// depth = (z * _33 + _43) / (z * _34 + _44), solved for the view z.
+	float viewZ = (Projection._43 - depth * Projection._44) / (depth * Projection._34 - Projection._33);
+	return ViewDistance(viewZ);
+}
+// How far behind the pixel the captured scene is, in view units; large without a capture.
+float DepthBehind(MaterialInput input)
+{
+	return HasSceneDepth() ? SceneViewDepth(ScreenUV(input)) - ViewDistance(input.viewPosition.z) : 1e6;
+}
+float3 SceneColorAt(float2 uv) { return SceneColor.SampleLevel(SceneColorSampler, uv, 0).rgb; }
+// The world position, for draws whose world transform is the identity (terrain, water).
+float3 WorldPosition(MaterialInput input)
+{
+	return mul((float3x3)WorldView, input.viewPosition - WorldView[3].xyz);
+}
+// A world direction in view space, for draws whose world transform is the identity.
+float3 ViewDirection(float3 worldDirection) { return mul(worldDirection, (float3x3)WorldView); }
 
 struct LightSum
 {
@@ -203,7 +245,11 @@ float4 Finish(float4 color, float3 glow, MaterialInput input)
 
 MaterialSystem::MaterialSystem(Device* device)
 	: m_device(device),
-		m_current(0)
+		m_current(0),
+		m_sceneDepth(0),
+		m_sceneColor(0),
+		m_pointSampler(0),
+		m_linearSampler(0)
 {
 	memset(m_maps, 0, sizeof(m_maps));
 	QueryPerformanceFrequency(&m_frequency);
@@ -344,6 +390,33 @@ bool MaterialSystem::Current(Binding& binding) const
 	binding.params = &material.params;
 	binding.maps = m_maps;
 	return true;
+}
+
+HRESULT STDMETHODCALLTYPE MaterialSystem::Capture_Scene(BOOL color)
+{
+	UINT depth = 0;
+	UINT scene = 0;
+	if (!m_device->Get_Post_Processor()->Capture_For_Materials(color != FALSE, depth, scene))
+		return E_FAIL;
+	m_sceneDepth = depth;
+	m_sceneColor = scene;
+	return D3D_OK;
+}
+
+// Point sampling for the depth (t6), linear for the colour (t7), both clamped.
+UINT MaterialSystem::Scene_Sampler(UINT stage)
+{
+	UINT& sampler = stage == 6 ? m_pointSampler : m_linearSampler;
+	if (sampler == 0)
+	{
+		D3D12_SAMPLER_DESC desc = {};
+		desc.Filter = stage == 6 ? D3D12_FILTER_MIN_MAG_MIP_POINT : D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		desc.AddressU = desc.AddressV = desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		desc.MaxLOD = D3D12_FLOAT32_MAX;
+		desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		sampler = m_device->Find_Sampler(desc);
+	}
+	return sampler;
 }
 
 float MaterialSystem::Time() const

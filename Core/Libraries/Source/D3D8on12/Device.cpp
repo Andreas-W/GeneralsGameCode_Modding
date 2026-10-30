@@ -1133,6 +1133,9 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 	m_commandList->ResourceBarrier(1, &barrier);
 	Mark_Time(TIMING_FRAME_END);
+	// Scene copies for materials are of this frame only.
+	if (m_materialSystem != nullptr)
+		m_materialSystem->Release_Scene();
 	Resolve_Times();
 	m_commandList->Close();
 	m_recording = false;

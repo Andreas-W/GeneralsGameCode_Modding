@@ -60,6 +60,9 @@ public:
 	// Releases the textures of the chain; called when the engine releases the device.
 	void Clear_Chain();
 	void Present_Scene();
+	// Copies the depth and, with color, the scene drawn so far for material draws (Capture_Scene); returns
+	// their shader resource views.
+	bool Capture_For_Materials(bool color, UINT& depth_srv, UINT& color_srv);
 	// Copies a rectangle of what is drawn into the back buffer so far into a render target surface of
 	// the same format, at point (CopyRects; smudges read the scene this way).
 	HRESULT Copy_Back_Buffer(Surface* dest, const RECT& rect, const POINT& point);

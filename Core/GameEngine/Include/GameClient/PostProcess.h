@@ -57,6 +57,16 @@
 //	  Param = Gloss 24				; a variable of the shader's Params cbuffer, 1 to 4 values
 //	End
 //
+//	Material SoftSmoke
+//	  Use = Particles				; Meshes (default), Particles (by particle texture), Terrain or Water (one each)
+//	  Textures = EXSmokNew1			; for Meshes and Particles
+//	  Shader = MAT_Particle			; MAT_Standard for meshes, MAT_Particle, MAT_Terrain, MAT_Water
+//	End
+//
+// For Water the maps are file names in Art\Textures (NormalMap = waves, SpecularMap = foam, EmissiveMap =
+// sky); for Terrain the maps come from Art\Terrain\<terrain texture><suffix> (NormalMap, SpecularMap) and
+// the game passes its cloud and light map textures.
+//
 // Only the Direct3D 12 renderer runs post-processing, shadow maps and materials.
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +146,10 @@ class MaterialTemplate
 public:
 	MaterialTemplate();
 
+	enum Use { USE_MESHES, USE_PARTICLES, USE_TERRAIN, USE_WATER };
+
 	AsciiString m_name;
+	Int m_use;							///< Use
 	std::vector<AsciiString> m_textures;
 	AsciiString m_shader;
 	AsciiString m_maps[4];				///< normal, specular, emissive, extra

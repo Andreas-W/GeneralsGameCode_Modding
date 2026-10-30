@@ -867,6 +867,13 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 			if (type_of_texture == TEXTURE_2D)
 				material_maps |= 1u << stage;
 		}
+		// The copies of Capture_Scene.
+		srvs[6] = m_materialSystem->Scene_Depth();
+		srvs[7] = m_materialSystem->Scene_Color();
+		if (srvs[6] != 0)
+			material_maps |= 1u << 6;
+		if (srvs[7] != 0)
+			material_maps |= 1u << 7;
 	}
 
 	// Vertex shader key.
@@ -1085,9 +1092,9 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	for (UINT stage = 0; stage < FF_STAGES; ++stage)
 	{
 		// Every table of the root signature must be set, also those the shader does not read.
-		const bool stage_used = use_material ? stage < MATERIAL_STAGES && (material_maps & (1u << stage)) != 0
+		const bool stage_used = use_material ? (material_maps & (1u << stage)) != 0
 			: stage < ps_key.stageCount && ps_key.stages[stage].textureType != TEXTURE_NONE;
-		const UINT srv = use_material ? (stage < MATERIAL_STAGES ? srvs[stage] : 0) : (stage < ps_key.stageCount ? srvs[stage] : 0);
+		const UINT srv = use_material ? srvs[stage] : (stage < ps_key.stageCount ? srvs[stage] : 0);
 		const D3D12_GPU_DESCRIPTOR_HANDLE srv_handle = Srv_Gpu_Handle(srv);
 		if (bound.tables[stage] != srv_handle.ptr)
 		{
@@ -1095,7 +1102,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 			bound.tables[stage] = srv_handle.ptr;
 			++m_timingSums.tableChanges;
 		}
-		const UINT sampler = stage_used ? Get_Sampler(stage) : 0;
+		const UINT sampler = !stage_used ? 0 : use_material && stage >= MATERIAL_STAGES ? m_materialSystem->Scene_Sampler(stage) : Get_Sampler(stage);
 		D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle = m_samplerGpuStart;
 		sampler_handle.ptr += (UINT64)sampler * m_samplerDescriptorSize;
 		if (bound.tables[FF_STAGES + stage] != sampler_handle.ptr)

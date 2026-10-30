@@ -173,4 +173,7 @@ struct ID3D8On12Materials : public IUnknown
 	// the normal, specular, emissive and extra maps for stages 2..5, each null where there is none; they
 	// are not referenced and must stay alive while the material is set.
 	virtual void STDMETHODCALLTYPE Set_Material(UINT material, IDirect3DBaseTexture8* const* maps) = 0;
+	// Copies what is drawn so far: the depth (always) and the scene colour (with color), which the material
+	// draws after it read as SceneDepth (t6) and SceneColor (t7), until the frame is presented.
+	virtual HRESULT STDMETHODCALLTYPE Capture_Scene(BOOL color) = 0;
 };

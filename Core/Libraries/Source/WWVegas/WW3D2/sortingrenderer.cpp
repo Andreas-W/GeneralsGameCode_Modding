@@ -164,7 +164,7 @@ public:
 	unsigned short polygon_count;			// Polygon count to process (3 indices = one polygon)
 	unsigned short min_vertex_index;		// First index used in the vb
 	unsigned short vertex_count;			// Number of vertices used in vb
-	bool material;							// a mesh drawn with a material of the mesh material binder
+	int material;							// MeshMaterialKind of the mesh material binder it was drawn with
 };
 
 typedef std::list<SortingNodeStruct*> SortingNodeStructList;
@@ -424,9 +424,10 @@ static void Bind_Material(SortingNodeStruct* state)
 		TheMeshMaterialBinder->End();
 		material_bound = false;
 	}
-	TextureBaseClass* texture = state != nullptr && state->material ? state->sorting_state.Textures[0] : nullptr;
+	TextureBaseClass* texture = state != nullptr && state->material != MESH_MATERIAL_NONE ? state->sorting_state.Textures[0] : nullptr;
 	if (texture != nullptr && texture->As_TextureClass() != nullptr)
-		material_bound = TheMeshMaterialBinder->Begin(texture->As_TextureClass());
+		material_bound = state->material == MESH_MATERIAL_PARTICLE ? TheMeshMaterialBinder->Begin_Particle(texture->As_TextureClass())
+			: TheMeshMaterialBinder->Begin(texture->As_TextureClass());
 }
 
 // ----------------------------------------------------------------------------
