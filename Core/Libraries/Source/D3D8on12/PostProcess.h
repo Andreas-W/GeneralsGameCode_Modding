@@ -94,6 +94,9 @@ private:
 		D3D8ON12_PP_PASS desc;
 		std::vector<unsigned char> params;	// contents of the Params cbuffer
 		Target output;						// unused for the last pass, which draws into the back buffer
+		Target previous;					// the output of the frame before, for passes with a Previous input
+		bool usesPrevious;
+		bool previousValid;					// previous holds a frame's output
 	};
 
 	ID3D12PipelineState* Get_Pipeline(Shader& shader, DXGI_FORMAT format, UINT samples, bool multiply = false);
@@ -112,6 +115,7 @@ private:
 	UINT m_depthShaders[2];		// for a depth buffer without and with multisampling
 	UINT m_presentShaders[2];	// for an HDR scene target without and with multisampling
 	UINT m_copyShader;			// Copy_Back_Buffer
+	float m_lastRunTime;		// time given to the last Run, -1 before the first
 	UINT m_shadowShader;
 	UINT m_shadowSampler;		// comparison sampler for the shadow map
 	D3DMATRIX m_view;

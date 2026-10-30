@@ -36,7 +36,7 @@ static const UINT ROOT_TEXTURES = 2;
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;
 static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;
 static const UINT NULL_SRV_2D = 0;
-static const UINT INPUT_COUNT = 4;
+static const UINT INPUT_COUNT = D3D8ON12_PP_INPUTS;
 
 
 // What every pass shader includes. It describes how Run binds the inputs and constants.
@@ -45,9 +45,10 @@ static const char s_header[] =
 	"{\n"
 	"	float4 ScreenSize;		// width, height, 1 / width, 1 / height\n"
 	"	float4 OutputSize;		// the same for the target this pass draws into\n"
-	"	float4 InputSize[4];	// the same for Input0..Input3\n"
+	"	float4 InputSize[6];	// the same for Input0..Input5\n"
 	"	float Time;				// seconds\n"
-	"	float3 PostProcessPad;\n"
+	"	float FrameTime;		// seconds since the chain last ran\n"
+	"	float2 PostProcessPad;\n"
 	"	row_major float4x4 View;			// world to view, as given to Set_Camera\n"
 	"	row_major float4x4 InverseView;\n"
 	"	row_major float4x4 Projection;		// view to clip\n"
@@ -57,6 +58,8 @@ static const char s_header[] =
 	"Texture2D Input1 : register(t1);\n"
 	"Texture2D Input2 : register(t2);\n"
 	"Texture2D Input3 : register(t3);\n"
+	"Texture2D Input4 : register(t4);\n"
+	"Texture2D Input5 : register(t5);\n"
 	"SamplerState LinearClamp : register(s0);\n"
 	"SamplerState PointClamp : register(s1);\n"
 	"struct PostProcessInput\n"
@@ -182,7 +185,8 @@ struct CommonConstants
 	float outputSize[4];
 	float inputSize[INPUT_COUNT][4];
 	float time;
-	float pad[3];
+	float frameTime;
+	float pad[2];
 	D3DMATRIX view;
 	D3DMATRIX inverseView;
 	D3DMATRIX projection;
@@ -267,6 +271,7 @@ PostProcessor::PostProcessor(Device* device)
 	m_presentShaders[0] = m_presentShaders[1] = 0;
 	m_shadowShader = 0;
 	m_copyShader = 0;
+	m_lastRunTime = -1.0f;
 	m_shadowSampler = 0;
 	memset(&m_view, 0, sizeof(m_view));
 	m_view._11 = m_view._22 = m_view._33 = m_view._44 = 1.0f;
@@ -696,6 +701,11 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Set_Chain(const D3D8ON12_PP_PASS* passe
 		pass.output.width = 0;
 		pass.output.height = 0;
 		pass.output.format = DXGI_FORMAT_UNKNOWN;
+		pass.previous = pass.output;
+		pass.previousValid = false;
+		pass.usesPrevious = false;
+		for (UINT input = 0; input < INPUT_COUNT; ++input)
+			pass.usesPrevious = pass.usesPrevious || pass.desc.inputs[input] == D3D8ON12_PP_INPUT_PREVIOUS;
 	}
 	return D3D_OK;
 }
@@ -711,6 +721,7 @@ void PostProcessor::Clear_Chain()
 			texture = nullptr;
 		}
 		Release_Target(pass.output);
+		Release_Target(pass.previous);
 	}
 	m_passes.clear();
 }
@@ -875,6 +886,8 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 	device.Mark_Time(Device::TIMING_POST_BEGIN);
 	const UINT width = device.m_presentParams.BackBufferWidth;
 	const UINT height = device.m_presentParams.BackBufferHeight;
+	const float frame_time = m_lastRunTime >= 0 && time >= m_lastRunTime ? min(time - m_lastRunTime, 1.0f) : 0.0f;
+	m_lastRunTime = time;
 	if (!Copy_Scene(width, height))
 		return E_FAIL;
 
@@ -924,10 +937,20 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 		}
 		else
 		{
-			const UINT scale = pass.desc.scale == 0 ? 1 : min(pass.desc.scale, 8u);
-			output_width = max(width / scale, 1u);
-			output_height = max(height / scale, 1u);
+			if (pass.desc.scale == D3D8ON12_PP_SCALE_PIXEL)
+			{
+				output_width = output_height = 1;
+			}
+			else
+			{
+				const UINT scale = pass.desc.scale == 0 ? 1 : min(pass.desc.scale, 8u);
+				output_width = max(width / scale, 1u);
+				output_height = max(height / scale, 1u);
+			}
 			format = pass.desc.hdr ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_B8G8R8A8_UNORM;
+			// A pass that reads its own previous output draws into the other of two targets each frame.
+			if (pass.usesPrevious)
+				std::swap(pass.output, pass.previous);
 			if (!Ensure_Target(pass.output, output_width, output_height, format))
 				return E_FAIL;
 			device.Transition(pass.output.gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -947,6 +970,7 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 		Set_Size(constants.screenSize, width, height);
 		Set_Size(constants.outputSize, output_width, output_height);
 		constants.time = time;
+		constants.frameTime = frame_time;
 		constants.view = m_view;
 		constants.inverseView = Invert(m_view);
 		constants.projection = m_projection;
@@ -983,6 +1007,14 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 					Set_Size(constants.inputSize[input], level.Width, level.Height);
 				}
 			}
+			else if (source == D3D8ON12_PP_INPUT_PREVIOUS)
+			{
+				if (pass.previousValid && pass.previous.width == output_width && pass.previous.height == output_height && pass.previous.format == format)
+				{
+					srvs[input] = pass.previous.gpu.srv;
+					Set_Size(constants.inputSize[input], output_width, output_height);
+				}
+			}
 			else if (source >= D3D8ON12_PP_INPUT_PASS)
 			{
 				const Target& earlier = m_passes[source - D3D8ON12_PP_INPUT_PASS].output;
@@ -1012,6 +1044,7 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 
 		if (!last)
 			device.Transition(pass.output.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		pass.previousValid = !last;
 	}
 	device.Mark_Time(Device::TIMING_POST_END);
 	return D3D_OK;

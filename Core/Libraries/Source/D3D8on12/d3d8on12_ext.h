@@ -27,6 +27,9 @@
 // {6C2E4D1A-8B3F-4E57-9A61-3F0D2B7C9E41}
 DEFINE_GUID(IID_ID3D8On12PostProcess, 0x6c2e4d1a, 0x8b3f, 0x4e57, 0x9a, 0x61, 0x3f, 0x0d, 0x2b, 0x7c, 0x9e, 0x41);
 
+#define D3D8ON12_PP_INPUTS 6
+#define D3D8ON12_PP_SCALE_PIXEL 0xFFFF
+
 // Where a post-processing pass reads an input from.
 enum D3D8ON12_PP_INPUT
 {
@@ -34,6 +37,7 @@ enum D3D8ON12_PP_INPUT
 	D3D8ON12_PP_INPUT_SCENE = 1,	// the 3D scene as drawn so far
 	D3D8ON12_PP_INPUT_TEXTURE = 2,	// the texture of the same slot in D3D8ON12_PP_PASS::textures
 	D3D8ON12_PP_INPUT_DEPTH = 3,	// depth of the scene, 0 (near) .. 1 (far), one float per pixel
+	D3D8ON12_PP_INPUT_PREVIOUS = 4,	// this pass's own output of the previous frame; its InputSize is 0 when there is none
 	D3D8ON12_PP_INPUT_PASS = 16,	// + n: the output of the earlier pass n
 };
 
@@ -58,9 +62,10 @@ struct D3D8ON12_GPU_TIMING
 struct D3D8ON12_PP_PASS
 {
 	UINT shader;							// from Create_Shader
-	UINT inputs[4];							// D3D8ON12_PP_INPUT values for Input0..Input3 of the shader
-	IDirect3DBaseTexture8* textures[4];		// for inputs set to D3D8ON12_PP_INPUT_TEXTURE, such as a color lookup table
-	UINT scale;								// the output is the screen size divided by this (1, 2, 4 or 8); the last pass draws into the screen
+	UINT inputs[D3D8ON12_PP_INPUTS];		// D3D8ON12_PP_INPUT values for Input0..Input5 of the shader
+	IDirect3DBaseTexture8* textures[D3D8ON12_PP_INPUTS];	// for inputs set to D3D8ON12_PP_INPUT_TEXTURE, such as a color lookup table
+	UINT scale;								// the output is the screen size divided by this (1, 2, 4 or 8), or one pixel with
+											// D3D8ON12_PP_SCALE_PIXEL (for averages); the last pass draws into the screen
 	BOOL hdr;								// 16 bit float output instead of 8 bit
 };
 
@@ -68,7 +73,7 @@ struct D3D8ON12_PP_PASS
 // so what is drawn afterwards (the interface) is not processed.
 //
 // Shaders are HLSL pixel shaders (ps_5_0) with the entry point main. They include "PostProcess.hlsli",
-// which the device provides: Input0..Input3, the samplers LinearClamp and PointClamp, the screen and
+// which the device provides: Input0..Input5, the samplers LinearClamp and PointClamp, the screen and
 // output sizes, the time, the camera (View, Projection and their inverses, as set with Set_Camera),
 // helpers to get view and world positions from depth, and the struct PostProcessInput with the
 // texture coordinate uv. Parameters are the variables of a cbuffer named Params.

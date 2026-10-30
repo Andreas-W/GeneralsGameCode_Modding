@@ -300,8 +300,9 @@ float4 main(PostProcessInput input) : SV_Target
 )";
 
 // Input0: scene, Input1: bloom (optional), Input2: 256x16 color lookup table (optional),
-// Input3: ambient occlusion (optional, from PP_SSAO). With a Tonemap the scene, bloom and exposure
-// are combined in linear light and brought to 0..1 by a tone curve before the grading.
+// Input3: ambient occlusion (optional, from PP_SSAO), Input4: exposure in stops from PP_AutoExposure
+// (optional, added to Exposure). With a Tonemap the scene, bloom and exposure are combined in linear
+// light and brought to 0..1 by a tone curve before the grading.
 static const char s_colorGradeShader[] = R"(
 #include "PostProcess.hlsli"
 cbuffer Params : register(b1)
@@ -353,17 +354,18 @@ float4 main(PostProcessInput input) : SV_Target
 	float3 color = Input0.Sample(PointClamp, input.uv).rgb;
 	float ao = InputSize[3].x > 0 ? lerp(1, Input3.Sample(LinearClamp, input.uv).r, AOStrength > 0 ? AOStrength : 1) : 1;
 	float3 bloom = InputSize[1].x > 0 ? Input1.Sample(LinearClamp, input.uv).rgb * BloomIntensity : 0;
+	float exposure = Exposure + (InputSize[4].x > 0 ? Input4.Load(int3(0, 0, 0)).r : 0);
 	if (Tonemap > 0)
 	{
 		// The scene is stored gamma encoded; the curves expect linear light.
 		color = pow(max(color, 0), 2.2) * ao + pow(max(bloom, 0), 2.2);
 		float expand = clamp(HighlightExpand, 0, 0.95);
 		color /= max(1 - expand * saturate(Luminance(color)), 0.05);
-		color = pow(ToneCurve(color * exp2(Exposure)), 1 / 2.2);
+		color = pow(ToneCurve(color * exp2(exposure)), 1 / 2.2);
 	}
 	else
 	{
-		color = (color * ao + bloom) * exp2(Exposure);
+		color = (color * ao + bloom) * exp2(exposure);
 	}
 	color = color * (1 + Gain) + Lift * (1 - color);
 	color = pow(max(color, 0), 1 / max(1 + Gamma, 0.01));
@@ -374,6 +376,60 @@ float4 main(PostProcessInput input) : SV_Target
 	if (LutStrength > 0 && InputSize[2].x > 0)
 		color = lerp(color, ApplyLut(color), LutStrength);
 	return float4(saturate(color), 1);
+}
+)";
+
+// Input0: the scene. Log brightness for PP_AutoExposure, averaged over the screen area of each output
+// pixel (use a Scale of 4 or 8, HDR output).
+static const char s_luminanceShader[] = R"(
+#include "PostProcess.hlsli"
+float4 main(PostProcessInput input) : SV_Target
+{
+	float2 offset = OutputSize.zw * 0.25;
+	float sum = 0;
+	[unroll]
+	for (int i = 0; i < 4; ++i)
+	{
+		float2 uv = input.uv + float2((i & 1) ? offset.x : -offset.x, (i & 2) ? offset.y : -offset.y);
+		// The scene is stored gamma encoded.
+		float3 color = pow(max(Input0.SampleLevel(LinearClamp, uv, 0).rgb, 0), 2.2);
+		sum += log2(max(Luminance(color), 0.0001));
+	}
+	return float4(sum * 0.25, 0, 0, 1);
+}
+)";
+
+// Input0: PP_Luminance, Input1: Previous. One pixel (Scale = 0, HDR): the exposure in stops that brings
+// the average brightness to Key, eased in over time like an eye adapting. For Input4 of PP_ColorGrade.
+static const char s_autoExposureShader[] = R"(
+#include "PostProcess.hlsli"
+cbuffer Params : register(b1)
+{
+	float Key;				// average brightness the scene is brought to, 0 = 0.18
+	float Speed;			// how fast it adapts, per second, 0 = 1.5
+	float MinExposure;		// stops; lowest and highest exposure, both 0 = -2 .. 2
+	float MaxExposure;
+	float Strength;			// 0..1 of the correction that is used, 0 = 1
+};
+float4 main(PostProcessInput input) : SV_Target
+{
+	float2 size = InputSize[0].xy;
+	float sum = 0;
+	const int COLUMNS = 32;
+	const int ROWS = 18;
+	for (int y = 0; y < ROWS; ++y)
+		for (int x = 0; x < COLUMNS; ++x)
+			sum += Input0.SampleLevel(LinearClamp, (float2(x, y) + 0.5) / float2(COLUMNS, ROWS), 0).r;
+	float average = sum / (COLUMNS * ROWS);
+	float key = Key > 0 ? Key : 0.18;
+	float low = MinExposure != 0 || MaxExposure != 0 ? MinExposure : -2;
+	float high = MinExposure != 0 || MaxExposure != 0 ? MaxExposure : 2;
+	float target = clamp((log2(key) - average) * (Strength > 0 ? Strength : 1), low, high);
+	if (InputSize[1].x <= 0)
+		return float4(target, average, 0, 1);
+	float previous = Input1.Load(int3(0, 0, 0)).r;
+	float speed = Speed > 0 ? Speed : 1.5;
+	return float4(lerp(previous, target, 1 - exp(-FrameTime * speed)), average, 0, 1);
 }
 )";
 
@@ -535,6 +591,8 @@ static const BuiltInShader s_builtInShaders[] =
 	BUILT_IN("PP_BloomExtract", s_bloomExtractShader),
 	BUILT_IN("PP_Blur", s_blurShader),
 	BUILT_IN("PP_ColorGrade", s_colorGradeShader),
+	BUILT_IN("PP_Luminance", s_luminanceShader),
+	BUILT_IN("PP_AutoExposure", s_autoExposureShader),
 	BUILT_IN("PP_EdgeAA", s_edgeAAShader),
 	BUILT_IN("PP_SharpenVignette", s_sharpenVignetteShader),
 };
@@ -758,14 +816,18 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 
 		D3D8ON12_PP_PASS desc = {};
 		desc.shader = shader;
-		desc.scale = pass->m_scale > 0 ? pass->m_scale : 1;
+		desc.scale = pass->m_scale > 0 ? pass->m_scale : pass->m_scale == 0 ? D3D8ON12_PP_SCALE_PIXEL : 1;
 		desc.hdr = pass->m_hdr;
-		for (size_t input = 0; input < pass->m_inputs.size() && input < 4; ++input)
+		for (size_t input = 0; input < pass->m_inputs.size() && input < D3D8ON12_PP_INPUTS; ++input)
 		{
 			const AsciiString& name = pass->m_inputs[input];
 			if (name.compareNoCase("Scene") == 0)
 			{
 				desc.inputs[input] = D3D8ON12_PP_INPUT_SCENE;
+			}
+			else if (name.compareNoCase("Previous") == 0)
+			{
+				desc.inputs[input] = D3D8ON12_PP_INPUT_PREVIOUS;
 			}
 			else if (name.compareNoCase("Depth") == 0)
 			{
@@ -798,7 +860,7 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 					++earlier;
 				if (earlier == names.size())
 				{
-					m_error.format("PostProcess: pass %s: input %s is neither Scene, Depth, None, Texture:<file> nor an earlier pass", pass->m_name.str(), name.str());
+					m_error.format("PostProcess: pass %s: input %s is neither Scene, Depth, None, Previous, Texture:<file> nor an earlier pass", pass->m_name.str(), name.str());
 					break;
 				}
 				desc.inputs[input] = D3D8ON12_PP_INPUT_PASS + (UINT)earlier;
