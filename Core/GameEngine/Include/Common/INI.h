@@ -211,6 +211,7 @@ public:
 	static void parseWeatherDefinition( INI *ini );
 	static void parsePostProcessDefinition( INI *ini );
 	static void parsePostProcessPassDefinition( INI *ini );
+	static void parsePostProcessChainDefinition( INI *ini );
 	static void parseShadowMapDefinition( INI *ini );
 	static void parseMaterialDefinition( INI *ini );
 	static void parseMappedImageDefinition( INI *ini );

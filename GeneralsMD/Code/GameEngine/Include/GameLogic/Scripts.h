@@ -548,6 +548,10 @@ public:
 		SHOW_WEATHER,															///< show map defined weather.
 		AI_PLAYER_BUILD_TYPE_NEAREST_TEAM,				///< Tell the ai player to build an object nearest team.
 		SKIRMISH_BUILD_SHIPYARD,                  ///< Tell the ai player to build a shipyard
+		POSTPROCESS_SET_PARAMETER,								///< Set or fade a post-processing pass parameter (Direct3D 12)
+		POSTPROCESS_ENABLE_PASS,									///< Switch a post-processing pass on or off (Direct3D 12)
+		POSTPROCESS_USE_CHAIN,										///< Run another PostProcessChain (Direct3D 12)
+		SHADOWMAP_SET_DARKNESS,										///< Set or fade the shadow map darkness (Direct3D 12)
 		// add new items here, please
 		NUM_ITEMS
 	};

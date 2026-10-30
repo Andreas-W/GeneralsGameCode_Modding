@@ -26,12 +26,24 @@
 //	  Scale = 2						; output size = screen size / Scale; 0 = a single pixel (the last pass draws into the screen)
 //	  HDR = Yes						; 16 bit float output
 //	  Param = Threshold 0.75		; a variable of the shader's Params cbuffer, 1 to 4 values
+//	  ParamNight = Threshold 0.5	; replaces Param at that time of day (ParamMorning, ParamAfternoon,
+//									; ParamEvening, ParamNight)
 //	End
 //
 //	PostProcess
 //	  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade
 //	  HDRScene = Yes				; draw the scene in 16 bit float, so additive effects keep brightness above 1
 //	End
+//
+//	PostProcessChain Dream			; another list of passes, for the POSTPROCESS_USE_CHAIN script action
+//	  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade DreamBlur
+//	End
+//
+// A map's map.ini can hold PostProcessPass, PostProcess, PostProcessChain and ShadowMap blocks too; they
+// change the mod's settings for that map only. Script actions (Map/Post-processing) change parameters
+// (also fading over time), switch passes off (a pass that is off hands its first input on), switch to a
+// PostProcessChain ("Default" = the PostProcess block) and fade the shadow map's Darkness; these are not
+// kept in save games.
 //
 //	ShadowMap						; soft shadows from a depth map instead of the stencil shadow volumes
 //	  Enabled = Yes
@@ -76,6 +88,7 @@
 #pragma once
 
 #include "Common/AsciiString.h"
+#include "Common/GameType.h"
 
 #include <vector>
 
@@ -100,6 +113,18 @@ public:
 	Int m_scale;
 	Bool m_hdr;
 	std::vector<PostProcessParameter> m_parameters;
+	std::vector<PostProcessParameter> m_timeOfDayParameters[TIME_OF_DAY_COUNT];	///< ParamMorning ...: replace Param then
+
+	void getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const;	///< Param with the time's replacements
+
+	static const FieldParse s_fieldParseTable[];
+};
+
+class PostProcessChainTemplate
+{
+public:
+	AsciiString m_name;
+	std::vector<AsciiString> m_passes;
 
 	static const FieldParse s_fieldParseTable[];
 };
@@ -112,10 +137,14 @@ public:
 
 	const PostProcessPassTemplate* findPass(const AsciiString& name) const;
 	PostProcessPassTemplate* findOrCreatePass(const AsciiString& name);
+	PostProcessChainTemplate* findOrCreateChain(const AsciiString& name);
+	const std::vector<AsciiString>* findChain(const AsciiString& name) const;	///< "Default" or empty: m_chain
+	PostProcessSettings* clone() const;
 
 	std::vector<PostProcessPassTemplate*> m_passes;
 	std::vector<AsciiString> m_chain;	///< names of the passes that run, in order
 	Bool m_hdrScene;					///< the scene is drawn in 16 bit float while the chain runs
+	std::vector<PostProcessChainTemplate*> m_namedChains;	///< PostProcessChain blocks
 
 	static const FieldParse s_fieldParseTable[];
 };
@@ -146,6 +175,63 @@ public:
 };
 
 extern ShadowMapSettings* TheShadowMapSettings;	///< null without a ShadowMap block
+
+/// What a running game changes in the post-processing and shadow map settings: map.ini blocks and script
+/// actions. The renderer asks it every frame; the settings of the mod come back when the game ends.
+class PostProcessControl
+{
+public:
+	PostProcessControl();
+	~PostProcessControl();
+
+	void beginMap();				///< before the map.ini is read: keeps the mod's settings
+	void endGame();					///< the mod's settings back, script changes undone
+	void settingsReloaded();		///< the INI files were read again: they are the mod's settings now
+
+	void setParameter(const AsciiString& pass, const AsciiString& name, const Real* values, Int count, Real seconds);
+	void enablePass(const AsciiString& pass, Bool enable);
+	void useChain(const AsciiString& name);
+	void setShadowDarkness(Real darkness, Real seconds);
+
+	UnsignedInt getGeneration() const { return m_generation; }	///< changes when the chain must be built again
+	const std::vector<AsciiString>* getChain() const;			///< the passes that should run, before switched off ones are left out
+	Bool isPassEnabled(const AsciiString& pass) const;
+	Int getParameterOverrideCount() const { return (Int)m_overrides.size(); }
+	/// The pass, name and current values of a parameter set by a script.
+	void getParameterOverride(Int index, AsciiString& pass, AsciiString& name, Real* values, Int& count) const;
+	Real getShadowDarkness(Real darkness) const;				///< the ShadowMap Darkness, or what a script faded it to
+
+private:
+	struct Fade
+	{
+		Real from[4];
+		Real to[4];
+		Int count;
+		UnsignedInt startFrame;
+		UnsignedInt frames;
+	};
+	struct Override
+	{
+		AsciiString pass;
+		AsciiString name;
+		Fade fade;
+	};
+
+	static void valueOf(const Fade& fade, Real* values);
+	void clearScriptChanges();
+
+	PostProcessSettings* m_savedPostProcess;	///< the mod's settings while a map runs
+	ShadowMapSettings* m_savedShadowMap;
+	Bool m_saved;
+	UnsignedInt m_generation;
+	AsciiString m_chainName;
+	std::vector<AsciiString> m_disabledPasses;
+	std::vector<Override> m_overrides;
+	Bool m_darknessFaded;
+	Fade m_darkness;
+};
+
+extern PostProcessControl ThePostProcessControl;
 
 class MaterialTemplate
 {

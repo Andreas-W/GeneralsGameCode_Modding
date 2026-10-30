@@ -4100,6 +4100,53 @@ void ScriptEngine::init()
 	curTemplate->m_uiStrings[0] = "Build a shipyard ";
 	curTemplate->m_uiStrings[1] = ", at next free shipyard waypoint.";
 
+	// Post-processing and shadow maps exist only in the Direct3D 12 renderer; elsewhere these do nothing.
+	curTemplate = &m_actionTemplates[ScriptAction::POSTPROCESS_SET_PARAMETER];
+	curTemplate->m_internalName = "POSTPROCESS_SET_PARAMETER";
+	curTemplate->m_uiName = "Map/Post-processing/Set or fade a pass parameter.";
+	curTemplate->m_numParameters = 4;
+	curTemplate->m_parameters[0] = Parameter::TEXT_STRING;
+	curTemplate->m_parameters[1] = Parameter::TEXT_STRING;
+	curTemplate->m_parameters[2] = Parameter::TEXT_STRING;
+	curTemplate->m_parameters[3] = Parameter::REAL;
+	curTemplate->m_numUiStrings = 5;
+	curTemplate->m_uiStrings[0] = "Post-processing pass ";
+	curTemplate->m_uiStrings[1] = ": set parameter ";
+	curTemplate->m_uiStrings[2] = " to ";
+	curTemplate->m_uiStrings[3] = " (1 to 4 numbers) over ";
+	curTemplate->m_uiStrings[4] = " seconds (0 = at once).";
+
+	curTemplate = &m_actionTemplates[ScriptAction::POSTPROCESS_ENABLE_PASS];
+	curTemplate->m_internalName = "POSTPROCESS_ENABLE_PASS";
+	curTemplate->m_uiName = "Map/Post-processing/Switch a pass on or off.";
+	curTemplate->m_numParameters = 2;
+	curTemplate->m_parameters[0] = Parameter::TEXT_STRING;
+	curTemplate->m_parameters[1] = Parameter::BOOLEAN;
+	curTemplate->m_numUiStrings = 3;
+	curTemplate->m_uiStrings[0] = "Post-processing pass ";
+	curTemplate->m_uiStrings[1] = " on: ";
+	curTemplate->m_uiStrings[2] = " (a pass that is off hands its first input on).";
+
+	curTemplate = &m_actionTemplates[ScriptAction::POSTPROCESS_USE_CHAIN];
+	curTemplate->m_internalName = "POSTPROCESS_USE_CHAIN";
+	curTemplate->m_uiName = "Map/Post-processing/Run another chain.";
+	curTemplate->m_numParameters = 1;
+	curTemplate->m_parameters[0] = Parameter::TEXT_STRING;
+	curTemplate->m_numUiStrings = 2;
+	curTemplate->m_uiStrings[0] = "Run the post-processing chain ";
+	curTemplate->m_uiStrings[1] = " (a PostProcessChain, or Default).";
+
+	curTemplate = &m_actionTemplates[ScriptAction::SHADOWMAP_SET_DARKNESS];
+	curTemplate->m_internalName = "SHADOWMAP_SET_DARKNESS";
+	curTemplate->m_uiName = "Map/Post-processing/Set or fade the shadow darkness.";
+	curTemplate->m_numParameters = 2;
+	curTemplate->m_parameters[0] = Parameter::REAL;
+	curTemplate->m_parameters[1] = Parameter::REAL;
+	curTemplate->m_numUiStrings = 3;
+	curTemplate->m_uiStrings[0] = "Shadow map darkness to ";
+	curTemplate->m_uiStrings[1] = " (1 = the map's shadow color, 0 = none) over ";
+	curTemplate->m_uiStrings[2] = " seconds (0 = at once).";
+
 	///////////////////////////////////////////////////////////////////////////////////////////////////
 
 	/* Recipe for adding a condition:

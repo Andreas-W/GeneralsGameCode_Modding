@@ -51,10 +51,15 @@ public:
 private:
 	void loadSettings();
 	void build(ID3D8On12PostProcess* postProcess);
+	void applyParameters();		///< the INI parameters for the time of day
+	void releaseChain();		///< the chain, not the compiled shaders
 	void release();
 
 	ID3D8On12PostProcess* m_postProcess;		///< the device the chain was built for
 	std::vector<unsigned int> m_shaders;
+	std::vector<AsciiString> m_shaderNames;		///< the Shader name of each of m_shaders
+	unsigned int m_builtGeneration;				///< ThePostProcessControl's generation the chain was built for
+	Int m_appliedTimeOfDay;
 	std::vector<TextureClass*> m_textures;
 	std::vector<AsciiString> m_passNames;
 	Bool m_built;

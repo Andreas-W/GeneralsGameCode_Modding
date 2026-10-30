@@ -639,6 +639,8 @@ public:
 //-------------------------------------------------------------------------------------------------
 W3DPostProcess::W3DPostProcess() :
 	m_postProcess(nullptr),
+	m_builtGeneration(0),
+	m_appliedTimeOfDay(TIME_OF_DAY_INVALID),
 	m_built(FALSE),
 	m_startTime(0)
 {
@@ -672,6 +674,7 @@ void W3DPostProcess::loadSettings()
 	INI ini;
 	ini.loadFileDirectory("Data\\INI\\Default\\PostProcess", INI_LOAD_OVERWRITE, nullptr, TRUE, TRUE);
 	ini.loadFileDirectory("Data\\INI\\PostProcess", INI_LOAD_OVERWRITE, nullptr, TRUE, TRUE);
+	ThePostProcessControl.settingsReloaded();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -694,25 +697,35 @@ Bool W3DPostProcess::isRunning()
 }
 
 //-------------------------------------------------------------------------------------------------
+void W3DPostProcess::releaseChain()
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_postProcess != nullptr && m_postProcess == DX8Wrapper::Get_Post_Process())
+		m_postProcess->Set_Chain(nullptr, 0);
+#endif
+	for (size_t i = 0; i < m_textures.size(); ++i)
+		REF_PTR_RELEASE(m_textures[i]);
+	m_textures.clear();
+	m_passNames.clear();
+	m_built = FALSE;
+	m_error.clear();
+}
+
+//-------------------------------------------------------------------------------------------------
 void W3DPostProcess::release()
 {
+	releaseChain();
 #ifdef RTS_RENDERER_DX12
 	if (m_postProcess != nullptr && m_postProcess == DX8Wrapper::Get_Post_Process())
 	{
 		m_postProcess->Set_HDR_Scene(FALSE);
-		m_postProcess->Set_Chain(nullptr, 0);
 		for (size_t i = 0; i < m_shaders.size(); ++i)
 			m_postProcess->Release_Shader(m_shaders[i]);
 	}
 #endif
 	m_shaders.clear();
-	for (size_t i = 0; i < m_textures.size(); ++i)
-		REF_PTR_RELEASE(m_textures[i]);
-	m_textures.clear();
-	m_passNames.clear();
+	m_shaderNames.clear();
 	m_postProcess = nullptr;
-	m_built = FALSE;
-	m_error.clear();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -723,7 +736,8 @@ void W3DPostProcess::run(CameraClass *camera)
 	if (postProcess == nullptr)
 		return;
 	// A float back buffer only while a chain brings the scene back to 0..1.
-	if (!TheGlobalData->m_postProcessing || ThePostProcessSettings == nullptr || ThePostProcessSettings->m_chain.empty())
+	const std::vector<AsciiString> *chain = ThePostProcessControl.getChain();
+	if (!TheGlobalData->m_postProcessing || chain == nullptr || chain->empty())
 	{
 		postProcess->Set_HDR_Scene(FALSE);
 		return;
@@ -734,9 +748,28 @@ void W3DPostProcess::run(CameraClass *camera)
 		release();
 		build(postProcess);
 	}
+	else if (m_builtGeneration != ThePostProcessControl.getGeneration())
+	{
+		// A map's settings, a script's chain or a pass switched on or off.
+		releaseChain();
+		build(postProcess);
+	}
 	postProcess->Set_HDR_Scene(!m_passNames.empty() && ThePostProcessSettings->m_hdrScene);
 	if (m_passNames.empty())
 		return;
+
+	if (m_appliedTimeOfDay != TheGlobalData->m_timeOfDay)
+		applyParameters();
+	// Parameters set by scripts, every frame because they can fade.
+	for (Int i = 0; i < ThePostProcessControl.getParameterOverrideCount(); ++i)
+	{
+		AsciiString pass;
+		AsciiString name;
+		Real values[4];
+		Int count = 0;
+		ThePostProcessControl.getParameterOverride(i, pass, name, values, count);
+		setParameter(pass, name, values, count);
+	}
 
 	// The matrices exactly as the renderer got them for this camera, for passes that read the depth.
 	if (camera != nullptr)
@@ -762,14 +795,17 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 #ifdef RTS_RENDERER_DX12
 	m_postProcess = postProcess;
 	m_built = TRUE;
+	m_builtGeneration = ThePostProcessControl.getGeneration();
 
-	const std::vector<AsciiString>& chain = ThePostProcessSettings->m_chain;
+	const std::vector<AsciiString>& chain = *ThePostProcessControl.getChain();
 	std::vector<D3D8ON12_PP_PASS> passes;
 	std::vector<AsciiString> names;
 	ShaderIncludes includes;
 
 	for (size_t index = 0; index < chain.size() && m_error.isEmpty(); ++index)
 	{
+		if (!ThePostProcessControl.isPassEnabled(chain[index]))
+			continue;
 		const PostProcessPassTemplate *pass = ThePostProcessSettings->findPass(chain[index]);
 		if (pass == nullptr)
 		{
@@ -777,42 +813,53 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 			break;
 		}
 
-		// The shader: a file of the mod, else a built-in one.
+		// The shader, compiled once per name: a file of the mod, else a built-in one.
 		AsciiString path;
 		path.format("%s%s.hlsl", SHADER_DIRECTORY, pass->m_shader.str());
-		UINT length = 0;
-		char *file = readShaderFile(path, &length);
-		const char *source = file;
-		if (source == nullptr)
+		UINT shader = 0;
+		size_t compiled = 0;
+		while (compiled < m_shaderNames.size() && m_shaderNames[compiled].compareNoCase(pass->m_shader) != 0)
+			++compiled;
+		if (compiled < m_shaderNames.size())
 		{
-			for (size_t i = 0; i < ARRAY_SIZE(s_builtInShaders); ++i)
+			shader = m_shaders[compiled];
+		}
+		else
+		{
+			UINT length = 0;
+			char *file = readShaderFile(path, &length);
+			const char *source = file;
+			if (source == nullptr)
 			{
-				if (pass->m_shader.compareNoCase(s_builtInShaders[i].name) == 0)
+				for (size_t i = 0; i < ARRAY_SIZE(s_builtInShaders); ++i)
 				{
-					source = s_builtInShaders[i].source;
-					length = (UINT)s_builtInShaders[i].length;
+					if (pass->m_shader.compareNoCase(s_builtInShaders[i].name) == 0)
+					{
+						source = s_builtInShaders[i].source;
+						length = (UINT)s_builtInShaders[i].length;
+					}
 				}
 			}
-		}
-		if (source == nullptr)
-		{
-			m_error.format("PostProcess: pass %s: no shader %s (looked for %s)", pass->m_name.str(), pass->m_shader.str(), path.str());
-			break;
-		}
+			if (source == nullptr)
+			{
+				m_error.format("PostProcess: pass %s: no shader %s (looked for %s)", pass->m_name.str(), pass->m_shader.str(), path.str());
+				break;
+			}
 
-		UINT shader = 0;
-		ID3DBlob *messages = nullptr;
-		const HRESULT hr = postProcess->Create_Shader(source, length, path.str(), &includes, &shader, &messages);
-		delete[] file;
-		if (FAILED(hr))
-		{
-			m_error.format("PostProcess: pass %s: shader %s does not compile: %s", pass->m_name.str(), pass->m_shader.str(),
-				messages != nullptr ? (const char *)messages->GetBufferPointer() : "");
-			if (messages != nullptr)
-				messages->Release();
-			break;
+			ID3DBlob *messages = nullptr;
+			const HRESULT hr = postProcess->Create_Shader(source, length, path.str(), &includes, &shader, &messages);
+			delete[] file;
+			if (FAILED(hr))
+			{
+				m_error.format("PostProcess: pass %s: shader %s does not compile: %s", pass->m_name.str(), pass->m_shader.str(),
+					messages != nullptr ? (const char *)messages->GetBufferPointer() : "");
+				if (messages != nullptr)
+					messages->Release();
+				break;
+			}
+			m_shaders.push_back(shader);
+			m_shaderNames.push_back(pass->m_shader);
 		}
-		m_shaders.push_back(shader);
 
 		D3D8ON12_PP_PASS desc = {};
 		desc.shader = shader;
@@ -820,7 +867,15 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 		desc.hdr = pass->m_hdr;
 		for (size_t input = 0; input < pass->m_inputs.size() && input < D3D8ON12_PP_INPUTS; ++input)
 		{
-			const AsciiString& name = pass->m_inputs[input];
+			// A pass that is switched off hands its first input on.
+			AsciiString name = pass->m_inputs[input];
+			for (Int depth = 0; depth < 16; ++depth)
+			{
+				const PostProcessPassTemplate *skipped = ThePostProcessSettings->findPass(name);
+				if (skipped == nullptr || ThePostProcessControl.isPassEnabled(name))
+					break;
+				name = skipped->m_inputs.empty() ? AsciiString("None") : skipped->m_inputs[0];
+			}
 			if (name.compareNoCase("Scene") == 0)
 			{
 				desc.inputs[input] = D3D8ON12_PP_INPUT_SCENE;
@@ -880,18 +935,32 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 		return;
 	}
 	m_passNames = names;
+	applyParameters();
+	DEBUG_LOG(("PostProcess: %d passes", (Int)names.size()));
+#endif
+}
 
-	for (size_t index = 0; index < names.size(); ++index)
+//-------------------------------------------------------------------------------------------------
+void W3DPostProcess::applyParameters()
+{
+#ifdef RTS_RENDERER_DX12
+	m_appliedTimeOfDay = TheGlobalData->m_timeOfDay;
+	if (m_postProcess == nullptr)
+		return;
+	std::vector<PostProcessParameter> parameters;
+	for (size_t index = 0; index < m_passNames.size(); ++index)
 	{
-		const PostProcessPassTemplate *pass = ThePostProcessSettings->findPass(names[index]);
-		for (size_t i = 0; i < pass->m_parameters.size(); ++i)
+		const PostProcessPassTemplate *pass = ThePostProcessSettings->findPass(m_passNames[index]);
+		if (pass == nullptr)
+			continue;
+		pass->getParameters(TheGlobalData->m_timeOfDay, parameters);
+		for (size_t i = 0; i < parameters.size(); ++i)
 		{
-			const PostProcessParameter& parameter = pass->m_parameters[i];
-			if (FAILED(postProcess->Set_Parameter((UINT)index, parameter.m_name.str(), parameter.m_values, parameter.m_count)))
-				DEBUG_LOG(("PostProcess: pass %s has no parameter %s", names[index].str(), parameter.m_name.str()));
+			const PostProcessParameter& parameter = parameters[i];
+			if (FAILED(m_postProcess->Set_Parameter((UINT)index, parameter.m_name.str(), parameter.m_values, parameter.m_count)))
+				DEBUG_LOG(("PostProcess: pass %s has no parameter %s", m_passNames[index].str(), parameter.m_name.str()));
 		}
 	}
-	DEBUG_LOG(("PostProcess: %d passes", (Int)names.size()));
 #endif
 }
 

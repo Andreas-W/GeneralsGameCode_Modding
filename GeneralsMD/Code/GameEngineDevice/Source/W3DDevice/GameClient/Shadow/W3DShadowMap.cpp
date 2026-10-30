@@ -494,7 +494,7 @@ Bool W3DShadowMap::apply()
 	Real channels[4];
 	for (Int i = 0; i < 4; ++i)
 		channels[i] = ((color >> shifts[i]) & 0xff) / 255.0f;
-	const Real darkness = max(0.0f, (Real)settings.m_darkness);
+	const Real darkness = max(0.0f, ThePostProcessControl.getShadowDarkness(settings.m_darkness));
 	const Real brightness = max(0.01f, channels[0] * 0.299f + channels[1] * 0.587f + channels[2] * 0.114f);
 	const Real scale = powf(brightness, darkness - 1.0f);
 	for (Int i = 0; i < 3; ++i)
