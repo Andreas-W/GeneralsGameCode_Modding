@@ -40,7 +40,7 @@
 //	  Bias = 2						; world units a point is moved towards the sun before the test
 //	  DepthBias = 0					; rasterizer depth bias of the casters
 //	  SlopeBias = 2					; rasterizer slope scaled depth bias of the casters
-//	  Darkness = 1					; scales how much the map's shadow color darkens
+//	  Darkness = 1					; 1 = the map's shadow color, higher = darker with the same hue, 0 = none
 //	  MinSunElevation = 0			; degrees; a lower sun is raised to this, which shortens the shadows
 //	  Terrain = Yes					; hills and cliffs cast shadows too
 //	  Trees = Yes					; trees cast shadows into the map instead of their decal shadows

@@ -522,8 +522,8 @@ def render_shadows(enabled: bool | None = None, size: int | None = None, softnes
     stencil shadow volumes when the PostProcess INI has a ShadowMap block (or enabled=true here) and the
     3D shadows option is on. The values change the ShadowMap settings live, not the INI: size (texels of
     the map), softness (soft edge radius in texels), bias (world units towards the sun before the test),
-    depth_bias / slope_bias (rasterizer bias of the casters against acne), darkness (scales the map's
-    shadow color), min_sun_elevation (degrees; a lower sun is raised to it, which shortens the shadows),
+    depth_bias / slope_bias (rasterizer bias of the casters against acne), darkness (1 = the map's
+    shadow color, higher = darker with the same hue), min_sun_elevation (degrees; a lower sun is raised to it, which shortens the shadows),
     terrain (hills cast shadows), trees (trees cast map shadows instead of their decal shadows),
     max_update_rate (redraws per second while the view stands still, 0 = every frame), detail_cascade (a second,
     smaller map around the middle of the view for sharper shadows there), detail_coverage (its width as a

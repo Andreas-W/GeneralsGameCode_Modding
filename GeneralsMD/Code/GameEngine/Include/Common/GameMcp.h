@@ -132,7 +132,7 @@ extern GameMcpPostProcess TheGameMcpPostProcess;
 struct GameMcpShadowMap
 {
 	bool (*isAvailable)();
-	void (*getState)(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, Int &debug);
+	void (*getState)(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, Int &debug, UnsignedInt &shadowColor);
 	void (*setDebug)(Int debug);	///< 1: shadow amount as grey, 2: also the detail cascade
 };
 extern GameMcpShadowMap TheGameMcpShadowMap;

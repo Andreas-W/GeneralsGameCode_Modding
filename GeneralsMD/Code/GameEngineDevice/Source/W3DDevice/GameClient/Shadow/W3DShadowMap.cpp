@@ -486,14 +486,20 @@ Bool W3DShadowMap::apply()
 
 	D3D8ON12_SHADOW_PARAMS params;
 	memset(&params, 0, sizeof(params));
-	// The map's shadow color, alpha included, as the stencil shadows multiply with it.
+	// The map's shadow color, alpha included, as the stencil shadows multiply with it. Darkness scales all
+	// color channels by the color's brightness to the power of Darkness - 1, so a tinted shadow color (some
+	// maps have blue at full) keeps its hue when darkened instead of running into one channel.
 	const UnsignedInt color = TheW3DShadowManager->getShadowColor();
 	const Int shifts[4] = { 16, 8, 0, 24 };
+	Real channels[4];
 	for (Int i = 0; i < 4; ++i)
-	{
-		const Real channel = ((color >> shifts[i]) & 0xff) / 255.0f;
-		params.color[i] = max(0.0f, min(1.0f, 1.0f - (1.0f - channel) * settings.m_darkness));
-	}
+		channels[i] = ((color >> shifts[i]) & 0xff) / 255.0f;
+	const Real darkness = max(0.0f, (Real)settings.m_darkness);
+	const Real brightness = max(0.01f, channels[0] * 0.299f + channels[1] * 0.587f + channels[2] * 0.114f);
+	const Real scale = powf(brightness, darkness - 1.0f);
+	for (Int i = 0; i < 3; ++i)
+		params.color[i] = darkness > 0.0f ? max(0.0f, min(1.0f, channels[i] * scale)) : 1.0f;
+	params.color[3] = max(0.0f, min(1.0f, powf(channels[3], darkness)));
 	Vector3 toLight;
 	getToLight(toLight);
 	params.toLight[0] = toLight.X;

@@ -83,6 +83,7 @@ static void drawFramerateBar();
 #include "W3DDevice/GameClient/W3DPostProcess.h"
 #include "W3DDevice/GameClient/W3DDebugDisplay.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
+#include "W3DDevice/GameClient/W3DShadow.h"
 #include "W3DDevice/GameClient/W3DShadowMap.h"
 
 #ifdef RTS_RENDERER_DX12
@@ -796,7 +797,7 @@ static void mcpGetGpuTiming(GameMcpGpuTiming &timing)
 #endif
 }
 static bool mcpShadowMapAvailable() { return DX8Wrapper::Get_Shadow_Mapper() != nullptr; }
-static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, Int &debug)
+static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, Int &debug, UnsignedInt &shadowColor)
 {
 	active = TheW3DShadowMap != nullptr && TheW3DShadowMap->isActive();
 	rendered = TheW3DShadowMap != nullptr && TheW3DShadowMap->wasRendered();
@@ -804,6 +805,7 @@ static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Rea
 	coverage = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getCoverage() : 0.0f;
 	sunElevation = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getSunElevation() : 0.0f;
 	debug = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getDebug() : 0;
+	shadowColor = TheW3DShadowManager != nullptr ? TheW3DShadowManager->getShadowColor() : 0;
 }
 static void mcpShadowMapSetDebug(Int debug) { if (TheW3DShadowMap) TheW3DShadowMap->setDebug(debug); }
 static bool mcpMaterialsAvailable() { return TheW3DMaterials != nullptr && TheW3DMaterials->isAvailable(); }

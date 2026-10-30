@@ -211,11 +211,15 @@ McpJson cmdShadows(const McpJson &args)
 	Real coverage = 0.0f;
 	Real sunElevation = 0.0f;
 	Int debug = 0;
-	TheGameMcpShadowMap.getState(active, rendered, casters, coverage, sunElevation, debug);
+	UnsignedInt shadowColor = 0;
+	TheGameMcpShadowMap.getState(active, rendered, casters, coverage, sunElevation, debug, shadowColor);
+	char shadowColorText[16];
+	snprintf(shadowColorText, sizeof(shadowColorText), "%08X", shadowColor);
 	McpJson result = McpJson::makeObject().set("available", TheGameMcpShadowMap.isAvailable())
 		.set("configured", TheShadowMapSettings != nullptr).set("shadow_volumes_option", TheGlobalData->m_useShadowVolumes != 0)
 		.set("active", active).set("rendered", rendered).set("casters", (Int)casters).set("coverage", (Real)coverage)
-		.set("sun_elevation", (Real)sunElevation).set("debug", debug != 0).set("debug_cascades", debug > 1);
+		.set("sun_elevation", (Real)sunElevation).set("debug", debug != 0).set("debug_cascades", debug > 1)
+		.set("shadow_color", shadowColorText);
 	if (TheShadowMapSettings != nullptr) {
 		const ShadowMapSettings &settings = *TheShadowMapSettings;
 		result.set("enabled", settings.m_enabled != 0).set("size", (Int)settings.m_size).set("softness", (Real)settings.m_softness)
