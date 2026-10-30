@@ -41,6 +41,7 @@
 #include "Common/FileSystem.h"
 #include "Common/ArchiveFileSystem.h"
 #include "Common/LocalFileSystem.h"
+#include "Common/CriticalSection.h"
 #include "Common/Debug.h"
 #include "Common/StackDump.h"
 #include "Common/GameMemory.h"
@@ -272,6 +273,10 @@ static LONG WINAPI UnHandledExceptionFilter(struct _EXCEPTION_POINTERS* e_info)
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 
+// The memory manager and strings only lock when these are set. WorldBuilder allocates from other
+// threads too (texture loader, MCP bridge), so without them the memory pools get corrupted.
+static CriticalSection critSec1, critSec2, critSec3, critSec4, critSec5;
+
 /////////////////////////////////////////////////////////////////////////////
 // CWorldBuilderApp initialization
 
@@ -281,6 +286,12 @@ BOOL CWorldBuilderApp::InitInstance()
 
 	// initialization
 	SetUnhandledExceptionFilter(UnHandledExceptionFilter);
+
+	TheAsciiStringCriticalSection = &critSec1;
+	TheUnicodeStringCriticalSection = &critSec2;
+	TheDmaCriticalSection = &critSec3;
+	TheMemoryPoolCriticalSection = &critSec4;
+	TheDebugLogCriticalSection = &critSec5;
 
 	// initialize the memory manager early
 	initMemoryManager();
@@ -689,6 +700,12 @@ int CWorldBuilderApp::ExitInstance()
 		TheMemoryPoolFactory->debugMemoryReport(REPORT_POOLINFO | REPORT_POOL_OVERFLOW | REPORT_SIMPLE_LEAKS, 0, 0);
 	#endif
 	shutdownMemoryManager();
+
+	TheAsciiStringCriticalSection = nullptr;
+	TheUnicodeStringCriticalSection = nullptr;
+	TheDmaCriticalSection = nullptr;
+	TheMemoryPoolCriticalSection = nullptr;
+	TheDebugLogCriticalSection = nullptr;
 
 	return CWinApp::ExitInstance();
 }
