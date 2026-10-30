@@ -167,6 +167,7 @@ float															WW3D::FractionalSyncMs = 0.0f;
 unsigned int											WW3D::SyncTime = 0;
 unsigned int											WW3D::PreviousSyncTime = 0;
 bool														WW3D::IsSortingEnabled = true;
+bool														WW3D::IsDepthOnlyPass = false;
 
 float														WW3D::PixelCenterX = 0.0f;
 float														WW3D::PixelCenterY = 0.0f;

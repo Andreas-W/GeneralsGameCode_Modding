@@ -186,6 +186,7 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 		RenderInfoClass rinfo(*m_lightCamera);
 		m_lightCamera->Apply();
 		TheDX8MeshRenderer.Set_Camera(&rinfo.Camera);
+		WW3D::Set_Depth_Only_Pass(true);
 		// The casters of the shadow volumes, also those just outside the view whose shadows reach into
 		// it; their meshes cull themselves against the light camera.
 		for (W3DVolumetricShadow *shadow = TheW3DVolumetricShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
@@ -197,6 +198,7 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 			}
 		}
 		WW3D::Flush(rinfo);
+		WW3D::Set_Depth_Only_Pass(false);
 		WW3D::End_Render(false);
 		m_rendered = TRUE;
 	}
