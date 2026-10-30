@@ -113,6 +113,8 @@ protected:
 	afx_msg void OnUpdateViewShowshadows(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowSoftWater();
 	afx_msg void OnUpdateViewShowSoftWater(CCmdUI* pCmdUI);
+	afx_msg void OnViewShowPostProcessing();
+	afx_msg void OnUpdateViewShowPostProcessing(CCmdUI* pCmdUI);
 	afx_msg void OnViewExtraBlends();
 	afx_msg void OnUpdateViewShowExtraBlends(CCmdUI* pCmdUI);
 	afx_msg void OnEditShadows();

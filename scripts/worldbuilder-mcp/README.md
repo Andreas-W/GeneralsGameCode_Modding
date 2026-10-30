@@ -68,6 +68,7 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - Heightmap PNGs hold the stored bytes (raw ÷ scale).
 - **Undo.** WorldBuilder keeps 15 undo steps. Waypoint links are not undoable (same as in the UI).
 - **Screenshots.** They render the 3D view, so the WorldBuilder window must not be minimized.
+- **Direct3D 12 effects.** Started with `-dx12`, WorldBuilder shows the game's post-processing, materials and shadow maps (same INI files, plus the map's `map.ini` render blocks). View > Show Post-Processing (DX12) turns post-processing off. `view_render` switches each effect on or off and reports what runs; without `-dx12` they do nothing.
 - **Symmetry.** `map_transform` mirrors or rotates the whole map. `map_symmetrize` copies one half or quarter onto the rest.
   - Both carry heights, textures with correctly oriented blends, passability, objects, waypoints with their links, and areas.
   - Player numbers in names and owners are renumbered for each copy.

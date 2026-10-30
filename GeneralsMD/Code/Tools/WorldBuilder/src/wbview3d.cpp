@@ -71,6 +71,9 @@
 #include "W3DDevice/GameClient/W3DScene.h"
 #include "W3DDevice/Common/W3DConvert.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DPostProcess.h"
 #include "DrawObject.h"
 #include "Common/MapObject.h"
 #include "Common/GlobalData.h"
@@ -440,6 +443,7 @@ WbView3d::WbView3d() :
 	setShowGarrisoned(::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowGarrisoned", 0) != 0);
 	setHighlightTestArt(::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "HighlightTestArt", 0) != 0);
 	setShowLetterbox(::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowLetterbox", 0) != 0);
+	TheWritableGlobalData->m_postProcessing = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowPostProcessing", 1) != 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -489,6 +493,10 @@ void WbView3d::shutdownWW3D()
 			delete TheW3DShadowManager;
 			TheW3DShadowManager=nullptr;
 		}
+		delete TheW3DPostProcess;
+		TheW3DPostProcess = nullptr;
+		delete TheW3DMaterials;
+		TheW3DMaterials = nullptr;
 		REF_PTR_RELEASE(m_transparentObjectsScene);
 		REF_PTR_RELEASE(m_overlayScene);
 		REF_PTR_RELEASE(m_baseBuildScene);
@@ -2109,6 +2117,10 @@ void WbView3d::render()
 {
 	++m_updateCount;
 
+	// The shadow map is drawn into before the frame, as the game does.
+	if (TheW3DShadowMap)
+		TheW3DShadowMap->update(m_camera);
+
 	if (WW3D::Begin_Render(true,true,Vector3(0.5f,0.5f,0.5f), TheWaterTransparency->m_minWaterOpacity) == WW3D_ERROR_OK)
 	{
 
@@ -2133,6 +2145,10 @@ void WbView3d::render()
 		m_baseBuildScene->Set_Ambient_Light(newAmb);
 		WW3D::Render(m_baseBuildScene,m_camera);
 		m_baseBuildScene->Set_Ambient_Light(amb);
+
+		// Post-process the world, not the wireframe, tool feedback, icons and labels drawn after it.
+		if (TheW3DPostProcess)
+			TheW3DPostProcess->run(m_camera);
 
 		if (m_showWireframe) {
 			if (m_heightMapRenderObj) {
@@ -2195,6 +2211,8 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWMACROTEXTURE, OnUpdateViewShowmacrotexture)
 	ON_COMMAND(ID_EDIT_SELECTMACROTEXTURE, OnEditSelectmacrotexture)
 	ON_COMMAND(ID_VIEW_SHOWSOFTWATER, OnViewShowSoftWater)
+	ON_COMMAND(ID_VIEW_SHOWPOSTPROCESSING, OnViewShowPostProcessing)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWPOSTPROCESSING, OnUpdateViewShowPostProcessing)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWEXTRABLENDS, OnUpdateViewShowExtraBlends)
 	ON_COMMAND(ID_VIEW_SHOWEXTRABLENDS, OnViewExtraBlends)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWSOFTWATER, OnUpdateViewShowSoftWater)
@@ -2331,6 +2349,18 @@ void WbView3d::initWW3D()
 		WW3D::Set_Screen_UV_Bias( TRUE );  ///< this makes text look good :)
 
 		W3DShaderManager::init();
+		// Post-processing, materials and shadow maps of the Direct3D 12 renderer (-dx12), as in the game;
+		// without that renderer they do nothing.
+		if (TheW3DPostProcess == nullptr)
+		{
+			TheW3DPostProcess = new W3DPostProcess;
+			TheW3DPostProcess->init();
+		}
+		if (TheW3DMaterials == nullptr)
+		{
+			TheW3DMaterials = new W3DMaterials;
+			TheW3DMaterials->init();
+		}
 		init3dScene();
 		m_layer = new LayerClass( m_scene, m_camera );
 		m_buildLayer = new LayerClass( m_baseBuildScene, m_camera );
@@ -2997,6 +3027,19 @@ void WbView3d::OnViewShowSoftWater()
 void WbView3d::OnUpdateViewShowSoftWater(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(TheGlobalData->m_showSoftWaterEdge ? 1 : 0);
+}
+
+void WbView3d::OnViewShowPostProcessing()
+{
+	TheWritableGlobalData->m_postProcessing = !TheGlobalData->m_postProcessing;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowPostProcessing", TheGlobalData->m_postProcessing ? 1 : 0);
+}
+
+void WbView3d::OnUpdateViewShowPostProcessing(CCmdUI* pCmdUI)
+{
+	// Only the Direct3D 12 renderer (-dx12) post-processes.
+	pCmdUI->Enable(TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable());
+	pCmdUI->SetCheck(TheGlobalData->m_postProcessing ? 1 : 0);
 }
 
 void WbView3d::OnViewExtraBlends()
