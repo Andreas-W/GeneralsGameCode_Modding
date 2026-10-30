@@ -422,6 +422,8 @@ void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int s
 		camera->Apply();
 		TheDX8MeshRenderer.Set_Camera(&rinfo.Camera);
 		WW3D::Set_Depth_Only_Pass(true);
+		// Casters draw depth: the depth test may be off since a device reset (no shader turns it on).
+		DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, TRUE);
 		// The casters of the shadow volumes, also those just outside the view whose shadows reach into
 		// it. Objects outside the light camera are left out before they update their animation.
 		const FrustumClass &frustum = camera->Get_Frustum();
@@ -508,7 +510,13 @@ Bool W3DShadowMap::apply()
 	params.bias = settings.m_bias;
 	params.softness = settings.m_softness;
 	params.debug = m_debug;
-	return SUCCEEDED(DX8Wrapper::Get_Shadow_Mapper()->Apply_Shadows(&params, &view, &projection));
+	const Bool applied = SUCCEEDED(DX8Wrapper::Get_Shadow_Mapper()->Apply_Shadows(&params, &view, &projection));
+	// This replaces the volume pass, whose render states later passes rely on: it turns the depth test on
+	// (no shader does; after a device reset WorldBuilder drew without it and its water covered everything)
+	// and makes W3D set every render state again.
+	DX8Wrapper::Invalidate_Cached_Render_States();
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, TRUE);
+	return applied;
 #else
 	return FALSE;
 #endif
