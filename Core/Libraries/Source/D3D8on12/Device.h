@@ -262,7 +262,7 @@ private:
 	ID3DBlob* Get_Shader(UINT64 hash, const std::string& source, const char* target);
 	const TranslatedShader* Get_Translated_Vertex_Shader(DWORD handle, UINT64& hash);
 	const TranslatedShader* Get_Translated_Pixel_Shader(const PixelShaderTranslation& info, const DWORD* function, UINT64& hash);
-	void Fill_Vertex_Constants(FFVertexConstants& constants);
+	void Fill_Vertex_Constants(FFVertexConstants& constants, bool lighting, UINT stages);
 	void Fill_Pixel_Constants(FFPixelConstants& constants);
 	void Fill_Shader_Vertex_Constants(ShaderVertexConstants& constants);
 
@@ -346,6 +346,16 @@ private:
 	};
 	BoundState m_bound;
 	FFPixelConstants m_lastPixelConstants;
+	// The keys of the last draw and what they gave, as most draws repeat them.
+	VertexShaderKey m_lastVertexKey;
+	UINT64 m_lastVertexHash;
+	bool m_lastVertexKeyValid;
+	PixelShaderKey m_lastPixelKey;
+	UINT64 m_lastPixelHash;
+	bool m_lastPixelKeyValid;
+	PipelineKey m_lastPipelineKey;
+	ID3D12PipelineState* m_lastPipeline;
+	bool m_lastPipelineValid;
 
 	ComPtr<ID3D12Resource> m_uploadBuffers[FRAME_COUNT];
 	unsigned char* m_uploadCpu[FRAME_COUNT];

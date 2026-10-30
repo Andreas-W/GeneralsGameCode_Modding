@@ -476,10 +476,17 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 		key.shadowSlopeBias = m_shadowMapper->Slope_Bias();
 	}
 
+	if (m_lastPipelineValid && memcmp(&key, &m_lastPipelineKey, sizeof(key)) == 0)
+		return m_lastPipeline;
 	const UINT64 hash = Hash_Bytes(&key, sizeof(key));
 	auto found = m_pipelines.find(hash);
 	if (found != m_pipelines.end())
-		return found->second.Get();
+	{
+		m_lastPipelineKey = key;
+		m_lastPipeline = found->second.Get();
+		m_lastPipelineValid = true;
+		return m_lastPipeline;
+	}
 
 	// Shader sources are only generated when the compiled shader is not cached yet.
 	ID3DBlob* vs = nullptr;
@@ -586,10 +593,13 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	if (FAILED(m_device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipeline))))
 		Log("could not create a pipeline state for FVF 0x%X", key.fvf);
 	m_pipelines[hash] = pipeline;
+	m_lastPipelineKey = key;
+	m_lastPipeline = pipeline.Get();
+	m_lastPipelineValid = true;
 	return pipeline.Get();
 }
 
-void Device::Fill_Vertex_Constants(FFVertexConstants& c)
+void Device::Fill_Vertex_Constants(FFVertexConstants& c, bool lighting, UINT stages)
 {
 	const DWORD* rs = m_state.renderStates;
 	const D3DMATRIX& view = m_state.transforms[0];
@@ -601,7 +611,8 @@ void Device::Fill_Vertex_Constants(FFVertexConstants& c)
 	memcpy(c.world, &world, sizeof(c.world));
 	memcpy(c.worldView, &world_view, sizeof(c.worldView));
 	memcpy(c.projection, &projection, sizeof(c.projection));
-	for (UINT stage = 0; stage < FF_STAGES; ++stage)
+	// Only what the shader reads: the texture transforms of its stages, the lights when it is lit.
+	for (UINT stage = 0; stage < stages && stage < FF_STAGES; ++stage)
 		memcpy(c.texTransform[stage], &m_state.transforms[2 + stage], sizeof(c.texTransform[stage]));
 
 	const D3DVIEWPORT8& vp = m_state.viewport;
@@ -623,7 +634,7 @@ void Device::Fill_Vertex_Constants(FFVertexConstants& c)
 	c.fog[3] = 0;
 
 	int count = 0;
-	for (UINT i = 0; i < MAX_LIGHTS && count < (int)FF_LIGHTS; ++i)
+	for (UINT i = 0; lighting && i < MAX_LIGHTS && count < (int)FF_LIGHTS; ++i)
 	{
 		if (!m_state.lightEnabled[i])
 			continue;
@@ -750,6 +761,15 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	const bool has_color0 = (fvf & D3DFVF_DIFFUSE) != 0;
 	const bool has_color1 = (fvf & D3DFVF_SPECULAR) != 0;
 
+	// The shadow map only needs what writes depth; blended draws without an alpha test are glows and glass.
+	const bool shadow_pass = m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing();
+	if (shadow_pass && (rs[D3DRS_ZENABLE] == D3DZB_FALSE || rs[D3DRS_ZWRITEENABLE] == FALSE || rhw
+		|| (rs[D3DRS_ALPHABLENDENABLE] != FALSE && rs[D3DRS_ALPHATESTENABLE] == FALSE)))
+		return D3D_OK;
+	// Shadow casters only need their depth: no lighting, fog or textures, except the base texture's alpha
+	// for the alpha test.
+	const bool shadow_caster = shadow_pass && !shader_vs && !shader_ps;
+
 	// Pixel shader key: the enabled texture stages.
 	PixelShaderKey ps_key;
 	memset(&ps_key, 0, sizeof(ps_key));
@@ -768,7 +788,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		ps_key.stages[stage].textureType = (BYTE)type_of_texture;
 		ps_key.stageCount = FF_STAGES;
 	}
-	for (UINT stage = 0; !shader_ps && stage < FF_STAGES; ++stage)
+	for (UINT stage = 0; !shader_ps && !shadow_caster && stage < FF_STAGES; ++stage)
 	{
 		const DWORD* tss = m_state.textureStageStates[stage];
 		if (tss[D3DTSS_COLOROP] == D3DTOP_DISABLE)
@@ -794,15 +814,31 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	ps_key.alphaFunc = rs[D3DRS_ALPHATESTENABLE] ? (BYTE)rs[D3DRS_ALPHAFUNC] : 0;
 	if (ps_key.alphaFunc == D3DCMP_ALWAYS)
 		ps_key.alphaFunc = 0;
+	if (shadow_caster && ps_key.alphaFunc != 0 && m_state.textureStageStates[0][D3DTSS_COLOROP] != D3DTOP_DISABLE)
+	{
+		const DWORD* tss = m_state.textureStageStates[0];
+		PixelShaderKey::Stage& s = ps_key.stages[0];
+		s.colorOp = D3DTOP_SELECTARG1;
+		s.colorArg1 = D3DTA_TEXTURE;
+		s.alphaOp = (BYTE)tss[D3DTSS_ALPHAOP];
+		s.alphaArg0 = (BYTE)tss[D3DTSS_ALPHAARG0];
+		s.alphaArg1 = (BYTE)tss[D3DTSS_ALPHAARG1];
+		s.alphaArg2 = (BYTE)tss[D3DTSS_ALPHAARG2];
+		s.projected = (tss[D3DTSS_TEXTURETRANSFORMFLAGS] & D3DTTFF_PROJECTED) != 0;
+		s.coordCount = (BYTE)(tss[D3DTSS_TEXTURETRANSFORMFLAGS] & 0xFF);
+		TextureType type_of_texture = TEXTURE_NONE;
+		srvs[0] = Prepare_Texture(m_textures[0], type_of_texture);
+		s.textureType = (BYTE)type_of_texture;
+		ps_key.stageCount = 1;
+	}
 
 	BYTE fog_mode = D3DFOG_NONE;
 	if (rs[D3DRS_FOGENABLE])
 		fog_mode = (BYTE)(rs[D3DRS_FOGTABLEMODE] != D3DFOG_NONE ? rs[D3DRS_FOGTABLEMODE] : rs[D3DRS_FOGVERTEXMODE]);
-	ps_key.fog = fog_mode != D3DFOG_NONE || (rs[D3DRS_FOGENABLE] && rhw);
-	ps_key.specular = rs[D3DRS_SPECULARENABLE] != FALSE;
+	ps_key.fog = !shadow_caster && (fog_mode != D3DFOG_NONE || (rs[D3DRS_FOGENABLE] && rhw));
+	ps_key.specular = !shadow_caster && rs[D3DRS_SPECULARENABLE] != FALSE;
 
 	// A material replaces the fixed function pixel shader of ordinary 3D draws, not in the shadow map.
-	const bool shadow_pass = m_shadowMapper != nullptr && m_shadowMapper->Is_Drawing();
 	const bool point_sprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
 	MaterialSystem::Binding material = {};
 	const bool use_material = m_materialSystem != nullptr && !shader_vs && !shader_ps && !rhw && !point_sprite && !shadow_pass
@@ -826,7 +862,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	VertexShaderKey vs_key;
 	memset(&vs_key, 0, sizeof(vs_key));
 	vs_key.fvf = fvf;
-	vs_key.lighting = rs[D3DRS_LIGHTING] && (fvf & D3DFVF_NORMAL) != 0 && !rhw;
+	vs_key.lighting = rs[D3DRS_LIGHTING] && (fvf & D3DFVF_NORMAL) != 0 && !rhw && !shadow_caster;
 	if (vs_key.lighting)
 	{
 		const bool color_vertex = rs[D3DRS_COLORVERTEX] != FALSE;
@@ -866,8 +902,15 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	}
 	else
 	{
+		// Most draws use the same keys as the one before; comparing is cheaper than hashing.
 		shaders.vertexKey = &vs_key;
-		shaders.vertexHash = Hash_Bytes(&vs_key, sizeof(vs_key));
+		if (!m_lastVertexKeyValid || memcmp(&vs_key, &m_lastVertexKey, sizeof(vs_key)) != 0)
+		{
+			m_lastVertexKey = vs_key;
+			m_lastVertexHash = Hash_Bytes(&vs_key, sizeof(vs_key));
+			m_lastVertexKeyValid = true;
+		}
+		shaders.vertexHash = m_lastVertexHash;
 	}
 	if (shader_ps)
 	{
@@ -890,13 +933,14 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	else
 	{
 		shaders.pixelKey = &ps_key;
-		shaders.pixelHash = Hash_Bytes(&ps_key, sizeof(ps_key)) ^ 0x5bd1e995;
+		if (!m_lastPixelKeyValid || memcmp(&ps_key, &m_lastPixelKey, sizeof(ps_key)) != 0)
+		{
+			m_lastPixelKey = ps_key;
+			m_lastPixelHash = Hash_Bytes(&ps_key, sizeof(ps_key)) ^ 0x5bd1e995;
+			m_lastPixelKeyValid = true;
+		}
+		shaders.pixelHash = m_lastPixelHash;
 	}
-
-	// The shadow map only needs what writes depth; blended draws without an alpha test are glows and glass.
-	if (shadow_pass && (rs[D3DRS_ZENABLE] == D3DZB_FALSE || rs[D3DRS_ZWRITEENABLE] == FALSE || (shaders.fvf & D3DFVF_POSITION_MASK) == D3DFVF_XYZRHW
-		|| (rs[D3DRS_ALPHABLENDENABLE] != FALSE && rs[D3DRS_ALPHATESTENABLE] == FALSE)))
-		return D3D_OK;
 
 	TargetState targets;
 	if (!Prepare_Targets(targets))
@@ -912,7 +956,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	if (shader_vs)
 		Fill_Shader_Vertex_Constants(*(ShaderVertexConstants*)vs_constants.cpu);
 	else
-		Fill_Vertex_Constants(*(FFVertexConstants*)vs_constants.cpu);
+		Fill_Vertex_Constants(*(FFVertexConstants*)vs_constants.cpu, vs_key.lighting != 0, vs_key.stageCount);
 	FFPixelConstants pc;
 	memset(&pc, 0, sizeof(pc));
 	Fill_Pixel_Constants(pc);
