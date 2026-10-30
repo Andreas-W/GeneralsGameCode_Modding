@@ -2059,6 +2059,20 @@ static Int clampIndex(Int value, Int maxValue)
 	return value;
 }
 
+// Boundaries start at the lower left corner of the playable area, so cells added on that side
+// always widen them. Cells added on the far side only do when the boundary reaches that edge;
+// hand-drawn boundaries often end a few cells short of it or past it, so a small gap still counts.
+static Int resizeBoundary(Int boundary, Int oldPlayable, Int newPlayable, Int addNear, Int addFar)
+{
+	const Int NEAR_EDGE_CELLS = 5;
+	Int result = boundary + addNear;
+	if (boundary >= oldPlayable - NEAR_EDGE_CELLS) {
+		result += addFar;
+	}
+	result = clampIndex(result, newPlayable);
+	return result < 1 ? 1 : result;
+}
+
 Bool WorldHeightMapEdit::resizeBySides(Int addLeft, Int addBottom, Int addRight, Int addTop, Int newBorder, Int fillHeight, Int fillTextureClass)
 {
 	if (newBorder<0) newBorder = 0;
@@ -2167,22 +2181,13 @@ Bool WorldHeightMapEdit::resizeBySides(Int addLeft, Int addBottom, Int addRight,
 		}
 	}
 
-	// Boundaries are measured from the lower left corner of the playable area. One that covered
-	// the whole map keeps doing so; the others move with the terrain as far as they can.
 	for (size_t b=0; b<m_boundaries.size(); b++) {
 		ICoord2D &boundary = m_boundaries[b];
 		if (boundary.x == 0 || boundary.y == 0) {
 			continue;
 		}
-		if (boundary.x == oldPlayableX && boundary.y == oldPlayableY) {
-			boundary.x = newPlayableX;
-			boundary.y = newPlayableY;
-		} else {
-			boundary.x = clampIndex(boundary.x + addLeft, newPlayableX);
-			boundary.y = clampIndex(boundary.y + addBottom, newPlayableY);
-			if (boundary.x < 1) boundary.x = 1;
-			if (boundary.y < 1) boundary.y = 1;
-		}
+		boundary.x = resizeBoundary(boundary.x, oldPlayableX, newPlayableX, addLeft, addRight);
+		boundary.y = resizeBoundary(boundary.y, oldPlayableY, newPlayableY, addBottom, addTop);
 	}
 
 	setDrawOrg(0,0);
