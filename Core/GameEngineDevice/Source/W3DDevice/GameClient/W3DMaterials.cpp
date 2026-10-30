@@ -299,6 +299,111 @@ float4 main(MaterialInput input) : SV_Target
 }
 )";
 
+// Terrain: the two blended tiles of the terrain texture lit as the game baked it, with bumps from the
+// terrain textures' normal maps (or their brightness), highlights from their specular maps, and the
+// clouds and light map as the game draws them.
+static const char s_terrainShader[] = R"(
+#include "Material.hlsli"
+cbuffer Params : register(b2)
+{
+	float HeightFromColor;	// bumps from the brightness where there is no normal map, 0 = 1; -1 = none
+	float NormalStrength;	// scales the bumps, 0 = 1
+	float Specular;			// highlight strength where there is no specular map, 0 = none
+	float Gloss;			// highlight sharpness, 0 = 32 (with a map: the map's green times this, 0 = 64)
+	float3 NoiseMapping;	// set by the game: cloud and light map uv = world xy * x (+ y, z for clouds)
+	float ExtraBlend;		// set by the game: 1 for the third tile of three-way blends (one tile, alpha from colour)
+	float3 SunDirection;	// set by the game
+	float FlipGreen;		// 1 for normal maps with green pointing down (OpenGL convention)
+	float3 SunColor;		// set by the game
+	float ParamPad;
+	float3 AmbientColor;	// set by the game
+};
+float Brightness(float3 color) { return dot(color, float3(0.299, 0.587, 0.114)); }
+float4 SampleBlend(Texture2D map, SamplerState state, MaterialInput input, float blend)
+{
+	float4 first = map.Sample(state, input.tex0.xy);
+	if (ExtraBlend > 0)
+		return first;
+	return lerp(first, map.Sample(state, input.tex1.xy), blend);
+}
+float4 main(MaterialInput input) : SV_Target
+{
+	float blend = ExtraBlend > 0 ? 0 : input.diffuse.a;
+	float4 base = SampleBlend(BaseTexture, BaseSampler, input, blend);
+	if (ExtraBlend <= 0)
+		base.rgb = lerp(BaseTexture.Sample(BaseSampler, input.tex0.xy).rgb, DetailTexture.Sample(DetailSampler, input.tex1.xy).rgb, blend);
+
+	// The surface normal from the triangle (the terrain has no normals), facing the camera.
+	float3 viewPos = input.viewPosition;
+	float3 surface = normalize(cross(ddx(viewPos), ddy(viewPos)));
+	if (dot(surface, viewPos) > 0)
+		surface = -surface;
+
+	float3 bump = float3(0, 0, 1);
+	bool fromMap = false;
+	if (HasMap(MAP_NORMAL))
+	{
+		float4 map = SampleBlend(NormalMap, NormalSampler, input, blend);
+		if (map.a > 0.5)
+		{
+			bump = map.xyz * 2 - 1;
+			if (FlipGreen > 0)
+				bump.y = -bump.y;
+			fromMap = true;
+		}
+	}
+	if (!fromMap && HeightFromColor >= 0)
+	{
+		// Brightness differences of neighbouring texels; the atlas is 2048 wide.
+		float2 texel = float2(1.0 / 2048, 1.0 / 2048);
+		float2 uv = input.tex0.xy;
+		float left = Brightness(BaseTexture.Sample(BaseSampler, uv - float2(texel.x, 0)).rgb);
+		float right = Brightness(BaseTexture.Sample(BaseSampler, uv + float2(texel.x, 0)).rgb);
+		float up = Brightness(BaseTexture.Sample(BaseSampler, uv - float2(0, texel.y)).rgb);
+		float down = Brightness(BaseTexture.Sample(BaseSampler, uv + float2(0, texel.y)).rgb);
+		bump.xy += float2(left - right, up - down) * (HeightFromColor > 0 ? HeightFromColor : 1) * 4;
+	}
+	bump.xy *= NormalStrength > 0 ? NormalStrength : 1;
+	float3 normal = normalize(mul(normalize(bump), TangentFrame(viewPos, surface, input.tex0.xy)));
+
+	// The baked lighting, changed by as much as the sun on the bumped normal differs from the flat one.
+	float3 toSun = normalize(ViewDirection(dot(SunDirection, SunDirection) > 0 ? SunDirection : float3(0.3, 0.3, 0.9)));
+	float3 sun = dot(SunColor, SunColor) > 0 ? SunColor : float3(0.8, 0.8, 0.8);
+	float3 ambient = dot(AmbientColor, AmbientColor) > 0 ? AmbientColor : float3(0.3, 0.3, 0.3);
+	float3 flat = ambient + sun * saturate(dot(surface, toSun));
+	float3 bumped = ambient + sun * saturate(dot(normal, toSun));
+	float3 light = input.diffuse.rgb * bumped / max(flat, 0.05);
+	float4 color = float4(base.rgb * light, ExtraBlend > 0 ? base.a * input.diffuse.a : 1);
+
+	// Highlights of the sun.
+	float strength = Specular;
+	float power = Gloss > 0 ? Gloss : 32;
+	if (HasMap(MAP_SPECULAR))
+	{
+		float4 map = SampleBlend(SpecularMap, SpecularSampler, input, blend);
+		if (map.a > 0.5)
+		{
+			strength = map.r * (Specular > 0 ? Specular : 1);
+			power = 2 + map.g * (Gloss > 0 ? Gloss : 64);
+		}
+	}
+	float3 glow = float3(0, 0, 0);
+	if (strength > 0)
+	{
+		float3 toEye = normalize(-viewPos);
+		glow = sun * pow(saturate(dot(normal, normalize(toSun + toEye))), power) * strength;
+	}
+
+	// Clouds and the light map, as the terrain shaders lay them over the world.
+	float2 world = WorldPosition(input).xy;
+	if (HasMap(MAP_EMISSIVE))
+		color.rgb *= EmissiveMap.Sample(EmissiveSampler, world * NoiseMapping.x + NoiseMapping.yz).rgb;
+	if (HasMap(MAP_EXTRA))
+		color.rgb *= ExtraMap.Sample(ExtraSampler, world * NoiseMapping.x).rgb;
+	return Finish(color, glow, input);
+}
+)";
+
 struct BuiltInMaterialShader
 {
 	const char *name;
@@ -311,6 +416,7 @@ static const BuiltInMaterialShader s_builtInShaders[] =
 	{ "MAT_Standard", s_standardShader, sizeof(s_standardShader) - 1 },
 	{ "MAT_Particle", s_particleShader, sizeof(s_particleShader) - 1 },
 	{ "MAT_Water", s_waterShader, sizeof(s_waterShader) - 1 },
+	{ "MAT_Terrain", s_terrainShader, sizeof(s_terrainShader) - 1 },
 };
 
 //-------------------------------------------------------------------------------------------------

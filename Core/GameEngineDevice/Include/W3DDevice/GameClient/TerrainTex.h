@@ -59,6 +59,17 @@ public:
 	void setLOD(Int LOD);
 };
 
+/** A texture laid out like the terrain texture, with each terrain texture's map (normal or specular,
+	* Art/Terrain/<texture><suffix>.tga) in place of its colours, for terrain materials. Texels of
+	* terrain textures without such a map have alpha 0. */
+class TerrainMapAtlasClass : public TextureClass
+{
+	W3DMPO_CODE(TerrainMapAtlasClass)
+public:
+	TerrainMapAtlasClass(int height);
+	Bool update(WorldHeightMap *htMap, const char *suffix);	///< false when no terrain texture has the map
+};
+
 
 class AlphaTerrainTextureClass : public TextureClass
 {

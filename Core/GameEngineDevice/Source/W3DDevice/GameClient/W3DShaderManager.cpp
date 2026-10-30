@@ -1614,6 +1614,13 @@ void TerrainShader2Stage::updateNoise1(D3DXMATRIX *destMatrix,D3DXMATRIX *curVie
 	*destMatrix *= offset;
 }
 
+void W3DShaderManager::getTerrainNoiseMapping(Real &stretch, Real &cloudOffsetX, Real &cloudOffsetY)
+{
+	stretch = STRETCH_FACTOR;
+	cloudOffsetX = terrainShader2Stage.m_xOffset;
+	cloudOffsetY = terrainShader2Stage.m_yOffset;
+}
+
 void TerrainShader2Stage::updateNoise2(D3DXMATRIX *destMatrix,D3DXMATRIX *curViewInverse, Bool doUpdate)
 {
 
