@@ -89,5 +89,6 @@ protected:
 
 protected:
 	void releaseTiles();
+	Bool bindTerrainMaterial(Bool doCloud);	///< the HLSL terrain material for the tiles (Direct3D 12)
 
 };

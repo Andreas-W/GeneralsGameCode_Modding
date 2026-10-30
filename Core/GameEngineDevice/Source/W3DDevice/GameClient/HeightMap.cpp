@@ -2361,8 +2361,10 @@ Bool HeightMapRenderObjClass::bindTerrainMaterial(Bool doCloud, Bool extraBlend)
 	Real mapping[3];
 	W3DShaderManager::getTerrainNoiseMapping(mapping[0], mapping[1], mapping[2]);
 	const Real extra = extraBlend ? 1.0f : 0.0f;
+	const Real flat = 0.0f;
 	TheW3DMaterials->setTerrainParameter("NoiseMapping", mapping, 3);
 	TheW3DMaterials->setTerrainParameter("ExtraBlend", &extra, 1);
+	TheW3DMaterials->setTerrainParameter("Flat", &flat, 1);
 	return TheW3DMaterials->bindTerrain(maps);
 }
 

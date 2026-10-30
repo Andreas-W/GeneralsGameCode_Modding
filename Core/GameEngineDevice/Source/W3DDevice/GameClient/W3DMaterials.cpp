@@ -301,7 +301,8 @@ float4 main(MaterialInput input) : SV_Target
 
 // Terrain: the two blended tiles of the terrain texture lit as the game baked it, with bumps from the
 // terrain textures' normal maps (or their brightness), highlights from their specular maps, and the
-// clouds and light map as the game draws them.
+// clouds and light map as the game draws them. The low detail terrain (Flat) has one pre-drawn texture
+// per tile instead, so only brightness bumps, and the shroud comes in as the normal map.
 static const char s_terrainShader[] = R"(
 #include "Material.hlsli"
 cbuffer Params : register(b2)
@@ -317,8 +318,11 @@ cbuffer Params : register(b2)
 	float3 SunColor;		// set by the game
 	float ParamPad;
 	float3 AmbientColor;	// set by the game
+	float Flat;				// set by the game: 1 for the low detail terrain (its tile texture on stage 1, uv set 0)
+	float4 ShroudMapping;	// set by the game for Flat: shroud uv = (world xy + zw) * xy
 };
 float Brightness(float3 color) { return dot(color, float3(0.299, 0.587, 0.114)); }
+float BrightnessAt(Texture2D map, SamplerState state, float2 uv) { return Brightness(map.Sample(state, uv).rgb); }
 float4 SampleBlend(Texture2D map, SamplerState state, MaterialInput input, float blend)
 {
 	float4 first = map.Sample(state, input.tex0.xy);
@@ -328,10 +332,17 @@ float4 SampleBlend(Texture2D map, SamplerState state, MaterialInput input, float
 }
 float4 main(MaterialInput input) : SV_Target
 {
-	float blend = ExtraBlend > 0 ? 0 : input.diffuse.a;
-	float4 base = SampleBlend(BaseTexture, BaseSampler, input, blend);
-	if (ExtraBlend <= 0)
-		base.rgb = lerp(BaseTexture.Sample(BaseSampler, input.tex0.xy).rgb, DetailTexture.Sample(DetailSampler, input.tex1.xy).rgb, blend);
+	bool lowDetail = Flat > 0;
+	float blend = (ExtraBlend > 0 || lowDetail) ? 0 : input.diffuse.a;
+	float4 base;
+	if (lowDetail)
+		base = DetailTexture.Sample(DetailSampler, input.tex0.xy);
+	else
+	{
+		base = SampleBlend(BaseTexture, BaseSampler, input, blend);
+		if (ExtraBlend <= 0)
+			base.rgb = lerp(BaseTexture.Sample(BaseSampler, input.tex0.xy).rgb, DetailTexture.Sample(DetailSampler, input.tex1.xy).rgb, blend);
+	}
 
 	// The surface normal from the triangle (the terrain has no normals), facing the camera.
 	float3 viewPos = input.viewPosition;
@@ -341,7 +352,7 @@ float4 main(MaterialInput input) : SV_Target
 
 	float3 bump = float3(0, 0, 1);
 	bool fromMap = false;
-	if (HasMap(MAP_NORMAL))
+	if (!lowDetail && HasMap(MAP_NORMAL))
 	{
 		float4 map = SampleBlend(NormalMap, NormalSampler, input, blend);
 		if (map.a > 0.5)
@@ -354,13 +365,29 @@ float4 main(MaterialInput input) : SV_Target
 	}
 	if (!fromMap && HeightFromColor >= 0)
 	{
-		// Brightness differences of neighbouring texels; the atlas is 2048 wide.
-		float2 texel = float2(1.0 / 2048, 1.0 / 2048);
+		// Brightness differences of neighbouring texels.
+		uint width, height;
+		if (lowDetail)
+			DetailTexture.GetDimensions(width, height);
+		else
+			BaseTexture.GetDimensions(width, height);
+		float2 texel = 1.0 / float2(max(width, 1), max(height, 1));
 		float2 uv = input.tex0.xy;
-		float left = Brightness(BaseTexture.Sample(BaseSampler, uv - float2(texel.x, 0)).rgb);
-		float right = Brightness(BaseTexture.Sample(BaseSampler, uv + float2(texel.x, 0)).rgb);
-		float up = Brightness(BaseTexture.Sample(BaseSampler, uv - float2(0, texel.y)).rgb);
-		float down = Brightness(BaseTexture.Sample(BaseSampler, uv + float2(0, texel.y)).rgb);
+		float left, right, up, down;
+		if (lowDetail)
+		{
+			left = BrightnessAt(DetailTexture, DetailSampler, uv - float2(texel.x, 0));
+			right = BrightnessAt(DetailTexture, DetailSampler, uv + float2(texel.x, 0));
+			up = BrightnessAt(DetailTexture, DetailSampler, uv - float2(0, texel.y));
+			down = BrightnessAt(DetailTexture, DetailSampler, uv + float2(0, texel.y));
+		}
+		else
+		{
+			left = BrightnessAt(BaseTexture, BaseSampler, uv - float2(texel.x, 0));
+			right = BrightnessAt(BaseTexture, BaseSampler, uv + float2(texel.x, 0));
+			up = BrightnessAt(BaseTexture, BaseSampler, uv - float2(0, texel.y));
+			down = BrightnessAt(BaseTexture, BaseSampler, uv + float2(0, texel.y));
+		}
 		bump.xy += float2(left - right, up - down) * (HeightFromColor > 0 ? HeightFromColor : 1) * 4;
 	}
 	bump.xy *= NormalStrength > 0 ? NormalStrength : 1;
@@ -373,12 +400,12 @@ float4 main(MaterialInput input) : SV_Target
 	float3 flat = ambient + sun * saturate(dot(surface, toSun));
 	float3 bumped = ambient + sun * saturate(dot(normal, toSun));
 	float3 light = input.diffuse.rgb * bumped / max(flat, 0.05);
-	float4 color = float4(base.rgb * light, ExtraBlend > 0 ? base.a * input.diffuse.a : 1);
+	float4 color = float4(base.rgb * light, (ExtraBlend > 0 && !lowDetail) ? base.a * input.diffuse.a : 1);
 
 	// Highlights of the sun.
 	float strength = Specular;
 	float power = Gloss > 0 ? Gloss : 32;
-	if (HasMap(MAP_SPECULAR))
+	if (!lowDetail && HasMap(MAP_SPECULAR))
 	{
 		float4 map = SampleBlend(SpecularMap, SpecularSampler, input, blend);
 		if (map.a > 0.5)
@@ -400,6 +427,13 @@ float4 main(MaterialInput input) : SV_Target
 		color.rgb *= EmissiveMap.Sample(EmissiveSampler, world * NoiseMapping.x + NoiseMapping.yz).rgb;
 	if (HasMap(MAP_EXTRA))
 		color.rgb *= ExtraMap.Sample(ExtraSampler, world * NoiseMapping.x).rgb;
+	if (lowDetail && HasMap(MAP_NORMAL))
+	{
+		// The low detail terrain shader multiplies the shroud in.
+		float3 shroud = NormalMap.Sample(NormalSampler, (world + ShroudMapping.zw) * ShroudMapping.xy).rgb;
+		color.rgb *= shroud;
+		glow *= shroud;
+	}
 	return Finish(color, glow, input);
 }
 )";
