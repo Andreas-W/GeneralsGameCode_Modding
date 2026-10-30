@@ -219,6 +219,31 @@ McpJson cmdShadows(const McpJson &args)
 	return result;
 }
 
+// GPU time per frame of the Direct3D 12 renderer and of its parts, averaged since the last call.
+McpJson cmdTiming(const McpJson &args)
+{
+	requireWindow();
+	if (TheGameMcpPostProcess.getGpuTiming == nullptr) {
+		gameMcpFail("the display has no GPU timing");
+	}
+	if (args.has("enabled")) {
+		TheGameMcpPostProcess.setGpuTiming(gameMcpArgBool(args, "enabled", true));
+	}
+	GameMcpGpuTiming timing;
+	TheGameMcpPostProcess.getGpuTiming(timing);
+	McpJson passes = McpJson::makeArray();
+	std::vector<AsciiString> names;
+	AsciiString error;
+	if (TheGameMcpPostProcess.getPasses != nullptr)
+		TheGameMcpPostProcess.getPasses(names, error);
+	for (size_t i = 0; i < timing.passes.size(); ++i)
+		passes.push(McpJson::makeObject().set("pass", i < names.size() ? names[i].str() : "").set("ms", (Real)timing.passes[i]));
+	return McpJson::makeObject().set("enabled", timing.enabled).set("frames", (Int)timing.frames).set("frame_ms", (Real)timing.frame)
+		.set("shadow_map_ms", (Real)timing.shadowMap).set("shadows_ms", (Real)timing.shadows)
+		.set("post_process_ms", (Real)timing.postProcess).set("passes", passes).set("draws", (Real)timing.draws)
+		.set("pipeline_changes", (Real)timing.pipelineChanges).set("table_changes", (Real)timing.tableChanges);
+}
+
 // Materials: turns them on or off (not saved), reloads the Material INI and shaders, sets a parameter of a
 // material, or lists the base textures drawn since the last call (to find names for Textures = ...).
 McpJson cmdMaterials(const McpJson &args)
@@ -282,6 +307,9 @@ void gameMcpRegisterViewCommands()
 	gameMcpRegisterCommand("render.postprocess", cmdPostProcess,
 		"{enabled?, reload?, pass?, param?, values?} Post-processing of the Direct3D 12 renderer: turns it on or off (not saved), "
 		"reloads the PostProcess INI and shaders, or sets a parameter of a running pass; returns its state.");
+	gameMcpRegisterCommand("render.timing", cmdTiming,
+		"{enabled?} GPU time of the Direct3D 12 renderer: enabled starts or stops measuring; returns the average milliseconds "
+		"per frame since the last call (whole frame, shadow map, shadow apply, post-processing and each pass) and starts the next average.");
 	gameMcpRegisterCommand("render.materials", cmdMaterials,
 		"{enabled?, reload?, material?, param?, values?, textures?} HLSL materials of the Direct3D 12 renderer: turns them on or off "
 		"(not saved), reloads the Material INI and shaders, sets a parameter of a material, or (textures=true) returns the base "

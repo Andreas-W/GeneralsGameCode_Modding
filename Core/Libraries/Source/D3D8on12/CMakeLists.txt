@@ -11,6 +11,7 @@ set(D3D8ON12_SRC
     Formats.cpp
     Formats.h
     Gpu.cpp
+    GpuTiming.cpp
     Guids.cpp
     Interface.cpp
     Interface.h

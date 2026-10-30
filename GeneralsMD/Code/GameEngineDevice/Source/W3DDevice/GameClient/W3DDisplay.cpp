@@ -84,6 +84,10 @@ static void drawFramerateBar();
 #include "W3DDevice/GameClient/W3DDebugDisplay.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
 #include "W3DDevice/GameClient/W3DShadowMap.h"
+
+#ifdef RTS_RENDERER_DX12
+#include <d3d8on12_ext.h>
+#endif
 #include "W3DDevice/GameClient/W3DScreenshot.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
 #include "WWMath/wwmath.h"
@@ -758,6 +762,39 @@ static void mcpPostProcessGetPasses(std::vector<AsciiString> &passes, AsciiStrin
 		error = TheW3DPostProcess->getError();
 	}
 }
+static void mcpSetGpuTiming(bool enabled)
+{
+#ifdef RTS_RENDERER_DX12
+	if (ID3D8On12PostProcess *postProcess = DX8Wrapper::Get_Post_Process())
+		postProcess->Set_Gpu_Timing(enabled);
+#endif
+}
+static void mcpGetGpuTiming(GameMcpGpuTiming &timing)
+{
+	timing.enabled = false;
+	timing.frames = 0;
+	timing.frame = timing.shadowMap = timing.shadows = timing.postProcess = 0.0f;
+	timing.draws = timing.pipelineChanges = timing.tableChanges = 0.0f;
+	timing.passes.clear();
+#ifdef RTS_RENDERER_DX12
+	if (ID3D8On12PostProcess *postProcess = DX8Wrapper::Get_Post_Process())
+	{
+		D3D8ON12_GPU_TIMING gpu;
+		postProcess->Get_Gpu_Timing(&gpu);
+		timing.enabled = gpu.enabled != FALSE;
+		timing.frames = (Int)gpu.frames;
+		timing.frame = gpu.frame;
+		timing.shadowMap = gpu.shadowMap;
+		timing.shadows = gpu.shadows;
+		timing.postProcess = gpu.postProcess;
+		for (UINT i = 0; i < gpu.passCount; ++i)
+			timing.passes.push_back(gpu.passes[i]);
+		timing.draws = gpu.draws;
+		timing.pipelineChanges = gpu.pipelineChanges;
+		timing.tableChanges = gpu.tableChanges;
+	}
+#endif
+}
 static bool mcpShadowMapAvailable() { return DX8Wrapper::Get_Shadow_Mapper() != nullptr; }
 static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, bool &debug)
 {
@@ -797,6 +834,8 @@ void W3DDisplay::init()
 	TheGameMcpPostProcess.reload = mcpPostProcessReload;
 	TheGameMcpPostProcess.setParameter = mcpPostProcessSetParameter;
 	TheGameMcpPostProcess.getPasses = mcpPostProcessGetPasses;
+	TheGameMcpPostProcess.setGpuTiming = mcpSetGpuTiming;
+	TheGameMcpPostProcess.getGpuTiming = mcpGetGpuTiming;
 	TheGameMcpShadowMap.isAvailable = mcpShadowMapAvailable;
 	TheGameMcpShadowMap.getState = mcpShadowMapGetState;
 	TheGameMcpShadowMap.setDebug = mcpShadowMapSetDebug;

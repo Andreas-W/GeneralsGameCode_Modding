@@ -53,6 +53,8 @@ public:
 	void STDMETHODCALLTYPE Set_Camera(const D3DMATRIX* view, const D3DMATRIX* projection) override;
 	HRESULT STDMETHODCALLTYPE Run(float time) override;
 	void STDMETHODCALLTYPE Set_HDR_Scene(BOOL enable) override;
+	void STDMETHODCALLTYPE Set_Gpu_Timing(BOOL enable) override;
+	void STDMETHODCALLTYPE Get_Gpu_Timing(D3D8ON12_GPU_TIMING* timing) override;
 
 	// Releases the textures of the chain; called when the engine releases the device.
 	void Clear_Chain();

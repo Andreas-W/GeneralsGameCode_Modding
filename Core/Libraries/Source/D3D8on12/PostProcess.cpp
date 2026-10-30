@@ -278,6 +278,36 @@ void STDMETHODCALLTYPE PostProcessor::Set_HDR_Scene(BOOL enable)
 	m_device->m_hdrRequested = enable != FALSE;
 }
 
+void STDMETHODCALLTYPE PostProcessor::Set_Gpu_Timing(BOOL enable)
+{
+	m_device->Set_Gpu_Timing(enable != FALSE);
+}
+
+void STDMETHODCALLTYPE PostProcessor::Get_Gpu_Timing(D3D8ON12_GPU_TIMING* timing)
+{
+	if (timing == nullptr)
+		return;
+	memset(timing, 0, sizeof(*timing));
+	Device::TimingSums& sums = m_device->m_timingSums;
+	timing->enabled = m_device->m_timing;
+	timing->frames = sums.frames;
+	if (sums.frames != 0)
+	{
+		const double count = sums.frames;
+		timing->frame = (float)(sums.frame / count);
+		timing->shadowMap = (float)(sums.shadowMap / count);
+		timing->shadows = (float)(sums.shadows / count);
+		timing->postProcess = (float)(sums.postProcess / count);
+		timing->passCount = min(sums.passCount, (UINT)D3D8ON12_TIMED_PASSES);
+		for (UINT pass = 0; pass < timing->passCount; ++pass)
+			timing->passes[pass] = (float)(sums.passes[pass] / count);
+		timing->draws = (float)(sums.draws / count);
+		timing->pipelineChanges = (float)(sums.pipelineChanges / count);
+		timing->tableChanges = (float)(sums.tableChanges / count);
+	}
+	memset(&sums, 0, sizeof(sums));
+}
+
 // Binds the heaps and root signature with every root parameter set, for the internal passes; the
 // chain's passes then replace what they use.
 bool PostProcessor::Bind_Root()
@@ -292,6 +322,8 @@ bool PostProcessor::Bind_Root()
 	}
 	list->SetGraphicsRootSignature(device.m_rootSignature.Get());
 	list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	// The passes bind their own targets, pipelines and tables.
+	device.m_bound.valid = false;
 
 	Device::UploadAllocation dummy = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 	if (dummy.cpu == nullptr)
@@ -395,6 +427,7 @@ HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX
 	const bool debug = params.debug != FALSE;
 	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_shadowShader - 1], device.m_sceneFormat, device.m_sampleCount, !debug);
 	device.Begin_Frame();
+	device.Mark_Time(Device::TIMING_SHADOWS_BEGIN);
 	if (pipeline == nullptr || !Bind_Root() || !Copy_Depth(width, height))
 		return E_FAIL;
 
@@ -441,6 +474,7 @@ HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX
 	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 4, device.Srv_Gpu_Handle(map_srv));
 	list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + 4, compare);
 	list->DrawInstanced(3, 1, 0, 0);
+	device.Mark_Time(Device::TIMING_SHADOWS_END);
 	return D3D_OK;
 }
 
@@ -777,6 +811,7 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 		return D3DERR_INVALIDCALL;
 
 	device.Begin_Frame();
+	device.Mark_Time(Device::TIMING_POST_BEGIN);
 	const UINT width = device.m_presentParams.BackBufferWidth;
 	const UINT height = device.m_presentParams.BackBufferHeight;
 	if (!Copy_Scene(width, height))
@@ -810,6 +845,8 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 		Pass& pass = m_passes[index];
 		Shader& shader = m_shaders[pass.desc.shader - 1];
 		const bool last = index + 1 == m_passes.size();
+		if (index < Device::MAX_TIMED_PASSES)
+			device.Mark_Time(Device::TIMING_PASS + (UINT)index);
 
 		// The output: the back buffer for the last pass, else a texture of the pass.
 		D3D12_CPU_DESCRIPTOR_HANDLE rtv;
@@ -915,6 +952,7 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 		if (!last)
 			device.Transition(pass.output.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	}
+	device.Mark_Time(Device::TIMING_POST_END);
 	return D3D_OK;
 }
 

@@ -143,6 +143,7 @@ HRESULT STDMETHODCALLTYPE ShadowMapper::Begin_Shadow_Map(UINT size, INT depthBia
 	m_depthBias = depthBias;
 	m_slopeBias = slopeBias;
 	m_drawing = true;
+	m_device->Mark_Time(Device::TIMING_SHADOW_MAP_BEGIN);
 	return D3D_OK;
 }
 
@@ -151,6 +152,7 @@ HRESULT STDMETHODCALLTYPE ShadowMapper::End_Shadow_Map(const D3DMATRIX* view, co
 	if (!m_drawing || view == nullptr || projection == nullptr)
 		return D3DERR_INVALIDCALL;
 	m_drawing = false;
+	m_device->Mark_Time(Device::TIMING_SHADOW_MAP_END);
 	m_device->Transition(m_map, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	m_view = *view;
 	m_projection = *projection;

@@ -100,6 +100,21 @@ extern GameMcp *TheGameMcp;	///< null unless the game was started with -mcp
 typedef bool (*GameMcpScreenshotFunc)(const char *pathname, ScreenshotFormat format, Int jpegQuality);
 extern GameMcpScreenshotFunc TheGameMcpScreenshot;
 
+/// Average GPU milliseconds per frame of the Direct3D 12 renderer and of its parts.
+struct GameMcpGpuTiming
+{
+	bool enabled;
+	Int frames;
+	Real frame;
+	Real shadowMap;
+	Real shadows;
+	Real postProcess;
+	std::vector<Real> passes;
+	Real draws;				///< per frame
+	Real pipelineChanges;
+	Real tableChanges;
+};
+
 /// Post-processing of the Direct3D 12 renderer; set by the display device, all null without one.
 struct GameMcpPostProcess
 {
@@ -108,6 +123,8 @@ struct GameMcpPostProcess
 	void (*reload)();
 	bool (*setParameter)(const char *pass, const char *name, const Real *values, Int count);
 	void (*getPasses)(std::vector<AsciiString> &passes, AsciiString &error);
+	void (*setGpuTiming)(bool enabled);
+	void (*getGpuTiming)(GameMcpGpuTiming &timing);	///< averages since the last call
 };
 extern GameMcpPostProcess TheGameMcpPostProcess;
 

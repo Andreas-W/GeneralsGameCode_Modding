@@ -907,18 +907,18 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 
 	const UINT vs_size = shader_vs ? sizeof(ShaderVertexConstants) : sizeof(FFVertexConstants);
 	UploadAllocation vs_constants = Allocate_Upload(vs_size, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-	UploadAllocation ps_constants = Allocate_Upload(sizeof(FFPixelConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-	if (vs_constants.cpu == nullptr || ps_constants.cpu == nullptr)
+	if (vs_constants.cpu == nullptr)
 		return D3D_OK;
 	if (shader_vs)
 		Fill_Shader_Vertex_Constants(*(ShaderVertexConstants*)vs_constants.cpu);
 	else
 		Fill_Vertex_Constants(*(FFVertexConstants*)vs_constants.cpu);
-	Fill_Pixel_Constants(*(FFPixelConstants*)ps_constants.cpu);
-	D3D12_GPU_VIRTUAL_ADDRESS material_constants = ps_constants.gpu;
+	FFPixelConstants pc;
+	memset(&pc, 0, sizeof(pc));
+	Fill_Pixel_Constants(pc);
+	D3D12_GPU_VIRTUAL_ADDRESS material_constants = 0;
 	if (use_material)
 	{
-		FFPixelConstants& pc = *(FFPixelConstants*)ps_constants.cpu;
 		pc.materialTime[0] = m_materialSystem->Time();
 		pc.materialFlags[0] = (int)material_maps;
 		pc.materialFlags[1] = vs_key.lighting;
@@ -933,6 +933,20 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 			material_constants = params.gpu;
 		}
 	}
+	// The pixel constants rarely change from one draw to the next; the same ones are not uploaded again.
+	D3D12_GPU_VIRTUAL_ADDRESS pixel_constants = m_bound.pixelConstants;
+	const bool new_pixel_constants = !m_bound.valid || pixel_constants == 0 || memcmp(&pc, &m_lastPixelConstants, sizeof(pc)) != 0;
+	if (new_pixel_constants)
+	{
+		UploadAllocation ps_constants = Allocate_Upload(sizeof(FFPixelConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+		if (ps_constants.cpu == nullptr)
+			return D3D_OK;
+		memcpy(ps_constants.cpu, &pc, sizeof(pc));
+		m_lastPixelConstants = pc;
+		pixel_constants = ps_constants.gpu;
+	}
+	if (material_constants == 0)
+		material_constants = pixel_constants;
 
 	ID3D12GraphicsCommandList* list = m_commandList.Get();
 	if (!m_heapsBound)
@@ -941,11 +955,33 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		list->SetDescriptorHeaps(2, heaps);
 		m_heapsBound = true;
 	}
-	list->SetGraphicsRootSignature(m_rootSignature.Get());
+	// Only what differs from the last draw is set; the driver's cost per call is most of the CPU time
+	// of drawing.
+	BoundState& bound = m_bound;
+	if (!bound.valid)
+	{
+		memset(&bound, 0, sizeof(bound));
+		bound.valid = true;
+		bound.stencilRef = UINT_MAX;
+		bound.topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+		list->SetGraphicsRootSignature(m_rootSignature.Get());
+	}
 
-	list->OMSetRenderTargets(targets.rtvFormat != DXGI_FORMAT_UNKNOWN ? 1 : 0, &targets.rtv, FALSE,
-		targets.dsvFormat != DXGI_FORMAT_UNKNOWN ? &targets.dsv : nullptr);
-	list->OMSetStencilRef(rs[D3DRS_STENCILREF] & 0xFF);
+	const UINT rtv_count = targets.rtvFormat != DXGI_FORMAT_UNKNOWN ? 1 : 0;
+	const SIZE_T dsv = targets.dsvFormat != DXGI_FORMAT_UNKNOWN ? targets.dsv.ptr : 0;
+	if (bound.rtvCount != rtv_count || (rtv_count != 0 && bound.rtv != targets.rtv.ptr) || bound.dsv != dsv || bound.pipeline == nullptr)
+	{
+		list->OMSetRenderTargets(rtv_count, &targets.rtv, FALSE, dsv != 0 ? &targets.dsv : nullptr);
+		bound.rtvCount = rtv_count;
+		bound.rtv = targets.rtv.ptr;
+		bound.dsv = dsv;
+	}
+	const UINT stencil_ref = rs[D3DRS_STENCILREF] & 0xFF;
+	if (bound.stencilRef != stencil_ref)
+	{
+		list->OMSetStencilRef(stencil_ref);
+		bound.stencilRef = stencil_ref;
+	}
 
 	D3DVIEWPORT8 vp = m_state.viewport;
 	if (shadow_pass)
@@ -955,31 +991,78 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	}
 	D3D12_VIEWPORT viewport = { (float)vp.X, (float)vp.Y, (float)vp.Width, (float)vp.Height, vp.MinZ, vp.MaxZ };
 	D3D12_RECT scissor = { (LONG)vp.X, (LONG)vp.Y, (LONG)(vp.X + vp.Width), (LONG)(vp.Y + vp.Height) };
-	list->RSSetViewports(1, &viewport);
-	list->RSSetScissorRects(1, &scissor);
+	if (memcmp(&bound.viewport, &viewport, sizeof(viewport)) != 0)
+	{
+		list->RSSetViewports(1, &viewport);
+		bound.viewport = viewport;
+	}
+	if (memcmp(&bound.scissor, &scissor, sizeof(scissor)) != 0)
+	{
+		list->RSSetScissorRects(1, &scissor);
+		bound.scissor = scissor;
+	}
 
-	list->SetPipelineState(pipeline);
+	if (bound.pipeline != pipeline)
+	{
+		list->SetPipelineState(pipeline);
+		bound.pipeline = pipeline;
+		++m_timingSums.pipelineChanges;
+	}
+	++m_timingSums.draws;
 	list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, vs_constants.gpu);
-	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, ps_constants.gpu);
-	list->SetGraphicsRootConstantBufferView(ROOT_MATERIAL_CONSTANTS, material_constants);
+	if (bound.pixelConstants != pixel_constants)
+	{
+		list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, pixel_constants);
+		bound.pixelConstants = pixel_constants;
+	}
+	// Only material shaders read b2; the others need it bound, not current.
+	if (use_material || !bound.materialConstants)
+	{
+		list->SetGraphicsRootConstantBufferView(ROOT_MATERIAL_CONSTANTS, material_constants);
+		bound.materialConstants = true;
+	}
 	for (UINT stage = 0; stage < FF_STAGES; ++stage)
 	{
 		// Every table of the root signature must be set, also those the shader does not read.
-		const bool bound = use_material ? stage < MATERIAL_STAGES && (material_maps & (1u << stage)) != 0
+		const bool stage_used = use_material ? stage < MATERIAL_STAGES && (material_maps & (1u << stage)) != 0
 			: stage < ps_key.stageCount && ps_key.stages[stage].textureType != TEXTURE_NONE;
 		const UINT srv = use_material ? (stage < MATERIAL_STAGES ? srvs[stage] : 0) : (stage < ps_key.stageCount ? srvs[stage] : 0);
-		list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + stage, Srv_Gpu_Handle(srv));
-		const UINT sampler = bound ? Get_Sampler(stage) : 0;
+		const D3D12_GPU_DESCRIPTOR_HANDLE srv_handle = Srv_Gpu_Handle(srv);
+		if (bound.tables[stage] != srv_handle.ptr)
+		{
+			list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + stage, srv_handle);
+			bound.tables[stage] = srv_handle.ptr;
+			++m_timingSums.tableChanges;
+		}
+		const UINT sampler = stage_used ? Get_Sampler(stage) : 0;
 		D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle = m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
 		sampler_handle.ptr += (UINT64)sampler * m_samplerDescriptorSize;
-		list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + stage, sampler_handle);
+		if (bound.tables[FF_STAGES + stage] != sampler_handle.ptr)
+		{
+			list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + stage, sampler_handle);
+			bound.tables[FF_STAGES + stage] = sampler_handle.ptr;
+			++m_timingSums.tableChanges;
+		}
 	}
 
-	list->IASetPrimitiveTopology(Get_Topology(type));
-	list->IASetVertexBuffers(0, 1, &vertices);
+	const D3D_PRIMITIVE_TOPOLOGY topology = Get_Topology(type);
+	if (bound.topology != topology)
+	{
+		list->IASetPrimitiveTopology(topology);
+		bound.topology = topology;
+	}
+	if (memcmp(&bound.vertices, &vertices, sizeof(vertices)) != 0)
+	{
+		list->IASetVertexBuffers(0, 1, &vertices);
+		bound.vertices = vertices;
+	}
 	if (indices != nullptr)
 	{
-		list->IASetIndexBuffer(indices);
+		if (memcmp(&bound.indices, indices, sizeof(*indices)) != 0)
+		{
+			list->IASetIndexBuffer(indices);
+			bound.indices = *indices;
+		}
 		list->DrawIndexedInstanced(count, 1, first, base_vertex, 0);
 	}
 	else

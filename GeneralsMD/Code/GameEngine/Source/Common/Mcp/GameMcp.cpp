@@ -38,7 +38,7 @@
 
 GameMcp *TheGameMcp = nullptr;
 GameMcpScreenshotFunc TheGameMcpScreenshot = nullptr;
-GameMcpPostProcess TheGameMcpPostProcess = { nullptr, nullptr, nullptr, nullptr, nullptr };
+GameMcpPostProcess TheGameMcpPostProcess = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 GameMcpShadowMap TheGameMcpShadowMap = { nullptr, nullptr, nullptr };
 GameMcpMaterials TheGameMcpMaterials = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 

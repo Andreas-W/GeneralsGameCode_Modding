@@ -101,6 +101,8 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_postProcessor(nullptr),
 		m_shadowMapper(nullptr),
 		m_materialSystem(nullptr),
+		m_timing(false),
+		m_timestampFrequency(0),
 		m_liveChildren(0),
 		m_nextTargetRtv(1),
 		m_nextTargetDsv(1),
@@ -122,6 +124,7 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 	memset(m_palettes, 0, sizeof(m_palettes));
 	memset(m_uploadCpu, 0, sizeof(m_uploadCpu));
 
+	memset(&m_bound, 0, sizeof(m_bound));
 	for (int i = 0; i < 256; ++i)
 		m_gammaRamp.red[i] = m_gammaRamp.green[i] = m_gammaRamp.blue[i] = (WORD)(i * 257);
 }
@@ -603,8 +606,10 @@ void Device::Begin_Frame()
 	allocator->Reset();
 	m_commandList->Reset(allocator, nullptr);
 	m_heapsBound = false;
+	m_bound.valid = false;
 	m_uploadOffset = 0;	// the upload buffer of this back buffer is free again
 	Release_Finished_Resources();
+	Collect_Times();
 
 	D3D12_RESOURCE_BARRIER barrier = {};
 	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -615,6 +620,7 @@ void Device::Begin_Frame()
 	m_commandList->ResourceBarrier(1, &barrier);
 
 	m_recording = true;
+	Mark_Time(TIMING_FRAME_BEGIN);
 }
 
 // Copies the scene target into the swap chain buffer of this frame: a resolve with multisampling, a
@@ -664,6 +670,7 @@ void Device::Flush_Commands()
 	allocator->Reset();
 	m_commandList->Reset(allocator, nullptr);
 	m_heapsBound = false;
+	m_bound.valid = false;
 }
 
 // Copies the back buffer into a surface in system memory of the same size. Between frames that is
@@ -1101,6 +1108,8 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 	m_commandList->ResourceBarrier(1, &barrier);
+	Mark_Time(TIMING_FRAME_END);
+	Resolve_Times();
 	m_commandList->Close();
 	m_recording = false;
 

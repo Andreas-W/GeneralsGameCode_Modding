@@ -152,6 +152,8 @@ def main() -> int:
             materials = bridge.call("render.materials", textures=True)
             check("available" in materials and "materials" in materials,
                   f"render.materials answers (available: {materials['available']})")
+            timing = bridge.call("render.timing") if post["available"] else {"frames": 0}
+            check("frames" in timing, "render.timing answers" if post["available"] else "render.timing skipped (no DX12)")
             shadows = bridge.call("render.shadows")
             check("available" in shadows and "active" in shadows, f"render.shadows answers (available: {shadows['available']})")
             if shadows["available"] and shadows["active"]:

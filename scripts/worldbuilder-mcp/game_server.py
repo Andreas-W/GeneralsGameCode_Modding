@@ -487,6 +487,16 @@ def render_postprocess(enabled: bool | None = None, reload: bool = False, pass_n
 
 
 @mcp.tool()
+def render_timing(enabled: bool | None = None) -> dict:
+    """GPU time of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]), from timestamp queries.
+    enabled=true starts measuring (false stops). Each call returns the average milliseconds per frame since the
+    previous call and starts the next average: the whole frame on the GPU, drawing the shadow map, applying it,
+    the post-processing chain and each of its passes. Call, run or step a while (game_set_speed with render_fps=0
+    for an uncapped frame rate), call again."""
+    return game.call("render.timing", enabled=enabled)
+
+
+@mcp.tool()
 def render_materials(enabled: bool | None = None, reload: bool = False, material: str | None = None,
                      param: str | None = None, values: list[float] | None = None, textures: bool = False) -> dict:
     """HLSL materials of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]): Material blocks in

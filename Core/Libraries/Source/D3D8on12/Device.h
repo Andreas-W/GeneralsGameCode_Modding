@@ -325,6 +325,27 @@ private:
 	UINT m_nextSrv;
 	std::unordered_map<UINT64, UINT> m_samplers;
 	bool m_heapsBound;
+	// What the command list has bound, so that draws leave out the calls that would change nothing. Not
+	// valid after the list is reset or the post-processor has drawn its own passes.
+	struct BoundState
+	{
+		bool valid;
+		ID3D12PipelineState* pipeline;
+		UINT rtvCount;
+		SIZE_T rtv;
+		SIZE_T dsv;					// 0 without a depth buffer
+		UINT stencilRef;
+		D3D12_VIEWPORT viewport;
+		D3D12_RECT scissor;
+		D3D_PRIMITIVE_TOPOLOGY topology;
+		D3D12_VERTEX_BUFFER_VIEW vertices;
+		D3D12_INDEX_BUFFER_VIEW indices;
+		UINT64 tables[2 * FF_STAGES];	// texture tables, then sampler tables
+		bool materialConstants;			// b2 has been set
+		D3D12_GPU_VIRTUAL_ADDRESS pixelConstants;	// b1, holding m_lastPixelConstants
+	};
+	BoundState m_bound;
+	FFPixelConstants m_lastPixelConstants;
 
 	ComPtr<ID3D12Resource> m_uploadBuffers[FRAME_COUNT];
 	unsigned char* m_uploadCpu[FRAME_COUNT];
@@ -409,6 +430,44 @@ private:
 	UINT m_currentPalette;
 
 	PostProcessor* Get_Post_Processor();
+
+	// GPU time of the parts of a frame (GpuTiming.cpp), while the engine asks for it.
+	enum TimingMarker
+	{
+		TIMING_FRAME_BEGIN,
+		TIMING_FRAME_END,
+		TIMING_SHADOW_MAP_BEGIN,
+		TIMING_SHADOW_MAP_END,
+		TIMING_SHADOWS_BEGIN,
+		TIMING_SHADOWS_END,
+		TIMING_POST_BEGIN,
+		TIMING_POST_END,
+		TIMING_PASS,		// + n: post-processing pass n starts
+	};
+	static const UINT MAX_TIMED_PASSES = 16;
+	struct TimingSums
+	{
+		UINT frames;
+		double frame;
+		double shadowMap;
+		double shadows;
+		double postProcess;
+		double passes[MAX_TIMED_PASSES];
+		UINT passCount;
+		UINT64 draws;
+		UINT64 pipelineChanges;
+		UINT64 tableChanges;
+	};
+	void Set_Gpu_Timing(bool enable);
+	void Mark_Time(UINT marker);
+	void Resolve_Times();
+	void Collect_Times();
+	bool m_timing;
+	ComPtr<ID3D12QueryHeap> m_timestampHeap;
+	ComPtr<ID3D12Resource> m_timestampReadback;
+	UINT64 m_timestampFrequency;
+	std::vector<UINT> m_timingMarkers[FRAME_COUNT];	// the marker of each timestamp of a frame
+	TimingSums m_timingSums;
 
 	PostProcessor* m_postProcessor;	// created when the engine asks for it
 	ShadowMapper* m_shadowMapper;	// the same

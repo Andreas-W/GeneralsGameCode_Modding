@@ -37,6 +37,24 @@ enum D3D8ON12_PP_INPUT
 	D3D8ON12_PP_INPUT_PASS = 16,	// + n: the output of the earlier pass n
 };
 
+#define D3D8ON12_TIMED_PASSES 16
+
+// Average GPU milliseconds per frame since the last Get_Gpu_Timing.
+struct D3D8ON12_GPU_TIMING
+{
+	BOOL enabled;
+	UINT frames;							// frames measured
+	float frame;							// the GPU's work for a whole frame
+	float shadowMap;						// drawing the shadow casters into the shadow map
+	float shadows;							// darkening the scene with the shadow map
+	float postProcess;						// the post-processing chain
+	UINT passCount;
+	float passes[D3D8ON12_TIMED_PASSES];	// each pass of the chain
+	float draws;							// draw calls per frame
+	float pipelineChanges;					// of them, how many needed another pipeline state
+	float tableChanges;						// texture and sampler tables set per frame
+};
+
 struct D3D8ON12_PP_PASS
 {
 	UINT shader;							// from Create_Shader
@@ -79,6 +97,11 @@ struct ID3D8On12PostProcess : public IUnknown
 	// above 1 (additive effects) for the passes, such as a tone curve. The Scene input is then float too;
 	// the last pass should write 0..1. Present and back buffer reads clamp it to 8 bit.
 	virtual void STDMETHODCALLTYPE Set_HDR_Scene(BOOL enable) = 0;
+
+	// Measures the GPU time of frames and of their parts (timestamp queries), while enabled.
+	virtual void STDMETHODCALLTYPE Set_Gpu_Timing(BOOL enable) = 0;
+	// The averages since the last call, which starts the next average.
+	virtual void STDMETHODCALLTYPE Get_Gpu_Timing(D3D8ON12_GPU_TIMING* timing) = 0;
 };
 
 // {9B4F2C71-5E0A-4D83-B6C2-71A8E3D05F16}
