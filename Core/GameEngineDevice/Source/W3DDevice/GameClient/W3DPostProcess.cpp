@@ -180,9 +180,9 @@ static const char s_depthOfFieldShader[] = R"(
 cbuffer Params : register(b1)
 {
 	float FocusDistance;	// distance from the camera that is sharp, 0 = the distance at the screen center
-	float FocusRange;		// sharp this far in front of and behind the focus, 0 = 100
-	float BlurRange;		// distance beyond FocusRange until the blur is full, 0 = 300
-	float MaxBlur;			// full blur radius in pixels, 0 = 6
+	float FocusRange;		// sharp this far in front of and behind the focus, 0 = 150
+	float BlurRange;		// distance beyond FocusRange until the blur is full, 0 = 500
+	float MaxBlur;			// full blur radius in pixels, 0 = 3
 	float FarOnly;			// 1 = only behind the focus, so units near the camera (aircraft) stay sharp
 };
 static const int TAPS = 24;
@@ -191,13 +191,13 @@ float BlurAmount(float depth, float focus)
 	float offset = LinearDepth(depth) - focus;
 	if (FarOnly > 0 && offset < 0)
 		return 0;
-	return saturate((abs(offset) - (FocusRange > 0 ? FocusRange : 100)) / (BlurRange > 0 ? BlurRange : 300));
+	return saturate((abs(offset) - (FocusRange > 0 ? FocusRange : 150)) / (BlurRange > 0 ? BlurRange : 500));
 }
 float4 main(PostProcessInput input) : SV_Target
 {
 	float4 color = Input0.SampleLevel(PointClamp, input.uv, 0);
 	float focus = FocusDistance > 0 ? FocusDistance : LinearDepth(Input1.SampleLevel(PointClamp, float2(0.5, 0.5), 0).r);
-	float maxBlur = MaxBlur > 0 ? MaxBlur : 6;
+	float maxBlur = MaxBlur > 0 ? MaxBlur : 3;
 	float radius = BlurAmount(Input1.SampleLevel(PointClamp, input.uv, 0).r, focus) * maxBlur;
 	if (radius < 0.5)
 		return color;
