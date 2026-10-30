@@ -21,6 +21,7 @@
 
 #include "PostProcess.h"
 #include "Device.h"
+#include "Resources.h"
 #include "ShaderCompiler.h"
 
 #include <d3dcompiler.h>
@@ -97,6 +98,12 @@ static const char s_presentShaderMS[] =
 	"		sum += saturate(Scene.Load(int2(position.xy), i));\n"
 	"	return sum / samples;\n"
 	"}\n";
+
+// Copy_Back_Buffer: the scene shifted by Offset.
+static const char s_copyShader[] =
+	"cbuffer Params : register(b1) { int4 Offset; };\n"
+	"Texture2D Scene : register(t0);\n"
+	"float4 main(float4 position : SV_Position) : SV_Target { return saturate(Scene.Load(int3(int2(position.xy) + Offset.xy, 0))); }\n";
 
 // Input0: depth of the scene, t4: the shadow map. The amount of shadow from soft depth comparisons
 // around the point's place in the map, turned into the color the back buffer is multiplied with.
@@ -259,6 +266,7 @@ PostProcessor::PostProcessor(Device* device)
 	m_depthShaders[0] = m_depthShaders[1] = 0;
 	m_presentShaders[0] = m_presentShaders[1] = 0;
 	m_shadowShader = 0;
+	m_copyShader = 0;
 	m_shadowSampler = 0;
 	memset(&m_view, 0, sizeof(m_view));
 	m_view._11 = m_view._22 = m_view._33 = m_view._44 = 1.0f;
@@ -385,6 +393,54 @@ void PostProcessor::Present_Scene()
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	list->ResourceBarrier(1, &barrier);
+}
+
+HRESULT PostProcessor::Copy_Back_Buffer(Surface* dest, const RECT& rect, const POINT& point)
+{
+	Device& device = *m_device;
+	if (device.m_backBuffers[0] == nullptr || !device.Ensure_Target(dest))
+		return D3DERR_INVALIDCALL;
+	if (m_copyShader == 0)
+	{
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(s_copyShader, (UINT)strlen(s_copyShader), "BackBufferCopy", nullptr, &m_copyShader, &messages)))
+		{
+			Log("could not compile the back buffer copy shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			return E_FAIL;
+		}
+	}
+
+	device.Begin_Frame();
+	if (!Copy_Scene(device.m_presentParams.BackBufferWidth, device.m_presentParams.BackBufferHeight))
+		return E_FAIL;
+	GpuTexture* gpu = dest->Gpu_Target();
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_copyShader - 1], gpu->resource->GetDesc().Format, 1);
+	if (pipeline == nullptr || !Bind_Root())
+		return E_FAIL;
+	Device::UploadAllocation constants = device.Allocate_Upload(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (constants.cpu == nullptr)
+		return E_OUTOFMEMORY;
+	const int offset[4] = { rect.left - point.x, rect.top - point.y, 0, 0 };
+	memcpy(constants.cpu, offset, sizeof(offset));
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	device.Transition(*gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	const D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.Target_View_Handle(false, dest->Target_View());
+	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	const D3DSURFACE_DESC& desc = dest->Desc();
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)desc.Width, (float)desc.Height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { point.x, point.y, point.x + (rect.right - rect.left), point.y + (rect.bottom - rect.top) };
+	scissor.left = max(scissor.left, 0L);
+	scissor.top = max(scissor.top, 0L);
+	scissor.right = min(scissor.right, (LONG)desc.Width);
+	scissor.bottom = min(scissor.bottom, (LONG)desc.Height);
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, constants.gpu);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES, device.Srv_Gpu_Handle(m_scene.gpu.srv));
+	list->DrawInstanced(3, 1, 0, 0);
+	return D3D_OK;
 }
 
 HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX& light_view, const D3DMATRIX& light_projection,

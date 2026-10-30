@@ -1282,6 +1282,24 @@ HRESULT STDMETHODCALLTYPE Device::CopyRects(IDirect3DSurface8* source_surface, C
 	if (source == nullptr || dest == nullptr || source->Desc().Format != dest->Desc().Format)
 		return D3DERR_INVALIDCALL;
 
+	// From the back buffer into a render target texture, all on the GPU.
+	if (source->Get_Kind() == Surface::KIND_BACK_BUFFER && dest->Get_Kind() == Surface::KIND_RENDER_TARGET && !dest->Has_Data())
+	{
+		const RECT whole_rect = { 0, 0, (LONG)source->Desc().Width, (LONG)source->Desc().Height };
+		const UINT count = source_rects != nullptr && rect_count != 0 ? rect_count : 1;
+		for (UINT i = 0; i < count; ++i)
+		{
+			const RECT& rect = source_rects != nullptr && rect_count != 0 ? source_rects[i] : whole_rect;
+			POINT point = { rect.left, rect.top };
+			if (dest_points != nullptr)
+				point = dest_points[i];
+			const HRESULT hr = Get_Post_Processor()->Copy_Back_Buffer(dest, rect, point);
+			if (FAILED(hr))
+				return hr;
+		}
+		return D3D_OK;
+	}
+
 	if (!source->Has_Data() && dest->Has_Data())
 	{
 		const bool whole = source_rects == nullptr || rect_count == 0;

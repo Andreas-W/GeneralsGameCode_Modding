@@ -33,6 +33,7 @@ namespace D3D8On12
 {
 
 class Device;
+class Surface;
 
 class PostProcessor : public ID3D8On12PostProcess
 {
@@ -59,6 +60,9 @@ public:
 	// Releases the textures of the chain; called when the engine releases the device.
 	void Clear_Chain();
 	void Present_Scene();
+	// Copies a rectangle of what is drawn into the back buffer so far into a render target surface of
+	// the same format, at point (CopyRects; smudges read the scene this way).
+	HRESULT Copy_Back_Buffer(Surface* dest, const RECT& rect, const POINT& point);
 	// Darkens the back buffer by a shadow map (ShadowMap.cpp); light_view and light_projection are the
 	// camera of the map, view and projection the scene's.
 	HRESULT Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX& light_view, const D3DMATRIX& light_projection,
@@ -107,6 +111,7 @@ private:
 	Target m_depth;				// R32_FLOAT copy of the depth buffer, made when a pass reads the depth
 	UINT m_depthShaders[2];		// for a depth buffer without and with multisampling
 	UINT m_presentShaders[2];	// for an HDR scene target without and with multisampling
+	UINT m_copyShader;			// Copy_Back_Buffer
 	UINT m_shadowShader;
 	UINT m_shadowSampler;		// comparison sampler for the shadow map
 	D3DMATRIX m_view;
