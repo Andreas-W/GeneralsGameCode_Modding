@@ -447,7 +447,11 @@ HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX
 	const D3D8ON12_SHADOW_PARAMS& params, const D3DMATRIX& view, const D3DMATRIX& projection)
 {
 	Device& device = *m_device;
-	if (device.m_renderTarget != device.m_backBufferSurface || device.m_backBuffers[0] == nullptr)
+	// The scene is drawn into the back buffer, or into a screen-sized texture with the screen's depth
+	// buffer while a screen filter runs.
+	const D3DSURFACE_DESC& target_desc = device.m_renderTarget->Desc();
+	if (device.m_backBuffers[0] == nullptr || device.m_depthStencil != device.m_autoDepthSurface
+		|| target_desc.Width != device.m_presentParams.BackBufferWidth || target_desc.Height != device.m_presentParams.BackBufferHeight)
 		return D3DERR_INVALIDCALL;
 	if (m_shadowShader == 0)
 	{
@@ -481,8 +485,11 @@ HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX
 	const UINT width = device.m_presentParams.BackBufferWidth;
 	const UINT height = device.m_presentParams.BackBufferHeight;
 	const bool debug = params.debug != FALSE;
-	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_shadowShader - 1], device.m_sceneFormat, device.m_sampleCount, !debug);
 	device.Begin_Frame();
+	Device::TargetState targets;
+	if (!device.Prepare_Targets(targets) || targets.rtvFormat == DXGI_FORMAT_UNKNOWN)
+		return E_FAIL;
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_shadowShader - 1], targets.rtvFormat, targets.sampleCount, !debug);
 	device.Mark_Time(Device::TIMING_SHADOWS_BEGIN);
 	if (pipeline == nullptr || !Bind_Root() || !Copy_Depth(width, height))
 		return E_FAIL;
@@ -511,9 +518,7 @@ HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX
 	s.debug = debug ? 1.0f : 0.0f;
 
 	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
-	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-	rtv.ptr += (device.m_sceneTarget != nullptr ? FRAME_COUNT : device.m_backBufferIndex) * device.m_rtvDescriptorSize;
-	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	list->OMSetRenderTargets(1, &targets.rtv, FALSE, nullptr);
 	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
 	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
 	list->RSSetViewports(1, &viewport);
