@@ -51,7 +51,7 @@ public:
 	void setEnabled(Bool enabled) { m_enabled = enabled; }
 	Bool setParameter(const AsciiString& material, const AsciiString& name, const Real* values, Int count);
 	const AsciiString& getError() const { return m_error; }
-	void getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures);	///< and how many textures each got
+	void getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures, std::vector<AsciiString>& uses);	///< how many textures each got, what it is for
 	void collectTextures(std::vector<AsciiString>& names);	///< base textures drawn since the last call; starts collecting
 
 	// MeshMaterialBinderClass

@@ -814,11 +814,12 @@ static bool mcpMaterialsSetParameter(const char *material, const char *name, con
 {
 	return TheW3DMaterials != nullptr && TheW3DMaterials->setParameter(material, name, values, count);
 }
-static void mcpMaterialsGetState(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, AsciiString &error)
+static void mcpMaterialsGetState(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, std::vector<AsciiString> &uses,
+	AsciiString &error)
 {
 	if (TheW3DMaterials)
 	{
-		TheW3DMaterials->getMaterials(names, meshTextures);
+		TheW3DMaterials->getMaterials(names, meshTextures, uses);
 		error = TheW3DMaterials->getError();
 	}
 }

@@ -986,14 +986,18 @@ Bool W3DMaterials::setParameter(const AsciiString& material, const AsciiString& 
 }
 
 //-------------------------------------------------------------------------------------------------
-void W3DMaterials::getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures)
+void W3DMaterials::getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures, std::vector<AsciiString>& uses)
 {
+	static const char *const useNames[] = { "meshes", "particles", "terrain", "water" };
 	names.clear();
 	meshTextures.clear();
+	uses.clear();
 	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
 	{
 		names.push_back(m_builtMaterials[i].settings->m_name);
 		meshTextures.push_back(m_builtMaterials[i].textureCount);
+		const Int use = m_builtMaterials[i].settings->m_use;
+		uses.push_back(use >= 0 && use < (Int)ARRAY_SIZE(useNames) ? useNames[use] : "");
 	}
 }
 

@@ -145,7 +145,7 @@ struct GameMcpMaterials
 	void (*setEnabled)(bool enabled);
 	void (*reload)();
 	bool (*setParameter)(const char *material, const char *name, const Real *values, Int count);
-	void (*getState)(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, AsciiString &error);
+	void (*getState)(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, std::vector<AsciiString> &uses, AsciiString &error);
 	void (*collectTextures)(std::vector<AsciiString> &names);
 };
 extern GameMcpMaterials TheGameMcpMaterials;

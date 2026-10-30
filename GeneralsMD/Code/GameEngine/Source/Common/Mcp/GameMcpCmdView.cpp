@@ -281,11 +281,13 @@ McpJson cmdMaterials(const McpJson &args)
 
 	std::vector<AsciiString> names;
 	std::vector<Int> meshTextures;
+	std::vector<AsciiString> uses;
 	AsciiString error;
-	TheGameMcpMaterials.getState(names, meshTextures, error);
+	TheGameMcpMaterials.getState(names, meshTextures, uses, error);
 	McpJson materials = McpJson::makeArray();
 	for (size_t i = 0; i < names.size(); ++i)
-		materials.push(McpJson::makeObject().set("name", names[i].str()).set("textures_used", (Int)meshTextures[i]));
+		materials.push(McpJson::makeObject().set("name", names[i].str()).set("use", i < uses.size() ? uses[i].str() : "")
+			.set("textures_used", (Int)meshTextures[i]));
 	McpJson result = McpJson::makeObject().set("available", TheGameMcpMaterials.isAvailable())
 		.set("running", TheGameMcpMaterials.isRunning()).set("materials", materials).set("error", error.str());
 	if (gameMcpArgBool(args, "textures", false)) {
