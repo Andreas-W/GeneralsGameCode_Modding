@@ -173,6 +173,132 @@ float4 main(MaterialInput input) : SV_Target
 }
 )";
 
+// Water: the water texture and colour of the map, with waves from two scrolling normal maps (or built-in
+// ones), sun glints, a sky reflection that grows at grazing angles, and, from the scene depth, soft
+// shores with foam and deeper water that is darker and more opaque.
+static const char s_waterShader[] = R"(
+#include "Material.hlsli"
+cbuffer Params : register(b2)
+{
+	float WaveScale;		// world units one wave pattern covers, 0 = 160
+	float WaveSpeed;		// world units per second the waves move, 0 = 12
+	float WaveStrength;		// how much the waves bend the surface, 0 = 0.25
+	float Gloss;			// sharpness of the sun glints, 0 = 180
+	float3 SkyColor;		// reflected sky overhead, 0 0 0 = 0.35 0.5 0.7
+	float GlintStrength;	// brightness of the glints, 0 = 2; above 1 feeds bloom
+	float3 HorizonColor;	// reflected sky at the horizon, 0 0 0 = 0.7 0.8 0.9
+	float Reflection;		// how much sky is reflected at grazing angles, 0 = 0.4
+	float3 DeepColor;		// colour of deep water, 0 0 0 = 0.02 0.08 0.12
+	float DepthScale;		// world units of depth (straight down) until the water is deep, 0 = 40
+	float ShoreDistance;	// world units of depth over which the water fades in at the shore, 0 = 3
+	float FoamDistance;		// world units of depth with foam along the shore, 0 = 4; -1 = no foam
+	float FoamStrength;		// 0 = 0.5
+	float DeepOpacity;		// how opaque deep water gets, 0 = 0.7
+	float3 SunDirection;	// set by the game
+	float River;			// set by the game: 1 for rivers (the alpha edge is the extra map)
+	float3 SunColor;		// set by the game
+	float WavePad;
+	float3 AmbientColor;	// set by the game
+};
+float3 Or(float3 value, float3 fallback) { return dot(value, value) > 0 ? value : fallback; }
+float Or(float value, float fallback) { return value != 0 ? value : fallback; }
+// Built-in waves where there is no normal map: three octaves of smooth value noise drifting in different
+// directions; the slope comes from differences.
+float Hash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+float ValueNoise(float2 p)
+{
+	float2 i = floor(p);
+	float2 f = frac(p);
+	float2 u = f * f * (3 - 2 * f);
+	return lerp(lerp(Hash(i), Hash(i + float2(1, 0)), u.x), lerp(Hash(i + float2(0, 1)), Hash(i + float2(1, 1)), u.x), u.y);
+}
+float WaveHeight(float2 p, float t)
+{
+	return ValueNoise(p * 2.0 + float2(t, 0.6 * t)) * 0.55
+		+ ValueNoise(p * 4.3 + float2(-0.7 * t, 1.1 * t)) * 0.3
+		+ ValueNoise(p * 9.1 + float2(1.3 * t, -0.4 * t)) * 0.15;
+}
+float2 BuiltInSlope(float2 p, float t)
+{
+	const float e = 0.02;
+	float h = WaveHeight(p, t);
+	return float2(WaveHeight(p + float2(e, 0), t) - h, WaveHeight(p + float2(0, e), t) - h) / e * 0.08;
+}
+float4 main(MaterialInput input) : SV_Target
+{
+	float3 world = WorldPosition(input);
+	float scale = Or(WaveScale, 160);
+	float speed = Or(WaveSpeed, 12);
+	float2 p = world.xy / scale;
+	float2 drift = float2(1, 0.6) * speed * Time / scale;
+
+	// Wave normal in world space (z up).
+	float2 slope;
+	if (HasMap(MAP_NORMAL))
+	{
+		float2 a = NormalMap.Sample(NormalSampler, p + drift).xy * 2 - 1;
+		float2 b = NormalMap.Sample(NormalSampler, p * 1.7 - drift * 0.8).xy * 2 - 1;
+		slope = (a + b) * 0.5;
+	}
+	else
+	{
+		slope = BuiltInSlope(p, Time * speed / scale);
+	}
+	float strength = Or(WaveStrength, 0.25);
+	float3 worldNormal = normalize(float3(-slope * strength, 1));
+	float3 normal = ViewDirection(worldNormal);
+	float3 toEye = normalize(-input.viewPosition);
+	float3 toSun = ViewDirection(normalize(Or(SunDirection, float3(0.3, 0.3, 0.9))));
+
+	// The map's water: texture, colour and transparency as the game draws it.
+	float4 base = BaseTexture.Sample(BaseSampler, input.tex0.xy + slope * strength * 0.02);
+	float3 color = base.rgb * input.diffuse.rgb;
+	// Standing water takes its transparency from the vertex colour (WaterTransparency), rivers from the
+	// texture and the alpha edge.
+	float alpha = River > 0 ? base.a : input.diffuse.a;
+	if (River > 0 && HasMap(MAP_EXTRA))
+		alpha *= ExtraMap.Sample(ExtraSampler, input.tex1.xy).a;
+
+	// Deeper water is darker and more opaque; the shore fades in, with foam. The depth is straight down:
+	// the distance behind the surface along the view ray, times how steeply the ray goes down.
+	float3 up = ViewDirection(float3(0, 0, 1));
+	float depth = DepthBehind(input) * abs(dot(normalize(input.viewPosition), up));
+	float deep = saturate(depth / Or(DepthScale, 40));
+	color = lerp(color, Or(DeepColor, float3(0.02, 0.08, 0.12)), deep * 0.7);
+	alpha = lerp(alpha, max(alpha, Or(DeepOpacity, 0.7)), deep);
+	alpha *= saturate(depth / Or(ShoreDistance, 3));
+	float foam = 0;
+	if (FoamDistance >= 0)
+	{
+		float band = 1 - saturate(depth / Or(FoamDistance, 4));
+		float pattern = HasMap(MAP_SPECULAR) ? SpecularMap.Sample(SpecularSampler, p * 3 + drift * 2).r
+			: saturate(0.5 + 0.5 * sin((world.x + world.y) * 0.15 + Time * 2) * cos(world.x * 0.11 - Time));
+		foam = band * band * pattern * Or(FoamStrength, 0.5);
+	}
+
+	// Sky reflection, stronger at grazing angles.
+	float facing = saturate(dot(normal, toEye));
+	float fresnel = pow(1 - facing, 4) * Or(Reflection, 0.4);
+	float3 sky = lerp(Or(SkyColor, float3(0.35, 0.5, 0.7)), Or(HorizonColor, float3(0.7, 0.8, 0.9)), pow(1 - facing, 2));
+	if (HasMap(MAP_EMISSIVE))
+	{
+		float3 reflected = reflect(-toEye, normal);
+		sky = EmissiveMap.Sample(EmissiveSampler, reflected.xy * 0.5 + 0.5).rgb;
+	}
+	color = lerp(color, sky * (Or(AmbientColor, float3(0.4, 0.4, 0.4)) + Or(SunColor, float3(0.8, 0.8, 0.8))), fresnel);
+	alpha = saturate(alpha + fresnel * 0.5);
+
+	// Sun glints.
+	float3 halfway = normalize(toSun + toEye);
+	float glint = pow(saturate(dot(normal, halfway)), Or(Gloss, 180)) * Or(GlintStrength, 2);
+	float3 glow = glint * Or(SunColor, float3(1, 1, 1)) * saturate(alpha * 4);
+
+	color = lerp(color, float3(1, 1, 1), foam);
+	alpha = max(alpha, foam);
+	return Finish(float4(color, alpha), glow, input);
+}
+)";
+
 struct BuiltInMaterialShader
 {
 	const char *name;
@@ -184,6 +310,7 @@ static const BuiltInMaterialShader s_builtInShaders[] =
 {
 	{ "MAT_Standard", s_standardShader, sizeof(s_standardShader) - 1 },
 	{ "MAT_Particle", s_particleShader, sizeof(s_particleShader) - 1 },
+	{ "MAT_Water", s_waterShader, sizeof(s_waterShader) - 1 },
 };
 
 //-------------------------------------------------------------------------------------------------
@@ -622,18 +749,29 @@ bool W3DMaterials::bindTerrain(IDirect3DBaseTexture8 *const *maps)
 }
 
 //-------------------------------------------------------------------------------------------------
-bool W3DMaterials::bindWater()
+bool W3DMaterials::bindWater(IDirect3DBaseTexture8 *extraMap)
 {
 #ifdef RTS_RENDERER_DX12
 	if (prepare() == nullptr || m_waterMaterial < 0)
 		return false;
 	const UINT id = m_builtMaterials[m_waterMaterial].id;
 	setSunParameters(id);
-	Entry entry;
-	entry.material = m_waterMaterial;
+	IDirect3DBaseTexture8 *maps[4];
 	for (Int i = 0; i < 4; ++i)
-		entry.maps[i] = m_waterMaps[i];
-	return bindEntry(entry);
+	{
+		maps[i] = nullptr;
+		if (m_waterMaps[i] != nullptr)
+		{
+			if (!m_waterMaps[i]->Is_Initialized())
+				m_waterMaps[i]->Init();
+			maps[i] = m_waterMaps[i]->Peek_D3D_Base_Texture();
+		}
+	}
+	if (extraMap != nullptr)
+		maps[3] = extraMap;
+	m_materials->Set_Material(id, maps);
+	m_bound = TRUE;
+	return true;
 #else
 	return false;
 #endif

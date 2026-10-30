@@ -65,7 +65,7 @@ public:
 	/// The terrain or water material (Use = Terrain / Water), with maps the caller made (terrain) or, for
 	/// null, the material's own (water); End() unbinds it. Returns false when there is none.
 	bool bindTerrain(IDirect3DBaseTexture8 *const *maps);
-	bool bindWater();
+	bool bindWater(IDirect3DBaseTexture8 *extraMap);	///< extraMap, when not null, replaces the material's own
 	Bool hasTerrain();
 	Bool hasWater();
 	const MaterialTemplate *getTerrainSettings();	///< for its map suffixes; null without a terrain material

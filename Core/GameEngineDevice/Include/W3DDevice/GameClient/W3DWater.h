@@ -209,6 +209,7 @@ protected:
 	DWORD	m_waterPixelShader;		///<D3D handle to pixel shader.
 	DWORD	m_riverWaterPixelShader;		///<D3D handle to pixel shader.
 	DWORD	m_trapezoidWaterPixelShader;	///<handle to D3D vertex shader
+	Bool	m_materialActive;				///< the HLSL water material draws this water instead of the pixel shaders
 	TextureClass *m_waterSparklesTexture;
 	Real m_riverXOffset;
 	Real m_riverYOffset;
