@@ -97,7 +97,9 @@ public:
 
 	// Set whenever the contents were changed through a lock or a copy.
 	bool Is_Dirty() const { return m_dirty; }
-	void Set_Dirty(bool dirty) { m_dirty = dirty; }
+	void Set_Dirty(bool dirty) { m_dirty = dirty; if (dirty) ++s_dirtyGeneration; }
+	// Counts up whenever any surface becomes dirty, so textures can tell that none of theirs did.
+	static UINT Dirty_Generation() { return s_dirtyGeneration; }
 
 	// The resource the GPU draws into for render targets and depth buffers: the one of the texture
 	// for texture levels, an own one for standalone surfaces.
@@ -120,6 +122,7 @@ private:
 	unsigned m_pitch;
 	bool m_locked;
 	bool m_dirty;
+	static UINT s_dirtyGeneration;
 };
 
 class Texture : public Resource<IDirect3DTexture8, D3DRTYPE_TEXTURE>

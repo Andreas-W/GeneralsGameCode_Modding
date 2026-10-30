@@ -55,6 +55,8 @@ template class DeviceChild<IDirect3DVertexBuffer8>;
 template class DeviceChild<IDirect3DIndexBuffer8>;
 
 // Size of the next smaller mip level.
+UINT Surface::s_dirtyGeneration = 1;
+
 static UINT Half(UINT size)
 {
 	return size > 1 ? size / 2 : 1;
@@ -177,7 +179,7 @@ HRESULT STDMETHODCALLTYPE Surface::LockRect(D3DLOCKED_RECT* locked_rect, CONST R
 	locked_rect->pBits = m_data.data() + offset;
 	m_locked = true;
 	if ((flags & D3DLOCK_READONLY) == 0)
-		m_dirty = true;
+		Set_Dirty(true);
 	return D3D_OK;
 }
 

@@ -633,13 +633,33 @@ void Device::Fill_Vertex_Constants(FFVertexConstants& c, bool lighting, UINT sta
 	c.fog[2] = As_Float(rs[D3DRS_FOGDENSITY]);
 	c.fog[3] = 0;
 
+	if (lighting && m_viewLightsChanged)
+		Update_View_Lights();
+	const int count = lighting ? m_viewLightCount : 0;
+	memcpy(c.lights, m_viewLights, count * sizeof(FFLight));
+	c.lightCount[0] = count;
+	c.lightCount[1] = c.lightCount[2] = c.lightCount[3] = 0;
+
+	c.pointSize[0] = As_Float(rs[D3DRS_POINTSIZE]);
+	c.pointSize[1] = As_Float(rs[D3DRS_POINTSIZE_MIN]);
+	c.pointSize[2] = min(As_Float(rs[D3DRS_POINTSIZE_MAX]), 256.0f);
+	c.pointSize[3] = 0;
+	c.pointScale[0] = As_Float(rs[D3DRS_POINTSCALE_A]);
+	c.pointScale[1] = As_Float(rs[D3DRS_POINTSCALE_B]);
+	c.pointScale[2] = As_Float(rs[D3DRS_POINTSCALE_C]);
+	c.pointScale[3] = 0;
+}
+
+void Device::Update_View_Lights()
+{
+	const D3DMATRIX& view = m_state.transforms[0];
 	int count = 0;
-	for (UINT i = 0; lighting && i < MAX_LIGHTS && count < (int)FF_LIGHTS; ++i)
+	for (UINT i = 0; i < MAX_LIGHTS && count < (int)FF_LIGHTS; ++i)
 	{
 		if (!m_state.lightEnabled[i])
 			continue;
 		const D3DLIGHT8& light = m_state.lights[i];
-		FFLight& out = c.lights[count++];
+		FFLight& out = m_viewLights[count++];
 		To_Float4(light.Diffuse, out.diffuse);
 		To_Float4(light.Specular, out.specular);
 		To_Float4(light.Ambient, out.ambient);
@@ -665,17 +685,8 @@ void Device::Fill_Vertex_Constants(FFVertexConstants& c, bool lighting, UINT sta
 		out.spot[1] = cosf(light.Phi * 0.5f);
 		out.spot[2] = out.spot[3] = 0;
 	}
-	c.lightCount[0] = count;
-	c.lightCount[1] = c.lightCount[2] = c.lightCount[3] = 0;
-
-	c.pointSize[0] = As_Float(rs[D3DRS_POINTSIZE]);
-	c.pointSize[1] = As_Float(rs[D3DRS_POINTSIZE_MIN]);
-	c.pointSize[2] = min(As_Float(rs[D3DRS_POINTSIZE_MAX]), 256.0f);
-	c.pointSize[3] = 0;
-	c.pointScale[0] = As_Float(rs[D3DRS_POINTSCALE_A]);
-	c.pointScale[1] = As_Float(rs[D3DRS_POINTSCALE_B]);
-	c.pointScale[2] = As_Float(rs[D3DRS_POINTSCALE_C]);
-	c.pointScale[3] = 0;
+	m_viewLightCount = count;
+	m_viewLightsChanged = false;
 }
 
 void Device::Fill_Pixel_Constants(FFPixelConstants& c)
@@ -957,37 +968,43 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		Fill_Shader_Vertex_Constants(*(ShaderVertexConstants*)vs_constants.cpu);
 	else
 		Fill_Vertex_Constants(*(FFVertexConstants*)vs_constants.cpu, vs_key.lighting != 0, vs_key.stageCount);
-	FFPixelConstants pc;
-	memset(&pc, 0, sizeof(pc));
-	Fill_Pixel_Constants(pc);
-	D3D12_GPU_VIRTUAL_ADDRESS material_constants = 0;
-	if (use_material)
-	{
-		pc.materialTime[0] = m_materialSystem->Time();
-		pc.materialFlags[0] = (int)material_maps;
-		pc.materialFlags[1] = vs_key.lighting;
-		pc.materialFlags[2] = ps_key.alphaFunc;
-		pc.materialFlags[3] = ps_key.specular;
-		if (!material.params->empty())
-		{
-			UploadAllocation params = Allocate_Upload((UINT)material.params->size(), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-			if (params.cpu == nullptr)
-				return D3D_OK;
-			memcpy(params.cpu, material.params->data(), material.params->size());
-			material_constants = params.gpu;
-		}
-	}
-	// The pixel constants rarely change from one draw to the next; the same ones are not uploaded again.
+	// The pixel constants rarely change from one draw to the next; the same ones are not uploaded again,
+	// and without a change to the states they come from they are not even filled.
 	D3D12_GPU_VIRTUAL_ADDRESS pixel_constants = m_bound.pixelConstants;
-	const bool new_pixel_constants = !m_bound.valid || pixel_constants == 0 || memcmp(&pc, &m_lastPixelConstants, sizeof(pc)) != 0;
-	if (new_pixel_constants)
+	D3D12_GPU_VIRTUAL_ADDRESS material_constants = 0;
+	if (m_pixelStateChanged || use_material || m_lastPixelMaterial || !m_bound.valid || pixel_constants == 0)
 	{
-		UploadAllocation ps_constants = Allocate_Upload(sizeof(FFPixelConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-		if (ps_constants.cpu == nullptr)
-			return D3D_OK;
-		memcpy(ps_constants.cpu, &pc, sizeof(pc));
-		m_lastPixelConstants = pc;
-		pixel_constants = ps_constants.gpu;
+		FFPixelConstants pc;
+		memset(&pc, 0, sizeof(pc));
+		Fill_Pixel_Constants(pc);
+		if (use_material)
+		{
+			pc.materialTime[0] = m_materialSystem->Time();
+			pc.materialFlags[0] = (int)material_maps;
+			pc.materialFlags[1] = vs_key.lighting;
+			pc.materialFlags[2] = ps_key.alphaFunc;
+			pc.materialFlags[3] = ps_key.specular;
+			if (!material.params->empty())
+			{
+				UploadAllocation params = Allocate_Upload((UINT)material.params->size(), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+				if (params.cpu == nullptr)
+					return D3D_OK;
+				memcpy(params.cpu, material.params->data(), material.params->size());
+				material_constants = params.gpu;
+			}
+		}
+		const bool new_pixel_constants = !m_bound.valid || pixel_constants == 0 || memcmp(&pc, &m_lastPixelConstants, sizeof(pc)) != 0;
+		if (new_pixel_constants)
+		{
+			UploadAllocation ps_constants = Allocate_Upload(sizeof(FFPixelConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+			if (ps_constants.cpu == nullptr)
+				return D3D_OK;
+			memcpy(ps_constants.cpu, &pc, sizeof(pc));
+			m_lastPixelConstants = pc;
+			pixel_constants = ps_constants.gpu;
+		}
+		m_pixelStateChanged = false;
+		m_lastPixelMaterial = use_material;
 	}
 	if (material_constants == 0)
 		material_constants = pixel_constants;
@@ -1079,7 +1096,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 			++m_timingSums.tableChanges;
 		}
 		const UINT sampler = stage_used ? Get_Sampler(stage) : 0;
-		D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle = m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
+		D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle = m_samplerGpuStart;
 		sampler_handle.ptr += (UINT64)sampler * m_samplerDescriptorSize;
 		if (bound.tables[FF_STAGES + stage] != sampler_handle.ptr)
 		{

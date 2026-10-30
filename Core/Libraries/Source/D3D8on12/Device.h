@@ -263,6 +263,7 @@ private:
 	const TranslatedShader* Get_Translated_Vertex_Shader(DWORD handle, UINT64& hash);
 	const TranslatedShader* Get_Translated_Pixel_Shader(const PixelShaderTranslation& info, const DWORD* function, UINT64& hash);
 	void Fill_Vertex_Constants(FFVertexConstants& constants, bool lighting, UINT stages);
+	void Update_View_Lights();
 	void Fill_Pixel_Constants(FFPixelConstants& constants);
 	void Fill_Shader_Vertex_Constants(ShaderVertexConstants& constants);
 
@@ -321,6 +322,11 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_samplerHeap;	// shader visible
 	UINT m_srvDescriptorSize;
 	UINT m_samplerDescriptorSize;
+	D3D12_GPU_DESCRIPTOR_HANDLE m_srvGpuStart;		// asking the heaps for these costs a call each time
+	D3D12_GPU_DESCRIPTOR_HANDLE m_samplerGpuStart;
+	// The sampler states each stage had at its last Get_Sampler, and the sampler they gave.
+	DWORD m_samplerStates[FF_STAGES][10];
+	UINT m_samplerIndex[FF_STAGES];
 	std::vector<UINT> m_freeSrvs;
 	UINT m_nextSrv;
 	std::unordered_map<UINT64, UINT> m_samplers;
@@ -346,6 +352,13 @@ private:
 	};
 	BoundState m_bound;
 	FFPixelConstants m_lastPixelConstants;
+	bool m_pixelStateChanged;		// a state Fill_Pixel_Constants reads changed since m_lastPixelConstants
+	bool m_lastPixelMaterial;		// m_lastPixelConstants were filled for a material
+	// The enabled lights in view space, as the vertex constants want them; rebuilt when a light or the
+	// view changes.
+	FFLight m_viewLights[FF_LIGHTS];
+	int m_viewLightCount;
+	bool m_viewLightsChanged;
 	// The keys of the last draw and what they gave, as most draws repeat them.
 	VertexShaderKey m_lastVertexKey;
 	UINT64 m_lastVertexHash;

@@ -108,6 +108,10 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_lastPixelKeyValid(false),
 		m_lastPipeline(nullptr),
 		m_lastPipelineValid(false),
+		m_pixelStateChanged(true),
+		m_lastPixelMaterial(false),
+		m_viewLightCount(0),
+		m_viewLightsChanged(true),
 		m_timestampFrequency(0),
 		m_liveChildren(0),
 		m_nextTargetRtv(1),
@@ -131,6 +135,10 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 	memset(m_uploadCpu, 0, sizeof(m_uploadCpu));
 
 	memset(&m_bound, 0, sizeof(m_bound));
+	memset(&m_srvGpuStart, 0, sizeof(m_srvGpuStart));
+	memset(&m_samplerGpuStart, 0, sizeof(m_samplerGpuStart));
+	memset(m_samplerStates, 0, sizeof(m_samplerStates));
+	memset(m_samplerIndex, 0, sizeof(m_samplerIndex));
 	for (int i = 0; i < 256; ++i)
 		m_gammaRamp.red[i] = m_gammaRamp.green[i] = m_gammaRamp.blue[i] = (WORD)(i * 257);
 }
@@ -504,6 +512,8 @@ void Device::Set_Default_State()
 {
 	StateValues& s = m_state;
 	memset(&s, 0, sizeof(s));
+	m_pixelStateChanged = true;
+	m_viewLightsChanged = true;
 
 	DWORD* rs = s.renderStates;
 	rs[D3DRS_ZENABLE] = m_presentParams.EnableAutoDepthStencil ? D3DZB_TRUE : D3DZB_FALSE;
@@ -1469,6 +1479,8 @@ HRESULT STDMETHODCALLTYPE Device::SetTransform(D3DTRANSFORMSTATETYPE state, CONS
 	if (matrix == nullptr || index < 0)
 		return D3DERR_INVALIDCALL;
 	m_state.transforms[index] = *matrix;
+	if (index == 0)
+		m_viewLightsChanged = true;	// lights are kept in view space
 	return D3D_OK;
 }
 
@@ -1536,6 +1548,7 @@ HRESULT STDMETHODCALLTYPE Device::SetLight(DWORD index, CONST D3DLIGHT8* light)
 	if (light == nullptr || index >= MAX_LIGHTS)
 		return D3DERR_INVALIDCALL;
 	m_state.lights[index] = *light;
+	m_viewLightsChanged = true;
 	return D3D_OK;
 }
 
@@ -1552,6 +1565,7 @@ HRESULT STDMETHODCALLTYPE Device::LightEnable(DWORD index, BOOL enable)
 	if (index >= MAX_LIGHTS)
 		return D3DERR_INVALIDCALL;
 	m_state.lightEnabled[index] = enable;
+	m_viewLightsChanged = true;
 	return D3D_OK;
 }
 
@@ -1583,6 +1597,8 @@ HRESULT STDMETHODCALLTYPE Device::SetRenderState(D3DRENDERSTATETYPE state, DWORD
 {
 	if ((unsigned)state >= 256)
 		return D3DERR_INVALIDCALL;
+	if ((state == D3DRS_TEXTUREFACTOR || state == D3DRS_FOGCOLOR || state == D3DRS_ALPHAREF) && m_state.renderStates[state] != value)
+		m_pixelStateChanged = true;
 	m_state.renderStates[state] = value;
 	return D3D_OK;
 }
@@ -1620,6 +1636,8 @@ HRESULT STDMETHODCALLTYPE Device::ApplyStateBlock(DWORD token)
 	if (token == 0 || token > m_stateBlocks.size() || m_stateBlocks[token - 1] == nullptr)
 		return D3DERR_INVALIDCALL;
 	m_state = *m_stateBlocks[token - 1];
+	m_pixelStateChanged = true;
+	m_viewLightsChanged = true;
 	return D3D_OK;
 }
 
@@ -1696,6 +1714,9 @@ HRESULT STDMETHODCALLTYPE Device::SetTextureStageState(DWORD stage, D3DTEXTUREST
 {
 	if (stage >= MAX_TEXTURE_STAGES || (unsigned)type >= 32)
 		return D3DERR_INVALIDCALL;
+	if (((type >= D3DTSS_BUMPENVMAT00 && type <= D3DTSS_BUMPENVMAT11) || type == D3DTSS_BUMPENVLSCALE || type == D3DTSS_BUMPENVLOFFSET)
+		&& m_state.textureStageStates[stage][type] != value)
+		m_pixelStateChanged = true;
 	m_state.textureStageStates[stage][type] = value;
 	return D3D_OK;
 }
@@ -1968,6 +1989,7 @@ HRESULT STDMETHODCALLTYPE Device::SetPixelShaderConstant(DWORD reg, CONST void* 
 	if (data == nullptr || reg + count > MAX_PIXEL_SHADER_CONSTANTS)
 		return D3DERR_INVALIDCALL;
 	memcpy(m_state.pixelShaderConstants[reg], data, count * 4 * sizeof(float));
+	m_pixelStateChanged = true;
 	return D3D_OK;
 }
 

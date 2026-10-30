@@ -71,6 +71,7 @@ struct GpuTexture
 	UINT srv = 0;	// descriptor in the shader visible heap, 0 while there is none
 	D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
 	UINT64 poolKey = 0;	// kind of texture, for using the resource again once released; 0 for none
+	UINT checkedGeneration = 0;	// Surface::Dirty_Generation() when all levels were last found uploaded
 };
 
 // The Direct3D 12 copy of a vertex or index buffer that is not dynamic. Locks mark the range they

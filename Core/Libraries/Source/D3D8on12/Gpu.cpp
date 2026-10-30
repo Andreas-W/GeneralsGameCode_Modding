@@ -126,12 +126,14 @@ HRESULT Device::Init_Gpu_Objects()
 	if (FAILED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_srvHeap))))
 		return D3DERR_OUTOFVIDEOMEMORY;
 	m_srvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	m_srvGpuStart = m_srvHeap->GetGPUDescriptorHandleForHeapStart();
 
 	heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
 	heap_desc.NumDescriptors = SAMPLER_HEAP_SIZE;
 	if (FAILED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_samplerHeap))))
 		return D3DERR_OUTOFVIDEOMEMORY;
 	m_samplerDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+	m_samplerGpuStart = m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC null_desc = {};
 	null_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -174,7 +176,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE Device::Srv_Cpu_Handle(UINT index) const
 
 D3D12_GPU_DESCRIPTOR_HANDLE Device::Srv_Gpu_Handle(UINT index) const
 {
-	D3D12_GPU_DESCRIPTOR_HANDLE handle = m_srvHeap->GetGPUDescriptorHandleForHeapStart();
+	D3D12_GPU_DESCRIPTOR_HANDLE handle = m_srvGpuStart;
 	handle.ptr += (UINT64)index * m_srvDescriptorSize;
 	return handle;
 }
@@ -360,6 +362,8 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 		type = TEXTURE_CUBE;
 		CubeTexture* cube = static_cast<CubeTexture*>(static_cast<IDirect3DCubeTexture8*>(base_texture));
 		gpu = &cube->Gpu();
+		if (gpu->resource != nullptr && gpu->checkedGeneration == Surface::Dirty_Generation())
+			return gpu->srv;
 		levels = cube->GetLevelCount();
 		faces = 6;
 		for (UINT face = 0; face < 6; ++face)
@@ -370,6 +374,9 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 	{
 		Texture* texture = static_cast<Texture*>(static_cast<IDirect3DTexture8*>(base_texture));
 		gpu = &texture->Gpu();
+		// Nothing became dirty anywhere since this texture was last found up to date.
+		if (gpu->resource != nullptr && gpu->checkedGeneration == Surface::Dirty_Generation())
+			return gpu->srv;
 		levels = texture->GetLevelCount();
 		for (UINT level = 0; level < levels; ++level)
 			subresources.push_back(texture->Level(level));
@@ -407,6 +414,7 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 	bool any_dirty = false;
 	for (Surface* surface : subresources)
 		any_dirty = any_dirty || surface->Is_Dirty();
+	bool complete = true;
 
 	if (any_dirty)
 	{
@@ -436,7 +444,10 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 
 			UploadAllocation upload = Allocate_Upload(total, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 			if (upload.cpu == nullptr)
+			{
+				complete = false;
 				break;
+			}
 
 			const UINT source_rows = Get_Row_Count(surface->Desc().Format, surface->Desc().Height);
 			for (UINT row = 0; row < rows; ++row)
@@ -466,6 +477,8 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 		m_commandList->ResourceBarrier(1, &barrier);
 		gpu->state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	}
+	if (complete)
+		gpu->checkedGeneration = Surface::Dirty_Generation();
 
 	return gpu->srv;
 }
@@ -481,6 +494,12 @@ static D3D12_TEXTURE_ADDRESS_MODE Get_Address_Mode(DWORD mode)
 UINT Device::Get_Sampler(DWORD stage)
 {
 	const DWORD* tss = m_state.textureStageStates[stage];
+	// Stages mostly keep their sampler states from draw to draw.
+	const DWORD states[10] = { tss[D3DTSS_MINFILTER], tss[D3DTSS_MAGFILTER], tss[D3DTSS_MIPFILTER], tss[D3DTSS_MAXANISOTROPY],
+		tss[D3DTSS_ADDRESSU], tss[D3DTSS_ADDRESSV], tss[D3DTSS_ADDRESSW], tss[D3DTSS_MIPMAPLODBIAS], tss[D3DTSS_BORDERCOLOR],
+		tss[D3DTSS_MAXMIPLEVEL] };
+	if (stage < FF_STAGES && m_samplerIndex[stage] != 0 && memcmp(states, m_samplerStates[stage], sizeof(states)) == 0)
+		return m_samplerIndex[stage];
 
 	D3D12_SAMPLER_DESC desc = {};
 	const DWORD min_filter = tss[D3DTSS_MINFILTER];
@@ -517,7 +536,13 @@ UINT Device::Get_Sampler(DWORD stage)
 	desc.MinLOD = (float)tss[D3DTSS_MAXMIPLEVEL];
 	desc.MaxLOD = mip_filter == D3DTEXF_NONE ? desc.MinLOD : D3D12_FLOAT32_MAX;
 
-	return Find_Sampler(desc);
+	const UINT index = Find_Sampler(desc);
+	if (stage < FF_STAGES)
+	{
+		memcpy(m_samplerStates[stage], states, sizeof(states));
+		m_samplerIndex[stage] = index;
+	}
+	return index;
 }
 
 // The index of a sampler with this description in the sampler heap, created on first use.
