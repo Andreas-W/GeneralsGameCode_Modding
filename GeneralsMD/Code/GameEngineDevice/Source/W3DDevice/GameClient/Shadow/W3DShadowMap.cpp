@@ -68,7 +68,17 @@ W3DShadowMap::W3DShadowMap() :
 	m_casterCount(0),
 	m_coverage(0.0f),
 	m_terrainIndices(nullptr),
-	m_terrainMap(nullptr)
+	m_terrainMap(nullptr),
+	m_drawnValid(FALSE),
+	m_drawnEye(0.0f, 0.0f, 0.0f),
+	m_drawnCoverage(0.0f),
+	m_drawnSize(0),
+	m_drawnDepthBias(0),
+	m_drawnSlopeBias(0.0f),
+	m_drawnTerrain(FALSE),
+	m_drawnTrees(FALSE),
+	m_drawnTime(0),
+	m_fitEye(0.0f, 0.0f, 0.0f)
 {
 	m_lightCamera = NEW_REF( CameraClass, () );
 }
@@ -283,6 +293,7 @@ Bool W3DShadowMap::fitLightCamera(CameraClass *viewCamera, Int size)
 	Matrix3D transform;
 	transform.Set(xAxis, yAxis, toLight, eye);
 	m_lightCamera->Set_Transform(transform);
+	m_fitEye = eye;
 	// The near plane leaves room for casters above the assumed height, such as aircraft.
 	m_lightCamera->Set_Clip_Planes(SUN_DISTANCE - 1000.0f, SUN_DISTANCE + (maxZ - minZ) + 100.0f);
 	const Real extent = half / SUN_DISTANCE;
@@ -294,19 +305,39 @@ Bool W3DShadowMap::fitLightCamera(CameraClass *viewCamera, Int size)
 //-------------------------------------------------------------------------------------------------
 void W3DShadowMap::update(CameraClass *viewCamera)
 {
-	m_rendered = FALSE;
-	m_casterCount = 0;
 #ifdef RTS_RENDERER_DX12
 	if (viewCamera == nullptr || TheW3DVolumetricShadowManager == nullptr || !isActive())
+	{
+		m_rendered = FALSE;
+		m_drawnValid = FALSE;
 		return;
+	}
 	const ShadowMapSettings &settings = *TheShadowMapSettings;
 	const Int size = max(256, min(settings.m_size, 8192));
 	if (!fitLightCamera(viewCamera, size))
+	{
+		m_rendered = FALSE;
+		m_drawnValid = FALSE;
 		return;
+	}
+
+	// At high frame rates the map of the previous frame still fits when the light camera has not moved;
+	// objects then lag by one frame, which does not show.
+	const UnsignedInt now = timeGetTime();
+	if (m_rendered && m_drawnValid && settings.m_maxUpdateRate > 0.0f && m_fitEye == m_drawnEye && m_coverage == m_drawnCoverage
+		&& size == m_drawnSize && settings.m_depthBias == m_drawnDepthBias && settings.m_slopeBias == m_drawnSlopeBias
+		&& (settings.m_terrain != FALSE) == m_drawnTerrain && (settings.m_trees != FALSE) == m_drawnTrees
+		&& (Real)(now - m_drawnTime) < 1000.0f / settings.m_maxUpdateRate)
+		return;
+	m_rendered = FALSE;
+	m_casterCount = 0;
 
 	ID3D8On12ShadowMap *mapper = DX8Wrapper::Get_Shadow_Mapper();
 	if (FAILED(mapper->Begin_Shadow_Map(size, settings.m_depthBias, settings.m_slopeBias)))
+	{
+		m_drawnValid = FALSE;
 		return;
+	}
 
 	// The matrices exactly as the renderer gets them, for finding points in the map later.
 	m_lightCamera->Apply();
@@ -323,10 +354,12 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 		TheDX8MeshRenderer.Set_Camera(&rinfo.Camera);
 		WW3D::Set_Depth_Only_Pass(true);
 		// The casters of the shadow volumes, also those just outside the view whose shadows reach into
-		// it; their meshes cull themselves against the light camera.
+		// it. Objects outside the light camera are left out before they update their animation.
+		const FrustumClass &frustum = m_lightCamera->Get_Frustum();
 		for (W3DVolumetricShadow *shadow = TheW3DVolumetricShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
 		{
-			if (shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && shadow->m_robj != nullptr)
+			if (shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && shadow->m_robj != nullptr
+				&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
 			{
 				shadow->m_robj->Render(rinfo);
 				++m_casterCount;
@@ -341,7 +374,8 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 			{
 				for (W3DProjectedShadow *shadow = TheW3DProjectedShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
 				{
-					if ((shadow->m_type & SHADOW_DECAL) && shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && isTree(shadow->m_robj))
+					if ((shadow->m_type & SHADOW_DECAL) && shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && isTree(shadow->m_robj)
+						&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
 					{
 						shadow->m_robj->Render(rinfo);
 						++m_casterCount;
@@ -357,6 +391,15 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 		m_rendered = TRUE;
 	}
 	mapper->End_Shadow_Map(&view, &projection);
+	m_drawnValid = m_rendered;
+	m_drawnEye = m_fitEye;
+	m_drawnCoverage = m_coverage;
+	m_drawnSize = size;
+	m_drawnDepthBias = settings.m_depthBias;
+	m_drawnSlopeBias = settings.m_slopeBias;
+	m_drawnTerrain = settings.m_terrain != FALSE;
+	m_drawnTrees = settings.m_trees != FALSE;
+	m_drawnTime = now;
 #endif
 }
 

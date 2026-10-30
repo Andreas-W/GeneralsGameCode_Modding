@@ -43,6 +43,7 @@
 //	  MinSunElevation = 0			; degrees; a lower sun is raised to this, which shortens the shadows
 //	  Terrain = Yes					; hills and cliffs cast shadows too
 //	  Trees = Yes					; trees cast shadows into the map instead of their decal shadows
+//	  MaxUpdateRate = 60			; redraws per second while the view stands still; 0 = every frame
 //	End
 //
 //	Material AmericaTanks			; in Data\INI\Material.ini: a pixel shader for every mesh drawn with these textures
@@ -122,6 +123,7 @@ public:
 	Real m_minSunElevation;
 	Bool m_terrain;
 	Bool m_trees;
+	Real m_maxUpdateRate;
 
 	static const FieldParse s_fieldParseTable[];
 };

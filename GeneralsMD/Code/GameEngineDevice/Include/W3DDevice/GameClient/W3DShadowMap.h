@@ -55,6 +55,7 @@ public:
 	Real getCoverage() const { return m_coverage; }	///< world units the map is wide
 	Real getSunElevation();							///< degrees above the horizon, after MinSunElevation
 	void releaseTerrain();							///< forgets the terrain mesh; per map
+	void invalidate() { m_drawnValid = FALSE; }		///< the map must be drawn again, e.g. after a device reset
 
 private:
 	Bool fitLightCamera(CameraClass *viewCamera, Int size);
@@ -78,6 +79,19 @@ private:
 	Bool m_debug;
 	Int m_casterCount;
 	Real m_coverage;
+
+	// What the map in the renderer was last drawn with; while nothing of it changes, the map is drawn
+	// again at most MaxUpdateRate times per second.
+	Bool m_drawnValid;
+	Vector3 m_drawnEye;
+	Real m_drawnCoverage;
+	Int m_drawnSize;
+	Int m_drawnDepthBias;
+	Real m_drawnSlopeBias;
+	Bool m_drawnTerrain;
+	Bool m_drawnTrees;
+	UnsignedInt m_drawnTime;
+	Vector3 m_fitEye;		///< where fitLightCamera put the light camera
 };
 
 extern W3DShadowMap *TheW3DShadowMap;

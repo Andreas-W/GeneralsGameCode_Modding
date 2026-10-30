@@ -188,6 +188,8 @@ Bool W3DShadowManager::ReAcquireResources()
 
 void W3DShadowManager::ReleaseResources()
 {
+	if (TheW3DShadowMap)
+		TheW3DShadowMap->invalidate();
 	if (TheW3DVolumetricShadowManager)
 		TheW3DVolumetricShadowManager->ReleaseResources();
 	if (TheW3DProjectedShadowManager)
