@@ -2604,7 +2604,9 @@ void W3DShaderManager::init()
 		
 		// TheSuperHackers @bugfix Redirecting rendering to a non-multisampled texture
 		// while using a multisampled depth buffer is an API violation in DX8.
-		if (desc.MultiSampleType == D3DMULTISAMPLE_NONE)
+		// The Direct3D 12 renderer draws such a texture multisampled and resolves it, so the screen
+		// filters work there with anti-aliasing too.
+		if (desc.MultiSampleType == D3DMULTISAMPLE_NONE || DX8Wrapper::Get_Post_Process() != nullptr)
 		{
 			hr=DX8Wrapper::_Create_DX8_Texture_Raw(desc.Width,desc.Height,1,D3DUSAGE_RENDERTARGET,desc.Format,D3DPOOL_DEFAULT,&m_renderTexture);
 		}
