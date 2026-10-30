@@ -108,8 +108,9 @@ static const char s_copyShader[] =
 	"Texture2D Scene : register(t0);\n"
 	"float4 main(float4 position : SV_Position) : SV_Target { return saturate(Scene.Load(int3(int2(position.xy) + Offset.xy, 0))); }\n";
 
-// Input0: depth of the scene, t4: the shadow map. The amount of shadow from soft depth comparisons
-// around the point's place in the map, turned into the color the back buffer is multiplied with.
+// Input0: depth of the scene, t4: the shadow map, t5: the detail cascade (optional). The amount of shadow
+// from soft depth comparisons around the point's place in the map (the detail cascade where it covers the
+// point), turned into the color the back buffer is multiplied with.
 static const char s_shadowShader[] =
 	"#include \"PostProcess.hlsli\"\n"
 	"cbuffer Params : register(b1)\n"
@@ -121,8 +122,12 @@ static const char s_shadowShader[] =
 	"	float Softness;\n"
 	"	float MapTexel;\n"
 	"	float Debug;\n"
+	"	row_major float4x4 DetailViewProjection;\n"
+	"	float DetailTexel;\n"
+	"	float HasDetail;\n"
 	"};\n"
 	"Texture2D<float> ShadowDepth : register(t4);\n"
+	"Texture2D<float> DetailDepth : register(t5);\n"
 	"SamplerComparisonState ShadowCompare : register(s4);\n"
 	"static const float2 POISSON[12] =\n"
 	"{\n"
@@ -130,27 +135,55 @@ static const char s_shadowShader[] =
 	"	float2(0.962, -0.195), float2(0.473, -0.480), float2(0.519, 0.767), float2(0.185, -0.893),\n"
 	"	float2(0.507, 0.064), float2(0.896, 0.412), float2(-0.322, -0.933), float2(-0.792, -0.598),\n"
 	"};\n"
+	"// The amount of shadow in a map, or -1 where the map does not cover the point; edge: how close it is to\n"
+	"// the map's border, 0 at the border.\n"
+	"float MapShadow(Texture2D<float> map, float4x4 viewProjection, float texel, float3 world, float2x2 turn, out float edge)\n"
+	"{\n"
+	"	edge = 0;\n"
+	"	float4 clip = mul(float4(world, 1), viewProjection);\n"
+	"	float3 ndc = clip.xyz / clip.w;\n"
+	"	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);\n"
+	"	if (clip.w <= 0 || any(uv < 0) || any(uv > 1) || ndc.z > 1)\n"
+	"		return -1;\n"
+	"	float lit = 0;\n"
+	"	[unroll]\n"
+	"	for (int i = 0; i < 12; ++i)\n"
+	"		lit += map.SampleCmpLevelZero(ShadowCompare, uv + mul(POISSON[i], turn) * Softness * texel, ndc.z);\n"
+	"	float2 border = min(uv, 1 - uv);\n"
+	"	edge = saturate(min(border.x, border.y) * 20);\n"
+	"	// saturate: lit / 12 can come out a hair above 1, which would read as -1 below.\n"
+	"	return saturate(1 - lit / 12);\n"
+	"}\n"
 	"float4 main(PostProcessInput input) : SV_Target\n"
 	"{\n"
 	"	float depth = Input0.SampleLevel(PointClamp, input.uv, 0).r;\n"
 	"	if (depth >= 1)\n"
 	"		return float4(1, 1, 1, 1);\n"
 	"	float3 world = WorldPosition(ViewPosition(input.uv, depth)) + ToLight * Bias;\n"
-	"	float4 clip = mul(float4(world, 1), ShadowViewProjection);\n"
-	"	float3 ndc = clip.xyz / clip.w;\n"
-	"	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);\n"
-	"	if (clip.w <= 0 || any(uv < 0) || any(uv > 1) || ndc.z > 1)\n"
-	"		return float4(1, 1, 1, 1);\n"
 	"	// The samples turned by a different angle for each pixel, so the soft edge has no steps.\n"
 	"	float angle = 6.2831853 * frac(52.9829189 * frac(dot(input.position.xy, float2(0.06711056, 0.00583715))));\n"
 	"	float2x2 turn = float2x2(cos(angle), -sin(angle), sin(angle), cos(angle));\n"
-	"	float lit = 0;\n"
-	"	[unroll]\n"
-	"	for (int i = 0; i < 12; ++i)\n"
-	"		lit += ShadowDepth.SampleCmpLevelZero(ShadowCompare, uv + mul(POISSON[i], turn) * Softness * MapTexel, ndc.z);\n"
+	"	float edge;\n"
+	"	float shadow = MapShadow(ShadowDepth, ShadowViewProjection, MapTexel, world, turn, edge);\n"
+	"	if (shadow < -0.5)\n"
+	"		return float4(1, 1, 1, 1);\n"
 	"	// Fades out towards the border of the map instead of ending in a line.\n"
-	"	float2 border = min(uv, 1 - uv);\n"
-	"	float shadow = (1 - lit / 12) * saturate(min(border.x, border.y) * 20);\n"
+	"	shadow *= edge;\n"
+	"	float usedDetail = 0;\n"
+	"	if (HasDetail > 0)\n"
+	"	{\n"
+	"		// The detail cascade where it covers the point, blended into the main map at its border.\n"
+	"		float detailEdge;\n"
+	"		float detail = MapShadow(DetailDepth, DetailViewProjection, DetailTexel, world, turn, detailEdge);\n"
+	"		if (detail > -0.5)\n"
+	"		{\n"
+	"			shadow = lerp(shadow, detail, detailEdge);\n"
+	"			usedDetail = detailEdge;\n"
+	"		}\n"
+	"	}\n"
+	"	// Debug 2: the detail cascade tinted green.\n"
+	"	if (Debug > 1)\n"
+	"		return float4((1 - shadow) * (1 - 0.5 * usedDetail), 1 - shadow, (1 - shadow) * (1 - 0.5 * usedDetail), 1);\n"
 	"	if (Debug > 0)\n"
 	"		return float4((1 - shadow).xxx, 1);\n"
 	"	return lerp(float4(1, 1, 1, 1), ShadowColor, shadow);\n"
@@ -165,7 +198,11 @@ struct ShadowConstants
 	float softness;
 	float mapTexel;
 	float debug;
-	float pad;
+	float pad0;		// HLSL starts the matrix at the next 16 bytes
+	D3DMATRIX detailViewProjection;
+	float detailTexel;
+	float hasDetail;
+	float pad[2];
 };
 
 // One triangle that covers the screen, with texture coordinates 0..1 over it.
@@ -466,7 +503,7 @@ HRESULT PostProcessor::Copy_Back_Buffer(Surface* dest, const RECT& rect, const P
 	return D3D_OK;
 }
 
-HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX& light_view, const D3DMATRIX& light_projection,
+HRESULT PostProcessor::Draw_Shadows(const ShadowCascade* cascades,
 	const D3D8ON12_SHADOW_PARAMS& params, const D3DMATRIX& view, const D3DMATRIX& projection)
 {
 	Device& device = *m_device;
@@ -532,13 +569,19 @@ HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX
 	c.inverseProjection = Invert(projection);
 	ShadowConstants& s = *(ShadowConstants*)constants.cpu;
 	memset(&s, 0, sizeof(s));
-	s.viewProjection = Multiply(light_view, light_projection);
+	s.viewProjection = Multiply(cascades[0].view, cascades[0].projection);
+	s.hasDetail = cascades[1].srv != 0 ? 1.0f : 0.0f;
+	if (cascades[1].srv != 0)
+	{
+		s.detailViewProjection = Multiply(cascades[1].view, cascades[1].projection);
+		s.detailTexel = 1.0f / cascades[1].size;
+	}
 	memcpy(s.color, params.color, sizeof(s.color));
 	memcpy(s.toLight, params.toLight, sizeof(s.toLight));
 	s.bias = params.bias;
 	s.softness = params.softness;
-	s.mapTexel = 1.0f / map_size;
-	s.debug = debug ? 1.0f : 0.0f;
+	s.mapTexel = 1.0f / cascades[0].size;
+	s.debug = (float)params.debug;
 
 	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
 	list->OMSetRenderTargets(1, &targets.rtv, FALSE, nullptr);
@@ -555,7 +598,8 @@ HRESULT PostProcessor::Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX
 	compare.ptr += (UINT64)m_shadowSampler * device.m_samplerDescriptorSize;
 	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 0, device.Srv_Gpu_Handle(m_depth.gpu.srv));
 	list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + 1, point);
-	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 4, device.Srv_Gpu_Handle(map_srv));
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 4, device.Srv_Gpu_Handle(cascades[0].srv));
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 5, device.Srv_Gpu_Handle(cascades[1].srv != 0 ? cascades[1].srv : NULL_SRV_2D));
 	list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + 4, compare);
 	list->DrawInstanced(3, 1, 0, 0);
 	device.Mark_Time(Device::TIMING_SHADOWS_END);

@@ -31,6 +31,7 @@
 #include <vector>
 
 class CameraClass;
+class FrustumClass;
 class RenderObjClass;
 class DX8IndexBufferClass;
 class DX8VertexBufferClass;
@@ -48,8 +49,8 @@ public:
 	void update(CameraClass *viewCamera);		///< draws the casters into the map; before the frame's Begin_Render
 	Bool apply();								///< darkens the scene in place of the volumes; FALSE when it did not
 
-	void setDebug(Bool debug) { m_debug = debug; }	///< shows the amount of shadow as grey
-	Bool getDebug() const { return m_debug; }
+	void setDebug(Int debug) { m_debug = debug; }	///< 1: shows the amount of shadow as grey; 2: also the detail cascade
+	Int getDebug() const { return m_debug; }
 	Bool wasRendered() const { return m_rendered; }
 	Int getCasterCount() const { return m_casterCount; }
 	Real getCoverage() const { return m_coverage; }	///< world units the map is wide
@@ -58,10 +59,11 @@ public:
 	void invalidate() { m_drawnValid = FALSE; }		///< the map must be drawn again, e.g. after a device reset
 
 private:
-	Bool fitLightCamera(CameraClass *viewCamera, Int size);
+	Bool fitLightCamera(CameraClass *viewCamera, Int size, Int detailSize);
+	void renderCascade(UnsignedInt cascade, CameraClass *camera, Int size);
 	Bool getToLight(Vector3 &toLight);
 	void buildTerrain(WorldHeightMap *map);
-	void drawTerrain();
+	void drawTerrain(const FrustumClass &frustum);
 
 	/// Positions of a square of terrain cells, for drawing the terrain into the map; built from the
 	/// height map once per map. Squares at the map edge repeat their last row and column.
@@ -75,8 +77,10 @@ private:
 	WorldHeightMap *m_terrainMap;			///< the height map the chunks were built from
 
 	CameraClass *m_lightCamera;
+	CameraClass *m_detailCamera;	///< the detail cascade, around the middle of the view
+	Bool m_detailFitted;		///< fitLightCamera placed the detail camera this frame
 	Bool m_rendered;			///< the map was drawn for this frame
-	Bool m_debug;
+	Int m_debug;
 	Int m_casterCount;
 	Real m_coverage;
 
@@ -92,6 +96,10 @@ private:
 	Bool m_drawnTrees;
 	UnsignedInt m_drawnTime;
 	Vector3 m_fitEye;		///< where fitLightCamera put the light camera
+	Vector3 m_fitDetailEye;	///< and the detail camera
+	Vector3 m_drawnDetailEye;
+	Bool m_drawnDetail;
+	Int m_drawnDetailSize;
 };
 
 extern W3DShadowMap *TheW3DShadowMap;

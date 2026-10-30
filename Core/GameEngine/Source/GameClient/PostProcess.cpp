@@ -149,7 +149,10 @@ ShadowMapSettings::ShadowMapSettings() :
 	m_minSunElevation(0.0f),
 	m_terrain(TRUE),
 	m_trees(TRUE),
-	m_maxUpdateRate(60.0f)
+	m_maxUpdateRate(60.0f),
+	m_detailCascade(TRUE),
+	m_detailCoverage(0.3f),
+	m_detailSize(0)
 {
 }
 
@@ -166,6 +169,9 @@ const FieldParse ShadowMapSettings::s_fieldParseTable[] =
 	{ "Terrain",	INI::parseBool,			nullptr,	offsetof( ShadowMapSettings, m_terrain ) },
 	{ "Trees",		INI::parseBool,			nullptr,	offsetof( ShadowMapSettings, m_trees ) },
 	{ "MaxUpdateRate",	INI::parseReal,		nullptr,	offsetof( ShadowMapSettings, m_maxUpdateRate ) },
+	{ "DetailCascade",	INI::parseBool,		nullptr,	offsetof( ShadowMapSettings, m_detailCascade ) },
+	{ "DetailCoverage",	INI::parseReal,		nullptr,	offsetof( ShadowMapSettings, m_detailCoverage ) },
+	{ "DetailSize",	INI::parseInt,			nullptr,	offsetof( ShadowMapSettings, m_detailSize ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };
 

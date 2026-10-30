@@ -41,30 +41,39 @@ public:
 	ULONG STDMETHODCALLTYPE Release() override;
 
 	HRESULT STDMETHODCALLTYPE Begin_Shadow_Map(UINT size, INT depthBias, float slopeBias) override;
+	HRESULT STDMETHODCALLTYPE Begin_Shadow_Cascade(UINT cascade, UINT size, INT depthBias, float slopeBias) override;
 	HRESULT STDMETHODCALLTYPE End_Shadow_Map(const D3DMATRIX* view, const D3DMATRIX* projection) override;
 	HRESULT STDMETHODCALLTYPE Apply_Shadows(const D3D8ON12_SHADOW_PARAMS* params, const D3DMATRIX* view,
 		const D3DMATRIX* projection) override;
 
 	// While the casters are drawn: the device draws into the map only.
 	bool Is_Drawing() const { return m_drawing; }
-	UINT Size() const { return m_size; }
+	UINT Size() const { return m_cascades[m_current].size; }
 	INT Depth_Bias() const { return m_depthBias; }
 	float Slope_Bias() const { return m_slopeBias; }
 	D3D12_CPU_DESCRIPTOR_HANDLE Depth_View() const;
 
+	static const UINT CASCADES = 2;
+
 private:
-	bool Ensure_Map(UINT size);
+	struct Cascade
+	{
+		GpuTexture map;			// R32_TYPELESS: drawn as D32_FLOAT, read as R32_FLOAT
+		UINT dsv;				// view in the device's target DSV heap
+		UINT size;
+		bool ready;				// drawn since it was made (cascade 1: since the last cascade 0)
+		D3DMATRIX view;			// the light camera of the map
+		D3DMATRIX projection;
+	};
+	bool Ensure_Map(Cascade& cascade, UINT size);
+	void Release_Map(Cascade& cascade);
 
 	Device* m_device;
-	GpuTexture m_map;			// R32_TYPELESS: drawn as D32_FLOAT, read as R32_FLOAT
-	UINT m_dsv;					// view in the device's target DSV heap
-	UINT m_size;
+	Cascade m_cascades[CASCADES];
+	UINT m_current;				// the cascade being drawn
 	bool m_drawing;
-	bool m_ready;				// a map was drawn since it was made
 	INT m_depthBias;
 	float m_slopeBias;
-	D3DMATRIX m_view;			// the light camera of the map
-	D3DMATRIX m_projection;
 };
 
 } // namespace D3D8On12

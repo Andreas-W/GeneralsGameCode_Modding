@@ -45,6 +45,9 @@
 //	  Terrain = Yes					; hills and cliffs cast shadows too
 //	  Trees = Yes					; trees cast shadows into the map instead of their decal shadows
 //	  MaxUpdateRate = 60			; redraws per second while the view stands still; 0 = every frame
+//	  DetailCascade = Yes			; a second map, around the middle of the view, for sharper shadows there
+//	  DetailCoverage = 0.3			; its width as a fraction of the main map's
+//	  DetailSize = 0				; its texels, 0 = Size
 //	End
 //
 //	Material AmericaTanks			; in Data\INI\Material.ini: a pixel shader for every mesh drawn with these textures
@@ -135,6 +138,9 @@ public:
 	Bool m_terrain;
 	Bool m_trees;
 	Real m_maxUpdateRate;
+	Bool m_detailCascade;
+	Real m_detailCoverage;
+	Int m_detailSize;
 
 	static const FieldParse s_fieldParseTable[];
 };

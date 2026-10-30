@@ -796,16 +796,16 @@ static void mcpGetGpuTiming(GameMcpGpuTiming &timing)
 #endif
 }
 static bool mcpShadowMapAvailable() { return DX8Wrapper::Get_Shadow_Mapper() != nullptr; }
-static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, bool &debug)
+static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, Int &debug)
 {
 	active = TheW3DShadowMap != nullptr && TheW3DShadowMap->isActive();
 	rendered = TheW3DShadowMap != nullptr && TheW3DShadowMap->wasRendered();
 	casters = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getCasterCount() : 0;
 	coverage = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getCoverage() : 0.0f;
 	sunElevation = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getSunElevation() : 0.0f;
-	debug = TheW3DShadowMap != nullptr && TheW3DShadowMap->getDebug();
+	debug = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getDebug() : 0;
 }
-static void mcpShadowMapSetDebug(bool debug) { if (TheW3DShadowMap) TheW3DShadowMap->setDebug(debug); }
+static void mcpShadowMapSetDebug(Int debug) { if (TheW3DShadowMap) TheW3DShadowMap->setDebug(debug); }
 static bool mcpMaterialsAvailable() { return TheW3DMaterials != nullptr && TheW3DMaterials->isAvailable(); }
 static bool mcpMaterialsRunning() { return TheW3DMaterials != nullptr && TheW3DMaterials->isRunning(); }
 static void mcpMaterialsSetEnabled(bool enabled) { if (TheW3DMaterials) TheW3DMaterials->setEnabled(enabled); }

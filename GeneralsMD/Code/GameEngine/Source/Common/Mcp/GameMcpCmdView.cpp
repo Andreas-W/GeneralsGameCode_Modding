@@ -178,7 +178,7 @@ McpJson cmdShadows(const McpJson &args)
 		gameMcpFail("the display has no shadow maps");
 	}
 	static const char *const settingNames[] = { "enabled", "size", "softness", "bias", "depth_bias", "slope_bias", "darkness",
-		"min_sun_elevation", "terrain", "trees", "max_update_rate" };
+		"min_sun_elevation", "terrain", "trees", "max_update_rate", "detail_cascade", "detail_coverage", "detail_size" };
 	for (size_t i = 0; i < ARRAY_SIZE(settingNames); ++i) {
 		if (args.has(settingNames[i]) && TheShadowMapSettings == nullptr) {
 			TheShadowMapSettings = new ShadowMapSettings;
@@ -197,9 +197,12 @@ McpJson cmdShadows(const McpJson &args)
 		settings.m_terrain = gameMcpArgBool(args, "terrain", settings.m_terrain != FALSE);
 		settings.m_trees = gameMcpArgBool(args, "trees", settings.m_trees != FALSE);
 		settings.m_maxUpdateRate = (Real)gameMcpArgNumber(args, "max_update_rate", settings.m_maxUpdateRate);
+		settings.m_detailCascade = gameMcpArgBool(args, "detail_cascade", settings.m_detailCascade != FALSE);
+		settings.m_detailCoverage = (Real)gameMcpArgNumber(args, "detail_coverage", settings.m_detailCoverage);
+		settings.m_detailSize = gameMcpArgInt(args, "detail_size", settings.m_detailSize);
 	}
-	if (args.has("debug")) {
-		TheGameMcpShadowMap.setDebug(gameMcpArgBool(args, "debug", false));
+	if (args.has("debug") || args.has("debug_cascades")) {
+		TheGameMcpShadowMap.setDebug(gameMcpArgBool(args, "debug_cascades", false) ? 2 : (gameMcpArgBool(args, "debug", false) ? 1 : 0));
 	}
 
 	bool active = false;
@@ -207,18 +210,20 @@ McpJson cmdShadows(const McpJson &args)
 	Int casters = 0;
 	Real coverage = 0.0f;
 	Real sunElevation = 0.0f;
-	bool debug = false;
+	Int debug = 0;
 	TheGameMcpShadowMap.getState(active, rendered, casters, coverage, sunElevation, debug);
 	McpJson result = McpJson::makeObject().set("available", TheGameMcpShadowMap.isAvailable())
 		.set("configured", TheShadowMapSettings != nullptr).set("shadow_volumes_option", TheGlobalData->m_useShadowVolumes != 0)
 		.set("active", active).set("rendered", rendered).set("casters", (Int)casters).set("coverage", (Real)coverage)
-		.set("sun_elevation", (Real)sunElevation).set("debug", debug);
+		.set("sun_elevation", (Real)sunElevation).set("debug", debug != 0).set("debug_cascades", debug > 1);
 	if (TheShadowMapSettings != nullptr) {
 		const ShadowMapSettings &settings = *TheShadowMapSettings;
 		result.set("enabled", settings.m_enabled != 0).set("size", (Int)settings.m_size).set("softness", (Real)settings.m_softness)
 			.set("bias", (Real)settings.m_bias).set("depth_bias", (Int)settings.m_depthBias).set("slope_bias", (Real)settings.m_slopeBias)
 			.set("darkness", (Real)settings.m_darkness).set("min_sun_elevation", (Real)settings.m_minSunElevation)
-			.set("terrain", settings.m_terrain != 0).set("trees", settings.m_trees != 0).set("max_update_rate", (Real)settings.m_maxUpdateRate);
+			.set("terrain", settings.m_terrain != 0).set("trees", settings.m_trees != 0).set("max_update_rate", (Real)settings.m_maxUpdateRate)
+			.set("detail_cascade", settings.m_detailCascade != 0).set("detail_coverage", (Real)settings.m_detailCoverage)
+			.set("detail_size", (Int)settings.m_detailSize);
 	}
 	return result;
 }
@@ -321,7 +326,7 @@ void gameMcpRegisterViewCommands()
 		"(not saved), reloads the Material INI and shaders, sets a parameter of a material, or (textures=true) returns the base "
 		"textures drawn since the last such call; returns the materials and how many textures each got.");
 	gameMcpRegisterCommand("render.shadows", cmdShadows,
-		"{enabled?, size?, softness?, bias?, depth_bias?, slope_bias?, darkness?, min_sun_elevation?, terrain?, trees?, max_update_rate?, debug?} Shadow maps of the Direct3D 12 renderer: "
+		"{enabled?, size?, softness?, bias?, depth_bias?, slope_bias?, darkness?, min_sun_elevation?, terrain?, trees?, max_update_rate?, detail_cascade?, detail_coverage?, detail_size?, debug?, debug_cascades?} Shadow maps of the Direct3D 12 renderer: "
 		"changes the ShadowMap settings (not saved; debug shows the amount of shadow as grey) and returns the state.");
 }
 

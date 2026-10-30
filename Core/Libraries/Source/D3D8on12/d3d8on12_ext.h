@@ -118,7 +118,7 @@ struct D3D8ON12_SHADOW_PARAMS
 	float toLight[3];	// world space direction towards the light, normalized
 	float bias;			// world units a point is moved towards the light before the depth test
 	float softness;		// radius of the soft edge in shadow map texels
-	BOOL debug;			// write the shadow amount as grey instead of darkening
+	BOOL debug;			// write the shadow amount as grey instead of darkening; 2: with the detail cascade tinted green
 };
 
 // A depth map of shadow casters seen from the light, which then darkens the scene.
@@ -131,6 +131,10 @@ struct ID3D8On12ShadowMap : public IUnknown
 {
 	// depthBias and slopeBias are the rasterizer depth bias of the casters, against shadow acne.
 	virtual HRESULT STDMETHODCALLTYPE Begin_Shadow_Map(UINT size, INT depthBias, float slopeBias) = 0;
+	// Begin_Shadow_Map for cascade 1, a second map that covers a smaller area in more detail; Apply_Shadows
+	// uses it where it covers the point. Begin_Shadow_Map (cascade 0) forgets the cascade until it is drawn
+	// again, so drawing it is optional.
+	virtual HRESULT STDMETHODCALLTYPE Begin_Shadow_Cascade(UINT cascade, UINT size, INT depthBias, float slopeBias) = 0;
 
 	// The camera the casters were drawn with: view and projection as given to SetTransform.
 	virtual HRESULT STDMETHODCALLTYPE End_Shadow_Map(const D3DMATRIX* view, const D3DMATRIX* projection) = 0;

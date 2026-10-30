@@ -68,7 +68,14 @@ public:
 	HRESULT Copy_Back_Buffer(Surface* dest, const RECT& rect, const POINT& point);
 	// Darkens the back buffer by a shadow map (ShadowMap.cpp); light_view and light_projection are the
 	// camera of the map, view and projection the scene's.
-	HRESULT Draw_Shadows(UINT map_srv, UINT map_size, const D3DMATRIX& light_view, const D3DMATRIX& light_projection,
+	struct ShadowCascade
+	{
+		UINT srv;			// 0 for a cascade that is not drawn
+		UINT size;
+		D3DMATRIX view;
+		D3DMATRIX projection;
+	};
+	HRESULT Draw_Shadows(const ShadowCascade* cascades,
 		const D3D8ON12_SHADOW_PARAMS& params, const D3DMATRIX& view, const D3DMATRIX& projection);
 
 private:

@@ -64,7 +64,7 @@ W3DShadowMap *TheW3DShadowMap = nullptr;
 W3DShadowMap::W3DShadowMap() :
 	m_lightCamera(nullptr),
 	m_rendered(FALSE),
-	m_debug(FALSE),
+	m_debug(0),
 	m_casterCount(0),
 	m_coverage(0.0f),
 	m_terrainIndices(nullptr),
@@ -78,9 +78,15 @@ W3DShadowMap::W3DShadowMap() :
 	m_drawnTerrain(FALSE),
 	m_drawnTrees(FALSE),
 	m_drawnTime(0),
-	m_fitEye(0.0f, 0.0f, 0.0f)
+	m_fitEye(0.0f, 0.0f, 0.0f),
+	m_fitDetailEye(0.0f, 0.0f, 0.0f),
+	m_drawnDetailEye(0.0f, 0.0f, 0.0f),
+	m_drawnDetail(FALSE),
+	m_drawnDetailSize(0),
+	m_detailFitted(FALSE)
 {
 	m_lightCamera = NEW_REF( CameraClass, () );
+	m_detailCamera = NEW_REF( CameraClass, () );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -88,6 +94,7 @@ W3DShadowMap::~W3DShadowMap()
 {
 	releaseTerrain();
 	REF_PTR_RELEASE(m_lightCamera);
+	REF_PTR_RELEASE(m_detailCamera);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -166,7 +173,7 @@ void W3DShadowMap::buildTerrain(WorldHeightMap *map)
 }
 
 //-------------------------------------------------------------------------------------------------
-void W3DShadowMap::drawTerrain()
+void W3DShadowMap::drawTerrain(const FrustumClass &frustum)
 {
 	if (TheTerrainRenderObject == nullptr || TheTerrainRenderObject->getMap() == nullptr)
 		return;
@@ -184,7 +191,6 @@ void W3DShadowMap::drawTerrain()
 	DX8Wrapper::Set_Material(nullptr);
 	DX8Wrapper::Set_Transform(D3DTS_WORLD, Matrix3D(true));
 	DX8Wrapper::Set_Index_Buffer(m_terrainIndices, 0);
-	const FrustumClass &frustum = m_lightCamera->Get_Frustum();
 	const Int side = TERRAIN_CHUNK_CELLS + 1;
 	for (size_t i = 0; i < m_terrainChunks.size(); ++i)
 	{
@@ -253,7 +259,7 @@ Real W3DShadowMap::getSunElevation()
 	* holds every shadow that can fall into view. Its centre moves in whole texels, so that the
 	* shadows do not shimmer while the view scrolls. */
 //-------------------------------------------------------------------------------------------------
-Bool W3DShadowMap::fitLightCamera(CameraClass *viewCamera, Int size)
+Bool W3DShadowMap::fitLightCamera(CameraClass *viewCamera, Int size, Int detailSize)
 {
 	Vector3 toLight;
 	if (TheTerrainRenderObject == nullptr || !getToLight(toLight))
@@ -299,6 +305,43 @@ Bool W3DShadowMap::fitLightCamera(CameraClass *viewCamera, Int size)
 	const Real extent = half / SUN_DISTANCE;
 	m_lightCamera->Set_View_Plane(Vector2(-extent, -extent), Vector2(extent, extent));
 	m_coverage = 2.0f * half;
+
+	// The detail cascade: a smaller square around where the middle of the view meets the ground.
+	m_detailFitted = FALSE;
+	if (detailSize > 0)
+	{
+		const Matrix3D &viewTransform = viewCamera->Get_Transform();
+		const Vector3 position = viewTransform.Get_Translation();
+		Vector3 forward = -viewTransform.Get_Z_Vector();	// W3D cameras look down -z
+		if (forward.Z < -0.01f)
+		{
+			// Where the view's middle ray meets the ground, found in a few steps from the visible box's height.
+			Vector3 lookAt = position;
+			Real groundZ = box.Center.Z;
+			for (Int step = 0; step < 4; ++step)
+			{
+				lookAt = position + forward * ((position.Z - groundZ) / -forward.Z);
+				groundZ = TheTerrainRenderObject->getHeightMapHeight(lookAt.X, lookAt.Y, nullptr);
+			}
+			const Real coverage = max(0.05f, min(TheShadowMapSettings->m_detailCoverage, 1.0f));
+			const Real detailHalf = max(ceilf(half * coverage / 32.0f) * 32.0f, 128.0f);
+			if (detailHalf < half)
+			{
+				const Real detailTexel = 2.0f * detailHalf / detailSize;
+				const Real detailX = floorf(Vector3::Dot_Product(lookAt, xAxis) / detailTexel + 0.5f) * detailTexel;
+				const Real detailY = floorf(Vector3::Dot_Product(lookAt, yAxis) / detailTexel + 0.5f) * detailTexel;
+				const Vector3 detailEye = xAxis * detailX + yAxis * detailY + toLight * (maxZ + SUN_DISTANCE);
+				Matrix3D detailTransform;
+				detailTransform.Set(xAxis, yAxis, toLight, detailEye);
+				m_detailCamera->Set_Transform(detailTransform);
+				m_detailCamera->Set_Clip_Planes(SUN_DISTANCE - 1000.0f, SUN_DISTANCE + (maxZ - minZ) + 100.0f);
+				const Real detailExtent = detailHalf / SUN_DISTANCE;
+				m_detailCamera->Set_View_Plane(Vector2(-detailExtent, -detailExtent), Vector2(detailExtent, detailExtent));
+				m_fitDetailEye = detailEye;
+				m_detailFitted = TRUE;
+			}
+		}
+	}
 	return TRUE;
 }
 
@@ -314,7 +357,8 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 	}
 	const ShadowMapSettings &settings = *TheShadowMapSettings;
 	const Int size = max(256, min(settings.m_size, 8192));
-	if (!fitLightCamera(viewCamera, size))
+	const Int detailSize = settings.m_detailCascade ? max(256, min(settings.m_detailSize > 0 ? settings.m_detailSize : size, 8192)) : 0;
+	if (!fitLightCamera(viewCamera, size, detailSize))
 	{
 		m_rendered = FALSE;
 		m_drawnValid = FALSE;
@@ -327,46 +371,72 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 	if (m_rendered && m_drawnValid && settings.m_maxUpdateRate > 0.0f && m_fitEye == m_drawnEye && m_coverage == m_drawnCoverage
 		&& size == m_drawnSize && settings.m_depthBias == m_drawnDepthBias && settings.m_slopeBias == m_drawnSlopeBias
 		&& (settings.m_terrain != FALSE) == m_drawnTerrain && (settings.m_trees != FALSE) == m_drawnTrees
+		&& m_detailFitted == m_drawnDetail && (!m_detailFitted || (m_fitDetailEye == m_drawnDetailEye && detailSize == m_drawnDetailSize))
 		&& (Real)(now - m_drawnTime) < 1000.0f / settings.m_maxUpdateRate)
 		return;
 	m_rendered = FALSE;
 	m_casterCount = 0;
 
+	renderCascade(0, m_lightCamera, size);
+	if (m_rendered && m_detailFitted)
+		renderCascade(1, m_detailCamera, detailSize);
+
+	m_drawnValid = m_rendered;
+	m_drawnEye = m_fitEye;
+	m_drawnCoverage = m_coverage;
+	m_drawnSize = size;
+	m_drawnDepthBias = settings.m_depthBias;
+	m_drawnSlopeBias = settings.m_slopeBias;
+	m_drawnTerrain = settings.m_terrain != FALSE;
+	m_drawnTrees = settings.m_trees != FALSE;
+	m_drawnDetail = m_detailFitted;
+	m_drawnDetailEye = m_fitDetailEye;
+	m_drawnDetailSize = detailSize;
+	m_drawnTime = now;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Draws the casters seen by a light camera into a cascade of the map. Cascade 0 sets m_rendered. */
+//-------------------------------------------------------------------------------------------------
+void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int size)
+{
+#ifdef RTS_RENDERER_DX12
+	const ShadowMapSettings &settings = *TheShadowMapSettings;
 	ID3D8On12ShadowMap *mapper = DX8Wrapper::Get_Shadow_Mapper();
-	if (FAILED(mapper->Begin_Shadow_Map(size, settings.m_depthBias, settings.m_slopeBias)))
-	{
-		m_drawnValid = FALSE;
+	if (FAILED(mapper->Begin_Shadow_Cascade(cascade, size, settings.m_depthBias, settings.m_slopeBias)))
 		return;
-	}
 
 	// The matrices exactly as the renderer gets them, for finding points in the map later.
-	m_lightCamera->Apply();
+	camera->Apply();
 	DX8Wrapper::Apply_Render_State_Changes();
 	D3DMATRIX view;
 	D3DMATRIX projection;
 	DX8Wrapper::_Get_DX8_Transform(D3DTS_VIEW, view);
 	DX8Wrapper::_Get_DX8_Transform(D3DTS_PROJECTION, projection);
 
+	Bool drawn = FALSE;
 	if (WW3D::Begin_Render(false, true, Vector3(0.0f, 0.0f, 0.0f)) == WW3D_ERROR_OK)
 	{
-		RenderInfoClass rinfo(*m_lightCamera);
-		m_lightCamera->Apply();
+		RenderInfoClass rinfo(*camera);
+		camera->Apply();
 		TheDX8MeshRenderer.Set_Camera(&rinfo.Camera);
 		WW3D::Set_Depth_Only_Pass(true);
 		// The casters of the shadow volumes, also those just outside the view whose shadows reach into
 		// it. Objects outside the light camera are left out before they update their animation.
-		const FrustumClass &frustum = m_lightCamera->Get_Frustum();
+		const FrustumClass &frustum = camera->Get_Frustum();
 		for (W3DVolumetricShadow *shadow = TheW3DVolumetricShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
 		{
 			if (shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && shadow->m_robj != nullptr
 				&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
 			{
 				shadow->m_robj->Render(rinfo);
-				++m_casterCount;
+				if (cascade == 0)
+					++m_casterCount;
 			}
 		}
 		if (settings.m_terrain)
-			drawTerrain();
+			drawTerrain(frustum);
 		if (settings.m_trees)
 		{
 			// Trees are models with decal shadows, or drawn by the terrain's tree buffer.
@@ -378,7 +448,8 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 						&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
 					{
 						shadow->m_robj->Render(rinfo);
-						++m_casterCount;
+						if (cascade == 0)
+							++m_casterCount;
 					}
 				}
 			}
@@ -388,18 +459,11 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 		WW3D::Flush(rinfo);
 		WW3D::Set_Depth_Only_Pass(false);
 		WW3D::End_Render(false);
-		m_rendered = TRUE;
+		drawn = TRUE;
 	}
 	mapper->End_Shadow_Map(&view, &projection);
-	m_drawnValid = m_rendered;
-	m_drawnEye = m_fitEye;
-	m_drawnCoverage = m_coverage;
-	m_drawnSize = size;
-	m_drawnDepthBias = settings.m_depthBias;
-	m_drawnSlopeBias = settings.m_slopeBias;
-	m_drawnTerrain = settings.m_terrain != FALSE;
-	m_drawnTrees = settings.m_trees != FALSE;
-	m_drawnTime = now;
+	if (cascade == 0)
+		m_rendered = drawn;
 #endif
 }
 
