@@ -422,6 +422,14 @@ def scripts_run(name: str) -> dict:
 
 
 @mcp.tool()
+def scripts_action(name: str, parameters: list | None = None) -> dict:
+    """Runs one script action now, without a script: name is the internal name (as scripts_list_actions in
+    WorldBuilder shows it, e.g. POSTPROCESS_SET_PARAMETER), parameters its values in order (numbers,
+    true/false, strings for names and text)."""
+    return game.call("scripts.action", name=name, parameters=parameters or [])
+
+
+@mcp.tool()
 def scripts_set_active(name: str, active: bool = True) -> dict:
     """Enables or disables a script or script group."""
     return game.call("scripts.set_active", name=name, active=active)

@@ -27,7 +27,9 @@
 #include "GameMcpCommands.h"
 
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/ScriptActions.h"
 #include "GameLogic/ScriptEngine.h"
+#include "GameLogic/Scripts.h"
 
 namespace
 {
@@ -37,6 +39,48 @@ McpJson cmdRun(const McpJson &args)
 	gameMcpRequireGame();
 	const std::string name = gameMcpArgString(args, "name");
 	TheScriptEngine->runScript(name.c_str());
+	return McpJson::makeObject().set("ran", name).set("frame", TheGameLogic->getFrame());
+}
+
+McpJson cmdAction(const McpJson &args)
+{
+	gameMcpRequireGame();
+	const std::string name = gameMcpArgString(args, "name");
+	Int type = 0;
+	while (type < ScriptAction::NUM_ITEMS && TheScriptEngine->getActionTemplate(type)->m_internalName.compareNoCase(name.c_str()) != 0)
+		++type;
+	if (type == ScriptAction::NUM_ITEMS) {
+		gameMcpFail("no script action named '%s' (internal names like CAMERA_MOD_SET_FINAL_ZOOM)", name.c_str());
+	}
+	const ActionTemplate *actionTemplate = TheScriptEngine->getActionTemplate(type);
+	const McpJson empty = McpJson::makeArray();
+	const McpJson &parameters = args.has("parameters") ? args.get("parameters") : empty;
+	if ((Int)parameters.size() != actionTemplate->getNumParameters()) {
+		gameMcpFail("%s takes %d parameters, got %d", name.c_str(), actionTemplate->getNumParameters(), (Int)parameters.size());
+	}
+	ScriptAction *action = newInstance(ScriptAction)((enum ScriptAction::ScriptActionType)type);
+	for (Int i = 0; i < actionTemplate->getNumParameters(); i++) {
+		const McpJson &value = parameters.at(i);
+		Parameter *parameter = action->getParameter(i);
+		switch (actionTemplate->getParameterType(i)) {
+			case Parameter::REAL:
+				parameter->friend_setReal((Real)(value.isNumber() ? value.asNumber() : atof(value.asString().c_str())));
+				break;
+			case Parameter::INT:
+			case Parameter::BOOLEAN:
+				parameter->friend_setInt(value.isBool() ? (value.asBool() ? 1 : 0) : (Int)(value.isNumber() ? value.asNumber() : atoi(value.asString().c_str())));
+				break;
+			default:
+				if (!value.isString()) {
+					deleteInstance(action);
+					gameMcpFail("parameter %d of %s must be a string", i, name.c_str());
+				}
+				parameter->friend_setString(value.asString().c_str());
+				break;
+		}
+	}
+	TheScriptActions->executeAction(action);
+	deleteInstance(action);
 	return McpJson::makeObject().set("ran", name).set("frame", TheGameLogic->getFrame());
 }
 
@@ -103,6 +147,7 @@ McpJson cmdCounters(const McpJson &args)
 void gameMcpRegisterScriptCommands()
 {
 	gameMcpRegisterCommand("scripts.run", cmdRun, "{name} Runs a script's actions now (like the RUN_SCRIPT action), whatever its conditions.");
+	gameMcpRegisterCommand("scripts.action", cmdAction, "{name, parameters=[...]} Runs one script action now, by internal name, with its parameters in order (numbers, true/false, or strings for names and text).");
 	gameMcpRegisterCommand("scripts.set_active", cmdSetActive, "{name, active=true} Enables or disables a script or script group.");
 	gameMcpRegisterCommand("scripts.flags", cmdFlags, "{contains?, set?: {name: bool}} Script flags (set first, then list).");
 	gameMcpRegisterCommand("scripts.counters", cmdCounters, "{contains?, set?: {name: number}} Script counters and timers (set first, then list).");
