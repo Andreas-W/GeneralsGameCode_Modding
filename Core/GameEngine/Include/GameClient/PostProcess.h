@@ -42,8 +42,8 @@
 // A map's map.ini can hold PostProcessPass, PostProcess, PostProcessChain and ShadowMap blocks too; they
 // change the mod's settings for that map only. Script actions (Map/Post-processing) change parameters
 // (also fading over time), switch passes off (a pass that is off hands its first input on), switch to a
-// PostProcessChain ("Default" = the PostProcess block) and fade the shadow map's Darkness; these are not
-// kept in save games.
+// PostProcessChain ("Default" = the PostProcess block) and fade the shadow map's Darkness; save games
+// keep them.
 //
 //	ShadowMap						; soft shadows from a depth map instead of the stencil shadow volumes
 //	  Enabled = Yes
@@ -89,6 +89,7 @@
 
 #include "Common/AsciiString.h"
 #include "Common/GameType.h"
+#include "Common/Snapshot.h"
 
 #include <vector>
 
@@ -177,8 +178,9 @@ public:
 extern ShadowMapSettings* TheShadowMapSettings;	///< null without a ShadowMap block
 
 /// What a running game changes in the post-processing and shadow map settings: map.ini blocks and script
-/// actions. The renderer asks it every frame; the settings of the mod come back when the game ends.
-class PostProcessControl
+/// actions. The renderer asks it every frame; the settings of the mod come back when the game ends. Save
+/// games keep the script changes (the map.ini is read again when the map loads).
+class PostProcessControl : public Snapshot
 {
 public:
 	PostProcessControl();
@@ -201,6 +203,11 @@ public:
 	void getParameterOverride(Int index, AsciiString& pass, AsciiString& name, Real* values, Int& count) const;
 	Real getShadowDarkness(Real darkness) const;				///< the ShadowMap Darkness, or what a script faded it to
 
+protected:
+	virtual void crc( Xfer *xfer ) override {}
+	virtual void xfer( Xfer *xfer ) override;
+	virtual void loadPostProcess() override;
+
 private:
 	struct Fade
 	{
@@ -218,6 +225,7 @@ private:
 	};
 
 	static void valueOf(const Fade& fade, Real* values);
+	static void xferFade(Xfer *xfer, Fade& fade);
 	void clearScriptChanges();
 
 	PostProcessSettings* m_savedPostProcess;	///< the mod's settings while a map runs

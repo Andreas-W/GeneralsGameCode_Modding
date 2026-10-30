@@ -24,6 +24,7 @@
 
 #include "Common/GlobalData.h"
 #include "Common/INI.h"
+#include "Common/Xfer.h"
 #include "GameClient/PostProcess.h"
 #include "GameLogic/GameLogic.h"
 
@@ -534,6 +535,59 @@ void PostProcessControl::getParameterOverride(Int index, AsciiString& pass, Asci
 	name = entry.name;
 	count = entry.fade.count;
 	valueOf(entry.fade, values);
+}
+
+//-------------------------------------------------------------------------------------------------
+void PostProcessControl::xferFade(Xfer *xfer, Fade& fade)
+{
+	xfer->xferInt(&fade.count);
+	for (Int i = 0; i < 4; ++i)
+	{
+		xfer->xferReal(&fade.from[i]);
+		xfer->xferReal(&fade.to[i]);
+	}
+	xfer->xferUnsignedInt(&fade.startFrame);
+	xfer->xferUnsignedInt(&fade.frames);
+	fade.count = max(0, min(fade.count, 4));
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The script changes; fades keep their start frame, as the save game keeps the logic frame. */
+//-------------------------------------------------------------------------------------------------
+void PostProcessControl::xfer( Xfer *xfer )
+{
+	XferVersion currentVersion = 1;
+	XferVersion version = currentVersion;
+	xfer->xferVersion( &version, currentVersion );
+
+	xfer->xferAsciiString(&m_chainName);
+
+	Int count = (Int)m_disabledPasses.size();
+	xfer->xferInt(&count);
+	if (xfer->getXferMode() == XFER_LOAD)
+		m_disabledPasses.resize(count);
+	for (Int i = 0; i < count; ++i)
+		xfer->xferAsciiString(&m_disabledPasses[i]);
+
+	count = (Int)m_overrides.size();
+	xfer->xferInt(&count);
+	if (xfer->getXferMode() == XFER_LOAD)
+		m_overrides.resize(count);
+	for (Int i = 0; i < count; ++i)
+	{
+		xfer->xferAsciiString(&m_overrides[i].pass);
+		xfer->xferAsciiString(&m_overrides[i].name);
+		xferFade(xfer, m_overrides[i].fade);
+	}
+
+	xfer->xferBool(&m_darknessFaded);
+	xferFade(xfer, m_darkness);
+}
+
+//-------------------------------------------------------------------------------------------------
+void PostProcessControl::loadPostProcess()
+{
+	++m_generation;
 }
 
 //-------------------------------------------------------------------------------------------------
