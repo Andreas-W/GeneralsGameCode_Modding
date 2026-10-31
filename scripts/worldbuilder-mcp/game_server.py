@@ -190,9 +190,13 @@ def game_step(frames: int | None = None, seconds: float | None = None, wait: boo
 
 
 @mcp.tool()
-def game_set_speed(fps: int) -> dict:
-    """Logic frames per second: 30 is normal speed, 60 double, 0 as fast as possible."""
-    return game.call("game.set_speed", fps=fps)
+def game_set_speed(fps: int, render_fps: int | None = None) -> dict:
+    """Logic frames per second: 30 is normal speed, 60 double, 0 as fast as possible.
+    render_fps (windowed only) lets the window render at its own rate (0 = uncapped) while the
+    logic keeps fps, as in network games; needed to see UseRenderInterpolation at work."""
+    if render_fps is None:
+        return game.call("game.set_speed", fps=fps)
+    return game.call("game.set_speed", fps=fps, render_fps=render_fps)
 
 
 @mcp.tool()
@@ -418,6 +422,14 @@ def scripts_run(name: str) -> dict:
 
 
 @mcp.tool()
+def scripts_action(name: str, parameters: list | None = None) -> dict:
+    """Runs one script action now, without a script: name is the internal name (as scripts_list_actions in
+    WorldBuilder shows it, e.g. POSTPROCESS_SET_PARAMETER), parameters its values in order (numbers,
+    true/false, strings for names and text)."""
+    return game.call("scripts.action", name=name, parameters=parameters or [])
+
+
+@mcp.tool()
 def scripts_set_active(name: str, active: bool = True) -> dict:
     """Enables or disables a script or script group."""
     return game.call("scripts.set_active", name=name, active=active)
@@ -459,6 +471,78 @@ def view_screenshot(id: int | None = None, x: float | None = None, y: float | No
         path = os.path.join(tempfile.gettempdir(), f"game_mcp_{int(time.time() * 1000)}.{format}")
     result = game.call("view.screenshot", path=path, quality=quality)
     return Image(path=result["path"])
+
+
+@mcp.tool()
+def view_display_mode(width: int | None = None, height: int | None = None, windowed: bool | None = None) -> dict:
+    """Changes the resolution or the windowed mode like the options menu, without saving it to
+    Options.ini, and returns the display mode (no arguments: only returns it). This resets the
+    graphics device. Not available headless."""
+    return game.call("view.display_mode", width=width, height=height, windowed=windowed)
+
+
+@mcp.tool()
+def render_postprocess(enabled: bool | None = None, reload: bool = False, pass_name: str | None = None,
+                       param: str | None = None, values: list[float] | None = None) -> dict:
+    """Post-processing of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]).
+    enabled turns the PostProcess chain on or off (not saved); reload reads Data\\INI\\PostProcess.ini and
+    the shaders in Data\\Shaders\\PostProcess again (the chain is rebuilt on the next drawn frame);
+    pass_name + param + values (1 to 4 numbers) change a parameter of a running pass, not the INI.
+    Returns whether it is available (DX12) and running, the passes and the last build error.
+    Without arguments it only returns the state."""
+    return game.call("render.postprocess", enabled=enabled, reload=reload or None, param=param, values=values,
+                     **({"pass": pass_name} if pass_name else {}))
+
+
+@mcp.tool()
+def render_timing(enabled: bool | None = None) -> dict:
+    """GPU time of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]), from timestamp queries.
+    enabled=true starts measuring (false stops). Each call returns the average milliseconds per frame since the
+    previous call and starts the next average: the whole frame on the GPU, drawing the shadow map, applying it,
+    the post-processing chain and each of its passes. Call, run or step a while (game_set_speed with render_fps=0
+    for an uncapped frame rate), call again."""
+    return game.call("render.timing", enabled=enabled)
+
+
+@mcp.tool()
+def render_materials(enabled: bool | None = None, reload: bool = False, material: str | None = None,
+                     param: str | None = None, values: list[float] | None = None, textures: bool = False) -> dict:
+    """HLSL materials of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]): Material blocks in
+    Data\\INI\\Material.ini give every model mesh drawn with one of their base textures a pixel shader (built-in
+    MAT_Standard or Data\\Shaders\\Material\\<Shader>.hlsl) with normal, specular and emissive maps.
+    enabled turns them on or off (not saved); reload reads the INI and shaders again; material + param + values
+    (1 to 4 numbers) change a parameter live. textures=true returns the base texture names drawn since the last
+    such call (call once, step a frame or two, call again) - use them for Textures = ... Returns the materials,
+    how many textures each got, and the last compile error."""
+    return game.call("render.materials", enabled=enabled, reload=reload or None, material=material, param=param,
+                     values=values, textures=textures or None)
+
+
+@mcp.tool()
+def render_shadows(enabled: bool | None = None, size: int | None = None, softness: float | None = None,
+                   bias: float | None = None, depth_bias: int | None = None, slope_bias: float | None = None,
+                   darkness: float | None = None, min_sun_elevation: float | None = None,
+                   terrain: bool | None = None, trees: bool | None = None, max_update_rate: float | None = None,
+                   detail_cascade: bool | None = None, detail_coverage: float | None = None,
+                   detail_size: int | None = None, debug: bool | None = None,
+                   debug_cascades: bool | None = None) -> dict:
+    """Shadow maps of the Direct3D 12 renderer (start the game with extra_args=["-dx12"]); they replace the
+    stencil shadow volumes when the PostProcess INI has a ShadowMap block (or enabled=true here) and the
+    3D shadows option is on. The values change the ShadowMap settings live, not the INI: size (texels of
+    the map), softness (soft edge radius in texels), bias (world units towards the sun before the test),
+    depth_bias / slope_bias (rasterizer bias of the casters against acne), darkness (1 = the map's
+    shadow color, higher = darker with the same hue), min_sun_elevation (degrees; a lower sun is raised to it, which shortens the shadows),
+    terrain (hills cast shadows), trees (trees cast map shadows instead of their decal shadows),
+    max_update_rate (redraws per second while the view stands still, 0 = every frame), detail_cascade (a second,
+    smaller map around the middle of the view for sharper shadows there), detail_coverage (its width as a
+    fraction of the main map's), detail_size (its texels, 0 = size). debug=true shows the amount of shadow as
+    grey, debug_cascades=true also tints the area of the detail cascade green. Returns the settings and the state: available, active,
+    rendered this frame, number of casters, width of the area the map covers, sun elevation used."""
+    return game.call("render.shadows", enabled=enabled, size=size, softness=softness, bias=bias, depth_bias=depth_bias,
+                     slope_bias=slope_bias, darkness=darkness, min_sun_elevation=min_sun_elevation, terrain=terrain,
+                     trees=trees, max_update_rate=max_update_rate, detail_cascade=detail_cascade,
+                     detail_coverage=detail_coverage, detail_size=detail_size, debug=debug,
+                     debug_cascades=debug_cascades)
 
 
 if __name__ == "__main__":

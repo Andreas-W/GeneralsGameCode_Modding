@@ -638,6 +638,18 @@ Bool OptionPreferences::getExtraAnimationsDisabled()
 	return TRUE;
 }
 
+Bool OptionPreferences::getPostProcessing()
+{
+	OptionPreferences::const_iterator it = find("PostProcessing");
+	if (it == end())
+		return TheGlobalData->m_postProcessing;
+
+	if (stricmp(it->second.str(), "yes") == 0) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
 Bool OptionPreferences::getUseHeatEffects()
 {
 	OptionPreferences::const_iterator it = find("HeatEffects");
@@ -801,6 +813,20 @@ Int OptionPreferences::getNetworkLatencyFontSize()
 		fontSize = 0;
 	}
 	return fontSize;
+}
+
+Int OptionPreferences::getRenderFpsLimit()
+{
+	OptionPreferences::const_iterator it = find("RenderFPSLimit");
+	if (it == end())
+		return -1;
+
+	Int fps = atoi(it->second.str());
+	if (fps < 0)
+	{
+		fps = 0;
+	}
+	return fps;
 }
 
 Int OptionPreferences::getRenderFpsFontSize()

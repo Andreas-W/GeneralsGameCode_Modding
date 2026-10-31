@@ -412,6 +412,8 @@ WorldHeightMap::~WorldHeightMap()
 	REF_PTR_RELEASE(m_terrainTex);
 	REF_PTR_RELEASE(m_alphaTerrainTex);
 	REF_PTR_RELEASE(m_alphaEdgeTex);
+	REF_PTR_RELEASE(m_terrainMapTex[0]);
+	REF_PTR_RELEASE(m_terrainMapTex[1]);
 }
 
 void WorldHeightMap::freeListOfMapObjects()
@@ -443,6 +445,8 @@ WorldHeightMap::WorldHeightMap():
 	m_numCliffInfo(1),
 	m_terrainTex(nullptr), m_alphaTerrainTex(nullptr), m_numBitmapTiles(0), m_numBlendedTiles(1)
 {
+	m_terrainMapTex[0] = m_terrainMapTex[1] = nullptr;
+	m_terrainMapFound[0] = m_terrainMapFound[1] = FALSE;
 	Int i;
 	for (i=0; i<NUM_SOURCE_TILES; i++) {
 		m_sourceTiles[i] = nullptr;
@@ -482,6 +486,8 @@ WorldHeightMap::WorldHeightMap(ChunkInputStream *pStrm, Bool logicalDataOnly):
 	m_numCliffInfo(1),
 	m_terrainTex(nullptr), m_alphaTerrainTex(nullptr), m_numBitmapTiles(0), m_numBlendedTiles(1)
 {
+	m_terrainMapTex[0] = m_terrainMapTex[1] = nullptr;
+	m_terrainMapFound[0] = m_terrainMapFound[1] = FALSE;
 
 	int i;
 	for (i=0; i<NUM_SOURCE_TILES; i++) {
@@ -1033,6 +1039,41 @@ void WorldHeightMap::readTexClass(TXTextureClass *texClass, TileData **tileData)
 		}
 		theFile->close();
 	}
+}
+
+Int WorldHeightMap::readTexClassMap(const TXTextureClass &texClass, const char *suffix, TileData **tileData)
+{
+	TerrainType *terrain = TheTerrainTypes->findTerrain( texClass.name );
+	if (terrain == nullptr)
+		return 0;
+	AsciiString texture = terrain->getTexture();
+	const char *dot = strrchr(texture.str(), '.');
+	AsciiString base = texture;
+	if (dot != nullptr)
+		base.set(texture.str(), (Int)(dot - texture.str()));
+	AsciiString path;
+	path.format("%s%s%s.tga", TERRAIN_TGA_DIR_PATH, base.str(), suffix);
+	File *theFile = TheFileSystem->openFile( path.str(), File::READ|File::BINARY);
+	if (theFile == nullptr)
+		return 0;
+	Int width = 0;
+	GDIFileStream theStream(theFile);
+	InputStream *pStr = &theStream;
+	Int numTiles = WorldHeightMap::countTiles(pStr);
+	theFile->seek(0, File::START);
+	if (numTiles >= texClass.numTiles) {
+		numTiles = texClass.numTiles;
+		for (width = 10; width >= 1; width--) {
+			if (numTiles >= width*width)
+				break;
+		}
+		if (width < 1 || !WorldHeightMap::readTiles(pStr, tileData, width))
+			width = 0;
+	}
+	theFile->close();
+	if (width == 0)
+		DEBUG_LOG(("Terrain material: %s does not fit %s", path.str(), texture.str()));
+	return width;
 }
 
 /**
@@ -2126,6 +2167,20 @@ void WorldHeightMap::setTextureLOD(Int lod)
 		m_terrainTex->setLOD(lod);
 }
 
+TextureClass *WorldHeightMap::getTerrainMapTexture(Int which, const AsciiString& suffix)
+{
+	if (which < 0 || which > 1 || suffix.isEmpty() || getTerrainTexture() == nullptr)
+		return nullptr;
+	if (m_terrainMapTex[which] == nullptr || m_terrainMapSuffix[which] != suffix) {
+		REF_PTR_RELEASE(m_terrainMapTex[which]);
+		TerrainMapAtlasClass *atlas = MSGNEW("WorldHeightMap_getTerrainMapTexture") TerrainMapAtlasClass(m_terrainTex->Get_Height());
+		m_terrainMapFound[which] = atlas->update(this, suffix.str());
+		m_terrainMapTex[which] = atlas;
+		m_terrainMapSuffix[which] = suffix;
+	}
+	return m_terrainMapFound[which] ? m_terrainMapTex[which] : nullptr;
+}
+
 TextureClass *WorldHeightMap::getTerrainTexture()
 {
 	if (m_terrainTex == nullptr) {
@@ -2136,6 +2191,8 @@ TextureClass *WorldHeightMap::getTerrainTexture()
 			pow2Height *=2;
 		}
 		REF_PTR_RELEASE(m_terrainTex);
+		REF_PTR_RELEASE(m_terrainMapTex[0]);
+		REF_PTR_RELEASE(m_terrainMapTex[1]);
 		m_terrainTex = MSGNEW("WorldHeightMap_getTerrainTexture") TerrainTextureClass(pow2Height);
 		m_terrainTexHeight = m_terrainTex->update(this);
 		char buf[64];

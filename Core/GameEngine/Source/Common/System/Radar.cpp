@@ -305,14 +305,20 @@ void Radar::update()
 }
 
 //-------------------------------------------------------------------------------------------------
+void Radar::refreshRadarWindow()
+{
+	Int id = NAMEKEY( "ControlBar.wnd:LeftHUD" );
+	m_radarWindow = TheWindowManager->winGetWindowFromId( nullptr, id );
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Reset the radar for the new map data being given to it */
 //-------------------------------------------------------------------------------------------------
 void Radar::newMap( TerrainLogic *terrain )
 {
 
 	// keep a pointer for our radar window
-	Int id = NAMEKEY( "ControlBar.wnd:LeftHUD" );
-	m_radarWindow = TheWindowManager->winGetWindowFromId( nullptr, id );
+	refreshRadarWindow();
 	DEBUG_ASSERTCRASH( m_radarWindow, ("Radar::newMap - Unable to find radar game window") );
 
 	// reset all the data in the radar

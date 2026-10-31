@@ -81,6 +81,7 @@
 #include "W3DDevice/GameClient/W3DShadow.h"
 #include "W3DDevice/GameClient/W3DWater.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
 #include "WW3D2/dx8wrapper.h"
 #include "WW3D2/light.h"
 #include "WW3D2/scene.h"
@@ -526,6 +527,12 @@ void FlatHeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
  	if (m_disableTextures)
  		devicePasses=1;	//force to 1 lighting-only pass
 
+	// The HLSL terrain material (Direct3D 12) replaces the flat terrain shaders, not in reflections.
+	Bool terrainMaterial = !m_disableTextures && !ShaderClass::Is_Backface_Culling_Inverted() && TheW3DMaterials != nullptr
+		&& TheW3DMaterials->hasTerrain();
+	if (terrainMaterial)
+		devicePasses = 1;
+
  	//Specify all textures that this shader may need.
  	W3DShaderManager::setTexture(0,m_stageZeroTexture);
 	if (m_shroud && rinfo.Additional_Pass_Count() && !m_disableTextures)
@@ -551,6 +558,10 @@ void FlatHeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		if (m_disableTextures ) {
 			DX8Wrapper::Set_Shader(ShaderClass::_PresetOpaque2DShader);
 			DX8Wrapper::Set_Texture(0,nullptr);
+		} else if (terrainMaterial) {
+			terrainMaterial = bindTerrainMaterial(doCloud);
+			if (!terrainMaterial)
+				W3DShaderManager::setShader(st, pass);
 		} else {
 			W3DShaderManager::setShader(st, pass);
 		}
@@ -581,7 +592,13 @@ void FlatHeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		}
 	}
 
-	if (pass)	//shader was applied at least once?
+	if (terrainMaterial)
+	{
+		TheW3DMaterials->End();
+		DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+		DX8Wrapper::Set_DX8_Texture(1, nullptr);
+	}
+	else if (pass)	//shader was applied at least once?
  		W3DShaderManager::resetShader(st);
 #if 1
 
@@ -636,5 +653,79 @@ void FlatHeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 	ShaderClass::Invalidate();
 	DX8Wrapper::Set_Material(nullptr);
 
+}
+
+//=============================================================================
+// FlatHeightMapRenderObjClass::bindTerrainMaterial
+//=============================================================================
+/** The tiles' pre-drawn texture on stage 1 (each tile sets its own), the shroud, the clouds and the light
+	* map for the HLSL terrain material. The normal and specular map atlases have the layout of the full
+	* terrain texture, which these tiles do not use, so the material makes bumps from the brightness. */
+//=============================================================================
+Bool FlatHeightMapRenderObjClass::bindTerrainMaterial(Bool doCloud)
+{
+	if (TheW3DMaterials->getTerrainSettings() == nullptr)
+		return FALSE;
+	DX8Wrapper::Apply_Render_State_Changes();
+
+	const DWORD filter = (TheGlobalData->m_bilinearTerrainTex || TheGlobalData->m_trilinearTerrainTex) ? D3DTEXF_LINEAR : D3DTEXF_POINT;
+	DX8Wrapper::Set_DX8_Texture(0, nullptr);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+	// The tile texture; a colour operation on stage 1 makes the material see it.
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_MINFILTER, filter);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_MAGFILTER, filter);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_MIPFILTER, TheGlobalData->m_trilinearTerrainTex ? D3DTEXF_LINEAR : D3DTEXF_POINT);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_TEXCOORDINDEX, 0);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLORARG2, D3DTA_CURRENT);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLOROP, D3DTOP_MODULATE);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_ALPHABLENDENABLE, FALSE);
+	// The shroud clamped, clouds and light map repeating.
+	for (Int stage = 2; stage < 6; stage++)
+	{
+		const DWORD address = stage < 4 ? D3DTADDRESS_CLAMP : D3DTADDRESS_WRAP;
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_ADDRESSU, address);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_ADDRESSV, address);
+	}
+
+	IDirect3DBaseTexture8 *maps[4] = { nullptr, nullptr, nullptr, nullptr };
+	// The shroud as the flat terrain shader lays it over the world: one texel per shroud cell, starting one
+	// cell before the draw origin.
+	Real shroudMapping[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	W3DShroud *shroud = TheTerrainRenderObject->getShroud();
+	if (shroud != nullptr && shroud->getShroudTexture() != nullptr)
+	{
+		maps[0] = shroud->getShroudTexture()->Peek_D3D_Base_Texture();
+		shroudMapping[0] = 1.0f / (shroud->getCellWidth() * shroud->getTextureWidth());
+		shroudMapping[1] = 1.0f / (shroud->getCellHeight() * shroud->getTextureHeight());
+		shroudMapping[2] = shroud->getCellWidth() - shroud->getDrawOriginX();
+		shroudMapping[3] = shroud->getCellHeight() - shroud->getDrawOriginY();
+	}
+	TextureClass *noise[2] = { doCloud ? m_stageTwoTexture : nullptr, TheGlobalData->m_useLightMap ? m_stageThreeTexture : nullptr };
+	for (Int i = 0; i < 2; i++)
+	{
+		if (noise[i] == nullptr)
+			continue;
+		if (!noise[i]->Is_Initialized())
+			noise[i]->Init();
+		maps[2 + i] = noise[i]->Peek_D3D_Base_Texture();
+	}
+	Real mapping[3];
+	W3DShaderManager::getTerrainNoiseMapping(mapping[0], mapping[1], mapping[2]);
+	const Real extra = 0.0f;
+	const Real flat = 1.0f;
+	TheW3DMaterials->setTerrainParameter("NoiseMapping", mapping, 3);
+	TheW3DMaterials->setTerrainParameter("ExtraBlend", &extra, 1);
+	TheW3DMaterials->setTerrainParameter("Flat", &flat, 1);
+	TheW3DMaterials->setTerrainParameter("ShroudMapping", shroudMapping, 4);
+	return TheW3DMaterials->bindTerrain(maps);
 }
 

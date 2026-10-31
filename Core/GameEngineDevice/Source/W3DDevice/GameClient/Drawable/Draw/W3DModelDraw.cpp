@@ -61,6 +61,7 @@
 #include "W3DDevice/GameClient/Module/W3DModelDraw.h"
 #include "W3DDevice/GameClient/W3DAssetManager.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
 #include "W3DDevice/GameClient/W3DScene.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
 #include "W3DDevice/GameClient/W3DTerrainTracks.h"
@@ -1257,6 +1258,7 @@ void W3DModelDrawModuleData::buildFieldParse(MultiIniFieldParse& p)
 		{ "AttachToBoneInAnotherModule", parseAsciiStringLC, nullptr, offsetof(W3DModelDrawModuleData, m_attachToDrawableBone) },
 		{ "IgnoreConditionStates", ModelConditionFlags::parseFromINI, nullptr, offsetof(W3DModelDrawModuleData, m_ignoreConditionStates) },
 		{ "ReceivesDynamicLights", INI::parseBool, nullptr, offsetof(W3DModelDrawModuleData, m_receivesDynamicLights) },
+		{ "Material", INI::parseAsciiString, nullptr, offsetof(W3DModelDrawModuleData, m_material) },
 		{ "IgnoreAnimationSpeedScaling", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_ignoreAnimScaling) },
 		{ "IgnoreRotation", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_ignoreRotation) },
 		{ "OnlyVisibleToOwningPlayer", INI::parseBool, NULL, offsetof(W3DModelDrawModuleData, m_showForOwnerOnly) },
@@ -2934,6 +2936,9 @@ void W3DModelDraw::handleClientRecoil()
 
 		const ModelConditionInfo::WeaponBarrelInfoVec& barrels = m_curState->m_weaponBarrelInfoVec[wslot];
 		WeaponRecoilInfoVec& recoils = m_weaponRecoilInfoVec[wslot];
+		// See handleWeaponFireFX: the barrels may have been found after the recoil table was sized.
+		if (recoils.size() != barrels.size())
+			rebuildWeaponRecoilInfo(m_curState, false);
 		Int count = barrels.size();
 		Int recoilCount = recoils.size();
 		DEBUG_ASSERTCRASH(count == recoilCount, ("Barrel count != recoil count!"));
@@ -3316,6 +3321,8 @@ void W3DModelDraw::nukeCurrentRender(Matrix3D* xform)
 			*xform = m_renderObject->Get_Transform();
 		if (W3DDisplay::m_3DScene != nullptr)
 			W3DDisplay::m_3DScene->Remove_Render_Object(m_renderObject);
+		if (TheW3DMaterials != nullptr)
+			TheW3DMaterials->removeObject(m_renderObject);
 		REF_PTR_RELEASE(m_renderObject);
 		m_renderObject = nullptr;
 	}
@@ -3664,6 +3671,11 @@ void W3DModelDraw::setModelState(const ModelConditionInfo* newState)
 
 			// tie in our drawable as the user data pointer in the render object
 			m_renderObject->Set_User_Data(draw->getDrawableInfo());
+
+			// the draw module's material for all of the model's meshes and the team colour for materials
+			// (Direct3D 12 only)
+			if (TheW3DMaterials != nullptr && TheW3DMaterials->isAvailable())
+				TheW3DMaterials->setObject(m_renderObject, getW3DModelDrawModuleData()->m_material, (UnsignedInt)m_hexColor);
 
 			//We created a new render object so we need to preserve the visibility state
 			//of the previous render object.
@@ -4269,7 +4281,7 @@ Bool W3DModelDraw::handleWeaponFireFX(WeaponSlotType wslot, Int specificBarrelTo
 
 	Bool handled = false;
 
-	if (specificBarrelToUse < 0 || specificBarrelToUse > wbvec.size())
+	if (specificBarrelToUse < 0 || specificBarrelToUse >= (Int)wbvec.size())
 		specificBarrelToUse = 0;
 
 	const ModelConditionInfo::WeaponBarrelInfo& info = wbvec[specificBarrelToUse];
@@ -4315,6 +4327,10 @@ Bool W3DModelDraw::handleWeaponFireFX(WeaponSlotType wslot, Int specificBarrelTo
 
 	if (info.m_recoilBone || info.m_muzzleFlashBone)
 	{
+		// The barrels of a state are only found during a logic update. A state set outside of one
+		// (e.g. by an object created between frames) sized the recoil table before they were known.
+		if (m_weaponRecoilInfoVec[wslot].size() != wbvec.size())
+			rebuildWeaponRecoilInfo(m_curState, false);
 		//DEBUG_LOG(("START muzzleflash %08lx for Draw %08lx state %s at frame %d",info.m_muzzleFlashBone,this,m_curState->m_description.str(),TheGameLogic->getFrame()));
 		WeaponRecoilInfo& recoil = m_weaponRecoilInfoVec[wslot][specificBarrelToUse];
 		recoil.m_state = WeaponRecoilInfo::RECOIL_START;
@@ -4348,7 +4364,7 @@ Bool W3DModelDraw::handleWeaponPreAttackFX(WeaponSlotType wslot, Int specificBar
 
 	Bool handled = false;
 
-	if (specificBarrelToUse < 0 || specificBarrelToUse > wbvec.size())
+	if (specificBarrelToUse < 0 || specificBarrelToUse >= (Int)wbvec.size())
 		specificBarrelToUse = 0;
 
 	const ModelConditionInfo::WeaponBarrelInfo& info = wbvec[specificBarrelToUse];

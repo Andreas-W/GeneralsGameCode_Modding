@@ -666,6 +666,11 @@ void MeshClass::Render(RenderInfoClass & rinfo)
 	// of rendering it.
 	unsigned int sort_level = (unsigned int)Model->Get_Sort_Level();
 
+	// Translucent meshes cast no shadow; sorting their triangles for a depth pass is only work.
+	if (WW3D::Is_Depth_Only_Pass() && (sort_level != SORT_LEVEL_NONE || Model->Get_Flag(MeshGeometryClass::SORT))) {
+		return;
+	}
+
 	if (WW3D::Are_Static_Sort_Lists_Enabled() && sort_level != SORT_LEVEL_NONE) {
 
 		Set_Lighting_Environment(rinfo.light_environment);

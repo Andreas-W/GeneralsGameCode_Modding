@@ -89,6 +89,8 @@ class RenderDeviceDescClass;
 class VertexBufferClass;
 class DynamicVBAccessClass;
 class IndexBufferClass;
+class DX8VertexBufferClass;
+class DX8IndexBufferClass;
 class DynamicIBAccessClass;
 class TextureClass;
 class LightClass;
@@ -216,6 +218,8 @@ struct RenderStateStruct
 
 	RenderStateStruct& operator= (const RenderStateStruct& src);
 };
+
+struct ID3DXFont;
 
 /**
 ** DX8Wrapper
@@ -523,8 +527,54 @@ public:
 	static const Vector3&		Get_Ambient() { return Ambient_Color; }
 	// shader system updates KJM ^
 
+	/*
+	** Device access for code that manages its own shaders, buffers and render targets.
+	** These forward to the device so that nothing outside the wrapper needs the device
+	** itself, which is what allows another rendering backend to stand in for D3D8.
+	*/
+	static HRESULT Create_Vertex_Shader(const DWORD* declaration, const DWORD* function, DWORD* handle, DWORD usage);
+	static HRESULT Create_Pixel_Shader(const DWORD* function, DWORD* handle);
+	static HRESULT Create_Pixel_Shader_From_Asm(const char* source, DWORD* handle);
+	static void Delete_Vertex_Shader(DWORD handle);
+	static void Delete_Pixel_Shader(DWORD handle);
 
+	// Reads the state from the device, unlike Get_DX8_Render_State which returns the cached value.
+	static unsigned Get_Device_Render_State(D3DRENDERSTATETYPE state);
 
+	// Bypass the deferred vertex/index buffer state, which is re-applied on the next wrapper draw.
+	static void Set_DX8_Stream_Source(unsigned stream, DX8VertexBufferClass* vb, unsigned stride);
+	static void Set_DX8_Indices(DX8IndexBufferClass* ib, unsigned base_vertex_index);
+	static void Draw_DX8_Primitive(D3DPRIMITIVETYPE type, unsigned start_vertex, unsigned primitive_count);
+	static void Draw_DX8_Indexed_Primitive(D3DPRIMITIVETYPE type, unsigned min_index, unsigned num_vertices, unsigned start_index, unsigned primitive_count);
+	static void Draw_DX8_Primitive_UP(D3DPRIMITIVETYPE type, unsigned primitive_count, const void* vertices, unsigned stride);
+	static HRESULT Process_DX8_Vertices(unsigned src_start_index, unsigned dest_index, unsigned vertex_count, DX8VertexBufferClass* dest_buffer, DWORD flags);
+
+	static HRESULT _Create_DX8_Texture_Raw(unsigned width, unsigned height, unsigned levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture8** texture);
+	static HRESULT _Create_DX8_Image_Surface(unsigned width, unsigned height, D3DFORMAT format, IDirect3DSurface8** surface);
+	static HRESULT _Create_DX8_Font(HFONT font, ID3DXFont** d3dx_font);
+
+	// Rebuilds all lower mip levels of the texture from its top level with a box filter.
+	static void Generate_Mip_Levels(TextureBaseClass* texture);
+	static HRESULT _Copy_DX8_Rects_Checked(IDirect3DSurface8* source, const RECT* source_rects, unsigned rect_count, IDirect3DSurface8* dest, const POINT* dest_points);
+
+	static HRESULT _Get_DX8_Render_Target(IDirect3DSurface8** surface);
+	static HRESULT _Get_DX8_Depth_Stencil_Surface(IDirect3DSurface8** surface);
+	static HRESULT _Set_DX8_Render_Target(IDirect3DSurface8* render_target, IDirect3DSurface8* depth_buffer);
+	static void Get_Viewport(D3DVIEWPORT8* viewport);
+
+	static bool Has_Device() { return D3DDevice != nullptr; }
+	static HRESULT Test_Cooperative_Level();
+
+	// Post-processing of the Direct3D 12 renderer (d3d8on12_ext.h); null with Direct3D 8.
+	static struct ID3D8On12PostProcess* Get_Post_Process();
+	// Shadow maps of the Direct3D 12 renderer; null with Direct3D 8.
+	static struct ID3D8On12ShadowMap* Get_Shadow_Mapper();
+	// HLSL materials of the Direct3D 12 renderer; null with Direct3D 8.
+	static struct ID3D8On12Materials* Get_Materials();
+
+	static HRESULT Set_Cursor_Properties(unsigned hotspot_x, unsigned hotspot_y, IDirect3DSurface8* cursor_bitmap);
+	static void Set_Cursor_Position(int x, int y, DWORD flags);
+	static bool Show_Cursor(bool show);
 
 	static IDirect3DDevice8* _Get_D3D_Device8() { return D3DDevice; }
 	static IDirect3D8* _Get_D3D8() { return D3DInterface; }
@@ -686,6 +736,9 @@ protected:
 
 	static IDirect3D8 *					D3DInterface;			//d3d8;
 	static IDirect3DDevice8 *			D3DDevice;				//d3ddevice8;
+	static struct ID3D8On12PostProcess*	PostProcess;
+	static struct ID3D8On12ShadowMap*	ShadowMapper;
+	static struct ID3D8On12Materials*	Materials;
 
 	static IDirect3DSurface8 *			CurrentRenderTarget;
 	static IDirect3DSurface8 *			CurrentDepthBuffer;

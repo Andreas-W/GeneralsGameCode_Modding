@@ -52,6 +52,7 @@
 #include "W3DDevice/GameClient/W3DScene.h"
 #include "W3DDevice/GameClient/W3DDynamicLight.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
 #include "W3DDevice/GameClient/W3DStatusCircle.h"
 #include "W3DDevice/GameClient/W3DCustomScene.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
@@ -876,6 +877,8 @@ void RTS3DScene::Flush(RenderInfoClass & rinfo)
 	if (m_customPassMode == SCENE_PASS_DEFAULT && Get_Extra_Pass_Polygon_Mode() == EXTRA_PASS_DISABLE)
 		DoShadows(rinfo, true);	//draw all stencil shadows
 
+	if (TheW3DMaterials)
+		TheW3DMaterials->captureBeforeWater();	// soft shores of the water material
 	WW3D::Render_And_Clear_Static_Sort_Lists(rinfo);	//draws things like water
 
 	//draw the above-water decal subset AFTER water so those decals show over it (still depth-tested, so
@@ -891,7 +894,11 @@ void RTS3DScene::Flush(RenderInfoClass & rinfo)
 
 		//don't draw transparent in this mode because they interfere with destination alpha
 		if (m_customPassMode == SCENE_PASS_DEFAULT && Get_Extra_Pass_Polygon_Mode() == EXTRA_PASS_DISABLE)
+		{
+			if (TheW3DMaterials)
+				TheW3DMaterials->captureBeforeParticles();	// soft particles and distortion of particle materials
 			DoParticles(rinfo);	//queue up particles for rendering.
+		}
 
 		SortingRendererClass::Flush();	//draw sorted translucent polygons like particles.
 	}
@@ -1332,14 +1339,13 @@ void renderStenciledPlayerColor( UnsignedInt color, UnsignedInt stencilRef, Bool
 	REF_PTR_RELEASE(vmat);
 	DX8Wrapper::Apply_Render_State_Changes();	//force update all render states
 
-	LPDIRECT3DDEVICE8 m_pDev=DX8Wrapper::_Get_D3D_Device8();
 
-	if (!m_pDev)
+	if (!DX8Wrapper::Has_Device())
 		return;	//need device to render anything.
 
 	//draw polygons like this is very inefficient but for only 2 triangles, it's
 	//not worth bothering with index/vertex buffers.
-	m_pDev->SetVertexShader(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
+	DX8Wrapper::Set_Vertex_Shader(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
 
 	// Set stencil states
 	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILENABLE, TRUE );
@@ -1361,7 +1367,7 @@ void renderStenciledPlayerColor( UnsignedInt color, UnsignedInt stencilRef, Bool
 		//disable writes to color buffer
 		if (DX8Wrapper::Get_Current_Caps()->Get_DX8_Caps().PrimitiveMiscCaps & D3DPMISCCAPS_COLORWRITEENABLE)
 		{
-			DX8Wrapper::_Get_D3D_Device8()->GetRenderState(D3DRS_COLORWRITEENABLE, &oldColorWriteEnable);
+			oldColorWriteEnable = DX8Wrapper::Get_Device_Render_State(D3DRS_COLORWRITEENABLE);
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_COLORWRITEENABLE,0);
 		}
 		else
@@ -1389,7 +1395,7 @@ void renderStenciledPlayerColor( UnsignedInt color, UnsignedInt stencilRef, Bool
 	}
 
 	if (DX8Wrapper::_Is_Triangle_Draw_Enabled())
-		m_pDev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(_TRANSLITVERTEX));
+		DX8Wrapper::Draw_DX8_Primitive_UP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(_TRANSLITVERTEX));
 
 	// turn off the stencil buffer
 	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILENABLE, FALSE );

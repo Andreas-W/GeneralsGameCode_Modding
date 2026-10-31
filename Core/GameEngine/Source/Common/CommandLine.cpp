@@ -42,6 +42,7 @@
 
 Bool TheDebugIgnoreSyncErrors = FALSE;
 extern Int DX8Wrapper_PreserveFPU;
+extern Int DX8Wrapper_UseDX12;
 
 #ifdef DEBUG_CRC
 Int TheCRCFirstFrameToLog = -1;
@@ -150,6 +151,14 @@ Int parseFPUPreserve(char *args[], int argc)
 		DX8Wrapper_PreserveFPU = atoi(args[1]);
 	}
 	return 2;
+}
+
+//=============================================================================
+//=============================================================================
+Int parseDX12(char *args[], int)
+{
+	DX8Wrapper_UseDX12 = 1;
+	return 1;
 }
 
 //=============================================================================
@@ -1133,6 +1142,9 @@ static CommandLineParam paramsForStartup[] =
 {
 	{ "-win", parseWin },
 	{ "-fullscreen", parseNoWin },
+
+	// Renders with Direct3D 12 instead of Direct3D 8, in builds with RTS_BUILD_OPTION_DX12.
+	{ "-dx12", parseDX12 },
 
 	// TheSuperHackers @feature helmutbuhler 11/04/2025
 	// This runs the game without a window, graphics, input and audio. You can combine this with -replay

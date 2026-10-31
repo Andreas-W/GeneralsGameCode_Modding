@@ -311,6 +311,12 @@ void Animatable3DObjClass::Render(RenderInfoClass & rinfo)
 		return;
 	}
 
+	// Depth-only passes (shadow maps) draw the pose the main pass left instead of moving the animation
+	// on themselves, once per shadow map cascade.
+	if (WW3D::Is_Depth_Only_Pass() && Is_Hierarchy_Valid() && !Are_Sub_Object_Transforms_Dirty()) {
+		return;
+	}
+
 	//
 	// Force the hierarchy to be recalculated for single animations.
 	//

@@ -349,6 +349,7 @@ public:
 	void setPosition( const Coord3D *pos );
 	void reactToGeometryChange();
 	void reactToTeleport();	///< object was instantly relocated - break interpolated visuals (tread marks)
+	void captureInterpolationTransform();	///< remember the object's transform before a logic step, for render interpolation
 
 	const GeometryInfo& getDrawableGeometryInfo() const;
 
@@ -723,6 +724,7 @@ private:
 	Color m_flashColor;					///< color to flash the drawable
 
 	Matrix3D m_instance;				///< The instance matrix that holds the initial/default position & orientation
+	Matrix3D m_interpolationTransform;	///< The object's transform before the last logic step, for render interpolation
 	Real m_instanceScale;				///< the uniform scale factor applied to the instance matrix before it is sent to W3D.
 
 	DrawableInfo				m_drawableInfo;		///< structure pointed to by W3D render objects so they know which drawable they belong to.
@@ -742,6 +744,7 @@ private:
 	Bool m_hidden;							///< drawable is "hidden" or not (overrides stealth effects)
 	Bool m_hiddenByStealth;			///< drawable is hidden due to stealth
 	Bool m_instanceIsIdentity;	///< If true, instance matrix can be skipped
+	Bool m_interpolationTransformValid;	///< If false, there is no previous transform to interpolate from
 	Bool m_drawableFullyObscuredByShroud;	///<drawable is hidden by shroud/fog
   Bool m_ambientSoundEnabled;
   Bool m_ambientSoundEnabledFromScript;

@@ -100,12 +100,14 @@ GlobalData* GlobalData::m_theOriginal = nullptr;
 	{ "MoveHintName",							INI::parseAsciiString,nullptr,			offsetof( GlobalData, m_moveHintName ) },
 	{ "UseTrees",									INI::parseBool,				nullptr,			offsetof( GlobalData, m_useTrees ) },
 	{ "UseFPSLimit",							INI::parseBool,				nullptr,			offsetof( GlobalData, m_useFpsLimit ) },
+	{ "UseRenderInterpolation",		INI::parseBool,				nullptr,			offsetof( GlobalData, m_useRenderInterpolation ) },
 	{ "DumpAssetUsage",						INI::parseBool,				nullptr,			offsetof( GlobalData, m_dumpAssetUsage ) },
 	{ "EnableSingleplayerChatwindow",	INI::parseBool,				nullptr,			offsetof( GlobalData, m_enableSingleplayerChatWindow ) },
 	{ "WeaponScatterOnWaterSurfaceDefault",	INI::parseBool,			nullptr,			offsetof( GlobalData, m_weaponScatterOnWaterSurfaceDefault ) },
 	{ "ReverseMoveIgnoreAngleThreshold",	INI::parseBool,			nullptr,			offsetof( GlobalData, m_reverseMoveIgnoreAngleThreshold ) },
 	{ "SmartGarrisonRange",				INI::parseReal,				nullptr,			offsetof( GlobalData, m_smartGarrisonRange ) },
 	{ "FramesPerSecondLimit",			INI::parseInt,				nullptr,			offsetof( GlobalData, m_framesPerSecondLimit ) },
+	{ "RenderFramesPerSecondLimit",	INI::parseInt,				nullptr,			offsetof( GlobalData, m_renderFramesPerSecondLimit ) },
 	{ "ChipsetType",							INI::parseInt,				nullptr,			offsetof( GlobalData, m_chipSetType ) },
 	{ "MaxShellScreens",					INI::parseInt,				nullptr,			offsetof( GlobalData, m_maxShellScreens ) },
 	{ "UseCloudMap",							INI::parseBool,				nullptr,			offsetof( GlobalData, m_useCloudMap ) },
@@ -692,11 +694,13 @@ GlobalData::GlobalData()
 	m_useDrawModuleLOD = FALSE;
 	m_useHeatEffects = TRUE;
 	m_useFpsLimit = FALSE;
+	m_useRenderInterpolation = FALSE;
 	m_weaponScatterOnWaterSurfaceDefault = FALSE;
 	m_reverseMoveIgnoreAngleThreshold = FALSE;
 	m_smartGarrisonRange = 100.0f;
 	m_dumpAssetUsage = FALSE;
 	m_framesPerSecondLimit = 0;
+	m_renderFramesPerSecondLimit = 0;
 	m_chipSetType = 0;
 	m_headless = FALSE;
 	m_windowed = 0;
@@ -1005,6 +1009,7 @@ GlobalData::GlobalData()
 	m_standardPublicBones.clear();
 
 	m_antiAliasLevel = WW3D::MultiSampleModeEnum::MULTISAMPLE_MODE_NONE;
+	m_postProcessing = TRUE;
 	m_textureFilteringMode = TextureFilterClass::TextureFilterMode::TEXTURE_FILTER_BILINEAR;
 	m_textureAnisotropyLevel = TextureFilterClass::AnisotropicFilterMode::TEXTURE_FILTER_ANISOTROPIC_2X;
 
@@ -1339,6 +1344,7 @@ void GlobalData::parseGameDataDefinition( INI* ini )
 	TheWritableGlobalData->m_gameWindowTransitionSpeedMultiplier = optionPref.getGameWindowTransitionSpeedMultiplier();
 
 	TheWritableGlobalData->m_antiAliasLevel = optionPref.getAntiAliasing();
+	TheWritableGlobalData->m_postProcessing = optionPref.getPostProcessing();
 	TheWritableGlobalData->m_textureFilteringMode = optionPref.getTextureFilterMode();
 	TheWritableGlobalData->m_textureAnisotropyLevel = optionPref.getTextureAnisotropyLevel();
 

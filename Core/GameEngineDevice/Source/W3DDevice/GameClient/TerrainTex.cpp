@@ -195,11 +195,97 @@ int TerrainTextureClass::update(WorldHeightMap *htMap)
 	}
 	surface_level->UnlockRect();
 	surface_level->Release();
-	DX8_ErrorCode(D3DXFilterTexture(Peek_D3D_Texture(), nullptr, 0, D3DX_FILTER_BOX));
+	DX8Wrapper::Generate_Mip_Levels(this);
 	if (WW3D::Get_Texture_Reduction()) {
 		Peek_D3D_Texture()->SetLOD(WW3D::Get_Texture_Reduction());
 	}
 	return(surface_desc.Height);
+}
+
+//=============================================================================
+// TerrainMapAtlasClass
+//=============================================================================
+TerrainMapAtlasClass::TerrainMapAtlasClass(int height) :
+	TextureClass(TEXTURE_WIDTH, height, WW3D_FORMAT_A8R8G8B8, MIP_LEVELS_ALL)
+{
+}
+
+Bool TerrainMapAtlasClass::update(WorldHeightMap *htMap, const char *suffix)
+{
+	IDirect3DSurface8 *surface_level;
+	D3DSURFACE_DESC surface_desc;
+	D3DLOCKED_RECT locked_rect;
+	DX8_ErrorCode(Peek_D3D_Texture()->GetSurfaceLevel(0, &surface_level));
+	DX8_ErrorCode(surface_level->GetDesc(&surface_desc));
+	if (surface_desc.Format != D3DFMT_A8R8G8B8 || surface_desc.Width < TEXTURE_WIDTH) {
+		surface_level->Release();
+		return FALSE;
+	}
+	DX8_ErrorCode(surface_level->LockRect(&locked_rect, nullptr, 0));
+	const Int pixelBytes = 4;
+	const Int pitch = locked_rect.Pitch;
+	UnsignedByte *bits = (UnsignedByte *)locked_rect.pBits;
+	// Nothing known: a flat normal / no highlight, alpha 0.
+	for (UnsignedInt row = 0; row < surface_desc.Height; row++) {
+		UnsignedInt *pixel = (UnsignedInt *)(bits + row * pitch);
+		for (UnsignedInt column = 0; column < surface_desc.Width; column++)
+			pixel[column] = 0x008080ff;
+	}
+
+	Bool anyFound = FALSE;
+	for (Int texClass = 0; texClass < htMap->m_numTextureClasses; texClass++) {
+		const TXTextureClass &info = htMap->m_textureClasses[texClass];
+		if (info.positionInTexture.x <= 0)
+			continue;
+		// The map is split into tiles like the terrain texture.
+		TileData *tiles[NUM_SOURCE_TILES];
+		for (Int i = 0; i < NUM_SOURCE_TILES; i++)
+			tiles[i] = nullptr;
+		const Int width = htMap->readTexClassMap(info, suffix, tiles);
+		if (width == 0)
+			continue;
+		anyFound = TRUE;
+
+		for (Int k = 0; k < width * width; k++) {
+			TileData *pTile = tiles[k];
+			TileData *placed = htMap->getSourceTile(info.firstTile + k);
+			if (pTile == nullptr || placed == nullptr)
+				continue;
+			const ICoord2D position = placed->m_tileLocationInTexture;
+			if (position.x <= 0)
+				continue;
+			for (Int j = 0; j < TILE_PIXEL_EXTENT; j++) {
+				UnsignedByte *pBGR = pTile->getRGBDataForWidth(TILE_PIXEL_EXTENT);
+				pBGR += (TILE_PIXEL_EXTENT - 1 - j) * TILE_BYTES_PER_PIXEL * TILE_PIXEL_EXTENT;	// invert to match.
+				UnsignedInt *pixel = (UnsignedInt *)(bits + (position.y + j) * pitch) + position.x;
+				for (Int i = 0; i < TILE_PIXEL_EXTENT; i++) {
+					pixel[i] = 0xff000000 | (pBGR[2] << 16) | (pBGR[1] << 8) | pBGR[0];
+					pBGR += TILE_BYTES_PER_PIXEL;
+				}
+			}
+		}
+		for (Int k = 0; k < width * width; k++)
+			REF_PTR_RELEASE(tiles[k]);
+
+		// The 4 pixel border around the class, as in TerrainTextureClass::update.
+		const Int extent = info.width * TILE_PIXEL_EXTENT;
+		const ICoord2D origin = info.positionInTexture;
+		for (Int j = 0; j < extent; j++) {
+			UnsignedByte *row = bits + (origin.y + j) * pitch + origin.x * pixelBytes;
+			memcpy(row - 4 * pixelBytes, row + (extent - 4) * pixelBytes, 4 * pixelBytes);
+			memcpy(row + extent * pixelBytes, row, 4 * pixelBytes);
+		}
+		for (Int j = 0; j < 4; j++) {
+			UnsignedByte *target = bits + (origin.y - j - 1) * pitch + (origin.x - 4) * pixelBytes;
+			memcpy(target, target + extent * pitch, (extent + 8) * pixelBytes);
+			target = bits + (origin.y + j) * pitch + (origin.x - 4) * pixelBytes;
+			memcpy(target + extent * pitch, target, (extent + 8) * pixelBytes);
+		}
+	}
+	surface_level->UnlockRect();
+	surface_level->Release();
+	DX8Wrapper::Generate_Mip_Levels(this);
+	return anyFound;
 }
 
 #if 0 // old version.
@@ -352,7 +438,7 @@ int TerrainTextureClass::update(WorldHeightMap *htMap)
 	}
 	surface_level->UnlockRect();
 	surface_level->Release();
-	DX8_ErrorCode(D3DXFilterTexture(D3DTexture, nullptr, 0, D3DX_FILTER_BOX));
+	DX8Wrapper::Generate_Mip_Levels(this);
 	return(surface_desc.Height);
 }
 #endif
@@ -425,7 +511,7 @@ Bool TerrainTextureClass::updateFlat(WorldHeightMap *htMap, Int xCell, Int yCell
 
 	surface_level->UnlockRect();
 	surface_level->Release();
-	DX8_ErrorCode(D3DXFilterTexture(Peek_D3D_Texture(), nullptr, 0, D3DX_FILTER_BOX));
+	DX8Wrapper::Generate_Mip_Levels(this);
 	return(surface_desc.Height);
 }
 
@@ -837,7 +923,7 @@ int AlphaEdgeTextureClass::update(WorldHeightMap *htMap)
 	}
 	surface_level->UnlockRect();
 	surface_level->Release();
-	DX8_ErrorCode(D3DXFilterTexture(Peek_D3D_Texture(), nullptr, 0, D3DX_FILTER_BOX));
+	DX8Wrapper::Generate_Mip_Levels(this);
 	return(surface_desc.Height);
 }
 

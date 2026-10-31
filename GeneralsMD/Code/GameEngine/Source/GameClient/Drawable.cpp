@@ -459,6 +459,7 @@ Drawable::Drawable( const ThingTemplate *thingTemplate, DrawableStatusBits statu
 
 	m_instance.Make_Identity();
 	m_instanceIsIdentity = true;
+	m_interpolationTransformValid = false;
 
 	//Real scaleFuzziness = thingTemplate->getInstanceScaleFuzziness();
 	//Real fuzzyScale = ( 1.0f + GameClientRandomValueReal( -scaleFuzziness, scaleFuzziness ));
@@ -665,10 +666,26 @@ Bool Drawable::isVisible()
 	* interpolate between frames (e.g. terrain tread marks) don't stretch across the jump. */
 void Drawable::reactToTeleport()
 {
+	m_interpolationTransformValid = false;
+
 	for (DrawModule** dm = getDrawModules(); *dm; ++dm)
 	{
 		(*dm)->reactToTeleport();
 	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void Drawable::captureInterpolationTransform()
+{
+	const Object *obj = getObject();
+	if (obj == nullptr)
+	{
+		m_interpolationTransformValid = false;
+		return;
+	}
+
+	m_interpolationTransform = *obj->getTransformMatrix();
+	m_interpolationTransformValid = true;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2742,6 +2759,29 @@ void Drawable::draw()
 
 	// call the database defined draw action method
 	Matrix3D transformMtx = *getTransformMatrix();
+
+	// Draw between the transforms of the previous and the last logic step, so that motion stays
+	// smooth when rendering faster than the logic runs (always the case in network games).
+	if (m_interpolationTransformValid && TheGlobalData->m_useRenderInterpolation)
+	{
+		const Real interpolation = TheFramePacer->getLogicInterpolation();
+		if (interpolation < 1.0f && !(m_interpolationTransform == transformMtx))
+		{
+			// A jump this far within one logic step is a relocation, not motion; don't slide across it.
+			const Real MAX_INTERPOLATION_DISTANCE_SQR = sqr(100.0f);
+			const Vector3 delta = transformMtx.Get_Translation() - m_interpolationTransform.Get_Translation();
+			// The rotation is interpolated as a quaternion, which would drop any scale in the matrix.
+			const Bool isUnscaled = fabs(transformMtx.Get_X_Vector().Length2() - 1.0f) < 0.01f
+				&& fabs(transformMtx.Get_Z_Vector().Length2() - 1.0f) < 0.01f;
+			if (delta.Length2() <= MAX_INTERPOLATION_DISTANCE_SQR && isUnscaled)
+			{
+				Matrix3D interpolatedMtx;
+				Matrix3D::Lerp(m_interpolationTransform, transformMtx, interpolation, interpolatedMtx);
+				transformMtx = interpolatedMtx;
+			}
+		}
+	}
+
 	if (!isInstanceIdentity())
 	{
 #ifdef ALLOW_TEMPORARIES

@@ -10,3 +10,7 @@ add_subdirectory(Source/debug)
 add_subdirectory(Source/EABrowserDispatch)
 add_subdirectory(Source/EABrowserEngine)
 add_subdirectory(Source/Compression)
+
+if(RTS_BUILD_OPTION_DX12)
+    add_subdirectory(Source/D3D8on12)
+endif()

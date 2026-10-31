@@ -87,6 +87,11 @@
 
 #include "shdlib.h"
 
+#ifdef RTS_RENDERER_DX12
+#include <d3d8on12.h>
+#include <d3d8on12_ext.h>
+#endif
+
 const int DEFAULT_RESOLUTION_WIDTH = 640;
 const int DEFAULT_RESOLUTION_HEIGHT = 480;
 const int DEFAULT_BIT_DEPTH = 32;
@@ -100,6 +105,7 @@ bool DX8Wrapper_IsWindowed = true;
 
 // FPU_PRESERVE
 int DX8Wrapper_PreserveFPU = 0;
+int DX8Wrapper_UseDX12 = 0;
 
 /***********************************************************************************
 **
@@ -147,6 +153,9 @@ D3DCOLOR							DX8Wrapper::FogColor										= 0;
 
 IDirect3D8 *					DX8Wrapper::D3DInterface								= nullptr;
 IDirect3DDevice8 *			DX8Wrapper::D3DDevice									= nullptr;
+ID3D8On12PostProcess *		DX8Wrapper::PostProcess								= nullptr;
+ID3D8On12ShadowMap *			DX8Wrapper::ShadowMapper								= nullptr;
+ID3D8On12Materials *			DX8Wrapper::Materials									= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentRenderTarget						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::CurrentDepthBuffer						= nullptr;
 IDirect3DSurface8 *			DX8Wrapper::DefaultRenderTarget						= nullptr;
@@ -292,11 +301,21 @@ bool DX8Wrapper::Init(void * hwnd, bool lite)
 	Invalidate_Cached_Render_States();
 
 	if (!lite) {
-		D3D8Lib = LoadLibrary("D3D8.DLL");
+#ifdef RTS_RENDERER_DX12
+		if (DX8Wrapper_UseDX12) {
+			// The D3D8 interfaces implemented on Direct3D 12 stand in for d3d8.dll.
+			WWDEBUG_SAY(("Create Direct3D8 on Direct3D 12"));
+			Direct3DCreate8Ptr = Direct3DCreate8On12;
+		}
+		else
+#endif
+		{
+			D3D8Lib = LoadLibrary("D3D8.DLL");
 
-		if (D3D8Lib == nullptr) return false;	// Return false at this point if init failed
+			if (D3D8Lib == nullptr) return false;	// Return false at this point if init failed
 
-		Direct3DCreate8Ptr = (Direct3DCreate8Type) GetProcAddress(D3D8Lib, "Direct3DCreate8");
+			Direct3DCreate8Ptr = (Direct3DCreate8Type) GetProcAddress(D3D8Lib, "Direct3DCreate8");
+		}
 		if (Direct3DCreate8Ptr == nullptr) return false;
 
 		/*
@@ -687,6 +706,20 @@ void DX8Wrapper::Release_Device()
 		** Release the device
 		*/
 
+#ifdef RTS_RENDERER_DX12
+		if (PostProcess) {
+			PostProcess->Release();
+			PostProcess=nullptr;
+		}
+		if (ShadowMapper) {
+			ShadowMapper->Release();
+			ShadowMapper=nullptr;
+		}
+		if (Materials) {
+			Materials->Release();
+			Materials=nullptr;
+		}
+#endif
 		D3DDevice->Release();
 		D3DDevice=nullptr;
 	}
@@ -1818,6 +1851,250 @@ void DX8Wrapper::Set_Viewport(CONST D3DVIEWPORT8* pViewport)
 {
 	DX8_THREAD_ASSERT();
 	DX8CALL(SetViewport(pViewport));
+}
+
+void DX8Wrapper::Get_Viewport(D3DVIEWPORT8* viewport)
+{
+	DX8_THREAD_ASSERT();
+	DX8CALL(GetViewport(viewport));
+}
+
+// ----------------------------------------------------------------------------
+//
+// Device access for code that manages its own shaders, buffers and render targets.
+// Failures are returned rather than asserted on, as the callers check them.
+//
+// ----------------------------------------------------------------------------
+
+HRESULT DX8Wrapper::Create_Vertex_Shader(const DWORD* declaration, const DWORD* function, DWORD* handle, DWORD usage)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateVertexShader(declaration, function, handle, usage);
+}
+
+HRESULT DX8Wrapper::Create_Pixel_Shader(const DWORD* function, DWORD* handle)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreatePixelShader(function, handle);
+}
+
+HRESULT DX8Wrapper::Create_Pixel_Shader_From_Asm(const char* source, DWORD* handle)
+{
+	ID3DXBuffer* compiled = nullptr;
+	HRESULT hr = D3DXAssembleShader(source, strlen(source), 0, nullptr, &compiled, nullptr);
+	if (FAILED(hr))
+		return hr;
+	hr = Create_Pixel_Shader((DWORD*)compiled->GetBufferPointer(), handle);
+	compiled->Release();
+	return hr;
+}
+
+void DX8Wrapper::Delete_Vertex_Shader(DWORD handle)
+{
+	DX8_THREAD_ASSERT();
+	if (Vertex_Shader == handle)
+		Vertex_Shader = 0;
+	Increment_DX8_CallCount();
+	D3DDevice->DeleteVertexShader(handle);
+}
+
+void DX8Wrapper::Delete_Pixel_Shader(DWORD handle)
+{
+	DX8_THREAD_ASSERT();
+	// A later shader may be created with the same handle, which the redundancy check would then skip.
+	if (Pixel_Shader == handle)
+		Pixel_Shader = 0;
+	Increment_DX8_CallCount();
+	D3DDevice->DeletePixelShader(handle);
+}
+
+unsigned DX8Wrapper::Get_Device_Render_State(D3DRENDERSTATETYPE state)
+{
+	DX8_THREAD_ASSERT();
+	DWORD value = 0;
+	Increment_DX8_CallCount();
+	D3DDevice->GetRenderState(state, &value);
+	return value;
+}
+
+void DX8Wrapper::Set_DX8_Stream_Source(unsigned stream, DX8VertexBufferClass* vb, unsigned stride)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->SetStreamSource(stream, vb ? vb->Get_DX8_Vertex_Buffer() : nullptr, stride);
+	DX8_RECORD_VERTEX_BUFFER_CHANGE();
+	render_state_changed |= VERTEX_BUFFER_CHANGED;
+}
+
+void DX8Wrapper::Set_DX8_Indices(DX8IndexBufferClass* ib, unsigned base_vertex_index)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->SetIndices(ib ? ib->Get_DX8_Index_Buffer() : nullptr, base_vertex_index);
+	DX8_RECORD_INDEX_BUFFER_CHANGE();
+	render_state_changed |= INDEX_BUFFER_CHANGED;
+}
+
+void DX8Wrapper::Draw_DX8_Primitive(D3DPRIMITIVETYPE type, unsigned start_vertex, unsigned primitive_count)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->DrawPrimitive(type, start_vertex, primitive_count);
+	DX8_RECORD_DRAW_CALLS();
+}
+
+void DX8Wrapper::Draw_DX8_Indexed_Primitive(D3DPRIMITIVETYPE type, unsigned min_index, unsigned num_vertices, unsigned start_index, unsigned primitive_count)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->DrawIndexedPrimitive(type, min_index, num_vertices, start_index, primitive_count);
+	DX8_RECORD_DRAW_CALLS();
+}
+
+void DX8Wrapper::Draw_DX8_Primitive_UP(D3DPRIMITIVETYPE type, unsigned primitive_count, const void* vertices, unsigned stride)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	D3DDevice->DrawPrimitiveUP(type, primitive_count, vertices, stride);
+	DX8_RECORD_DRAW_CALLS();
+	// DrawPrimitiveUP leaves stream 0 and the indices unset.
+	render_state_changed |= VERTEX_BUFFER_CHANGED | INDEX_BUFFER_CHANGED;
+}
+
+HRESULT DX8Wrapper::Process_DX8_Vertices(unsigned src_start_index, unsigned dest_index, unsigned vertex_count, DX8VertexBufferClass* dest_buffer, DWORD flags)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->ProcessVertices(src_start_index, dest_index, vertex_count, dest_buffer->Get_DX8_Vertex_Buffer(), flags);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Texture_Raw(unsigned width, unsigned height, unsigned levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture8** texture)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateTexture(width, height, levels, usage, format, pool, texture);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Image_Surface(unsigned width, unsigned height, D3DFORMAT format, IDirect3DSurface8** surface)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CreateImageSurface(width, height, format, surface);
+}
+
+HRESULT DX8Wrapper::_Create_DX8_Font(HFONT font, ID3DXFont** d3dx_font)
+{
+	DX8_THREAD_ASSERT();
+	// A D3DX font made on the Direct3D 12 renderer draws nothing; callers then fall back to their own text.
+	if (Get_Post_Process() != nullptr)
+	{
+		*d3dx_font = nullptr;
+		return E_NOTIMPL;
+	}
+	return D3DXCreateFont(D3DDevice, font, d3dx_font);
+}
+
+void DX8Wrapper::Generate_Mip_Levels(TextureBaseClass* texture)
+{
+	DX8_THREAD_ASSERT();
+	DX8_ErrorCode(D3DXFilterTexture(texture->Peek_D3D_Base_Texture(), nullptr, 0, D3DX_FILTER_BOX));
+}
+
+HRESULT DX8Wrapper::_Copy_DX8_Rects_Checked(IDirect3DSurface8* source, const RECT* source_rects, unsigned rect_count, IDirect3DSurface8* dest, const POINT* dest_points)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->CopyRects(source, source_rects, rect_count, dest, dest_points);
+}
+
+HRESULT DX8Wrapper::_Get_DX8_Render_Target(IDirect3DSurface8** surface)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->GetRenderTarget(surface);
+}
+
+HRESULT DX8Wrapper::_Get_DX8_Depth_Stencil_Surface(IDirect3DSurface8** surface)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->GetDepthStencilSurface(surface);
+}
+
+HRESULT DX8Wrapper::_Set_DX8_Render_Target(IDirect3DSurface8* render_target, IDirect3DSurface8* depth_buffer)
+{
+	DX8_THREAD_ASSERT();
+	Increment_DX8_CallCount();
+	return D3DDevice->SetRenderTarget(render_target, depth_buffer);
+}
+
+ID3D8On12PostProcess* DX8Wrapper::Get_Post_Process()
+{
+#ifdef RTS_RENDERER_DX12
+	if (PostProcess == nullptr && D3DDevice != nullptr && DX8Wrapper_UseDX12)
+	{
+		if (FAILED(D3DDevice->QueryInterface(IID_ID3D8On12PostProcess, (void**)&PostProcess)))
+			PostProcess = nullptr;
+	}
+	return PostProcess;
+#else
+	return nullptr;
+#endif
+}
+
+ID3D8On12ShadowMap* DX8Wrapper::Get_Shadow_Mapper()
+{
+#ifdef RTS_RENDERER_DX12
+	if (ShadowMapper == nullptr && D3DDevice != nullptr && DX8Wrapper_UseDX12)
+	{
+		if (FAILED(D3DDevice->QueryInterface(IID_ID3D8On12ShadowMap, (void**)&ShadowMapper)))
+			ShadowMapper = nullptr;
+	}
+	return ShadowMapper;
+#else
+	return nullptr;
+#endif
+}
+
+ID3D8On12Materials* DX8Wrapper::Get_Materials()
+{
+#ifdef RTS_RENDERER_DX12
+	if (Materials == nullptr && D3DDevice != nullptr && DX8Wrapper_UseDX12)
+	{
+		if (FAILED(D3DDevice->QueryInterface(IID_ID3D8On12Materials, (void**)&Materials)))
+			Materials = nullptr;
+	}
+	return Materials;
+#else
+	return nullptr;
+#endif
+}
+
+HRESULT DX8Wrapper::Test_Cooperative_Level()
+{
+	WWASSERT(D3DDevice != nullptr);
+	return D3DDevice->TestCooperativeLevel();
+}
+
+// The cursor functions are also called from the mouse thread.
+HRESULT DX8Wrapper::Set_Cursor_Properties(unsigned hotspot_x, unsigned hotspot_y, IDirect3DSurface8* cursor_bitmap)
+{
+	Increment_DX8_CallCount();
+	return D3DDevice->SetCursorProperties(hotspot_x, hotspot_y, cursor_bitmap);
+}
+
+void DX8Wrapper::Set_Cursor_Position(int x, int y, DWORD flags)
+{
+	Increment_DX8_CallCount();
+	D3DDevice->SetCursorPosition(x, y, flags);
+}
+
+bool DX8Wrapper::Show_Cursor(bool show)
+{
+	Increment_DX8_CallCount();
+	return D3DDevice->ShowCursor(show) != FALSE;
 }
 
 // ----------------------------------------------------------------------------

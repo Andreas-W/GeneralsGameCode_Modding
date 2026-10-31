@@ -34,6 +34,10 @@
 #include "Common/MapObject.h"
 #include "Common/WellKnownKeys.h"
 #include "GameLogic/PolygonTrigger.h"
+#include "GameClient/PostProcess.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DPostProcess.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
 
 #include <math.h>
 #include <string>
@@ -429,6 +433,47 @@ McpJson cmdScreenshot(const McpJson &args)
 
 } // namespace
 
+
+/// The Direct3D 12 renderer's effects: on or off, and whether they run.
+static McpJson cmdRender(const McpJson &args)
+{
+	if (mcpArgBool(args, "reload", false)) {
+		if (WbView3d *view = CWorldBuilderDoc::GetActive3DView()) {
+			view->reloadRendering();
+		}
+	}
+	if (args.has("post_processing")) {
+		TheWritableGlobalData->m_postProcessing = mcpArgBool(args, "post_processing", true);
+	}
+	if (args.has("materials") && TheW3DMaterials != nullptr) {
+		TheW3DMaterials->setEnabled(mcpArgBool(args, "materials", true));
+	}
+	if (args.has("shadow_maps") && TheShadowMapSettings != nullptr) {
+		TheShadowMapSettings->m_enabled = mcpArgBool(args, "shadow_maps", true);
+	}
+	if (args.has("shadow_debug") && TheW3DShadowMap != nullptr) {
+		TheW3DShadowMap->setDebug(mcpArgInt(args, "shadow_debug", 0));
+	}
+	if (WbView3d *view = CWorldBuilderDoc::GetActive3DView()) {
+		view->redraw();
+	}
+	McpJson result = McpJson::makeObject()
+		.set("dx12", TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable())
+		.set("post_processing", TheGlobalData->m_postProcessing != 0)
+		.set("post_processing_running", TheW3DPostProcess != nullptr && TheW3DPostProcess->isRunning())
+		.set("post_processing_passes", TheW3DPostProcess != nullptr ? (int)TheW3DPostProcess->getPasses().size() : 0)
+		.set("materials_running", TheW3DMaterials != nullptr && TheW3DMaterials->isRunning())
+		.set("shadow_maps", TheW3DShadowMap != nullptr && TheW3DShadowMap->isActive())
+		.set("shadow_maps_drawn", TheW3DShadowMap != nullptr && TheW3DShadowMap->wasRendered());
+	if (TheW3DPostProcess != nullptr && TheW3DPostProcess->getError().isNotEmpty()) {
+		result.set("post_processing_error", TheW3DPostProcess->getError().str());
+	}
+	if (TheW3DMaterials != nullptr && TheW3DMaterials->getError().isNotEmpty()) {
+		result.set("materials_error", TheW3DMaterials->getError().str());
+	}
+	return result;
+}
+
 void mcpRegisterMapCommands()
 {
 	mcpRegisterCommand("map.info", cmdMapInfo, "Map size, borders, world extents, counts, name, weather.");
@@ -439,5 +484,6 @@ void mcpRegisterMapCommands()
 	mcpRegisterCommand("edit.undo", cmdUndo, "{count?} Undoes the last edits.");
 	mcpRegisterCommand("edit.redo", cmdRedo, "{count?} Redoes undone edits.");
 	mcpRegisterCommand("view.set_camera", cmdSetCamera, "{x?,y?,angle_deg?,pitch?,zoom?,reset?} Moves the 3D camera. pitch: 1 default, larger = more top-down. zoom: wheel offset, negative zooms out.");
+	mcpRegisterCommand("view.render", cmdRender, "{post_processing?,materials?,shadow_maps?,shadow_debug?,reload?} Turns the Direct3D 12 renderer's post-processing, materials and shadow maps on or off (start WorldBuilder with -dx12) and returns their state; shadow_debug 1 shows the amount of shadow as grey, 2 also the detail cascade; reload reads the INI files, shaders and the map's map.ini again.");
 	mcpRegisterCommand("view.screenshot", cmdScreenshot, "{path?,format?:jpg|png,max_width?,quality?,x?,y?,angle_deg?,pitch?,zoom?,reset?} Renders the 3D view to an image.");
 }

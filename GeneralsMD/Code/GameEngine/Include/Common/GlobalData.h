@@ -116,8 +116,10 @@ public:
 	Bool m_useDrawModuleLOD;
 	Bool m_useHeatEffects;
 	Bool m_useFpsLimit;
+	Bool m_useRenderInterpolation;	///< draw objects between their last two logic positions, for smooth motion above the logic frame rate
 	Bool m_dumpAssetUsage;
 	Int m_framesPerSecondLimit;
+	Int m_renderFramesPerSecondLimit;	///< single player render fps cap independent of the game speed; 0 = the game speed is the render fps cap
 	Int	m_chipSetType;	///<See W3DShaderManager::ChipsetType for options
 
 	// TheSuperHackers @feature helmutbuhler 11/04/2025
@@ -406,6 +408,7 @@ public:
 																			 smaller area within the rectangle to order the gather. */
 
 	UnsignedInt m_antiAliasLevel;          ///< value of selected antialias level in the game options
+	Bool m_postProcessing;                 ///< run the PostProcess chain of the INI (Direct3D 12 renderer only)
 	UnsignedInt m_textureFilteringMode;       ///< value related to TextureFilterClass::TextureFilterModeEnum
 	UnsignedInt m_textureAnisotropyLevel;     ///< value related to TextureFilterClass::AnisotropicFilterMode
 

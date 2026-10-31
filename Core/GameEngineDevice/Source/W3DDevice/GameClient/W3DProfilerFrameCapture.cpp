@@ -37,7 +37,7 @@ W3DProfilerFrameCapture::~W3DProfilerFrameCapture()
 {
 	if (m_swizzleShader)
 	{
-		DX8Wrapper::_Get_D3D_Device8()->DeletePixelShader(m_swizzleShader);
+		DX8Wrapper::Delete_Pixel_Shader(m_swizzleShader);
 		m_swizzleShader = 0;
 	}
 }
@@ -66,7 +66,6 @@ void W3DProfilerFrameCapture::Capture(UnsignedInt displayWidth, UnsignedInt disp
 	// TheSuperHackers @todo In DX9 with ps2.0 this shader will be much simpler
 	if (!m_swizzleShader)
 	{
-		ID3DXBuffer *compiledShader = nullptr;
 		const char *shader =
 			"ps.1.4\n"
 			"texld r0, t0\n"
@@ -77,13 +76,7 @@ void W3DProfilerFrameCapture::Capture(UnsignedInt displayWidth, UnsignedInt disp
 			"mad r0.rgb, r2.a, c1, r0\n"
 			"mad r0.rgb, r1.a, c2, r0\n";
 
-		HRESULT hr = D3DXAssembleShader(shader, strlen(shader), 0, nullptr, &compiledShader, nullptr);
-		if (FAILED(hr))
-			return;
-
-		hr = DX8Wrapper::_Get_D3D_Device8()->CreatePixelShader((DWORD *)compiledShader->GetBufferPointer(), &m_swizzleShader);
-		compiledShader->Release();
-
+		HRESULT hr = DX8Wrapper::Create_Pixel_Shader_From_Asm(shader, &m_swizzleShader);
 		if (FAILED(hr))
 			return;
 	}
@@ -125,7 +118,7 @@ void W3DProfilerFrameCapture::Capture(UnsignedInt displayWidth, UnsignedInt disp
 
 	// allocate intermediate texture
 	IDirect3DTexture8 *intermediateTexture = nullptr;
-	hr = DX8Wrapper::_Get_D3D_Device8()->CreateTexture(
+	hr = DX8Wrapper::_Create_DX8_Texture_Raw(
 		backBufferSurfaceDesc.Width,
 		backBufferSurfaceDesc.Height,
 		1,
@@ -166,9 +159,8 @@ void W3DProfilerFrameCapture::Capture(UnsignedInt displayWidth, UnsignedInt disp
 	DX8Wrapper::Set_Render_Target(smallRenderTargetSurface, false);
 
 	// set viewport
-	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
 	D3DVIEWPORT8 restoreViewport;
-	device->GetViewport(&restoreViewport);
+	DX8Wrapper::Get_Viewport(&restoreViewport);
 
 	SurfaceClass::SurfaceDescription smallRenderDesc;
 	surfaceClass->Get_Description(smallRenderDesc);
@@ -187,9 +179,9 @@ void W3DProfilerFrameCapture::Capture(UnsignedInt displayWidth, UnsignedInt disp
 	static const Real kMaskR[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 	static const Real kMaskG[4] = {0.0f, 1.0f, 0.0f, 0.0f};
 	static const Real kMaskB[4] = {0.0f, 0.0f, 1.0f, 0.0f};
-	device->SetPixelShaderConstant(0, kMaskR, 1);
-	device->SetPixelShaderConstant(1, kMaskG, 1);
-	device->SetPixelShaderConstant(2, kMaskB, 1);
+	DX8Wrapper::Set_Pixel_Shader_Constant(0, kMaskR, 1);
+	DX8Wrapper::Set_Pixel_Shader_Constant(1, kMaskG, 1);
+	DX8Wrapper::Set_Pixel_Shader_Constant(2, kMaskB, 1);
 
 	// draw texture scaled-down onto a small surface
 	struct QuadVertex
@@ -207,7 +199,7 @@ void W3DProfilerFrameCapture::Capture(UnsignedInt displayWidth, UnsignedInt disp
 	vtx[3] = {left,  top,    0.0f, 1.0f, 0.0f, 0.0f};
 	DX8Wrapper::Set_DX8_Texture(0, intermediateTexture);
 	DX8Wrapper::Set_Vertex_Shader(D3DFVF_XYZRHW | D3DFVF_TEX1);
-	device->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, vtx, sizeof(QuadVertex));
+	DX8Wrapper::Draw_DX8_Primitive_UP(D3DPT_TRIANGLESTRIP, 2, vtx, sizeof(QuadVertex));
 	DX8Wrapper::Set_Pixel_Shader(0);
 	DX8Wrapper::Set_DX8_Texture(0, nullptr);
 	DX8Wrapper::Set_Viewport(&restoreViewport);

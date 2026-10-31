@@ -281,6 +281,8 @@ BEGIN
         MENUITEM "Show Clouds\tCtrl+U",         ID_VIEW_SHOWCLOUDS
         MENUITEM "Show Soft Water",             ID_VIEW_SHOWSOFTWATER
         MENUITEM "Show Macrotexture",           ID_VIEW_SHOWMACROTEXTURE
+        MENUITEM "Show Post-Processing (DX12)", ID_VIEW_SHOWPOSTPROCESSING
+        MENUITEM "Reload Post-Processing and Materials (DX12)", ID_VIEW_RELOADRENDERING
         MENUITEM SEPARATOR
         MENUITEM "Change Time Of Day\tCtrl+D",  ID_VIEW_TIME_OF_DAY
         MENUITEM SEPARATOR

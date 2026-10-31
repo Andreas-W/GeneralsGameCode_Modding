@@ -53,6 +53,9 @@ on [Steam](https://store.steampowered.com/bundle/39394). Once the game is ready,
 project from [GitHub Releases](https://github.com/TheSuperHackers/GeneralsGameCode/releases), extract the necessary 
 files, and follow the instructions in the [Wiki](https://github.com/TheSuperHackers/GeneralsGameCode/wiki).
 
+*Zero Hour* can also render with Direct3D 12 (`-dx12`), which adds post-processing, shadow maps and HLSL materials
+that mods can configure. See [docs/DirectX12.md](docs/DirectX12.md).
+
 
 ## Joining the Community
 

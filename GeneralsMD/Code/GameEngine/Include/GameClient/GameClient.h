@@ -116,6 +116,7 @@ public:
 	void addTextBearingDrawable( Drawable *tbd );
 	void flushTextBearingDrawables();
 	void updateFakeDrawables();
+	void captureInterpolationTransforms();	///< remember all object transforms before a logic step, for render interpolation
 
 	virtual void removeFromRayEffects( Drawable *draw );  ///< remove the drawable from the ray effect system if present
 	virtual void getRayEffectData( Drawable *draw, RayEffectData *effectData );  ///< get ray effect data for a drawable

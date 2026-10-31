@@ -307,6 +307,9 @@ public:
 	** default sort list must be restored.
 	*/
 	static void					Enable_Static_Sort_Lists(bool onoff)	{ AreStaticSortListsEnabled = onoff; }
+	// While only depth is drawn (shadow maps), translucent meshes are left out.
+	static void					Set_Depth_Only_Pass(bool onoff)		{ IsDepthOnlyPass = onoff; }
+	static bool					Is_Depth_Only_Pass()					{ return IsDepthOnlyPass; }
 	static bool					Are_Static_Sort_Lists_Enabled()		{ return AreStaticSortListsEnabled; }
 	static void					Enable_Munge_Sort_On_Load(bool onoff)	{ MungeSortOnLoad=onoff; }
 	static bool					Is_Munge_Sort_On_Load_Enabled()		{ return MungeSortOnLoad; }
@@ -374,6 +377,7 @@ private:
 	static bool							IsRendering;
 	static bool							IsCapturing;
 	static bool							IsSortingEnabled;
+	static bool							IsDepthOnlyPass;
 	static bool							IsScreenUVBiased;
 	static bool							IsBackfaceDebugEnabled;
 

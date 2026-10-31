@@ -81,6 +81,7 @@
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/PolygonTrigger.h"
 #include "GameLogic/ScriptActions.h"
+#include "GameClient/PostProcess.h"
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/Weapon.h"
 #include "GameLogic/VictoryConditions.h"
@@ -3903,6 +3904,25 @@ void ScriptActions::doWeather(Bool showWeather)
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Sets or fades a parameter of a post-processing pass; values are 1 to 4 numbers separated by spaces. */
+//-------------------------------------------------------------------------------------------------
+void ScriptActions::doPostProcessSetParameter(const AsciiString& pass, const AsciiString& name, const AsciiString& values, Real seconds)
+{
+	Real numbers[4];
+	Int count = 0;
+	AsciiString rest = values;
+	AsciiString token;
+	while (count < 4 && rest.nextToken(&token, " ,\t"))
+		numbers[count++] = (Real)atof(token.str());
+	if (count == 0)
+	{
+		DEBUG_LOG(("POSTPROCESS_SET_PARAMETER %s %s: no numbers in '%s'", pass.str(), name.str(), values.str()));
+		return;
+	}
+	ThePostProcessControl.setParameter(pass, name, numbers, count, seconds);
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Freeze time */
 //-------------------------------------------------------------------------------------------------
 void ScriptActions::doFreezeTime()
@@ -6623,6 +6643,19 @@ void ScriptActions::executeAction( ScriptAction *pAction )
 			return;
 		case ScriptAction::SKIRMISH_BUILD_SHIPYARD:
 			doBuildShipyard(pAction->getParameter(0)->getString());
+			return;
+		case ScriptAction::POSTPROCESS_SET_PARAMETER:
+			doPostProcessSetParameter(pAction->getParameter(0)->getString(), pAction->getParameter(1)->getString(),
+				pAction->getParameter(2)->getString(), pAction->getParameter(3)->getReal());
+			return;
+		case ScriptAction::POSTPROCESS_ENABLE_PASS:
+			ThePostProcessControl.enablePass(pAction->getParameter(0)->getString(), pAction->getParameter(1)->getInt() != 0);
+			return;
+		case ScriptAction::POSTPROCESS_USE_CHAIN:
+			ThePostProcessControl.useChain(pAction->getParameter(0)->getString());
+			return;
+		case ScriptAction::SHADOWMAP_SET_DARKNESS:
+			ThePostProcessControl.setShadowDarkness(pAction->getParameter(0)->getReal(), pAction->getParameter(1)->getReal());
 			return;
 		case ScriptAction::RECRUIT_TEAM:
 			doRecruitTeam(pAction->getParameter(0)->getString(), pAction->getParameter(1)->getReal());

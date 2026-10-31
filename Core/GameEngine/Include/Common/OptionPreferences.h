@@ -112,10 +112,12 @@ public:
 	Bool getTreesEnabled();
 	Bool getExtraAnimationsDisabled();
 	Bool getUseHeatEffects();
+	Bool getPostProcessing();
 	Bool getDynamicLODEnabled();
 	Bool getFPSLimitEnabled();
 	Bool getBuildingOcclusionEnabled();
 	Int getParticleCap();
+	Int getRenderFpsLimit(); ///< Separate render fps limit, -1 if not set
 
 	Int getCampaignDifficulty();
 	void setCampaignDifficulty(Int diff);

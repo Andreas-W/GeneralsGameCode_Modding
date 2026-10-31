@@ -141,6 +141,11 @@ static const BlockParse theTypeTable[] =
 	{ "OnlineChatColors",               INI::parseOnlineChatColorDefinition },
 	{ "ParticleSystem",                 INI::parseParticleSystemDefinition },
 	{ "PlayerTemplate",                 INI::parsePlayerTemplateDefinition },
+	{ "PostProcess",                    INI::parsePostProcessDefinition },
+	{ "PostProcessPass",                INI::parsePostProcessPassDefinition },
+	{ "PostProcessChain",               INI::parsePostProcessChainDefinition },
+	{ "ShadowMap",                      INI::parseShadowMapDefinition },
+	{ "Material",                       INI::parseMaterialDefinition },
 	{ "Rank",                           INI::parseRankDefinition },
 	{ "ReallyLowMHz",                   parseReallyLowMHz },
 	{ "Road",                           INI::parseTerrainRoadDefinition },
@@ -405,8 +410,11 @@ UnsignedInt INI::load( AsciiString filename, INILoadType loadType, Xfer *pXfer, 
 			// the first word is the type of data we're processing
 			const char *token = strtok( m_buffer, getSeps() );
 
-			// skip non MapData blocks if loading
-			bool skip = (loadType == INI_LOAD_MAPDATA_ONLY) && token && (strcmp(token, "MapData") != 0);
+			// skip non MapData blocks if loading; the map's render settings are visual only, so WorldBuilder
+			// shows them too
+			bool skip = (loadType == INI_LOAD_MAPDATA_ONLY) && token && strcmp(token, "MapData") != 0
+				&& strcmp(token, "PostProcess") != 0 && strcmp(token, "PostProcessPass") != 0
+				&& strcmp(token, "PostProcessChain") != 0 && strcmp(token, "ShadowMap") != 0;
 
 			if( token && !skip)
 			{

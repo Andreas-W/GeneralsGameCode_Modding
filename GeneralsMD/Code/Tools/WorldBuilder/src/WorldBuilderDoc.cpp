@@ -35,6 +35,7 @@
 #include "Common/WellKnownKeys.h"
 #include "Common/MapData.h"
 
+#include "GameClient/PostProcess.h"
 #include "GameClient/Line2D.h"
 #include "GameClient/View.h"
 #include "GameClient/GameText.h"
@@ -1252,6 +1253,8 @@ BOOL CWorldBuilderDoc::OnNewDocument()
 	// clear out map-specific text
 	TheGameText->reset();
 	TheWriteableMapData->reset();
+	// the mod's post-processing and shadow map settings, without the last map's
+	ThePostProcessControl.endGame();
 
 	TNewHeightInfo hi;
 	hi.initialHeight = AfxGetApp()->GetProfileInt("GameOptions", "Default Map Height", 16);
@@ -1437,6 +1440,8 @@ BOOL CWorldBuilderDoc::OnOpenDocument(LPCTSTR lpszPathName)
 	s_mapini.concat("map.ini");
 	// No doesFileExist() check: the file system caches that a file is missing, so a map.ini
 	// created while WorldBuilder runs would never be seen. The load is optional anyway.
+	// Its post-processing and shadow map blocks replace the last map's.
+	ThePostProcessControl.beginMap();
 	{
 		INI ini;
 		ini.load(s_mapini, INI_LOAD_MAPDATA_ONLY, nullptr, true);

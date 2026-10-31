@@ -97,6 +97,7 @@ CW3DViewApp::CW3DViewApp ()
 CW3DViewApp theApp;
 
 extern int AFXAPI AfxWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow);
+extern int DX8Wrapper_UseDX12;
 
 
 int WINAPI
@@ -182,6 +183,14 @@ BOOL CW3DViewApp::InitInstance ()
 #endif
 
 	Do_Version_Check ();
+
+	// Renders with Direct3D 12 instead of Direct3D 8, in builds with RTS_BUILD_OPTION_DX12. It must be
+	// set before the main frame initializes WW3D.
+	for (int arg = 1; arg < __argc; arg++) {
+		if (_stricmp(__argv[arg], "-dx12") == 0) {
+			DX8Wrapper_UseDX12 = 1;
+		}
+	}
 
 	RegisterColorPicker (::AfxGetInstanceHandle ());
 	RegisterColorBar (::AfxGetInstanceHandle ());

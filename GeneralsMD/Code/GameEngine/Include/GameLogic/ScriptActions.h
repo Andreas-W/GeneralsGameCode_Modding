@@ -172,6 +172,7 @@ protected:
 	void doBlackWhiteMode(Bool startBWMode, Int frames);	// if true, start it. If false, end it.
 	void doSkyBox(Bool showSkyBox);	// if true, start it. If false, end it.
 	void doWeather(Bool showWeather);	// if true, show weather effects defined in INI file.
+	void doPostProcessSetParameter(const AsciiString& pass, const AsciiString& name, const AsciiString& values, Real seconds);
 
 	void doFreezeTime();
 	void doUnfreezeTime();

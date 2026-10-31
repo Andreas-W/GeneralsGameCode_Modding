@@ -42,6 +42,7 @@
 #include "dx8vertexbuffer.h"
 #include "dx8indexbuffer.h"
 #include "dx8wrapper.h"
+#include "dx8renderer.h"
 #include "vertmaterial.h"
 #include "texture.h"
 #include "d3d8.h"
@@ -163,6 +164,7 @@ public:
 	unsigned short polygon_count;			// Polygon count to process (3 indices = one polygon)
 	unsigned short min_vertex_index;		// First index used in the vb
 	unsigned short vertex_count;			// Number of vertices used in vb
+	int material;							// MeshMaterialKind of the mesh material binder it was drawn with
 };
 
 typedef std::list<SortingNodeStruct*> SortingNodeStructList;
@@ -229,6 +231,7 @@ void SortingRendererClass::Insert_Triangles(
 	SortingNodeStruct* state=Get_Sorting_Struct();
 
 	DX8Wrapper::Get_Render_State(state->sorting_state);
+	state->material = TheMeshMaterialBound;
 
  	WWASSERT(
 		((state->sorting_state.index_buffer_type==BUFFER_TYPE_SORTING || state->sorting_state.index_buffer_type==BUFFER_TYPE_DYNAMIC_SORTING) &&
@@ -409,6 +412,24 @@ static void Apply_Render_State(RenderStateStruct& render_state)
 
 }
 
+// Binds the material a mesh was queued with again when it is drawn.
+static bool material_bound;
+
+static void Bind_Material(SortingNodeStruct* state)
+{
+	if (TheMeshMaterialBinder == nullptr)
+		return;
+	if (material_bound)
+	{
+		TheMeshMaterialBinder->End();
+		material_bound = false;
+	}
+	TextureBaseClass* texture = state != nullptr && state->material != MESH_MATERIAL_NONE ? state->sorting_state.Textures[0] : nullptr;
+	if (texture != nullptr && texture->As_TextureClass() != nullptr)
+		material_bound = state->material == MESH_MATERIAL_PARTICLE ? TheMeshMaterialBinder->Begin_Particle(texture->As_TextureClass())
+			: TheMeshMaterialBinder->Begin(texture->As_TextureClass());
+}
+
 // ----------------------------------------------------------------------------
 
 void SortingRendererClass::Flush_Sorting_Pool()
@@ -553,6 +574,7 @@ void SortingRendererClass::Flush_Sorting_Pool()
 			if (node_id!=tis[i].idx) {
 				SortingNodeStruct* state=overlapping_nodes[node_id];
 				Apply_Render_State(state->sorting_state);
+				Bind_Material(state);
 
 				DX8Wrapper::Draw_Triangles(
 					start_index*3,
@@ -571,6 +593,7 @@ void SortingRendererClass::Flush_Sorting_Pool()
 		if (count_to_render) {
 			SortingNodeStruct* state=overlapping_nodes[node_id];
 			Apply_Render_State(state->sorting_state);
+			Bind_Material(state);
 
 			DX8Wrapper::Draw_Triangles(
 				start_index*3,
@@ -581,6 +604,7 @@ void SortingRendererClass::Flush_Sorting_Pool()
 
 		chunkOffset += chunkCount;
 	}
+	Bind_Material(nullptr);
 
 	// Release all references and return nodes back to the clean list for the frame...
 	for (unsigned node_id=0;node_id<overlapping_node_count;++node_id) {
@@ -624,7 +648,9 @@ void SortingRendererClass::Flush()
 		}
 		else {
 			DX8Wrapper::Set_Render_State(state->sorting_state);
+			Bind_Material(state);
 			DX8Wrapper::Draw_Triangles(state->start_index,state->polygon_count,state->min_vertex_index,state->vertex_count);
+			Bind_Material(nullptr);
 			DX8Wrapper::Release_Render_State();
 			Release_Refs(state);
 			clean_list.push_front(state);
