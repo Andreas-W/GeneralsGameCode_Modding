@@ -303,6 +303,7 @@ public:
 	mutable TransitionMap							m_transitionMap;
 	std::vector<AsciiString>					m_extraPublicBones;
 	AsciiString												m_trackFile;						///< if present, leaves tracks using this texture
+	AsciiString												m_material;							///< HLSL material for all of the model's meshes (Direct3D 12)
 	AsciiString												m_attachToDrawableBone;
 #ifdef CACHE_ATTACH_BONE
 	mutable Vector3										m_attachToDrawableBoneOffset;

@@ -29,6 +29,7 @@
 #include "GameClient/PostProcess.h"
 #include "WW3D2/assetmgr.h"
 #include "WW3D2/dx8wrapper.h"
+#include "WW3D2/mesh.h"
 #include "WW3D2/texture.h"
 
 #include <ctype.h>
@@ -61,6 +62,8 @@ cbuffer Params : register(b2)
 	float PulseMin;			// darkest point of a pulse, 0..1
 	float FlickerRate;		// random brightness changes per second, 0 = none
 	float FlipGreen;		// 1 for normal maps with green pointing down (OpenGL convention)
+	float3 HouseColor;		// set by the game: the object's team colour, 0 0 0 without one
+	float TeamEmissive;		// 0..1: how much the glow takes the team colour instead of EmissiveColor
 };
 float Brightness(float3 color) { return dot(color, float3(0.299, 0.587, 0.114)); }
 float Random(float value) { return frac(sin(value * 12.9898) * 43758.5453); }
@@ -118,6 +121,8 @@ float4 main(MaterialInput input) : SV_Target
 	if (HasMap(MAP_EMISSIVE))
 	{
 		float3 tint = any(EmissiveColor > 0) ? EmissiveColor : float3(1, 1, 1);
+		if (TeamEmissive > 0 && any(HouseColor > 0))
+			tint = lerp(tint, HouseColor, saturate(TeamEmissive));
 		float strength = EmissiveStrength > 0 ? EmissiveStrength : 1;
 		if (PulseRate > 0)
 			strength *= lerp(saturate(PulseMin), 1, 0.5 + 0.5 * sin(Time * PulseRate * 6.2831853));
@@ -518,7 +523,12 @@ W3DMaterials::W3DMaterials() :
 	m_collecting(FALSE),
 	m_terrainMaterial(-1),
 	m_waterMaterial(-1),
-	m_particleColor(FALSE)
+	m_particleColor(FALSE),
+	m_categoryTexture(nullptr),
+	m_categoryBound(FALSE),
+	m_meshOverride(FALSE),
+	m_boundMaterial(-1),
+	m_objectMaterials(0)
 {
 	for (Int i = 0; i < 4; ++i)
 		m_waterMaps[i] = nullptr;
@@ -584,6 +594,10 @@ void W3DMaterials::clearEntries()
 		for (Int i = 0; i < 4; ++i)
 			REF_PTR_RELEASE(it->second.maps[i]);
 	m_particleEntries.clear();
+	for (std::map<std::pair<Int, TextureClass *>, Entry>::iterator it = m_objectEntries.begin(); it != m_objectEntries.end(); ++it)
+		for (Int i = 0; i < 4; ++i)
+			REF_PTR_RELEASE(it->second.maps[i]);
+	m_objectEntries.clear();
 	for (Int i = 0; i < 4; ++i)
 		REF_PTR_RELEASE(m_waterMaps[i]);
 }
@@ -690,8 +704,11 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 		built.settings = settings;
 		built.id = 0;
 		built.textureCount = 0;
+		built.lastHouseColor = 0;
 		if (FAILED(materials->Create_Material(shader, &built.id)))
 			continue;
+		const Real noColor[3] = { 0.0f, 0.0f, 0.0f };
+		built.houseColor = SUCCEEDED(materials->Set_Material_Parameter(built.id, "HouseColor", noColor, 3));
 		for (size_t i = 0; i < settings->m_parameters.size(); ++i)
 		{
 			const PostProcessParameter& parameter = settings->m_parameters[i];
@@ -828,6 +845,7 @@ bool W3DMaterials::bindEntry(const Entry& entry)
 	}
 	m_materials->Set_Material(m_builtMaterials[entry.material].id, maps);
 	m_bound = TRUE;
+	m_boundMaterial = entry.material;
 	return true;
 #else
 	return false;
@@ -977,6 +995,9 @@ void W3DMaterials::captureBeforeParticles()
 bool W3DMaterials::Begin(TextureClass *baseTexture)
 {
 #ifdef RTS_RENDERER_DX12
+	m_categoryTexture = baseTexture;
+	m_categoryBound = FALSE;
+	m_meshOverride = FALSE;
 	if (!m_enabled || baseTexture == nullptr)
 		return false;
 	ID3D8On12Materials *materials = DX8Wrapper::Get_Materials();
@@ -986,9 +1007,117 @@ bool W3DMaterials::Begin(TextureClass *baseTexture)
 		m_seenTextures.insert(baseTextureName(baseTexture->Get_Texture_Name().str()));
 	if (prepare() == nullptr)
 		return false;
-	return bindEntry(lookup(baseTexture, m_textureMaterial, m_entries));
+	m_categoryBound = bindEntry(lookup(baseTexture, m_textureMaterial, m_entries));
+	return m_categoryBound != FALSE;
 #else
 	return false;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setObject(RenderObjClass *object, const AsciiString& material, UnsignedInt houseColor)
+{
+	if (object == nullptr)
+		return;
+	removeObject(object);
+	ObjectInfo& info = m_objects[object];
+	info.material = material;
+	info.houseColor = houseColor;
+	if (material.isNotEmpty())
+		++m_objectMaterials;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::removeObject(RenderObjClass *object)
+{
+	std::map<RenderObjClass *, ObjectInfo>::iterator found = m_objects.find(object);
+	if (found == m_objects.end())
+		return;
+	if (found->second.material.isNotEmpty())
+		--m_objectMaterials;
+	m_objects.erase(found);
+}
+
+//-------------------------------------------------------------------------------------------------
+Int W3DMaterials::findMaterial(const AsciiString& name)
+{
+	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+		if (m_builtMaterials[i].settings->m_use == MaterialTemplate::USE_MESHES && m_builtMaterials[i].settings->m_name.compareNoCase(name) == 0)
+			return (Int)i;
+	return -1;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The maps of an object's material for one of its base textures, by the material's suffixes. */
+//-------------------------------------------------------------------------------------------------
+const W3DMaterials::Entry& W3DMaterials::lookupObject(Int material, TextureClass *baseTexture)
+{
+	const std::pair<Int, TextureClass *> key(material, baseTexture);
+	std::map<std::pair<Int, TextureClass *>, Entry>::iterator found = m_objectEntries.find(key);
+	if (found != m_objectEntries.end())
+		return found->second;
+	Entry entry;
+	entry.material = material;
+	const AsciiString baseName(baseTextureName(baseTexture->Get_Texture_Name().str()).c_str());
+	for (Int i = 0; i < 4; ++i)
+		entry.maps[i] = findMap(baseName, m_builtMaterials[material].settings->m_maps[i]);
+	return m_objectEntries[key] = entry;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Binds the material of the mesh's object, or goes back to the texture's after such a mesh, and tells
+	* the bound material the object's team colour when it asks for it. */
+//-------------------------------------------------------------------------------------------------
+int W3DMaterials::Bind_Mesh(MeshClass *mesh, bool sorted)
+{
+#ifdef RTS_RENDERER_DX12
+	// Nothing to do per mesh when no object has a material and none is bound for the texture.
+	if (m_objects.empty() || mesh == nullptr || m_categoryTexture == nullptr || (m_objectMaterials == 0 && !m_bound))
+		return -1;
+	if (!m_enabled || prepare() == nullptr)
+		return -1;
+	RenderObjClass *top = mesh;
+	while (top->Get_Container() != nullptr)
+		top = top->Get_Container();
+	std::map<RenderObjClass *, ObjectInfo>::const_iterator found = m_objects.find(top);
+	const ObjectInfo *info = found != m_objects.end() ? &found->second : nullptr;
+
+	int result = -1;
+	const Int material = !sorted && info != nullptr && info->material.isNotEmpty() ? findMaterial(info->material) : -1;
+	if (material >= 0)
+	{
+		m_meshOverride = TRUE;
+		result = bindEntry(lookupObject(material, m_categoryTexture)) ? 1 : 0;
+	}
+	else if (m_meshOverride)
+	{
+		m_meshOverride = FALSE;
+		if (m_categoryBound)
+		{
+			result = bindEntry(lookup(m_categoryTexture, m_textureMaterial, m_entries)) ? 1 : 0;
+		}
+		else
+		{
+			End();
+			result = 0;
+		}
+	}
+
+	// The team colour: the renderer copies the parameters at each draw, so setting them per mesh works.
+	if (m_bound && m_boundMaterial >= 0)
+	{
+		Built& built = m_builtMaterials[m_boundMaterial];
+		const UnsignedInt color = info != nullptr ? info->houseColor : 0;
+		if (built.houseColor && color != built.lastHouseColor)
+		{
+			const Real rgb[3] = { ((color >> 16) & 0xff) / 255.0f, ((color >> 8) & 0xff) / 255.0f, (color & 0xff) / 255.0f };
+			m_materials->Set_Material_Parameter(built.id, "HouseColor", rgb, 3);
+			built.lastHouseColor = color;
+		}
+	}
+	return result;
+#else
+	return -1;
 #endif
 }
 
@@ -1001,6 +1130,7 @@ void W3DMaterials::End()
 	if (m_materials != nullptr)
 		m_materials->Set_Material(0, nullptr);
 	m_bound = FALSE;
+	m_boundMaterial = -1;
 #endif
 }
 

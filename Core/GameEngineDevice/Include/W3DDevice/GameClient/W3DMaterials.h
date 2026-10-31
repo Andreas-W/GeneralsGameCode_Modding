@@ -33,6 +33,8 @@
 #include <vector>
 
 class TextureClass;
+class MeshClass;
+class RenderObjClass;
 class MaterialTemplate;
 struct ID3D8On12Materials;
 struct IDirect3DBaseTexture8;
@@ -54,8 +56,15 @@ public:
 	void getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures, std::vector<AsciiString>& uses);	///< how many textures each got, what it is for
 	void collectTextures(std::vector<AsciiString>& names);	///< base textures drawn since the last call; starts collecting
 
+	/// What a model's top render object brings to its meshes: a material by name over the one of its
+	/// textures (empty for none; opaque meshes only, translucent ones keep their texture's), and its team
+	/// colour (ARGB, 0 for none), which materials read as HouseColor.
+	void setObject(RenderObjClass *object, const AsciiString& material, UnsignedInt houseColor);
+	void removeObject(RenderObjClass *object);
+
 	// MeshMaterialBinderClass
 	virtual bool Begin(TextureClass *baseTexture);
+	virtual int Bind_Mesh(MeshClass *mesh, bool sorted);
 	virtual bool Begin_Particle(TextureClass *texture) { return bindParticle(texture); }
 	virtual void End();
 
@@ -85,6 +94,13 @@ private:
 		const MaterialTemplate *settings;
 		unsigned int id;			///< the renderer's material
 		Int textureCount;			///< base textures that got it so far
+		Bool houseColor;			///< the shader has a HouseColor parameter
+		UnsignedInt lastHouseColor;	///< what it was last set to
+	};
+	struct ObjectInfo
+	{
+		AsciiString material;
+		UnsignedInt houseColor;
 	};
 
 	struct Entry
@@ -103,7 +119,17 @@ private:
 	bool bindEntry(const Entry& entry);
 	TextureClass *findMap(const AsciiString& baseName, const AsciiString& spec);
 
+	Int findMaterial(const AsciiString& name);	///< m_builtMaterials index of a mesh material, -1 for none
+	const Entry& lookupObject(Int material, TextureClass *baseTexture);
+
 	ID3D8On12Materials *m_materials;		///< the device the materials were built for
+	std::map<RenderObjClass *, ObjectInfo> m_objects;	///< setObject
+	Int m_objectMaterials;					///< how many of m_objects have a material
+	std::map<std::pair<Int, TextureClass *>, Entry> m_objectEntries;	///< maps of an object material for a base texture
+	TextureClass *m_categoryTexture;		///< the base texture of the meshes drawn now (Begin)
+	Bool m_categoryBound;					///< Begin bound the texture's material
+	Bool m_meshOverride;					///< Bind_Mesh bound an object's material instead
+	Int m_boundMaterial;					///< m_builtMaterials index bound now, -1 for none
 	Bool m_built;
 	Bool m_enabled;
 	Bool m_bound;

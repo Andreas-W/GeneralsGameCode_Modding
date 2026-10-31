@@ -72,6 +72,11 @@
 //	  Param = Gloss 24				; a variable of the shader's Params cbuffer, 1 to 4 values
 //	End
 //
+//	A model can take a material as a whole: Material = AmericaTanks in its ModelDraw (TankDraw, ...) block
+//	gives all of its opaque meshes that material, with the maps found for each of their textures.
+//	Material shaders with a float3 HouseColor parameter get the object's team colour in it (0 0 0 without
+//	one); MAT_Standard's TeamEmissive 0..1 tints the glow with it (the base textures are team coloured already).
+//
 //	Material SoftSmoke
 //	  Use = Particles				; Meshes (default), Particles (by particle texture), Terrain or Water (one each)
 //	  Textures = EXSmokNew1			; for Meshes and Particles
