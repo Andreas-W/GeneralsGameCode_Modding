@@ -304,6 +304,8 @@ PostProcessor::PostProcessor(Device* device)
 	m_scene.height = 0;
 	m_scene.format = DXGI_FORMAT_UNKNOWN;
 	m_depth = m_scene;
+	m_capturedDepth = m_scene;
+	m_depthCaptured = false;
 	m_depthShaders[0] = m_depthShaders[1] = 0;
 	m_presentShaders[0] = m_presentShaders[1] = 0;
 	m_shadowShader = 0;
@@ -446,7 +448,7 @@ bool PostProcessor::Capture_For_Materials(bool color, UINT& depth_srv, UINT& col
 	const UINT width = device.m_presentParams.BackBufferWidth;
 	const UINT height = device.m_presentParams.BackBufferHeight;
 	// Bind_Root sets everything the copy passes need and makes the next draw bind its state again.
-	if (!Bind_Root() || !Copy_Depth(width, height))
+	if (!Bind_Root() || !Copy_Depth(width, height, m_depth))
 		return false;
 	depth_srv = m_depth.gpu.srv;
 	color_srv = 0;
@@ -551,7 +553,7 @@ HRESULT PostProcessor::Draw_Shadows(const ShadowCascade* cascades,
 		return E_FAIL;
 	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_shadowShader - 1], targets.rtvFormat, targets.sampleCount, !debug);
 	device.Mark_Time(Device::TIMING_SHADOWS_BEGIN);
-	if (pipeline == nullptr || !Bind_Root() || !Copy_Depth(width, height))
+	if (pipeline == nullptr || !Bind_Root() || !Copy_Depth(width, height, m_depth))
 		return E_FAIL;
 
 	Device::UploadAllocation common = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
@@ -606,8 +608,8 @@ HRESULT PostProcessor::Draw_Shadows(const ShadowCascade* cascades,
 	return D3D_OK;
 }
 
-// Copies the depth buffer into m_depth, which passes then read as their Depth input.
-bool PostProcessor::Copy_Depth(UINT width, UINT height)
+// Copies the depth buffer into target as raw depth 0..1.
+bool PostProcessor::Copy_Depth(UINT width, UINT height, Target& target)
 {
 	Device& device = *m_device;
 	if (device.m_depthBuffer == nullptr || device.m_depthSrv == 0)
@@ -624,7 +626,7 @@ bool PostProcessor::Copy_Depth(UINT width, UINT height)
 			return false;
 		}
 	}
-	if (!Ensure_Target(m_depth, width, height, DXGI_FORMAT_R32_FLOAT))
+	if (!Ensure_Target(target, width, height, DXGI_FORMAT_R32_FLOAT))
 		return false;
 	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[shader - 1], DXGI_FORMAT_R32_FLOAT, 1);
 	if (pipeline == nullptr)
@@ -638,9 +640,9 @@ bool PostProcessor::Copy_Depth(UINT width, UINT height)
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	list->ResourceBarrier(1, &barrier);
-	device.Transition(m_depth.gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	device.Transition(target.gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.Target_View_Handle(false, m_depth.rtv);
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.Target_View_Handle(false, target.rtv);
 	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
 	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
@@ -653,8 +655,31 @@ bool PostProcessor::Copy_Depth(UINT width, UINT height)
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 	list->ResourceBarrier(1, &barrier);
-	device.Transition(m_depth.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	device.Transition(target.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	return true;
+}
+
+bool PostProcessor::Uses_Depth() const
+{
+	for (const Pass& pass : m_passes)
+		for (UINT input = 0; input < INPUT_COUNT; ++input)
+			if (pass.desc.inputs[input] == D3D8ON12_PP_INPUT_DEPTH)
+				return true;
+	return false;
+}
+
+void STDMETHODCALLTYPE PostProcessor::Capture_Depth()
+{
+	m_depthCaptured = false;
+	Device& device = *m_device;
+	// Only the scene drawn into the back buffer with the screen's depth buffer, as Run processes it.
+	const D3DSURFACE_DESC& target_desc = device.m_renderTarget->Desc();
+	if (!Uses_Depth() || device.m_backBuffers[0] == nullptr || device.m_depthStencil != device.m_autoDepthSurface
+		|| target_desc.Width != device.m_presentParams.BackBufferWidth || target_desc.Height != device.m_presentParams.BackBufferHeight)
+		return;
+	device.Begin_Frame();
+	// Bind_Root sets everything the copy pass needs and makes the next draw bind its state again.
+	m_depthCaptured = Bind_Root() && Copy_Depth(device.m_presentParams.BackBufferWidth, device.m_presentParams.BackBufferHeight, m_capturedDepth);
 }
 
 // The device is idle when it deletes the post-processor, so the resources can go right away.
@@ -938,6 +963,8 @@ bool PostProcessor::Copy_Scene(UINT width, UINT height)
 
 HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 {
+	const bool depth_captured = m_depthCaptured;
+	m_depthCaptured = false;
 	if (m_passes.empty())
 		return D3D_OK;
 	Device& device = *m_device;
@@ -969,11 +996,10 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 	if (!Bind_Root())
 		return E_FAIL;
 
-	bool uses_depth = false;
-	for (const Pass& pass : m_passes)
-		for (UINT input = 0; input < INPUT_COUNT; ++input)
-			uses_depth = uses_depth || pass.desc.inputs[input] == D3D8ON12_PP_INPUT_DEPTH;
-	if (uses_depth && !Copy_Depth(width, height))
+	// The depth taken by Capture_Depth, else the depth buffer as it is now.
+	bool uses_depth = Uses_Depth();
+	const Target& depth = depth_captured && m_capturedDepth.width == width && m_capturedDepth.height == height ? m_capturedDepth : m_depth;
+	if (uses_depth && &depth == &m_depth && !Copy_Depth(width, height, m_depth))
 		uses_depth = false;
 
 	for (size_t index = 0; index < m_passes.size(); ++index)
@@ -1054,7 +1080,7 @@ HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
 			{
 				if (uses_depth)
 				{
-					srvs[input] = m_depth.gpu.srv;
+					srvs[input] = depth.gpu.srv;
 					Set_Size(constants.inputSize[input], width, height);
 				}
 			}

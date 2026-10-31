@@ -787,6 +787,18 @@ void W3DPostProcess::run(CameraClass *camera)
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Translucent objects write depth too: build previews, stealthed units and the like. Without this the
+	* ambient occlusion would darken them as if they were solid. */
+//-------------------------------------------------------------------------------------------------
+void W3DPostProcess::captureDepth()
+{
+#ifdef RTS_RENDERER_DX12
+	if (isRunning())
+		m_postProcess->Capture_Depth();
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Compiles the shaders of the chain and hands it to the renderer. On an error the chain stays
 	* empty until it is reloaded; the error is in the log and in getError(). */
 //-------------------------------------------------------------------------------------------------

@@ -56,6 +56,7 @@ public:
 	void STDMETHODCALLTYPE Set_HDR_Scene(BOOL enable) override;
 	void STDMETHODCALLTYPE Set_Gpu_Timing(BOOL enable) override;
 	void STDMETHODCALLTYPE Get_Gpu_Timing(D3D8ON12_GPU_TIMING* timing) override;
+	void STDMETHODCALLTYPE Capture_Depth() override;
 
 	// Releases the textures of the chain; called when the engine releases the device.
 	void Clear_Chain();
@@ -114,14 +115,17 @@ private:
 	void Release_Target(Target& target);
 	bool Bind_Root();
 	bool Copy_Scene(UINT width, UINT height);
-	bool Copy_Depth(UINT width, UINT height);
+	bool Copy_Depth(UINT width, UINT height, Target& target);
+	bool Uses_Depth() const;
 
 	Device* m_device;
 	std::vector<Shader> m_shaders;	// handle = index + 1
 	std::vector<Pass> m_passes;
 	ComPtr<ID3DBlob> m_vertexShader;
 	Target m_scene;
-	Target m_depth;				// R32_FLOAT copy of the depth buffer, made when a pass reads the depth
+	Target m_depth;				// R32_FLOAT copy of the depth buffer for shadows, materials and passes
+	Target m_capturedDepth;		// the Depth input of the passes taken by Capture_Depth
+	bool m_depthCaptured;		// m_capturedDepth holds this frame's depth for Run
 	UINT m_depthShaders[2];		// for a depth buffer without and with multisampling
 	UINT m_presentShaders[2];	// for an HDR scene target without and with multisampling
 	UINT m_copyShader;			// Copy_Back_Buffer

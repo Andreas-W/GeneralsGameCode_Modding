@@ -40,6 +40,7 @@ public:
 	void init();		///< reads the PostProcess INI; the chain is built on the first run
 	void reload();		///< reads the INI and the shader files again
 	void run(CameraClass *camera);	///< after the 3D scene of this camera, before the interface
+	void captureDepth();	///< the depth for the passes, after the solid scene and before translucent objects
 
 	Bool setParameter(const AsciiString& pass, const AsciiString& name, const Real* values, Int count);
 

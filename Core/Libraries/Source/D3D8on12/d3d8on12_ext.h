@@ -107,6 +107,11 @@ struct ID3D8On12PostProcess : public IUnknown
 	virtual void STDMETHODCALLTYPE Set_Gpu_Timing(BOOL enable) = 0;
 	// The averages since the last call, which starts the next average.
 	virtual void STDMETHODCALLTYPE Get_Gpu_Timing(D3D8ON12_GPU_TIMING* timing) = 0;
+
+	// Takes the Depth input of the next Run from the depth buffer as it is now, instead of at Run. Called
+	// after the solid scene, so that translucent objects drawn afterwards (with depth writes) neither get
+	// nor cast ambient occlusion.
+	virtual void STDMETHODCALLTYPE Capture_Depth() = 0;
 };
 
 // {9B4F2C71-5E0A-4D83-B6C2-71A8E3D05F16}
