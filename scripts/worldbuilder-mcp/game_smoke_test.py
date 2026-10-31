@@ -3,7 +3,7 @@
 Starts generalszh.exe headless in a sandbox (only the local player), paused at the start, and goes
 through every command area: status, stepping, objects, players, orders, test changes, scripts.
 
-    python game_smoke_test.py [--game-dir F:\\Operation-Firestorm-2.0] [--exe generalszh.exe]
+    python game_smoke_test.py [--game-dir <mod folder, default $GAME_DIR>] [--exe generalszh.exe]
                               [--map "armed neighbors"] [--faction FactionAmerica] [--windowed]
 
 The bridge serves one client, so run it while no MCP client is connected to the game.
@@ -59,7 +59,8 @@ def step(bridge: WorldBuilderBridge, frames: int) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--game-dir", default=os.environ.get("GAME_DIR", r"F:\Operation-Firestorm-2.0"))
+    game_dir = os.environ.get("GAME_DIR")
+    parser.add_argument("--game-dir", default=game_dir, required=not game_dir)
     parser.add_argument("--exe", default=os.environ.get("GAME_EXE", "generalszh.exe"))
     parser.add_argument("--map", default="armed neighbors")
     parser.add_argument("--faction", default="FactionAmerica")

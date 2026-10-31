@@ -8,7 +8,15 @@ A **modding-focused fork** of TheSuperHackers/GeneralsGameCode, the community po
 
 **This fork only cares about Zero Hour (`GeneralsMD/`).** Treat the original Generals (`Generals/`) as out of scope unless explicitly asked. Upstream rules say "Zero Hour changes take precedence; mirror to Generals" — here, skip the mirror step. `Core/` holds the shared engine and must be considered for most changes.
 
-**Game data INIs** (Object/Weapon/OCL/etc. that configure the modules this engine parses) live outside the repo at `F:\Operation-Firestorm-2.0\Data\INI`. Read/search there when a task involves how units, weapons, or modules are configured in-game.
+**The mod folder** lives outside the repo, in a different place for every user. Its path is the `GAME_DIR` environment variable, set per user in the git-ignored `.claude/settings.local.json`:
+
+```json
+{ "env": { "GAME_DIR": "<path to the mod folder>" } }
+```
+
+If `GAME_DIR` is empty, ask the user for the path and set it there; never write the path into tracked files. Changes apply after Claude restarts.
+
+**Game data INIs** (Object/Weapon/OCL/etc. that configure the modules this engine parses) are in `$GAME_DIR\Data\INI`. Read/search there when a task involves how units, weapons, or modules are configured in-game.
 
 ## Build
 
@@ -106,7 +114,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/server.py  <-- TCP 127.0.0.1:478
 
 ### Running it
 
-- WorldBuilder must run **from the mod folder** (`F:\Operation-Firestorm-2.0`, it needs the game data): `WorldBuilderMCP.bat` there starts `WorldBuilderZH.exe -mcp -ignoreAsserts`. Without `-ignoreAsserts` an assert dialog blocks the bridge.
+- WorldBuilder must run **from the mod folder** (`GAME_DIR`, it needs the game data): `WorldBuilderMCP.bat` there starts `WorldBuilderZH.exe -mcp -ignoreAsserts`. Without `-ignoreAsserts` an assert dialog blocks the bridge.
 - The server is registered in the repo's `.mcp.json` and started through `uv`. New or changed tools appear only after Claude is **fully quit and restarted**; WorldBuilder must be restarted after rebuilding it.
 - The bridge serves one client. If tools fail with "Cannot reach WorldBuilder", WorldBuilder is not running with `-mcp` (or hangs in a dialog).
 - WorldBuilder and the game read INI data at startup: restart after changing game data.
@@ -167,14 +175,14 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.
 ### Running it
 
 - The bridge exists only in builds with `RTS_BUILD_OPTION_GAME_MCP` and only listens when the game is started with `-mcp`. Without the flag nothing changes for normal play.
-- `game_launch` uses `generalszh.exe` in the mod folder (`GAME_DIR`, default `F:\Operation-Firestorm-2.0`; `GAME_EXE` picks another exe name). That exe must be an MCP build: if the game starts but the bridge never answers, the installed exe is older than the feature. After changing engine code, rebuild `z_generals` and copy it there (ask first, keep a `.bak` of the user's exe).
+- `game_launch` uses `generalszh.exe` in the mod folder (`GAME_DIR`; `GAME_EXE` picks another exe name). That exe must be an MCP build: if the game starts but the bridge never answers, the installed exe is older than the feature. After changing engine code, rebuild `z_generals` and copy it there (ask first, keep a `.bak` of the user's exe).
 - One game at a time: `game_launch` fails while a game with the bridge runs; `game_quit` it first. If a tool says "Cannot reach the game", no game runs with `-mcp` (or it hangs in a dialog).
 - A game started by hand works too: `generalszh.exe -mcp -mcpGame "<map>" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts`, run from the mod folder.
 
 ### Testing a feature
 
 1. **Start**: `game_launch(map, faction, opponents)`. `map` is a multiplayer map name or part of its path (`"armed neighbors"` is known to work). `faction` is a player template (`FactionAmerica`, `FactionChina`, `FactionGLA`, generals such as `FactionAmericaAirForceGeneral`, or `Observer`). `opponents` are AI players as `"FactionChina:hard"`; none = a **sandbox** where nobody wins or loses. It returns paused at frame 1, before anything has happened. Use `headless=true` when no picture is needed (much faster, no `view_*`); `seed` repeats a game exactly.
-2. **Find things**: `players_list` gives internal player names (`player0` is usually the local player; `"local"` and `"neutral"` work everywhere). `objects_list` filters by `player`, `template` (substring), `kindof`, `status` and area; `objects_templates(contains=...)` gives exact template names. Never guess template, upgrade, science or special power names: look them up (`objects_templates`, `objects_get` sections `upgrades` / `special_powers`, or the INIs in `F:\Operation-Firestorm-2.0\Data\INI`).
+2. **Find things**: `players_list` gives internal player names (`player0` is usually the local player; `"local"` and `"neutral"` work everywhere). `objects_list` filters by `player`, `template` (substring), `kindof`, `status` and area; `objects_templates(contains=...)` gives exact template names. Never guess template, upgrade, science or special power names: look them up (`objects_templates`, `objects_get` sections `upgrades` / `special_powers`, or the INIs in `$GAME_DIR\Data\INI`).
 3. **Set up the situation**: `objects_spawn(template, x, y, player=..., count=...)` puts units or buildings anywhere, for any player (an AI player's name makes them enemies). `objects_set` changes health, position, veterancy, gives object upgrades, sets status flags. `players_set` gives money, sciences, player upgrades, `instant_build`, and `special_power_delays=false` for instant recharge.
 4. **Act**: `orders_*` (move, attack, guard, stop, build, produce, upgrade, special power, buy science, sell) as the owning player would click. Orders are queued and carried out on the **next logic frame**, so give them while paused and then step.
 5. **Advance time**: `game_step(frames=N)` or `game_step(seconds=S)` runs that long and pauses again (30 frames = 1 second). `game_set_speed(0)` before long steps makes them run as fast as possible. `game_resume` lets it run freely; `game_pause` stops it.
