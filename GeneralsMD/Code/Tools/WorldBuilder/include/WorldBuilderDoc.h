@@ -122,6 +122,10 @@ public:
 	void updateAllViews();
 	void updateHeightMap(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects = true);
 
+	/// Fast update for each mouse move of a height tool. Call finishHeightStroke when the stroke ends.
+	void updateHeightStroke(WorldHeightMap *htMap, const IRegion2D &partialRange);
+	void finishHeightStroke();
+
 	/// Gets an xy index into the height map from a pixel location.
 	Bool getCellIndexFromCoord(Coord3D pt, CPoint *ndxP);
 

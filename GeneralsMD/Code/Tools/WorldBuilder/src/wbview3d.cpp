@@ -111,6 +111,7 @@ class SkeletonSceneClass;
 #define WINDOW_WIDTH				640
 #define WINDOW_HEIGHT				480
 #define UPDATE_TIME					100  /* 10 frames a second */
+#define HEIGHT_STROKE_FRAME_TIME	33   /* minimum 30 frames a second while dragging a height tool */
 #define MOUSE_WHEEL_FACTOR	32
 
 #define SAMPLE_DYNAMIC_LIGHT	1
@@ -386,6 +387,7 @@ WbView3d::WbView3d() :
 	m_theta(0.0),
 	m_time(0),
 	m_updateCount(0),
+	m_heightStrokePending(false),
 	m_needToLoadRoads(0),
 	m_capturePath(nullptr),
 	m_captureOk(false),
@@ -1373,6 +1375,7 @@ void WbView3d::invalObjectInView(MapObject *pMapObjIn)
 	}
 	if (pMapObjIn == nullptr) {
 		invalBuildListItemInView(nullptr);
+		m_heightStrokePending = false;	// This refits everything a height stroke left out.
 	}
 	Bool found = false;
 	Bool isRoad = false;
@@ -1618,6 +1621,96 @@ void WbView3d::updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const 
 	}
 
 	--m_updateCount;
+}
+
+// ----------------------------------------------------------------------------
+/** Moves the existing render objects inside a heightmap index range onto the terrain.
+Unlike invalObjectInView it creates nothing and walks the object list only once. */
+void WbView3d::refitObjectsInRange(WorldHeightMap *htMap, const IRegion2D &partialRange)
+{
+	const Int border = htMap->getBorderSizeInline();
+	const Real minX = (partialRange.lo.x - border) * MAP_XY_FACTOR;
+	const Real maxX = (partialRange.hi.x - border) * MAP_XY_FACTOR;
+	const Real minY = (partialRange.lo.y - border) * MAP_XY_FACTOR;
+	const Real maxY = (partialRange.hi.y - border) * MAP_XY_FACTOR;
+
+	for (MapObject *pMapObj = MapObject::getFirstMapObject(); pMapObj; pMapObj = pMapObj->getNext())
+	{
+		Coord3D loc = *pMapObj->getLocation();
+		if (loc.x < minX || loc.x > maxX || loc.y < minY || loc.y > maxY) {
+			continue;
+		}
+		// These are rebuilt as a whole when the stroke ends.
+		if ((pMapObj->getFlags() & (FLAG_ROAD_FLAGS|FLAG_BRIDGE_FLAGS)) || pMapObj->isLight() || pMapObj->isScorch()) {
+			continue;
+		}
+		loc.z += m_heightMapRenderObj->getHeightMapHeight(loc.x, loc.y, nullptr);
+
+		const ThingTemplate *tTemplate = pMapObj->getThingTemplate();
+		if (tTemplate && tTemplate->isKindOf(KINDOF_OPTIMIZED_TREE)) {
+			m_heightMapRenderObj->updateTreePosition((DrawableID)(Int)pMapObj, loc, pMapObj->getAngle());
+		}
+
+		RenderObjClass *renderObj = pMapObj->getRenderObj();
+		if (renderObj == nullptr || (pMapObj->getFlags() & FLAG_DONT_RENDER)) {
+			continue;
+		}
+		Matrix3D renderObjPos(true);
+		renderObjPos.Translate(loc.x, loc.y, loc.z);
+		renderObjPos.Rotate_Z(pMapObj->getAngle());
+		if (tTemplate && tTemplate->isKindOf(KINDOF_VEHICLE)) {
+			Coord3D terrainNormal;
+			m_heightMapRenderObj->getHeightMapHeight(loc.x, loc.y, &terrainNormal);
+			makeAlignToNormalMatrix(pMapObj->getAngle(), loc, terrainNormal, renderObjPos);
+		}
+		renderObj->Set_Transform(renderObjPos);
+	}
+
+	for (Int i = 0; i < TheSidesList->getNumSides(); i++) {
+		SidesInfo *pSide = TheSidesList->getSideInfo(i);
+		for (BuildListInfo *pBuild = pSide->getBuildList(); pBuild; pBuild = pBuild->getNext()) {
+			Coord3D loc = *pBuild->getLocation();
+			if (loc.x < minX || loc.x > maxX || loc.y < minY || loc.y > maxY) {
+				continue;
+			}
+			// Build list render objects are not ref counted, so they may be gone from the scene.
+			RenderObjClass *renderObj = pBuild->getRenderObj();
+			if (renderObj == nullptr || !m_baseBuildScene->safeContains(renderObj)) {
+				continue;
+			}
+			loc.z += m_heightMapRenderObj->getHeightMapHeight(loc.x, loc.y, nullptr);
+			Matrix3D renderObjPos(true);
+			renderObjPos.Translate(loc.x, loc.y, loc.z);
+			renderObjPos.Rotate_Z(pBuild->getAngle());
+			renderObj->Set_Transform(renderObjPos);
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+void WbView3d::updateHeightStrokeInView(WorldHeightMap *htMap, const IRegion2D &partialRange)
+{
+	if (htMap == nullptr)
+		return;
+	++m_updateCount;
+	updateHeightMapInView(htMap, true, partialRange, false);
+	refitObjectsInRange(htMap, partialRange);
+	m_heightStrokePending = true;
+	--m_updateCount;
+
+	// Mouse messages outrank paint messages, so a fast drag would otherwise never show a frame.
+	Invalidate(false);
+	if (::GetTickCount() - getLastDrawTime() >= HEIGHT_STROKE_FRAME_TIME) {
+		UpdateWindow();
+	}
+}
+
+// ----------------------------------------------------------------------------
+void WbView3d::finishHeightStrokeInView()
+{
+	if (m_heightStrokePending) {
+		invalObjectInView(nullptr);
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -2843,6 +2936,10 @@ Real WbView3d::getCurrentZoom()
 // ----------------------------------------------------------------------------
 void WbView3d::OnTimer(UINT nIDEvent)
 {
+	// A stroke normally finishes on mouse up, which never arrives if the capture was lost.
+	if (m_heightStrokePending && GetCapture() != this) {
+		finishHeightStrokeInView();
+	}
 	if (getLastDrawTime()+UPDATE_TIME<::GetTickCount())
 	{
 		Invalidate(false);

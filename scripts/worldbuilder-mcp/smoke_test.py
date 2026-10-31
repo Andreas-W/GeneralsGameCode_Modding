@@ -28,6 +28,14 @@ def main() -> int:
     assert sample["height_raw"] == 60, sample
     wb.call("terrain.brush", op="smooth", x=300, y=300, radius=150, iterations=3)
 
+    wb.call("view.set_camera", x=300, y=300, reset=True)
+    before = wb.call("terrain.sample", x=300, y=300)["height_raw"]
+    bench = wb.call("perf.stroke_bench", tool="height", x0=250, y0=300, x1=350, y1=300, steps=10, width=6, feather=2, amount=120, undo=False)
+    assert bench["steps"] == 10, bench
+    assert wb.call("terrain.sample", x=300, y=300)["height_raw"] != before, "stroke did not change the terrain"
+    wb.call("edit.undo")
+    assert wb.call("terrain.sample", x=300, y=300)["height_raw"] == before, "undo did not restore the terrain"
+
     textures = wb.call("terrain.list_textures")["textures"]
     assert textures, "no textures loaded"
     wb.call("terrain.paint_texture", texture=textures[0]["name"], x=600, y=600, radius=100)

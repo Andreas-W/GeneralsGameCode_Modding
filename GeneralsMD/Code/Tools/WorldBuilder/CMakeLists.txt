@@ -206,6 +206,7 @@ set(WORLDBUILDER_SRC
     "src/mcp/McpCmdImage.cpp"
     "src/mcp/McpCmdMap.cpp"
     "src/mcp/McpCmdObjects.cpp"
+    "src/mcp/McpCmdPerf.cpp"
     "src/mcp/McpCmdReplace.cpp"
     "src/mcp/McpCmdResize.cpp"
     "src/mcp/McpCmdRoute.cpp"
