@@ -27,6 +27,7 @@
 #include "FeatherTool.h"
 #include "MoundTool.h"
 #include "WHeightMapEdit.h"
+#include "WorldBuilder.h"
 #include "WorldBuilderDoc.h"
 #include "wbview3d.h"
 
@@ -147,7 +148,17 @@ McpJson cmdStrokeBench(const McpJson &args)
 		strokePoint(view, map, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
 	}
 
+	// Window messages take the way of a real mouse: the view's tracking and status bar code run as well.
+	const bool viaMessages = mcpArgBool(args, "via_messages", false);
+	Tool *const previousTool = WbApp()->getCurTool();
+	if (viaMessages && toolName != "height") {
+		mcpFail("via_messages supports only the height tool");
+	}
 	const SavedToolSettings saved;
+	// Activating a tool loads the settings of its options panel, so this comes before the settings below.
+	if (viaMessages) {
+		WbApp()->selectBrushTool();
+	}
 	BrushTool brushTool;
 	FeatherTool featherTool;
 	MoundTool moundTool;
@@ -171,8 +182,14 @@ McpJson cmdStrokeBench(const McpJson &args)
 
 	TimeStats stepTime;
 	TimeStats frameTime;
+	TimeStats idleTime;
+	CPoint pt = strokePoint(view, map, x0, y0);
 	double start = nowMs();
-	tool->mouseDown(TRACK_L, strokePoint(view, map, x0, y0), view, doc);
+	if (viaMessages) {
+		view->SendMessage(WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(pt.x, pt.y));
+	} else {
+		tool->mouseDown(TRACK_L, pt, view, doc);
+	}
 	const double downMs = nowMs() - start;
 	view->UpdateWindow();
 
@@ -181,14 +198,25 @@ McpJson cmdStrokeBench(const McpJson &args)
 			::Sleep(paceMs);
 		}
 		const double t = (double)i / steps;
-		const CPoint pt = strokePoint(view, map, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+		pt = strokePoint(view, map, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
 		start = nowMs();
-		tool->mouseMoved(TRACK_L, pt, view, doc);
+		if (viaMessages) {
+			view->SendMessage(WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(pt.x, pt.y));
+		} else {
+			tool->mouseMoved(TRACK_L, pt, view, doc);
+		}
 		const double afterStep = nowMs();
 		// Paints only if the step left the window invalid, so a step that already painted is not counted twice.
 		view->UpdateWindow();
 		stepTime.add(afterStep - start);
 		frameTime.add(nowMs() - afterStep);
+		if (viaMessages) {
+			// What the message loop does whenever the queue runs empty.
+			const double beforeIdle = nowMs();
+			for (LONG idleCount = 0; AfxGetApp()->OnIdle(idleCount); idleCount++) {
+			}
+			idleTime.add(nowMs() - beforeIdle);
+		}
 		if (i == steps / 2 && args.has("mid_screenshot")) {
 			McpJson shotArgs = McpJson::makeObject();
 			shotArgs.set("path", mcpArgString(args, "mid_screenshot"));
@@ -197,8 +225,13 @@ McpJson cmdStrokeBench(const McpJson &args)
 		}
 	}
 
+	pt = strokePoint(view, map, x1, y1);
 	start = nowMs();
-	tool->mouseUp(TRACK_L, strokePoint(view, map, x1, y1), view, doc);
+	if (viaMessages) {
+		view->SendMessage(WM_LBUTTONUP, 0, MAKELPARAM(pt.x, pt.y));
+	} else {
+		tool->mouseUp(TRACK_L, pt, view, doc);
+	}
 	const double upMs = nowMs() - start;
 	start = nowMs();
 	view->Invalidate(false);
@@ -210,6 +243,9 @@ McpJson cmdStrokeBench(const McpJson &args)
 	const double idleFrameMs = nowMs() - start;
 
 	saved.restore();
+	if (viaMessages) {
+		WbApp()->setActiveTool(previousTool);
+	}
 	if (mcpArgBool(args, "undo", true)) {
 		mcpRunCommand("edit.undo", McpJson::makeObject());
 	}
@@ -220,7 +256,8 @@ McpJson cmdStrokeBench(const McpJson &args)
 	result.set("mouse_down_ms", downMs);
 	result.set("step", stepTime.toJson());
 	result.set("frame", frameTime.toJson());
-	result.set("per_move_avg_ms", (stepTime.total + frameTime.total) / steps);
+	result.set("message_loop_idle", idleTime.toJson());
+	result.set("per_move_avg_ms", (stepTime.total + frameTime.total + idleTime.total) / steps);
 	result.set("mouse_up_ms", upMs);
 	result.set("frame_after_up_ms", firstFrameMs);
 	result.set("idle_frame_ms", idleFrameMs);
@@ -231,5 +268,5 @@ McpJson cmdStrokeBench(const McpJson &args)
 
 void mcpRegisterPerfCommands()
 {
-	mcpRegisterCommand("perf.stroke_bench", cmdStrokeBench, "{tool:height|mound|dig|feather, x0,y0,x1,y1, steps?, width?, feather?, amount?, pace_ms?, undo?, mid_screenshot?} Runs a height tool along a path and reports how long each mouse move and frame took. Undoes the stroke unless undo=false. mid_screenshot is a PNG path for a picture taken halfway through the stroke. For feather: feather=radius, amount=rate.");
+	mcpRegisterCommand("perf.stroke_bench", cmdStrokeBench, "{tool:height|mound|dig|feather, x0,y0,x1,y1, steps?, width?, feather?, amount?, pace_ms?, undo?, mid_screenshot?, via_messages?} Runs a height tool along a path and reports how long each mouse move and frame took. Undoes the stroke unless undo=false. mid_screenshot is a PNG path for a picture taken halfway through the stroke. via_messages sends window messages like a real mouse, so the view's own code is timed too (height tool only). For feather: feather=radius, amount=rate.");
 }

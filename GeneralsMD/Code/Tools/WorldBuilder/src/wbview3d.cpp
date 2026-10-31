@@ -1695,6 +1695,14 @@ void WbView3d::updateHeightStrokeInView(WorldHeightMap *htMap, const IRegion2D &
 	++m_updateCount;
 	updateHeightMapInView(htMap, true, partialRange, false);
 	refitObjectsInRange(htMap, partialRange);
+	if (m_heightStrokePending) {
+		m_heightStrokeRange.lo.x = std::min(m_heightStrokeRange.lo.x, partialRange.lo.x);
+		m_heightStrokeRange.lo.y = std::min(m_heightStrokeRange.lo.y, partialRange.lo.y);
+		m_heightStrokeRange.hi.x = std::max(m_heightStrokeRange.hi.x, partialRange.hi.x);
+		m_heightStrokeRange.hi.y = std::max(m_heightStrokeRange.hi.y, partialRange.hi.y);
+	} else {
+		m_heightStrokeRange = partialRange;
+	}
 	m_heightStrokePending = true;
 	--m_updateCount;
 
@@ -1708,9 +1716,49 @@ void WbView3d::updateHeightStrokeInView(WorldHeightMap *htMap, const IRegion2D &
 // ----------------------------------------------------------------------------
 void WbView3d::finishHeightStrokeInView()
 {
-	if (m_heightStrokePending) {
-		invalObjectInView(nullptr);
+	if (!m_heightStrokePending) {
+		return;
 	}
+	m_heightStrokePending = false;
+
+	// Objects and build list entries under the brush followed it during the stroke, and nothing
+	// outside the brushed range changed height. That leaves what refitObjectsInRange skips.
+	const WorldHeightMap *htMap = m_heightMapRenderObj ? m_heightMapRenderObj->getMap() : nullptr;
+	if (htMap == nullptr) {
+		return;
+	}
+	const Int border = htMap->getBorderSizeInline();
+	const Real minX = (m_heightStrokeRange.lo.x - border) * MAP_XY_FACTOR;
+	const Real maxX = (m_heightStrokeRange.hi.x - border) * MAP_XY_FACTOR;
+	const Real minY = (m_heightStrokeRange.lo.y - border) * MAP_XY_FACTOR;
+	const Real maxY = (m_heightStrokeRange.hi.y - border) * MAP_XY_FACTOR;
+
+	Bool lightInRange = false;
+	Bool scorchInRange = false;
+	for (MapObject *pMapObj = MapObject::getFirstMapObject(); pMapObj; pMapObj = pMapObj->getNext())
+	{
+		// Roads and bridges can cross the range with both ends outside it, so always reload them.
+		if (pMapObj->getFlags() & (FLAG_ROAD_FLAGS|FLAG_BRIDGE_FLAGS)) {
+			m_needToLoadRoads = true;
+			continue;
+		}
+		const Coord3D *loc = pMapObj->getLocation();
+		if (loc->x < minX || loc->x > maxX || loc->y < minY || loc->y > maxY) {
+			continue;
+		}
+		if (pMapObj->isLight()) {
+			lightInRange = true;
+		} else if (pMapObj->isScorch()) {
+			scorchInRange = true;
+		}
+	}
+	if (lightInRange) {
+		updateLights();
+	}
+	if (scorchInRange) {
+		updateScorches();
+	}
+	Invalidate(false);
 }
 
 // ----------------------------------------------------------------------------

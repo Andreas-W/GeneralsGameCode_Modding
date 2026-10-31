@@ -35,6 +35,13 @@ def main() -> int:
     assert wb.call("terrain.sample", x=300, y=300)["height_raw"] != before, "stroke did not change the terrain"
     wb.call("edit.undo")
     assert wb.call("terrain.sample", x=300, y=300)["height_raw"] == before, "undo did not restore the terrain"
+    # On flat ground: while dragging, the view tracks the mouse on a fixed plane, not on the terrain.
+    wb.call("view.set_camera", x=700, y=700, reset=True)
+    flat = wb.call("terrain.sample", x=700, y=700)["height_raw"]
+    wb.call("perf.stroke_bench", tool="height", x0=650, y0=700, x1=750, y1=700, steps=10, width=6, feather=2, amount=120, undo=False, via_messages=True)
+    assert wb.call("terrain.sample", x=700, y=700)["height_raw"] != flat, "stroke by window messages did not change the terrain"
+    wb.call("edit.undo")
+    assert wb.call("terrain.sample", x=700, y=700)["height_raw"] == flat, "undo did not restore the terrain"
 
     textures = wb.call("terrain.list_textures")["textures"]
     assert textures, "no textures loaded"

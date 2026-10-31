@@ -224,7 +224,6 @@ void FeatherTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 				float rateF = rate/255.0;
 				total = floor(origHeight*(1.0f-rateF) + total*rateF + 0.5f);
 				m_htMapEditCopy->setHeight(i, j, total);
-				pDoc->invalCell(i, j);
 			}
 		}
 	}

@@ -181,6 +181,7 @@ private:
 	Int											m_time;
 	Int											m_updateCount;
 	Bool										m_heightStrokePending;			///< Terrain changed in a stroke; roads, lights etc. not yet refitted.
+	IRegion2D								m_heightStrokeRange;				///< Heightmap index range the pending stroke changed.
 	UINT										m_timer;
 	DrawObject							*m_drawObject;
 	RefRenderObjListClass		m_lightList;

@@ -185,7 +185,6 @@ void MoundTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorld
 			if (newHeight > m_htMapSaveCopy->getMaxHeightValue()) newHeight = m_htMapSaveCopy->getMaxHeightValue();
 
 			m_htMapEditCopy->setHeight(i, j, newHeight);
-			pDoc->invalCell(i, j);
 #else
 			// Previous integer calculated mounding and blending.
 			// If not re-enabled by Dec 2001, delete as obsolete.
