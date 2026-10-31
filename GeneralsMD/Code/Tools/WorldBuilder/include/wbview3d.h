@@ -117,6 +117,11 @@ protected:
 	afx_msg void OnUpdateViewShowSoftWater(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowPostProcessing();
 	afx_msg void OnUpdateViewShowPostProcessing(CCmdUI* pCmdUI);
+	afx_msg void OnViewReloadRendering();
+	afx_msg void OnUpdateViewReloadRendering(CCmdUI* pCmdUI);
+public:
+	void reloadRendering();	///< reads the post-processing and material INI files and shaders again, and the map's map.ini
+protected:
 	afx_msg void OnViewExtraBlends();
 	afx_msg void OnUpdateViewShowExtraBlends(CCmdUI* pCmdUI);
 	afx_msg void OnEditShadows();

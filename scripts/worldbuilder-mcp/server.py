@@ -315,12 +315,13 @@ def view_set_camera(x: float | None = None, y: float | None = None, angle_deg: f
 
 @mcp.tool()
 def view_render(post_processing: bool | None = None, materials: bool | None = None,
-                shadow_maps: bool | None = None, shadow_debug: int | None = None) -> dict:
+                shadow_maps: bool | None = None, shadow_debug: int | None = None, reload: bool = False) -> dict:
     """The Direct3D 12 renderer's effects in the 3D view (start WorldBuilder with -dx12): post-processing,
     materials and shadow maps on or off (not saved); shadow_debug 1 shows the amount of shadow as grey, 2 also
-    tints the detail cascade. Returns whether the renderer is DX12 and which effects run."""
+    tints the detail cascade; reload reads the PostProcess/Material INI files, the shaders and the map's map.ini
+    again (new files need a restart). Returns whether the renderer is DX12 and which effects run."""
     return wb.call("view.render", post_processing=post_processing, materials=materials, shadow_maps=shadow_maps,
-                   shadow_debug=shadow_debug)
+                   shadow_debug=shadow_debug, reload=reload or None)
 
 
 @mcp.tool()

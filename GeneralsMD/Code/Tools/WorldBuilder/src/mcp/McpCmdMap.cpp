@@ -437,6 +437,11 @@ McpJson cmdScreenshot(const McpJson &args)
 /// The Direct3D 12 renderer's effects: on or off, and whether they run.
 static McpJson cmdRender(const McpJson &args)
 {
+	if (mcpArgBool(args, "reload", false)) {
+		if (WbView3d *view = CWorldBuilderDoc::GetActive3DView()) {
+			view->reloadRendering();
+		}
+	}
 	if (args.has("post_processing")) {
 		TheWritableGlobalData->m_postProcessing = mcpArgBool(args, "post_processing", true);
 	}
@@ -479,6 +484,6 @@ void mcpRegisterMapCommands()
 	mcpRegisterCommand("edit.undo", cmdUndo, "{count?} Undoes the last edits.");
 	mcpRegisterCommand("edit.redo", cmdRedo, "{count?} Redoes undone edits.");
 	mcpRegisterCommand("view.set_camera", cmdSetCamera, "{x?,y?,angle_deg?,pitch?,zoom?,reset?} Moves the 3D camera. pitch: 1 default, larger = more top-down. zoom: wheel offset, negative zooms out.");
-	mcpRegisterCommand("view.render", cmdRender, "{post_processing?,materials?,shadow_maps?,shadow_debug?} Turns the Direct3D 12 renderer's post-processing, materials and shadow maps on or off (start WorldBuilder with -dx12) and returns their state; shadow_debug 1 shows the amount of shadow as grey, 2 also the detail cascade.");
+	mcpRegisterCommand("view.render", cmdRender, "{post_processing?,materials?,shadow_maps?,shadow_debug?,reload?} Turns the Direct3D 12 renderer's post-processing, materials and shadow maps on or off (start WorldBuilder with -dx12) and returns their state; shadow_debug 1 shows the amount of shadow as grey, 2 also the detail cascade; reload reads the INI files, shaders and the map's map.ini again.");
 	mcpRegisterCommand("view.screenshot", cmdScreenshot, "{path?,format?:jpg|png,max_width?,quality?,x?,y?,angle_deg?,pitch?,zoom?,reset?} Renders the 3D view to an image.");
 }

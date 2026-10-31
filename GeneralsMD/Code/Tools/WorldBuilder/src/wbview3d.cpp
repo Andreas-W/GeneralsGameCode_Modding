@@ -89,6 +89,8 @@
 #include "Common/ThingTemplate.h"
 #include "Common/Language.h"
 #include "Common/FileSystem.h"
+#include "Common/INI.h"
+#include "GameClient/PostProcess.h"
 #include "Common/PlayerTemplate.h"
 #include "GameLogic/SidesList.h"
 #include "GameLogic/TerrainLogic.h"
@@ -2221,6 +2223,8 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_COMMAND(ID_VIEW_SHOWSOFTWATER, OnViewShowSoftWater)
 	ON_COMMAND(ID_VIEW_SHOWPOSTPROCESSING, OnViewShowPostProcessing)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWPOSTPROCESSING, OnUpdateViewShowPostProcessing)
+	ON_COMMAND(ID_VIEW_RELOADRENDERING, OnViewReloadRendering)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_RELOADRENDERING, OnUpdateViewReloadRendering)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWEXTRABLENDS, OnUpdateViewShowExtraBlends)
 	ON_COMMAND(ID_VIEW_SHOWEXTRABLENDS, OnViewExtraBlends)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWSOFTWATER, OnUpdateViewShowSoftWater)
@@ -3079,6 +3083,38 @@ void WbView3d::OnUpdateViewShowPostProcessing(CCmdUI* pCmdUI)
 	// Only the Direct3D 12 renderer (-dx12) post-processes.
 	pCmdUI->Enable(TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable());
 	pCmdUI->SetCheck(TheGlobalData->m_postProcessing ? 1 : 0);
+}
+
+/// For editing shaders and their INI while the map is open. New files need a restart: the file system
+/// lists the files once at startup.
+void WbView3d::reloadRendering()
+{
+	if (TheW3DPostProcess)
+		TheW3DPostProcess->reload();
+	if (TheW3DMaterials)
+		TheW3DMaterials->reload();
+	// The reload read only the mod's files; the open map's render blocks go on top again.
+	CString path = WbDoc() ? WbDoc()->GetPathName() : CString();
+	const int slash = path.ReverseFind('\\');
+	if (slash >= 0)
+	{
+		ThePostProcessControl.beginMap();
+		AsciiString mapIni((LPCTSTR)path.Left(slash + 1));
+		mapIni.concat("map.ini");
+		INI ini;
+		ini.load(mapIni, INI_LOAD_MAPDATA_ONLY, nullptr, true);
+	}
+	invalObjectInView(nullptr);
+}
+
+void WbView3d::OnViewReloadRendering()
+{
+	reloadRendering();
+}
+
+void WbView3d::OnUpdateViewReloadRendering(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable());
 }
 
 void WbView3d::OnViewExtraBlends()
