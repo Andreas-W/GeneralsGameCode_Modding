@@ -1985,6 +1985,12 @@ HRESULT DX8Wrapper::_Create_DX8_Image_Surface(unsigned width, unsigned height, D
 HRESULT DX8Wrapper::_Create_DX8_Font(HFONT font, ID3DXFont** d3dx_font)
 {
 	DX8_THREAD_ASSERT();
+	// A D3DX font made on the Direct3D 12 renderer draws nothing; callers then fall back to their own text.
+	if (Get_Post_Process() != nullptr)
+	{
+		*d3dx_font = nullptr;
+		return E_NOTIMPL;
+	}
 	return D3DXCreateFont(D3DDevice, font, d3dx_font);
 }
 

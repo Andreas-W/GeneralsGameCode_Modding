@@ -34,6 +34,8 @@
 #include "Common/GlobalData.h"
 #include "Common/ModelState.h"
 #include "WW3D2/dx8wrapper.h"
+#include <map>
+#include <string>
 
 //#include "GameLogic/Module/BodyModule.h" -- Yikes... not necessary to include this! (KM)
 enum BodyDamageType CPP_11(: Int); //Ahhhh much better!
@@ -219,6 +221,9 @@ private:
 
 
 	ID3DXFont*							m3DFont;
+	/// Labels drawn with a W3D font where D3DX has none (the Direct3D 12 renderer); one built sentence per text.
+	class FontCharsClass*		m_labelFont;
+	std::map<std::string, class Render2DSentenceClass*> m_labelSentences;
 	Int											m_pickPixels;
 	Int											m_partialMapSize;
 
@@ -231,6 +236,8 @@ protected:
   void drawCircle( HDC hdc, const Coord3D & centerPoint, Real radius, COLORREF color );
 	void drawLabels(HDC hdc);
 	void drawLabels();
+	void drawLabelText(const AsciiString &text, Int x, Int y, UnsignedInt color);
+	void releaseLabelText();
 	void shutdownWW3D();
 	void killTheTimer();
 	void render();

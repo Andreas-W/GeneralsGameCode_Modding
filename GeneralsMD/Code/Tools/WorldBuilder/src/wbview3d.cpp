@@ -74,6 +74,7 @@
 #include "W3DDevice/GameClient/W3DShadowMap.h"
 #include "W3DDevice/GameClient/W3DMaterials.h"
 #include "W3DDevice/GameClient/W3DPostProcess.h"
+#include "WW3D2/render2dsentence.h"
 #include "DrawObject.h"
 #include "Common/MapObject.h"
 #include "Common/GlobalData.h"
@@ -415,7 +416,8 @@ WbView3d::WbView3d() :
 	m_showWeaponRanges(false),
 	m_highlightTestArt(false),
 	m_showLetterbox(false),
-  m_showSoundCircles(false)
+  m_showSoundCircles(false),
+	m_labelFont(nullptr)
 {
 	TheTacticalView = &bogusTacticalView;
 	m_actualWinSize.x = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "Width", THREE_D_VIEW_WIDTH);
@@ -477,6 +479,7 @@ void WbView3d::shutdownWW3D()
 		m3DFont->Release();
 		m3DFont = nullptr;
 	}
+	releaseLabelText();
 	if (m_ww3dInited) {
 		m_lightList.Reset_List();
 
@@ -531,6 +534,7 @@ void WbView3d::ReleaseResources()
 		m3DFont->Release();
 	}
 	m3DFont = nullptr;
+	releaseLabelText();
 	if (m_drawObject) {
 		m_drawObject->freeMapResources();
 	}
@@ -2175,7 +2179,11 @@ void WbView3d::render()
 		// Draw the 3d obj icons on top of the rest of the data.
 		WW3D::Render(m_overlayScene,m_camera);
 		//if (mytext) mytext->Render();
-		if (m3DFont) {
+		if (m3DFont == nullptr && m_labelFont == nullptr && DX8Wrapper::Has_Device()) {
+			// D3DX cannot make a font on the Direct3D 12 renderer.
+			m_labelFont = WW3DAssetManager::Get_Instance()->Get_FontChars("Arial", 11);
+		}
+		if (m3DFont || m_labelFont) {
 			drawLabels(nullptr);
 		}
 
@@ -2474,6 +2482,35 @@ void WbView3d::drawCircle( HDC hdc, const Coord3D & centerPoint, Real radius, CO
 }
 
 
+/// A label in the 3D view with the W3D font; the sentence for each text is built once.
+void WbView3d::drawLabelText(const AsciiString &text, Int x, Int y, UnsignedInt color)
+{
+	if (m_labelFont == nullptr || text.isEmpty()) {
+		return;
+	}
+	Render2DSentenceClass *&sentence = m_labelSentences[text.str()];
+	if (sentence == nullptr) {
+		sentence = new Render2DSentenceClass;
+		sentence->Set_Font(m_labelFont);
+		UnicodeString wide;
+		wide.translate(text);
+		sentence->Build_Sentence(wide.str(), nullptr, nullptr);
+	}
+	sentence->Reset_Polys();
+	sentence->Set_Location(Vector2((Real)x, (Real)y));
+	sentence->Draw_Sentence(color);
+	sentence->Render();
+}
+
+void WbView3d::releaseLabelText()
+{
+	for (std::map<std::string, Render2DSentenceClass*>::iterator it = m_labelSentences.begin(); it != m_labelSentences.end(); ++it) {
+		delete it->second;
+	}
+	m_labelSentences.clear();
+	REF_PTR_RELEASE(m_labelFont);
+}
+
 void WbView3d::drawLabels()
 {
 	CDC * pDC = GetDC();
@@ -2582,6 +2619,8 @@ void WbView3d::drawLabels(HDC hdc)
 							m3DFont->DrawText(name.str(), name.getLength(), &rct,
 								DT_LEFT | DT_NOCLIP | DT_TOP | DT_SINGLELINE, 0xAF000000 + (red<<16) + (green<<8));
 
+						} else if (!m3DFont && !hdc) {
+							drawLabelText(name, pt.x + 1, pt.y - 5, 0xAF000000 + (red<<16) + (green<<8));
 						} else if (!m3DFont) {
 							//docToViewCoords(pos, &pt);
 							::SetBkMode(hdc, TRANSPARENT);
