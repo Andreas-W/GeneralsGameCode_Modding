@@ -114,6 +114,7 @@ class W3DVolumetricShadow	: public Shadow
 		// tie in geometry and transformation for this shadow
 		void SetGeometry( W3DShadowGeometry *geometry );
 		void setShadowLengthScale(Real value) {m_shadowLengthScale = value;}
+		void updateDynamicShadowLength();	///<units moving between air and ground blend their length clamp by height
 		void updateOptimalExtrusionPadding();	///<for immobile objects, figure out the length of extrusion needed to hit ground - expensive!
 		void setOptimalExtrusionPadding(Real value)	{m_extraExtrusionPadding=value;}
 		const W3DShadowGeometry *getGeometry() {return m_geometry;}

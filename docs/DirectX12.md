@@ -257,6 +257,11 @@ End
 Every object with `Shadow = SHADOW_VOLUME` casts into the map. Infantry keep their decal shadows. The
 player's "3D Shadows" option must be on. The shadow colour comes from the map's lighting, as before.
 
+`ShadowSizeX` on a volume shadow works as with Direct3D 8: it is the lowest sun elevation, in degrees, for
+that object's shadow. With `ShadowSizeX = 89` (common on aircraft) the shadow falls almost straight below
+the object, so players can see where it flies. Objects with `ShadowDynamicLengthWhenAirborne = Yes` blend
+from their `ShadowSizeX` to almost vertical as they lift off, as before.
+
 Shadow maps are usually longer than the old volume shadows, which were cut off. On maps with a low sun,
 `MinSunElevation = 40` keeps them close to the old length.
 

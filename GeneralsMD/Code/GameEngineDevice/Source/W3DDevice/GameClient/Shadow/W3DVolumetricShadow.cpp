@@ -1829,6 +1829,26 @@ void W3DVolumetricShadow::Update()
 
 }
 
+/** Units that move between air and ground (m_hasDynamicLength) blend their shadow length clamp
+*	from ShadowSizeX towards nearly vertical by their height above the ground.
+*/
+void W3DVolumetricShadow::updateDynamicShadowLength()
+{
+	if (m_hasDynamicLength && (m_decalSizeX)) {
+		Vector3 pos = m_robj->Get_Position();
+		Real groundHeight;
+		if (TheTerrainLogic)
+			groundHeight = TheTerrainLogic->getGroundHeight(pos.X, pos.Y);	//logic knows about bridges so use if available.
+		else
+			groundHeight = TheTerrainRenderObject->getHeightMapHeight(pos.X, pos.Y, NULL);
+		Real objHeight = MIN(AIRBORNE_ELEVATION_MAX_HEIGHT, MAX(AIRBORNE_ELEVATION_MIN_HEIGHT, fabs(pos.Z - groundHeight)));
+		Real factor = (objHeight - AIRBORNE_ELEVATION_MIN_HEIGHT) / (AIRBORNE_ELEVATION_MAX_HEIGHT - AIRBORNE_ELEVATION_MIN_HEIGHT);
+		Real sunElevationAngleTan = tan(m_decalSizeX / 180.0f * PI) * (1.0f-factor) + AIRBORNE_ELEVATION_TAN * factor;
+		//DEBUG_LOG((">>> UPDATE shadow length: objHeight = %f, factor = %f, sunElevationAngleTan = %f", objHeight, factor, sunElevationAngleTan));
+		setShadowLengthScale(sunElevationAngleTan);
+	}
+}
+
 /** Update shadow volumes belonging to all meshes of this shadow caster.
 *	Use zoffset to extend shadows below object's base by given amount.
 */
@@ -2010,19 +2030,7 @@ void W3DVolumetricShadow::updateMeshVolume(Int meshIndex, Int lightIndex, const 
 
 
 	// Dynamic scale for units that transition between Air/Land/Sea
-	if (m_hasDynamicLength && (m_decalSizeX)) {
-		Vector3 pos = m_robj->Get_Position();
-		Real groundHeight;
-		if (TheTerrainLogic)
-			groundHeight = TheTerrainLogic->getGroundHeight(pos.X, pos.Y);	//logic knows about bridges so use if available.
-		else
-			groundHeight = TheTerrainRenderObject->getHeightMapHeight(pos.X, pos.Y, NULL);
-		Real objHeight = MIN(AIRBORNE_ELEVATION_MAX_HEIGHT, MAX(AIRBORNE_ELEVATION_MIN_HEIGHT, fabs(pos.Z - groundHeight)));
-		Real factor = (objHeight - AIRBORNE_ELEVATION_MIN_HEIGHT) / (AIRBORNE_ELEVATION_MAX_HEIGHT - AIRBORNE_ELEVATION_MIN_HEIGHT);
-		Real sunElevationAngleTan = tan(m_decalSizeX / 180.0f * PI) * (1.0f-factor) + AIRBORNE_ELEVATION_TAN * factor;
-		//DEBUG_LOG((">>> UPDATE shadow length: objHeight = %f, factor = %f, sunElevationAngleTan = %f", objHeight, factor, sunElevationAngleTan));
-		setShadowLengthScale(sunElevationAngleTan);
-	}
+	updateDynamicShadowLength();
 	
 	// check if object has a limit/clamp on shadow length and adjust light
   // position of necessary.

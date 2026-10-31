@@ -27,6 +27,7 @@
 #include "GameClient/Drawable.h"
 #include "GameClient/DrawableInfo.h"
 #include "GameClient/PostProcess.h"
+#include "GameLogic/TerrainLogic.h"
 #include "W3DDevice/GameClient/BaseHeightMap.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
@@ -39,6 +40,7 @@
 #include "WW3D2/dx8vertexbuffer.h"
 #include "WW3D2/dx8wrapper.h"
 #include "WWMath/colmath.h"
+#include "WWMath/matrix4.h"
 #include "WW3D2/rinfo.h"
 #include "WW3D2/rendobj.h"
 #include "WW3D2/ww3d.h"
@@ -397,6 +399,59 @@ void W3DShadowMap::update(CameraClass *viewCamera)
 }
 
 //-------------------------------------------------------------------------------------------------
+/** A volume caster for the map. One with ShadowSizeX keeps its shadow at least that steep, as its shadow
+	* volume does by raising the sun for it (aircraft use 89 for a shadow straight below them): the light's
+	* view is sheared above the caster's ground, so that a point h above it falls h / tan(ShadowSizeX) away
+	* instead of h / tan(sun elevation). */
+//-------------------------------------------------------------------------------------------------
+void W3DShadowMap::makeCaster(W3DVolumetricShadow *shadow, const Vector3 &toLight, Caster &caster)
+{
+	caster.robj = shadow->m_robj;
+	caster.shearX = 0.0f;
+	caster.shearY = 0.0f;
+	caster.ground = 0.0f;
+	shadow->updateDynamicShadowLength();
+	const Real minTan = shadow->m_shadowLengthScale;
+	const Real flat = sqrtf(toLight.X * toLight.X + toLight.Y * toLight.Y);
+	if (minTan <= 0.0f || flat < 0.0001f || toLight.Z <= 0.0f || toLight.Z >= minTan * flat)
+		return;
+	const Real shift = flat / toLight.Z - 1.0f / minTan;
+	caster.shearX = toLight.X / flat * shift;
+	caster.shearY = toLight.Y / flat * shift;
+	const Vector3 position = caster.robj->Get_Position();
+	if (TheTerrainLogic != nullptr)
+		caster.ground = TheTerrainLogic->getGroundHeight(position.X, position.Y);	// knows about bridges
+	else if (TheTerrainRenderObject != nullptr)
+		caster.ground = TheTerrainRenderObject->getHeightMapHeight(position.X, position.Y, nullptr);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Draws m_shearedCasters, each with its own view. The mesh renderer draws what was queued with the view
+	* set when it flushes, so everything queued before is drawn first, with the light's own view. */
+//-------------------------------------------------------------------------------------------------
+void W3DShadowMap::drawShearedCasters(RenderInfoClass &rinfo)
+{
+	if (m_shearedCasters.empty())
+		return;
+	TheDX8MeshRenderer.Flush();
+	Matrix4x4 view;
+	DX8Wrapper::Get_Transform(D3DTS_VIEW, view);
+	for (size_t i = 0; i < m_shearedCasters.size(); ++i)
+	{
+		const Caster &caster = m_shearedCasters[i];
+		const Matrix4x4 shear(Vector4(1.0f, 0.0f, caster.shearX, -caster.shearX * caster.ground),
+			Vector4(0.0f, 1.0f, caster.shearY, -caster.shearY * caster.ground),
+			Vector4(0.0f, 0.0f, 1.0f, 0.0f),
+			Vector4(0.0f, 0.0f, 0.0f, 1.0f));
+		DX8Wrapper::Set_Transform(D3DTS_VIEW, view * shear);
+		caster.robj->Render(rinfo);
+		TheDX8MeshRenderer.Flush();
+	}
+	DX8Wrapper::Set_Transform(D3DTS_VIEW, view);
+	m_shearedCasters.clear();
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Draws the casters seen by a light camera into a cascade of the map. Cascade 0 sets m_rendered. */
 //-------------------------------------------------------------------------------------------------
 void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int size)
@@ -430,6 +485,9 @@ void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int s
 		const FrustumClass &frustum = camera->Get_Frustum();
 		const Bool collectDetail = cascade == 0 && m_detailFitted;
 		const FrustumClass *detailFrustum = collectDetail ? &m_detailCamera->Get_Frustum() : nullptr;
+		Vector3 toLight(0.0f, 0.0f, 1.0f);
+		getToLight(toLight);
+		m_shearedCasters.clear();
 		if (cascade == 0)
 			m_detailCasters.clear();
 		if (cascade == 0)
@@ -439,10 +497,15 @@ void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int s
 				if (shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && shadow->m_robj != nullptr
 					&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
 				{
-					shadow->m_robj->Render(rinfo);
+					Caster caster;
+					makeCaster(shadow, toLight, caster);
+					if (caster.shearX != 0.0f || caster.shearY != 0.0f)
+						m_shearedCasters.push_back(caster);
+					else
+						shadow->m_robj->Render(rinfo);
 					++m_casterCount;
 					if (collectDetail && CollisionMath::Overlap_Test(*detailFrustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
-						m_detailCasters.push_back(shadow->m_robj);
+						m_detailCasters.push_back(caster);
 				}
 			}
 		}
@@ -450,8 +513,15 @@ void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int s
 		{
 			// The render objects are still alive: nothing runs the logic between the two cascades.
 			for (size_t i = 0; i < m_detailCasters.size(); ++i)
-				m_detailCasters[i]->Render(rinfo);
+			{
+				const Caster &caster = m_detailCasters[i];
+				if (caster.shearX != 0.0f || caster.shearY != 0.0f)
+					m_shearedCasters.push_back(caster);
+				else
+					caster.robj->Render(rinfo);
+			}
 		}
+		drawShearedCasters(rinfo);
 		if (settings.m_terrain)
 			drawTerrain(frustum);
 		if (settings.m_trees)
@@ -467,7 +537,10 @@ void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int s
 						shadow->m_robj->Render(rinfo);
 						++m_casterCount;
 						if (collectDetail && CollisionMath::Overlap_Test(*detailFrustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
-							m_detailCasters.push_back(shadow->m_robj);
+						{
+							const Caster caster = { shadow->m_robj, 0.0f, 0.0f, 0.0f };
+							m_detailCasters.push_back(caster);
+						}
 					}
 				}
 			}

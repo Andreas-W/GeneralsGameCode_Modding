@@ -32,7 +32,9 @@
 
 class CameraClass;
 class FrustumClass;
+class RenderInfoClass;
 class RenderObjClass;
+class W3DVolumetricShadow;
 class DX8IndexBufferClass;
 class DX8VertexBufferClass;
 class WorldHeightMap;
@@ -65,6 +67,17 @@ private:
 	void buildTerrain(WorldHeightMap *map);
 	void drawTerrain(const FrustumClass &frustum);
 
+	/// A caster drawn into the map. The shear keeps the shadow of one with ShadowSizeX at least that steep.
+	struct Caster
+	{
+		RenderObjClass *robj;
+		Real shearX;	///< world units the caster moves along x per unit of height above its ground, 0 = none
+		Real shearY;
+		Real ground;	///< height the shear starts at
+	};
+	static void makeCaster(W3DVolumetricShadow *shadow, const Vector3 &toLight, Caster &caster);
+	void drawShearedCasters(RenderInfoClass &rinfo);
+
 	/// Positions of a square of terrain cells, for drawing the terrain into the map; built from the
 	/// height map once per map. Squares at the map edge repeat their last row and column.
 	struct TerrainChunk
@@ -79,7 +92,8 @@ private:
 	CameraClass *m_lightCamera;
 	CameraClass *m_detailCamera;	///< the detail cascade, around the middle of the view
 	Bool m_detailFitted;		///< fitLightCamera placed the detail camera this frame
-	std::vector<RenderObjClass *> m_detailCasters;	///< casters the main cascade found inside the detail camera
+	std::vector<Caster> m_detailCasters;	///< casters the main cascade found inside the detail camera
+	std::vector<Caster> m_shearedCasters;	///< casters of the cascade being drawn that need a sheared view
 	Bool m_rendered;			///< the map was drawn for this frame
 	Int m_debug;
 	Int m_casterCount;
