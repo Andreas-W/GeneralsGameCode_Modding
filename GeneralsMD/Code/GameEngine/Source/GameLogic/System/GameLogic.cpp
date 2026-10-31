@@ -96,6 +96,7 @@
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/PolygonTrigger.h"
 #include "GameLogic/ScriptActions.h"
+#include "GameClient/PostProcess.h"
 #include "GameLogic/ScriptConditions.h"
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/SidesList.h"
@@ -421,6 +422,8 @@ void GameLogic::reset()
 {
 	m_thingTemplateBuildableOverrides.clear();
 	m_controlBarOverrides.clear();
+	// The post-processing and shadow map settings of the mod, without the map's or the scripts' changes.
+	ThePostProcessControl.endGame();
 
 	// set the hash to be rather large. We need to optimize this value later.
 //	m_objHash.clear();
@@ -2470,6 +2473,8 @@ static void findAndSelectCommandCenter(Object *obj, void* alreadyFound)
 void GameLogic::loadMapINI( AsciiString mapName )
 {
 	TheWriteableMapData->reset();
+	// A map.ini can change the post-processing and shadow map settings; endGame() restores them.
+	ThePostProcessControl.beginMap();
 
 	if (!TheMapCache) {
 		// Need the map cache to get the map and user map directories.

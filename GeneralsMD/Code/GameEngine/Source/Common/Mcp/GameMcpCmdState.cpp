@@ -78,6 +78,10 @@ McpJson cmdStatus(const McpJson &)
 		result.set("speed_fps", TheGameMcp->getHeadlessFps());
 	} else {
 		result.set("speed_fps", TheFramePacer->isFramesPerSecondLimitEnabled() ? TheFramePacer->getFramesPerSecondLimit() : 0);
+		result.set("render_fps", (double)TheFramePacer->getUpdateFps());
+		result.set("render_fps_limit", TheFramePacer->getRenderFramesPerSecondLimit());
+		result.set("render_interpolation", TheGlobalData->m_useRenderInterpolation != FALSE);
+		result.set("render_interpolation_factor", (double)TheFramePacer->getLogicInterpolation());
 	}
 	result.set("object_count", (unsigned int)(inGame ? TheGameLogic->getObjectCount() : 0));
 	if (inGame && ThePlayerList->getLocalPlayer()) {
@@ -123,8 +127,22 @@ McpJson cmdSetSpeed(const McpJson &args)
 	if (fps < 0) {
 		gameMcpFail("fps must be 0 (as fast as possible) or more");
 	}
+	// With render_fps the logic runs at its own rate and the window renders at another, as in network games.
+	const Int renderFps = gameMcpArgInt(args, "render_fps", -1);
 	if (TheGlobalData->m_headless) {
 		TheGameMcp->setHeadlessFps(fps);
+	} else if (renderFps >= 0) {
+		if (fps == 0) {
+			gameMcpFail("fps must be more than 0 when render_fps is given");
+		}
+		TheFramePacer->setLogicTimeScaleFps(fps);
+		TheFramePacer->enableLogicTimeScale(TRUE);
+		if (renderFps == 0) {
+			TheFramePacer->enableFramesPerSecondLimit(FALSE);
+		} else {
+			TheFramePacer->enableFramesPerSecondLimit(TRUE);
+			TheFramePacer->setFramesPerSecondLimit(renderFps);
+		}
 	} else {
 		TheFramePacer->enableLogicTimeScale(FALSE);
 		if (fps == 0) {

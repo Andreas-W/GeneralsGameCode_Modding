@@ -183,6 +183,26 @@ Bool hasThingsInProduction(PlayerType playerType)
 
 bool changeMaxRenderFps(FpsValueChange change)
 {
+	// With a separate render limit the fps limit is the game speed, so change the render limit instead.
+	if (TheFramePacer->getRenderFramesPerSecondLimit() > 0)
+	{
+		UnsignedInt renderFps = TheFramePacer->getRenderFramesPerSecondLimit();
+		renderFps = RenderFpsPreset::changeFpsValue(renderFps, change);
+		TheFramePacer->setRenderFramesPerSecondLimit(renderFps);
+
+		UnicodeString renderMessage;
+		if (renderFps != RenderFpsPreset::UncappedFpsValue)
+		{
+			renderMessage = TheGameText->FETCH_OR_SUBSTITUTE_FORMAT("GUI:SetMaxRenderFps", L"Max Render FPS is %u", renderFps);
+		}
+		else
+		{
+			renderMessage = TheGameText->FETCH_OR_SUBSTITUTE_FORMAT("GUI:SetUncappedRenderFps", L"Max Render FPS is uncapped");
+		}
+		TheInGameUI->messageNoFormat(renderMessage);
+		return true;
+	}
+
 	UnsignedInt maxRenderFps = TheFramePacer->getFramesPerSecondLimit();
 	maxRenderFps = RenderFpsPreset::changeFpsValue(maxRenderFps, change);
 

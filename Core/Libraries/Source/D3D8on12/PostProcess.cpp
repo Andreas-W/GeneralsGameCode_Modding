@@ -1,0 +1,1115 @@
+/*
+**	Command & Conquer Generals Zero Hour(tm)
+**	Copyright 2025 Electronic Arts Inc.
+**
+**	This program is free software: you can redistribute it and/or modify
+**	it under the terms of the GNU General Public License as published by
+**	the Free Software Foundation, either version 3 of the License, or
+**	(at your option) any later version.
+**
+**	This program is distributed in the hope that it will be useful,
+**	but WITHOUT ANY WARRANTY; without even the implied warranty of
+**	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+**	GNU General Public License for more details.
+**
+**	You should have received a copy of the GNU General Public License
+**	along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// PostProcess.cpp
+// Full screen pixel shader passes over the 3D scene, drawn with the device's root signature.
+
+#include "PostProcess.h"
+#include "Device.h"
+#include "Resources.h"
+#include "ShaderCompiler.h"
+
+#include <d3dcompiler.h>
+#include <d3d12shader.h>
+
+namespace D3D8On12
+{
+
+static const UINT ROOT_VERTEX_CONSTANTS = 0;
+static const UINT ROOT_PIXEL_CONSTANTS = 1;
+static const UINT ROOT_TEXTURES = 2;
+static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;
+static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;
+static const UINT NULL_SRV_2D = 0;
+static const UINT INPUT_COUNT = D3D8ON12_PP_INPUTS;
+
+
+// What every pass shader includes. It describes how Run binds the inputs and constants.
+static const char s_header[] =
+	"cbuffer PostProcessCommon : register(b0)\n"
+	"{\n"
+	"	float4 ScreenSize;		// width, height, 1 / width, 1 / height\n"
+	"	float4 OutputSize;		// the same for the target this pass draws into\n"
+	"	float4 InputSize[6];	// the same for Input0..Input5\n"
+	"	float Time;				// seconds\n"
+	"	float FrameTime;		// seconds since the chain last ran\n"
+	"	float2 PostProcessPad;\n"
+	"	row_major float4x4 View;			// world to view, as given to Set_Camera\n"
+	"	row_major float4x4 InverseView;\n"
+	"	row_major float4x4 Projection;		// view to clip\n"
+	"	row_major float4x4 InverseProjection;\n"
+	"};\n"
+	"Texture2D Input0 : register(t0);\n"
+	"Texture2D Input1 : register(t1);\n"
+	"Texture2D Input2 : register(t2);\n"
+	"Texture2D Input3 : register(t3);\n"
+	"Texture2D Input4 : register(t4);\n"
+	"Texture2D Input5 : register(t5);\n"
+	"SamplerState LinearClamp : register(s0);\n"
+	"SamplerState PointClamp : register(s1);\n"
+	"struct PostProcessInput\n"
+	"{\n"
+	"	float4 position : SV_Position;\n"
+	"	float2 uv : TEXCOORD0;\n"
+	"};\n"
+	"float Luminance(float3 color) { return dot(color, float3(0.299, 0.587, 0.114)); }\n"
+	"// Position in view space of the pixel at uv with this depth (from a Depth input).\n"
+	"float3 ViewPosition(float2 uv, float depth)\n"
+	"{\n"
+	"	float4 position = mul(float4(uv.x * 2 - 1, 1 - uv.y * 2, depth, 1), InverseProjection);\n"
+	"	return position.xyz / position.w;\n"
+	"}\n"
+	"float3 WorldPosition(float3 viewPosition) { return mul(float4(viewPosition, 1), InverseView).xyz; }\n"
+	"// Distance from the camera plane in world units.\n"
+	"float LinearDepth(float depth) { return abs(ViewPosition(float2(0.5, 0.5), depth).z); }\n";
+
+// Copies the depth buffer into a float texture without multisampling (sample 0 of each pixel).
+static const char s_depthCopyShader[] =
+	"Texture2D<float> Depth : register(t0);\n"
+	"float main(float4 position : SV_Position) : SV_Target { return Depth.Load(int3(position.xy, 0)); }\n";
+static const char s_depthCopyShaderMS[] =
+	"Texture2DMS<float> Depth : register(t0);\n"
+	"float main(float4 position : SV_Position) : SV_Target { return Depth.Load(int2(position.xy), 0); }\n";
+
+// Copies the HDR scene into the 8 bit swap chain buffer; the multisampled one averages the samples.
+static const char s_presentShader[] =
+	"Texture2D Scene : register(t0);\n"
+	"float4 main(float4 position : SV_Position) : SV_Target { return saturate(Scene.Load(int3(position.xy, 0))); }\n";
+static const char s_presentShaderMS[] =
+	"Texture2DMS<float4> Scene : register(t0);\n"
+	"float4 main(float4 position : SV_Position) : SV_Target\n"
+	"{\n"
+	"	uint width, height, samples;\n"
+	"	Scene.GetDimensions(width, height, samples);\n"
+	"	float4 sum = 0;\n"
+	"	for (uint i = 0; i < samples; ++i)\n"
+	"		sum += saturate(Scene.Load(int2(position.xy), i));\n"
+	"	return sum / samples;\n"
+	"}\n";
+
+// Copy_Back_Buffer: the scene shifted by Offset.
+static const char s_copyShader[] =
+	"cbuffer Params : register(b1) { int4 Offset; };\n"
+	"Texture2D Scene : register(t0);\n"
+	"float4 main(float4 position : SV_Position) : SV_Target { return saturate(Scene.Load(int3(int2(position.xy) + Offset.xy, 0))); }\n";
+
+// Input0: depth of the scene, t4: the shadow map, t5: the detail cascade (optional). The amount of shadow
+// from soft depth comparisons around the point's place in the map (the detail cascade where it covers the
+// point), turned into the color the back buffer is multiplied with.
+static const char s_shadowShader[] =
+	"#include \"PostProcess.hlsli\"\n"
+	"cbuffer Params : register(b1)\n"
+	"{\n"
+	"	row_major float4x4 ShadowViewProjection;\n"
+	"	float4 ShadowColor;\n"
+	"	float3 ToLight;\n"
+	"	float Bias;\n"
+	"	float Softness;\n"
+	"	float MapTexel;\n"
+	"	float Debug;\n"
+	"	row_major float4x4 DetailViewProjection;\n"
+	"	float DetailTexel;\n"
+	"	float HasDetail;\n"
+	"};\n"
+	"Texture2D<float> ShadowDepth : register(t4);\n"
+	"Texture2D<float> DetailDepth : register(t5);\n"
+	"SamplerComparisonState ShadowCompare : register(s4);\n"
+	"static const float2 POISSON[12] =\n"
+	"{\n"
+	"	float2(-0.326, -0.406), float2(-0.840, -0.074), float2(-0.696, 0.457), float2(-0.203, 0.621),\n"
+	"	float2(0.962, -0.195), float2(0.473, -0.480), float2(0.519, 0.767), float2(0.185, -0.893),\n"
+	"	float2(0.507, 0.064), float2(0.896, 0.412), float2(-0.322, -0.933), float2(-0.792, -0.598),\n"
+	"};\n"
+	"// The amount of shadow in a map, or -1 where the map does not cover the point; edge: how close it is to\n"
+	"// the map's border, 0 at the border.\n"
+	"float MapShadow(Texture2D<float> map, float4x4 viewProjection, float texel, float3 world, float2x2 turn, out float edge)\n"
+	"{\n"
+	"	edge = 0;\n"
+	"	float4 clip = mul(float4(world, 1), viewProjection);\n"
+	"	float3 ndc = clip.xyz / clip.w;\n"
+	"	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);\n"
+	"	if (clip.w <= 0 || any(uv < 0) || any(uv > 1) || ndc.z > 1)\n"
+	"		return -1;\n"
+	"	float lit = 0;\n"
+	"	[unroll]\n"
+	"	for (int i = 0; i < 12; ++i)\n"
+	"		lit += map.SampleCmpLevelZero(ShadowCompare, uv + mul(POISSON[i], turn) * Softness * texel, ndc.z);\n"
+	"	float2 border = min(uv, 1 - uv);\n"
+	"	edge = saturate(min(border.x, border.y) * 20);\n"
+	"	// saturate: lit / 12 can come out a hair above 1, which would read as -1 below.\n"
+	"	return saturate(1 - lit / 12);\n"
+	"}\n"
+	"float4 main(PostProcessInput input) : SV_Target\n"
+	"{\n"
+	"	float depth = Input0.SampleLevel(PointClamp, input.uv, 0).r;\n"
+	"	if (depth >= 1)\n"
+	"		return float4(1, 1, 1, 1);\n"
+	"	float3 world = WorldPosition(ViewPosition(input.uv, depth)) + ToLight * Bias;\n"
+	"	// The samples turned by a different angle for each pixel, so the soft edge has no steps.\n"
+	"	float angle = 6.2831853 * frac(52.9829189 * frac(dot(input.position.xy, float2(0.06711056, 0.00583715))));\n"
+	"	float2x2 turn = float2x2(cos(angle), -sin(angle), sin(angle), cos(angle));\n"
+	"	float edge;\n"
+	"	float shadow = MapShadow(ShadowDepth, ShadowViewProjection, MapTexel, world, turn, edge);\n"
+	"	if (shadow < -0.5)\n"
+	"		return float4(1, 1, 1, 1);\n"
+	"	// Fades out towards the border of the map instead of ending in a line.\n"
+	"	shadow *= edge;\n"
+	"	float usedDetail = 0;\n"
+	"	if (HasDetail > 0)\n"
+	"	{\n"
+	"		// The detail cascade where it covers the point, blended into the main map at its border.\n"
+	"		float detailEdge;\n"
+	"		float detail = MapShadow(DetailDepth, DetailViewProjection, DetailTexel, world, turn, detailEdge);\n"
+	"		if (detail > -0.5)\n"
+	"		{\n"
+	"			shadow = lerp(shadow, detail, detailEdge);\n"
+	"			usedDetail = detailEdge;\n"
+	"		}\n"
+	"	}\n"
+	"	// Debug 2: the detail cascade tinted green.\n"
+	"	if (Debug > 1)\n"
+	"		return float4((1 - shadow) * (1 - 0.5 * usedDetail), 1 - shadow, (1 - shadow) * (1 - 0.5 * usedDetail), 1);\n"
+	"	if (Debug > 0)\n"
+	"		return float4((1 - shadow).xxx, 1);\n"
+	"	return lerp(float4(1, 1, 1, 1), ShadowColor, shadow);\n"
+	"}\n";
+
+struct ShadowConstants
+{
+	D3DMATRIX viewProjection;
+	float color[4];
+	float toLight[3];
+	float bias;
+	float softness;
+	float mapTexel;
+	float debug;
+	float pad0;		// HLSL starts the matrix at the next 16 bytes
+	D3DMATRIX detailViewProjection;
+	float detailTexel;
+	float hasDetail;
+	float pad[2];
+};
+
+// One triangle that covers the screen, with texture coordinates 0..1 over it.
+static const char s_vertexShader[] =
+	"struct PostProcessInput { float4 position : SV_Position; float2 uv : TEXCOORD0; };\n"
+	"PostProcessInput main(uint id : SV_VertexID)\n"
+	"{\n"
+	"	PostProcessInput output;\n"
+	"	output.uv = float2((id << 1) & 2, id & 2);\n"
+	"	output.position = float4(output.uv * float2(2, -2) + float2(-1, 1), 0, 1);\n"
+	"	return output;\n"
+	"}\n";
+
+struct CommonConstants
+{
+	float screenSize[4];
+	float outputSize[4];
+	float inputSize[INPUT_COUNT][4];
+	float time;
+	float frameTime;
+	float pad[2];
+	D3DMATRIX view;
+	D3DMATRIX inverseView;
+	D3DMATRIX projection;
+	D3DMATRIX inverseProjection;
+};
+
+// Inverse of a 4x4 matrix by Gauss-Jordan elimination; the identity when it is singular.
+static D3DMATRIX Invert(const D3DMATRIX& matrix)
+{
+	float a[4][8];
+	for (int row = 0; row < 4; ++row)
+		for (int column = 0; column < 4; ++column)
+		{
+			a[row][column] = matrix.m[row][column];
+			a[row][column + 4] = row == column ? 1.0f : 0.0f;
+		}
+	for (int column = 0; column < 4; ++column)
+	{
+		int pivot = column;
+		for (int row = column + 1; row < 4; ++row)
+			if (fabsf(a[row][column]) > fabsf(a[pivot][column]))
+				pivot = row;
+		D3DMATRIX identity = {};
+		identity._11 = identity._22 = identity._33 = identity._44 = 1.0f;
+		if (fabsf(a[pivot][column]) < 1e-12f)
+			return identity;
+		if (pivot != column)
+			for (int i = 0; i < 8; ++i)
+			{
+				const float swap = a[column][i];
+				a[column][i] = a[pivot][i];
+				a[pivot][i] = swap;
+			}
+		const float scale = 1.0f / a[column][column];
+		for (int i = 0; i < 8; ++i)
+			a[column][i] *= scale;
+		for (int row = 0; row < 4; ++row)
+		{
+			if (row == column)
+				continue;
+			const float factor = a[row][column];
+			for (int i = 0; i < 8; ++i)
+				a[row][i] -= factor * a[column][i];
+		}
+	}
+	D3DMATRIX inverse;
+	for (int row = 0; row < 4; ++row)
+		for (int column = 0; column < 4; ++column)
+			inverse.m[row][column] = a[row][column + 4];
+	return inverse;
+}
+
+static D3DMATRIX Multiply(const D3DMATRIX& a, const D3DMATRIX& b)
+{
+	D3DMATRIX result;
+	for (int row = 0; row < 4; ++row)
+		for (int column = 0; column < 4; ++column)
+			result.m[row][column] = a.m[row][0] * b.m[0][column] + a.m[row][1] * b.m[1][column] + a.m[row][2] * b.m[2][column]
+				+ a.m[row][3] * b.m[3][column];
+	return result;
+}
+
+static void Set_Size(float* size, UINT width, UINT height)
+{
+	size[0] = (float)width;
+	size[1] = (float)height;
+	size[2] = width != 0 ? 1.0f / width : 0.0f;
+	size[3] = height != 0 ? 1.0f / height : 0.0f;
+}
+
+PostProcessor::PostProcessor(Device* device)
+	: m_device(device),
+		m_linearSampler(0),
+		m_pointSampler(0)
+{
+	m_scene.rtv = 0;
+	m_scene.width = 0;
+	m_scene.height = 0;
+	m_scene.format = DXGI_FORMAT_UNKNOWN;
+	m_depth = m_scene;
+	m_depthShaders[0] = m_depthShaders[1] = 0;
+	m_presentShaders[0] = m_presentShaders[1] = 0;
+	m_shadowShader = 0;
+	m_copyShader = 0;
+	m_lastRunTime = -1.0f;
+	m_shadowSampler = 0;
+	memset(&m_view, 0, sizeof(m_view));
+	m_view._11 = m_view._22 = m_view._33 = m_view._44 = 1.0f;
+	m_projection = m_view;
+}
+
+void STDMETHODCALLTYPE PostProcessor::Set_Camera(const D3DMATRIX* view, const D3DMATRIX* projection)
+{
+	if (view != nullptr)
+		m_view = *view;
+	if (projection != nullptr)
+		m_projection = *projection;
+}
+
+void STDMETHODCALLTYPE PostProcessor::Set_HDR_Scene(BOOL enable)
+{
+	m_device->m_hdrRequested = enable != FALSE;
+}
+
+void STDMETHODCALLTYPE PostProcessor::Set_Gpu_Timing(BOOL enable)
+{
+	m_device->Set_Gpu_Timing(enable != FALSE);
+}
+
+void STDMETHODCALLTYPE PostProcessor::Get_Gpu_Timing(D3D8ON12_GPU_TIMING* timing)
+{
+	if (timing == nullptr)
+		return;
+	memset(timing, 0, sizeof(*timing));
+	Device::TimingSums& sums = m_device->m_timingSums;
+	timing->enabled = m_device->m_timing;
+	timing->frames = sums.frames;
+	if (sums.frames != 0)
+	{
+		const double count = sums.frames;
+		timing->frame = (float)(sums.frame / count);
+		timing->shadowMap = (float)(sums.shadowMap / count);
+		timing->shadows = (float)(sums.shadows / count);
+		timing->postProcess = (float)(sums.postProcess / count);
+		timing->passCount = min(sums.passCount, (UINT)D3D8ON12_TIMED_PASSES);
+		for (UINT pass = 0; pass < timing->passCount; ++pass)
+			timing->passes[pass] = (float)(sums.passes[pass] / count);
+		timing->draws = (float)(sums.draws / count);
+		timing->pipelineChanges = (float)(sums.pipelineChanges / count);
+		timing->tableChanges = (float)(sums.tableChanges / count);
+	}
+	memset(&sums, 0, sizeof(sums));
+}
+
+// Binds the heaps and root signature with every root parameter set, for the internal passes; the
+// chain's passes then replace what they use.
+bool PostProcessor::Bind_Root()
+{
+	Device& device = *m_device;
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	if (!device.m_heapsBound)
+	{
+		ID3D12DescriptorHeap* heaps[] = { device.m_srvHeap.Get(), device.m_samplerHeap.Get() };
+		list->SetDescriptorHeaps(2, heaps);
+		device.m_heapsBound = true;
+	}
+	list->SetGraphicsRootSignature(device.m_rootSignature.Get());
+	list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	// The passes bind their own targets, pipelines and tables.
+	device.m_bound.valid = false;
+
+	Device::UploadAllocation dummy = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (dummy.cpu == nullptr)
+		return false;
+	list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, dummy.gpu);
+	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, dummy.gpu);
+	list->SetGraphicsRootConstantBufferView(ROOT_MATERIAL_CONSTANTS, dummy.gpu);
+	for (UINT slot = 0; slot < FF_STAGES; ++slot)
+	{
+		list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + slot, device.Srv_Gpu_Handle(NULL_SRV_2D));
+		list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + slot, device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart());
+	}
+	return true;
+}
+
+// Draws the HDR scene target into the swap chain buffer of this frame, clamped to 0..1 (Present and
+// back buffer reads); with multisampling the shader averages the samples.
+void PostProcessor::Present_Scene()
+{
+	Device& device = *m_device;
+	const bool multisampled = device.m_sampleCount > 1;
+	UINT& shader = m_presentShaders[multisampled ? 1 : 0];
+	if (shader == 0)
+	{
+		const char* source = multisampled ? s_presentShaderMS : s_presentShader;
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(source, (UINT)strlen(source), "PostProcessPresent", nullptr, &shader, &messages)))
+		{
+			Log("could not compile the present shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			return;
+		}
+	}
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[shader - 1], DXGI_FORMAT_B8G8R8A8_UNORM, 1);
+	if (pipeline == nullptr || !Bind_Root())
+		return;
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	D3D12_RESOURCE_BARRIER barrier = {};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Transition.pResource = device.m_sceneTarget.Get();
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	list->ResourceBarrier(1, &barrier);
+
+	const UINT width = device.m_presentParams.BackBufferWidth;
+	const UINT height = device.m_presentParams.BackBufferHeight;
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
+	rtv.ptr += device.m_backBufferIndex * device.m_rtvDescriptorSize;
+	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES, device.Srv_Gpu_Handle(device.m_sceneSrv));
+	list->DrawInstanced(3, 1, 0, 0);
+
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	list->ResourceBarrier(1, &barrier);
+}
+
+bool PostProcessor::Capture_For_Materials(bool color, UINT& depth_srv, UINT& color_srv)
+{
+	Device& device = *m_device;
+	if (device.m_backBuffers[0] == nullptr)
+		return false;
+	device.Begin_Frame();
+	const UINT width = device.m_presentParams.BackBufferWidth;
+	const UINT height = device.m_presentParams.BackBufferHeight;
+	// Bind_Root sets everything the copy passes need and makes the next draw bind its state again.
+	if (!Bind_Root() || !Copy_Depth(width, height))
+		return false;
+	depth_srv = m_depth.gpu.srv;
+	color_srv = 0;
+	if (color && Copy_Scene(width, height))
+		color_srv = m_scene.gpu.srv;
+	return true;
+}
+
+HRESULT PostProcessor::Copy_Back_Buffer(Surface* dest, const RECT& rect, const POINT& point)
+{
+	Device& device = *m_device;
+	if (device.m_backBuffers[0] == nullptr || !device.Ensure_Target(dest))
+		return D3DERR_INVALIDCALL;
+	if (m_copyShader == 0)
+	{
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(s_copyShader, (UINT)strlen(s_copyShader), "BackBufferCopy", nullptr, &m_copyShader, &messages)))
+		{
+			Log("could not compile the back buffer copy shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			return E_FAIL;
+		}
+	}
+
+	device.Begin_Frame();
+	if (!Copy_Scene(device.m_presentParams.BackBufferWidth, device.m_presentParams.BackBufferHeight))
+		return E_FAIL;
+	GpuTexture* gpu = dest->Gpu_Target();
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_copyShader - 1], gpu->resource->GetDesc().Format, 1);
+	if (pipeline == nullptr || !Bind_Root())
+		return E_FAIL;
+	Device::UploadAllocation constants = device.Allocate_Upload(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (constants.cpu == nullptr)
+		return E_OUTOFMEMORY;
+	const int offset[4] = { rect.left - point.x, rect.top - point.y, 0, 0 };
+	memcpy(constants.cpu, offset, sizeof(offset));
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	device.Transition(*gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	const D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.Target_View_Handle(false, dest->Target_View());
+	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	const D3DSURFACE_DESC& desc = dest->Desc();
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)desc.Width, (float)desc.Height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { point.x, point.y, point.x + (rect.right - rect.left), point.y + (rect.bottom - rect.top) };
+	scissor.left = max(scissor.left, 0L);
+	scissor.top = max(scissor.top, 0L);
+	scissor.right = min(scissor.right, (LONG)desc.Width);
+	scissor.bottom = min(scissor.bottom, (LONG)desc.Height);
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, constants.gpu);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES, device.Srv_Gpu_Handle(m_scene.gpu.srv));
+	list->DrawInstanced(3, 1, 0, 0);
+	return D3D_OK;
+}
+
+HRESULT PostProcessor::Draw_Shadows(const ShadowCascade* cascades,
+	const D3D8ON12_SHADOW_PARAMS& params, const D3DMATRIX& view, const D3DMATRIX& projection)
+{
+	Device& device = *m_device;
+	// The scene is drawn into the back buffer, or into a screen-sized texture with the screen's depth
+	// buffer while a screen filter runs.
+	const D3DSURFACE_DESC& target_desc = device.m_renderTarget->Desc();
+	if (device.m_backBuffers[0] == nullptr || device.m_depthStencil != device.m_autoDepthSurface
+		|| target_desc.Width != device.m_presentParams.BackBufferWidth || target_desc.Height != device.m_presentParams.BackBufferHeight)
+		return D3DERR_INVALIDCALL;
+	if (m_shadowShader == 0)
+	{
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(s_shadowShader, (UINT)strlen(s_shadowShader), "ShadowMap", nullptr, &m_shadowShader, &messages)))
+		{
+			Log("could not compile the shadow shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			m_shadowShader = 0;
+			return E_FAIL;
+		}
+	}
+	if (m_shadowSampler == 0)
+	{
+		D3D12_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+		m_shadowSampler = device.Find_Sampler(sampler);
+	}
+	if (m_pointSampler == 0)
+	{
+		D3D12_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		m_pointSampler = device.Find_Sampler(sampler);
+	}
+
+	const UINT width = device.m_presentParams.BackBufferWidth;
+	const UINT height = device.m_presentParams.BackBufferHeight;
+	const bool debug = params.debug != FALSE;
+	device.Begin_Frame();
+	Device::TargetState targets;
+	if (!device.Prepare_Targets(targets) || targets.rtvFormat == DXGI_FORMAT_UNKNOWN)
+		return E_FAIL;
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[m_shadowShader - 1], targets.rtvFormat, targets.sampleCount, !debug);
+	device.Mark_Time(Device::TIMING_SHADOWS_BEGIN);
+	if (pipeline == nullptr || !Bind_Root() || !Copy_Depth(width, height))
+		return E_FAIL;
+
+	Device::UploadAllocation common = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	Device::UploadAllocation constants = device.Allocate_Upload(sizeof(ShadowConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	if (common.cpu == nullptr || constants.cpu == nullptr)
+		return E_FAIL;
+	CommonConstants& c = *(CommonConstants*)common.cpu;
+	memset(&c, 0, sizeof(c));
+	Set_Size(c.screenSize, width, height);
+	Set_Size(c.outputSize, width, height);
+	Set_Size(c.inputSize[0], width, height);
+	c.view = view;
+	c.inverseView = Invert(view);
+	c.projection = projection;
+	c.inverseProjection = Invert(projection);
+	ShadowConstants& s = *(ShadowConstants*)constants.cpu;
+	memset(&s, 0, sizeof(s));
+	s.viewProjection = Multiply(cascades[0].view, cascades[0].projection);
+	s.hasDetail = cascades[1].srv != 0 ? 1.0f : 0.0f;
+	if (cascades[1].srv != 0)
+	{
+		s.detailViewProjection = Multiply(cascades[1].view, cascades[1].projection);
+		s.detailTexel = 1.0f / cascades[1].size;
+	}
+	memcpy(s.color, params.color, sizeof(s.color));
+	memcpy(s.toLight, params.toLight, sizeof(s.toLight));
+	s.bias = params.bias;
+	s.softness = params.softness;
+	s.mapTexel = 1.0f / cascades[0].size;
+	s.debug = (float)params.debug;
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	list->OMSetRenderTargets(1, &targets.rtv, FALSE, nullptr);
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, common.gpu);
+	list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, constants.gpu);
+	D3D12_GPU_DESCRIPTOR_HANDLE point = device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
+	point.ptr += (UINT64)m_pointSampler * device.m_samplerDescriptorSize;
+	D3D12_GPU_DESCRIPTOR_HANDLE compare = device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
+	compare.ptr += (UINT64)m_shadowSampler * device.m_samplerDescriptorSize;
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 0, device.Srv_Gpu_Handle(m_depth.gpu.srv));
+	list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + 1, point);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 4, device.Srv_Gpu_Handle(cascades[0].srv));
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + 5, device.Srv_Gpu_Handle(cascades[1].srv != 0 ? cascades[1].srv : NULL_SRV_2D));
+	list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + 4, compare);
+	list->DrawInstanced(3, 1, 0, 0);
+	device.Mark_Time(Device::TIMING_SHADOWS_END);
+	return D3D_OK;
+}
+
+// Copies the depth buffer into m_depth, which passes then read as their Depth input.
+bool PostProcessor::Copy_Depth(UINT width, UINT height)
+{
+	Device& device = *m_device;
+	if (device.m_depthBuffer == nullptr || device.m_depthSrv == 0)
+		return false;
+	const bool multisampled = device.m_sampleCount > 1;
+	UINT& shader = m_depthShaders[multisampled ? 1 : 0];
+	if (shader == 0)
+	{
+		const char* source = multisampled ? s_depthCopyShaderMS : s_depthCopyShader;
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(Create_Shader(source, (UINT)strlen(source), "PostProcessDepth", nullptr, &shader, &messages)))
+		{
+			Log("could not compile the depth copy shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			return false;
+		}
+	}
+	if (!Ensure_Target(m_depth, width, height, DXGI_FORMAT_R32_FLOAT))
+		return false;
+	ID3D12PipelineState* pipeline = Get_Pipeline(m_shaders[shader - 1], DXGI_FORMAT_R32_FLOAT, 1);
+	if (pipeline == nullptr)
+		return false;
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	D3D12_RESOURCE_BARRIER barrier = {};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Transition.pResource = device.m_depthBuffer.Get();
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	list->ResourceBarrier(1, &barrier);
+	device.Transition(m_depth.gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE rtv = device.Target_View_Handle(false, m_depth.rtv);
+	list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { 0, 0, (LONG)width, (LONG)height };
+	list->RSSetViewports(1, &viewport);
+	list->RSSetScissorRects(1, &scissor);
+	list->SetPipelineState(pipeline);
+	list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES, device.Srv_Gpu_Handle(device.m_depthSrv));
+	list->DrawInstanced(3, 1, 0, 0);
+
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	list->ResourceBarrier(1, &barrier);
+	device.Transition(m_depth.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	return true;
+}
+
+// The device is idle when it deletes the post-processor, so the resources can go right away.
+PostProcessor::~PostProcessor()
+{
+	for (Pass& pass : m_passes)
+		for (IDirect3DBaseTexture8* texture : pass.desc.textures)
+			if (texture != nullptr)
+				texture->Release();
+}
+
+HRESULT STDMETHODCALLTYPE PostProcessor::QueryInterface(REFIID riid, void** object)
+{
+	if (object == nullptr)
+		return E_POINTER;
+	if (riid == IID_ID3D8On12PostProcess)
+	{
+		AddRef();
+		*object = static_cast<ID3D8On12PostProcess*>(this);
+		return S_OK;
+	}
+	return m_device->QueryInterface(riid, object);
+}
+
+ULONG STDMETHODCALLTYPE PostProcessor::AddRef()
+{
+	return m_device->AddRef();
+}
+
+ULONG STDMETHODCALLTYPE PostProcessor::Release()
+{
+	return m_device->Release();
+}
+
+HRESULT STDMETHODCALLTYPE PostProcessor::Create_Shader(const char* source, UINT length, const char* name, ID3DInclude* include,
+	UINT* shader, ID3DBlob** errors)
+{
+	if (source == nullptr || shader == nullptr)
+		return D3DERR_INVALIDCALL;
+	*shader = 0;
+	if (errors != nullptr)
+		*errors = nullptr;
+
+	Shader compiled;
+	compiled.used = true;
+	compiled.paramsSize = 0;
+	const HRESULT hr = Compile_Pixel_Shader(source, length, name, "PostProcess.hlsli", s_header, include, compiled.code, errors);
+	if (FAILED(hr))
+		return hr;
+	// Parameters are set by name, at the offsets the compiler gave the Params variables.
+	Reflect_Constant_Buffer(compiled.code.Get(), "Params", compiled.paramsSize, compiled.variables);
+
+	for (size_t i = 0; i < m_shaders.size(); ++i)
+	{
+		if (!m_shaders[i].used)
+		{
+			m_shaders[i] = compiled;
+			*shader = (UINT)i + 1;
+			return D3D_OK;
+		}
+	}
+	m_shaders.push_back(compiled);
+	*shader = (UINT)m_shaders.size();
+	return D3D_OK;
+}
+
+void STDMETHODCALLTYPE PostProcessor::Release_Shader(UINT shader)
+{
+	if (shader == 0 || shader > m_shaders.size())
+		return;
+	Shader& released = m_shaders[shader - 1];
+	// The GPU may still draw with its pipelines; the device keeps them until it goes.
+	for (auto& pipeline : released.pipelines)
+		m_device->m_retiredPipelines.push_back(pipeline.second);
+	released = Shader();
+	released.used = false;
+	released.paramsSize = 0;
+}
+
+HRESULT STDMETHODCALLTYPE PostProcessor::Set_Chain(const D3D8ON12_PP_PASS* passes, UINT count)
+{
+	for (UINT i = 0; i < count; ++i)
+	{
+		const UINT shader = passes[i].shader;
+		if (shader == 0 || shader > m_shaders.size() || !m_shaders[shader - 1].used)
+			return D3DERR_INVALIDCALL;
+		for (UINT input = 0; input < INPUT_COUNT; ++input)
+		{
+			const UINT source = passes[i].inputs[input];
+			if (source >= D3D8ON12_PP_INPUT_PASS && source - D3D8ON12_PP_INPUT_PASS >= i)
+				return D3DERR_INVALIDCALL;	// only earlier passes have an output
+		}
+	}
+
+	Clear_Chain();
+	m_passes.resize(count);
+	for (UINT i = 0; i < count; ++i)
+	{
+		Pass& pass = m_passes[i];
+		pass.desc = passes[i];
+		for (IDirect3DBaseTexture8* texture : pass.desc.textures)
+			if (texture != nullptr)
+				texture->AddRef();
+		pass.params.assign(m_shaders[pass.desc.shader - 1].paramsSize, 0);
+		pass.output.rtv = 0;
+		pass.output.width = 0;
+		pass.output.height = 0;
+		pass.output.format = DXGI_FORMAT_UNKNOWN;
+		pass.previous = pass.output;
+		pass.previousValid = false;
+		pass.usesPrevious = false;
+		for (UINT input = 0; input < INPUT_COUNT; ++input)
+			pass.usesPrevious = pass.usesPrevious || pass.desc.inputs[input] == D3D8ON12_PP_INPUT_PREVIOUS;
+	}
+	return D3D_OK;
+}
+
+void PostProcessor::Clear_Chain()
+{
+	for (Pass& pass : m_passes)
+	{
+		for (IDirect3DBaseTexture8*& texture : pass.desc.textures)
+		{
+			if (texture != nullptr)
+				texture->Release();
+			texture = nullptr;
+		}
+		Release_Target(pass.output);
+		Release_Target(pass.previous);
+	}
+	m_passes.clear();
+}
+
+HRESULT STDMETHODCALLTYPE PostProcessor::Set_Parameter(UINT pass, const char* name, const float* values, UINT count)
+{
+	if (pass >= m_passes.size() || name == nullptr || values == nullptr)
+		return D3DERR_INVALIDCALL;
+	const Shader& shader = m_shaders[m_passes[pass].desc.shader - 1];
+	auto found = shader.variables.find(name);
+	if (found == shader.variables.end())
+		return E_INVALIDARG;
+	const UINT size = min(count * (UINT)sizeof(float), found->second.size);
+	memcpy(m_passes[pass].params.data() + found->second.offset, values, size);
+	return D3D_OK;
+}
+
+ID3D12PipelineState* PostProcessor::Get_Pipeline(Shader& shader, DXGI_FORMAT format, UINT samples, bool multiply)
+{
+	const UINT64 key = ((UINT64)format << 8) | samples | (multiply ? 1ull << 40 : 0);
+	auto found = shader.pipelines.find(key);
+	if (found != shader.pipelines.end())
+		return found->second.Get();
+
+	if (m_vertexShader == nullptr)
+	{
+		ComPtr<ID3DBlob> messages;
+		if (FAILED(D3DCompile(s_vertexShader, sizeof(s_vertexShader) - 1, "PostProcessVS", nullptr, nullptr, "main", "vs_5_0",
+			D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &m_vertexShader, &messages)))
+		{
+			Log("could not compile the post-processing vertex shader: %s", messages != nullptr ? (const char*)messages->GetBufferPointer() : "");
+			return nullptr;
+		}
+	}
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
+	desc.pRootSignature = m_device->m_rootSignature.Get();
+	desc.VS.pShaderBytecode = m_vertexShader->GetBufferPointer();
+	desc.VS.BytecodeLength = m_vertexShader->GetBufferSize();
+	desc.PS.pShaderBytecode = shader.code->GetBufferPointer();
+	desc.PS.BytecodeLength = shader.code->GetBufferSize();
+	desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	if (multiply)
+	{
+		// The target times the shader's output, color and alpha.
+		D3D12_RENDER_TARGET_BLEND_DESC& blend = desc.BlendState.RenderTarget[0];
+		blend.BlendEnable = TRUE;
+		blend.SrcBlend = D3D12_BLEND_DEST_COLOR;
+		blend.DestBlend = D3D12_BLEND_ZERO;
+		blend.BlendOp = D3D12_BLEND_OP_ADD;
+		blend.SrcBlendAlpha = D3D12_BLEND_DEST_ALPHA;
+		blend.DestBlendAlpha = D3D12_BLEND_ZERO;
+		blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+		blend.LogicOp = D3D12_LOGIC_OP_NOOP;
+	}
+	desc.SampleMask = UINT_MAX;
+	desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	desc.RasterizerState.DepthClipEnable = TRUE;
+	desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	desc.NumRenderTargets = 1;
+	desc.RTVFormats[0] = format;
+	desc.SampleDesc.Count = samples;
+
+	ComPtr<ID3D12PipelineState> pipeline;
+	if (FAILED(m_device->m_device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipeline))))
+	{
+		Log("could not create a post-processing pipeline");
+		return nullptr;
+	}
+	shader.pipelines[key] = pipeline;
+	return pipeline.Get();
+}
+
+bool PostProcessor::Ensure_Target(Target& target, UINT width, UINT height, DXGI_FORMAT format)
+{
+	if (target.gpu.resource != nullptr && target.width == width && target.height == height && target.format == format)
+		return true;
+	Release_Target(target);
+
+	D3D12_HEAP_PROPERTIES heap = {};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Width = width;
+	desc.Height = height;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = format;
+	desc.SampleDesc.Count = 1;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	if (FAILED(m_device->m_device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		nullptr, IID_PPV_ARGS(&target.gpu.resource))))
+	{
+		Log("could not create a %ux%u post-processing target", width, height);
+		return false;
+	}
+	target.gpu.state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	target.gpu.srv = m_device->Allocate_Srv();
+	m_device->m_device->CreateShaderResourceView(target.gpu.resource.Get(), nullptr, m_device->Srv_Cpu_Handle(target.gpu.srv));
+	target.rtv = m_device->Allocate_Target_View(false);
+	if (target.rtv != 0)
+		m_device->m_device->CreateRenderTargetView(target.gpu.resource.Get(), nullptr, m_device->Target_View_Handle(false, target.rtv));
+	target.width = width;
+	target.height = height;
+	target.format = format;
+	return target.rtv != 0;
+}
+
+void PostProcessor::Release_Target(Target& target)
+{
+	if (target.gpu.resource != nullptr || target.gpu.srv != 0)
+		m_device->Release_Gpu_Texture(target.gpu);
+	m_device->Free_Target_View(false, target.rtv);
+	target.rtv = 0;
+	target.width = 0;
+	target.height = 0;
+	target.format = DXGI_FORMAT_UNKNOWN;
+}
+
+// Copies what is drawn into the back buffer so far into a texture the passes can read.
+bool PostProcessor::Copy_Scene(UINT width, UINT height)
+{
+	Device& device = *m_device;
+	if (!Ensure_Target(m_scene, width, height, device.m_sceneFormat))
+		return false;
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	const bool multisampled = device.m_sampleCount > 1;
+	ID3D12Resource* source = device.m_sceneTarget != nullptr ? device.m_sceneTarget.Get() : device.m_backBuffers[device.m_backBufferIndex].Get();
+
+	D3D12_RESOURCE_BARRIER barrier = {};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Transition.pResource = source;
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	barrier.Transition.StateAfter = multisampled ? D3D12_RESOURCE_STATE_RESOLVE_SOURCE : D3D12_RESOURCE_STATE_COPY_SOURCE;
+	list->ResourceBarrier(1, &barrier);
+	device.Transition(m_scene.gpu, multisampled ? D3D12_RESOURCE_STATE_RESOLVE_DEST : D3D12_RESOURCE_STATE_COPY_DEST);
+
+	if (multisampled)
+		list->ResolveSubresource(m_scene.gpu.resource.Get(), 0, source, 0, device.m_sceneFormat);
+	else
+		list->CopyResource(m_scene.gpu.resource.Get(), source);
+
+	barrier.Transition.StateBefore = barrier.Transition.StateAfter;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	list->ResourceBarrier(1, &barrier);
+	device.Transition(m_scene.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	return true;
+}
+
+HRESULT STDMETHODCALLTYPE PostProcessor::Run(float time)
+{
+	if (m_passes.empty())
+		return D3D_OK;
+	Device& device = *m_device;
+	if (device.m_renderTarget != device.m_backBufferSurface || device.m_backBuffers[0] == nullptr)
+		return D3DERR_INVALIDCALL;
+
+	device.Begin_Frame();
+	device.Mark_Time(Device::TIMING_POST_BEGIN);
+	const UINT width = device.m_presentParams.BackBufferWidth;
+	const UINT height = device.m_presentParams.BackBufferHeight;
+	const float frame_time = m_lastRunTime >= 0 && time >= m_lastRunTime ? min(time - m_lastRunTime, 1.0f) : 0.0f;
+	m_lastRunTime = time;
+	if (!Copy_Scene(width, height))
+		return E_FAIL;
+
+	if (m_linearSampler == 0)
+	{
+		D3D12_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		m_linearSampler = device.Find_Sampler(sampler);
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		m_pointSampler = device.Find_Sampler(sampler);
+	}
+
+	ID3D12GraphicsCommandList* list = device.m_commandList.Get();
+	if (!Bind_Root())
+		return E_FAIL;
+
+	bool uses_depth = false;
+	for (const Pass& pass : m_passes)
+		for (UINT input = 0; input < INPUT_COUNT; ++input)
+			uses_depth = uses_depth || pass.desc.inputs[input] == D3D8ON12_PP_INPUT_DEPTH;
+	if (uses_depth && !Copy_Depth(width, height))
+		uses_depth = false;
+
+	for (size_t index = 0; index < m_passes.size(); ++index)
+	{
+		Pass& pass = m_passes[index];
+		Shader& shader = m_shaders[pass.desc.shader - 1];
+		const bool last = index + 1 == m_passes.size();
+		if (index < Device::MAX_TIMED_PASSES)
+			device.Mark_Time(Device::TIMING_PASS + (UINT)index);
+
+		// The output: the back buffer for the last pass, else a texture of the pass.
+		D3D12_CPU_DESCRIPTOR_HANDLE rtv;
+		DXGI_FORMAT format;
+		UINT samples = 1;
+		UINT output_width = width;
+		UINT output_height = height;
+		if (last)
+		{
+			rtv = device.m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
+			rtv.ptr += (device.m_sceneTarget != nullptr ? FRAME_COUNT : device.m_backBufferIndex) * device.m_rtvDescriptorSize;
+			format = device.m_sceneFormat;
+			samples = device.m_sampleCount;
+		}
+		else
+		{
+			if (pass.desc.scale == D3D8ON12_PP_SCALE_PIXEL)
+			{
+				output_width = output_height = 1;
+			}
+			else
+			{
+				const UINT scale = pass.desc.scale == 0 ? 1 : min(pass.desc.scale, 8u);
+				output_width = max(width / scale, 1u);
+				output_height = max(height / scale, 1u);
+			}
+			format = pass.desc.hdr ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_B8G8R8A8_UNORM;
+			// A pass that reads its own previous output draws into the other of two targets each frame.
+			if (pass.usesPrevious)
+				std::swap(pass.output, pass.previous);
+			if (!Ensure_Target(pass.output, output_width, output_height, format))
+				return E_FAIL;
+			device.Transition(pass.output.gpu, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			rtv = device.Target_View_Handle(false, pass.output.rtv);
+		}
+
+		ID3D12PipelineState* pipeline = Get_Pipeline(shader, format, samples);
+		if (pipeline == nullptr)
+			return E_FAIL;
+
+		Device::UploadAllocation common = device.Allocate_Upload(sizeof(CommonConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+		Device::UploadAllocation params = device.Allocate_Upload(max((UINT)pass.params.size(), 16u), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+		if (common.cpu == nullptr || params.cpu == nullptr)
+			return E_FAIL;
+		CommonConstants& constants = *(CommonConstants*)common.cpu;
+		memset(&constants, 0, sizeof(constants));
+		Set_Size(constants.screenSize, width, height);
+		Set_Size(constants.outputSize, output_width, output_height);
+		constants.time = time;
+		constants.frameTime = frame_time;
+		constants.view = m_view;
+		constants.inverseView = Invert(m_view);
+		constants.projection = m_projection;
+		constants.inverseProjection = Invert(m_projection);
+		memset(params.cpu, 0, max((UINT)pass.params.size(), 16u));
+		if (!pass.params.empty())
+			memcpy(params.cpu, pass.params.data(), pass.params.size());
+
+		UINT srvs[INPUT_COUNT] = {};
+		for (UINT input = 0; input < INPUT_COUNT; ++input)
+		{
+			const UINT source = pass.desc.inputs[input];
+			if (source == D3D8ON12_PP_INPUT_SCENE)
+			{
+				srvs[input] = m_scene.gpu.srv;
+				Set_Size(constants.inputSize[input], width, height);
+			}
+			else if (source == D3D8ON12_PP_INPUT_DEPTH)
+			{
+				if (uses_depth)
+				{
+					srvs[input] = m_depth.gpu.srv;
+					Set_Size(constants.inputSize[input], width, height);
+				}
+			}
+			else if (source == D3D8ON12_PP_INPUT_TEXTURE && pass.desc.textures[input] != nullptr)
+			{
+				TextureType type;
+				srvs[input] = device.Prepare_Texture(pass.desc.textures[input], type);
+				if (pass.desc.textures[input]->GetType() == D3DRTYPE_TEXTURE)
+				{
+					D3DSURFACE_DESC level;
+					static_cast<IDirect3DTexture8*>(pass.desc.textures[input])->GetLevelDesc(0, &level);
+					Set_Size(constants.inputSize[input], level.Width, level.Height);
+				}
+			}
+			else if (source == D3D8ON12_PP_INPUT_PREVIOUS)
+			{
+				if (pass.previousValid && pass.previous.width == output_width && pass.previous.height == output_height && pass.previous.format == format)
+				{
+					srvs[input] = pass.previous.gpu.srv;
+					Set_Size(constants.inputSize[input], output_width, output_height);
+				}
+			}
+			else if (source >= D3D8ON12_PP_INPUT_PASS)
+			{
+				const Target& earlier = m_passes[source - D3D8ON12_PP_INPUT_PASS].output;
+				srvs[input] = earlier.gpu.srv;
+				Set_Size(constants.inputSize[input], earlier.width, earlier.height);
+			}
+		}
+
+		list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+		D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)output_width, (float)output_height, 0.0f, 1.0f };
+		D3D12_RECT scissor = { 0, 0, (LONG)output_width, (LONG)output_height };
+		list->RSSetViewports(1, &viewport);
+		list->RSSetScissorRects(1, &scissor);
+		list->SetPipelineState(pipeline);
+		list->SetGraphicsRootConstantBufferView(ROOT_VERTEX_CONSTANTS, common.gpu);
+		list->SetGraphicsRootConstantBufferView(ROOT_PIXEL_CONSTANTS, params.gpu);
+		for (UINT slot = 0; slot < FF_STAGES; ++slot)
+		{
+			// Every table of the root signature must be set, also those the shader does not read.
+			list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + slot, device.Srv_Gpu_Handle(slot < INPUT_COUNT ? srvs[slot] : NULL_SRV_2D));
+			const UINT sampler = slot == 0 ? m_linearSampler : slot == 1 ? m_pointSampler : 0;
+			D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle = device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart();
+			sampler_handle.ptr += (UINT64)sampler * device.m_samplerDescriptorSize;
+			list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + slot, sampler_handle);
+		}
+		list->DrawInstanced(3, 1, 0, 0);
+
+		if (!last)
+			device.Transition(pass.output.gpu, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		pass.previousValid = !last;
+	}
+	device.Mark_Time(Device::TIMING_POST_END);
+	return D3D_OK;
+}
+
+} // namespace D3D8On12

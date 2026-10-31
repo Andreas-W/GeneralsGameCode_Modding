@@ -204,6 +204,9 @@ WindowMsgHandledType GadgetComboBoxInput( GameWindow *window, UnsignedInt msg,
 						listBox->winSetPosition(0, winSize.y);
 
 						listBox->winSetSize(listX , newSize.y);
+
+						// The open list reaches over the windows next to the combo box; draw it above them.
+						TheWindowManager->winSetPopup(listBox);
 					}
 					// if the Listbox was showing, hide it.
 					else
@@ -301,6 +304,7 @@ void HideListBox(GameWindow * window)
 	if(!listBox->winIsHidden())
 	{
 		listBox->winHide(TRUE);
+		TheWindowManager->winClearPopup(listBox);
 		GameWindow *editBox = GadgetComboBoxGetEditBox(window);
 		editBox->winGetSize(&winSize.x, &winSize.y);
 		window->winGetSize(&newSize.x, &newSize.y);
@@ -686,6 +690,9 @@ WindowMsgHandledType GadgetComboBoxSystem( GameWindow *window, UnsignedInt msg,
 						listBox->winSetPosition(0, winSize.y);
 
 						listBox->winSetSize(listX , newSize.y);
+
+						// The open list reaches over the windows next to the combo box; draw it above them.
+						TheWindowManager->winSetPopup(listBox);
 					}
 					// if the Listbox was showing, hide it.
 					else

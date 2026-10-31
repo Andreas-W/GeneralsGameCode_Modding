@@ -260,6 +260,9 @@ protected:
 	TextureClass *m_destAlphaTexture;	///< Texture holding destination alpha LUT for water depth.
 
 	W3DTreeBuffer *m_treeBuffer; ///< Class for drawing trees and other alpha objects.
+public:
+	W3DTreeBuffer *getTreeBuffer() { return m_treeBuffer; }
+protected:
 	W3DPropBuffer *m_propBuffer; ///< Class for drawing trees and other alpha objects.
 	W3DBibBuffer *m_bibBuffer; ///< Class for drawing trees and other alpha objects.
 	W3DWaypointBuffer *m_waypointBuffer; ///< Draws waypoints.

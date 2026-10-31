@@ -101,6 +101,7 @@ class WorldHeightMap : public RefCountClass,
                        public WorldHeightMapInterfaceClass
 {
 	friend class TerrainTextureClass;
+	friend class TerrainMapAtlasClass;
 	friend class AlphaTerrainTextureClass;
 	friend class AlphaEdgeTextureClass;
 
@@ -180,6 +181,9 @@ protected:
 	 texture. */
 	TerrainTextureClass *m_terrainTex;
 	Int	m_terrainTexHeight; /// Height of m_terrainTex allocated.
+	TextureClass *m_terrainMapTex[2];	///< normal and specular maps laid out like m_terrainTex, for terrain materials
+	AsciiString m_terrainMapSuffix[2];
+	Bool m_terrainMapFound[2];
 	/** The texture that contains the alpha edge tiles that get blended on
 			top of the base texture. getAlphaUVData does the mapping. */
 	AlphaTerrainTextureClass *m_alphaTerrainTex;
@@ -207,6 +211,9 @@ protected:
 	Bool getUVForTileIndex(Int ndx, Short tileNdx, float U[4], float V[4]);
 	Int getTextureClassFromNdx(Int tileNdx);
 	void readTexClass(TXTextureClass *texClass, TileData **tileData);
+	/// Reads Art/Terrain/<texture of the class><suffix>.tga into tiles like readTexClass; returns the tiles per
+	/// row, 0 when there is no such file or it does not fit.
+	Int readTexClassMap(const TXTextureClass &texClass, const char *suffix, TileData **tileData);
 	Int updateTileTexturePositions(Int *edgeHeight); ///< Places each tile in the texture.
 	void initCliffFlagsFromHeights();
 	void setCellCliffFlagFromHeights(Int xIndex, Int yIndex);
@@ -284,6 +291,9 @@ public:  // height map info.
 public:  // tile and texture info.
 	void setTextureLOD(Int lod);	///< set maximum lod level sent to the hardware.
 	TextureClass *getTerrainTexture();  //< generates if needed and returns the terrain texture
+	/// The normal (0) or specular (1) maps of the terrain textures, laid out like the terrain texture;
+	/// null when no terrain texture has one.
+	TextureClass *getTerrainMapTexture(Int which, const AsciiString& suffix);
 	TextureClass *getAlphaTerrainTexture(); //< generates if needed and returns alpha terrain texture
 	TextureClass *getEdgeTerrainTexture(); //< generates if needed and returns blend edge texture
 	/// UV mapping data for a cell to map into the terrain texture.  Returns true if the textures had to be stretched for cliffs.

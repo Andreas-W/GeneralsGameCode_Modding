@@ -38,6 +38,7 @@
 #include "Common/GameEngine.h"
 #include "Common/OptionPreferences.h"
 #include "Common/GameLOD.h"
+#include "Common/FramePacer.h"
 #include "Common/Recorder.h"
 #include "Common/Registry.h"
 #include "Common/version.h"
@@ -195,6 +196,18 @@ static GameWindow *   checkUnlockFps   = nullptr;
 static NameKeyType    checkHeatEffectsID = NAMEKEY_INVALID;
 static GameWindow *   checkHeatEffects   = nullptr;
 
+// Only in option menus that have the gadget (Direct3D 12 post-processing).
+static NameKeyType    checkPostProcessingID = NAMEKEY_INVALID;
+static GameWindow *   checkPostProcessing   = nullptr;
+
+static NameKeyType    comboBoxRenderFpsID = NAMEKEY_INVALID;
+static GameWindow *   comboBoxRenderFps   = nullptr;
+
+// Render fps limit choices; 0 = the original game rules (the game speed limits the rendering in single player, network games render uncapped).
+static const Int RenderFpsLimitChoices[] = { 0, RenderFpsPreset::UncappedFpsValue, 30, 60, 75, 90, 120, 144, 165, 200, 240 };
+static const Int RenderFpsLimitChoiceCount = ARRAY_SIZE(RenderFpsLimitChoices);
+static Int renderFpsLimitCustom = -1; ///< A limit from Options.ini or GameData.ini that is not one of the choices, shown as an extra entry
+
 /*
 
 static NameKeyType    radioHighID = NAMEKEY_INVALID;
@@ -350,6 +363,12 @@ static void setDefaults()
 		GadgetCheckBoxSetChecked( checkHeatEffects, TheGlobalData->m_useHeatEffects);
 
 		//-------------------------------------------------------------------------------------------------
+ 		// Post-processing
+		//
+		if (checkPostProcessing)
+			GadgetCheckBoxSetChecked( checkPostProcessing, TheGlobalData->m_postProcessing);
+
+		//-------------------------------------------------------------------------------------------------
  		// Building Occlusion checkbox
 		//
 		GadgetCheckBoxSetChecked( checkBuildingOcclusion, TheGlobalData->m_enableBehindBuildingMarkers);
@@ -442,6 +461,12 @@ static void saveOptions()
 		TheWritableGlobalData->m_useHeatEffects = GadgetCheckBoxIsChecked( checkHeatEffects );
 		(*pref)["HeatEffects"] = TheGlobalData->m_useHeatEffects ? "yes" : "no";
 
+		if (checkPostProcessing)
+		{
+			TheWritableGlobalData->m_postProcessing = GadgetCheckBoxIsChecked( checkPostProcessing );
+			(*pref)["PostProcessing"] = TheGlobalData->m_postProcessing ? "yes" : "no";
+		}
+
 		// Never write this out
 		//TheWritableGlobalData->m_useFpsLimit = !GadgetCheckBoxIsChecked( checkUnlockFps );
 		//(*pref)["FPSLimit"] = TheGlobalData->m_useFpsLimit ? "yes" : "no";
@@ -517,6 +542,24 @@ static void saveOptions()
 		{	TheWritableGlobalData->m_firewallPortOverride = portOverride;
 		    aStr.format("%d", portOverride);
 			(*pref)["FirewallPortOverride"] = aStr;
+		}
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	// render fps limit, stored only in this client's options
+	if (comboBoxRenderFps)
+	{
+		GadgetComboBoxGetSelectedPos(comboBoxRenderFps, &index);
+		if (index >= 0)
+		{
+			Int renderFps = (index < RenderFpsLimitChoiceCount) ? RenderFpsLimitChoices[index] : renderFpsLimitCustom;
+			if (renderFps >= 0)
+			{
+				TheFramePacer->setRenderFramesPerSecondLimit(renderFps);
+				AsciiString prefString;
+				prefString.format("%d", renderFps);
+				(*pref)["RenderFPSLimit"] = prefString;
+			}
 		}
 	}
 
@@ -892,6 +935,49 @@ static void DestroyOptionsLayout() {
 	OptionsLayout = nullptr;
 }
 
+static void populateRenderFpsLimit()
+{
+	if (!comboBoxRenderFps)
+		return;
+
+	const Color color = GameMakeColor(255, 255, 255, 255);
+	GadgetComboBoxReset(comboBoxRenderFps);
+	GadgetComboBoxSetMaxDisplay(comboBoxRenderFps, 6);
+	for (Int i = 0; i < RenderFpsLimitChoiceCount; ++i)
+	{
+		UnicodeString str;
+		if (RenderFpsLimitChoices[i] == 0)
+			str = TheGameText->FETCH_OR_SUBSTITUTE("GUI:RenderFpsLimitVanilla", L"Vanilla");
+		else if (RenderFpsLimitChoices[i] == RenderFpsPreset::UncappedFpsValue)
+			str = TheGameText->FETCH_OR_SUBSTITUTE("GUI:RenderFpsLimitUnlimited", L"Unlimited");
+		else
+			str.format(L"%d", RenderFpsLimitChoices[i]);
+		GadgetComboBoxAddEntry(comboBoxRenderFps, str, color);
+	}
+
+	const Int renderFps = TheFramePacer->getRenderFramesPerSecondLimit();
+	Int pos = RenderFpsLimitChoiceCount;
+	for (Int i = 0; i < RenderFpsLimitChoiceCount; ++i)
+	{
+		if (RenderFpsLimitChoices[i] == renderFps)
+		{
+			pos = i;
+			break;
+		}
+	}
+
+	renderFpsLimitCustom = -1;
+	if (pos == RenderFpsLimitChoiceCount)
+	{
+		renderFpsLimitCustom = renderFps;
+		UnicodeString str;
+		str.format(L"%d", renderFps);
+		GadgetComboBoxAddEntry(comboBoxRenderFps, str, color);
+	}
+
+	GadgetComboBoxSetSelectedPos(comboBoxRenderFps, pos);
+}
+
 static void showAdvancedOptions()
 {
 	WinAdvancedDisplay->winHide(FALSE);
@@ -1044,8 +1130,18 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 	checkHeatEffectsID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckHeatEffects" );
 	checkHeatEffects   = TheWindowManager->winGetWindowFromId( nullptr, checkHeatEffectsID);
 
+	checkPostProcessingID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckPostProcessing" );
+	checkPostProcessing   = TheWindowManager->winGetWindowFromId( nullptr, checkPostProcessingID);
+
 	checkUnlockFpsID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckUnlockFPS" );
 	checkUnlockFps   = TheWindowManager->winGetWindowFromId( nullptr, checkUnlockFpsID);
+
+	// Only present in layouts that were extended for it.
+	comboBoxRenderFpsID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:ComboBoxRenderFPS" );
+	comboBoxRenderFps   = TheWindowManager->winGetWindowFromId( nullptr, comboBoxRenderFpsID);
+	GameWindow *labelRenderFps = TheWindowManager->winGetWindowFromId( nullptr, TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:RenderFPSLabel" ) );
+	if (labelRenderFps)
+		GadgetStaticTextSetText(labelRenderFps, TheGameText->FETCH_OR_SUBSTITUTE("GUI:MaxRenderFps", L"Max FPS"));
 
 	checkBuildingOcclusionID = TheNameKeyGenerator->nameToKey( "OptionsMenu.wnd:CheckBehindBuilding" );
 	checkBuildingOcclusion   = TheWindowManager->winGetWindowFromId( nullptr, checkBuildingOcclusionID);
@@ -1278,8 +1374,12 @@ void OptionsMenuInit( WindowLayout *layout, void *userData )
 	GadgetCheckBoxSetChecked( checkNoDynamicLod, !TheGlobalData->m_enableDynamicLOD);
 
 	GadgetCheckBoxSetChecked( checkHeatEffects, TheGlobalData->m_useHeatEffects);
+	if (checkPostProcessing)
+		GadgetCheckBoxSetChecked( checkPostProcessing, TheGlobalData->m_postProcessing);
 
 	GadgetCheckBoxSetChecked( checkUnlockFps, !TheGlobalData->m_useFpsLimit);
+
+	populateRenderFpsLimit();
 
 	GadgetCheckBoxSetChecked( checkBuildingOcclusion, TheGlobalData->m_enableBehindBuildingMarkers);
 

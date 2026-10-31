@@ -34,6 +34,7 @@
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DSmudge.h"
 #include "W3DDevice/GameClient/W3DSnow.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
 #include "WW3D2/camera.h"
 
 
@@ -41,6 +42,25 @@
 //#include "Common/PerfMetrics.h"
 //#include "Common/PerfTimer.h"
 
+//-------------------------------------------------------------------------------------------------
+/** The HLSL material of a particle texture (Direct3D 12, Material blocks with Use = Particles). Sorted
+	* particles are drawn later and take the material along (TheMeshMaterialBound). */
+//-------------------------------------------------------------------------------------------------
+static Bool bindParticleMaterial( TextureClass *texture, Bool additive )
+{
+	if (TheW3DMaterials == nullptr || !TheW3DMaterials->bindParticle( texture, additive ? 1 : 0 ))
+		return FALSE;
+	TheMeshMaterialBound = MESH_MATERIAL_PARTICLE;
+	return TRUE;
+}
+
+static void unbindParticleMaterial( Bool bound )
+{
+	if (!bound)
+		return;
+	TheW3DMaterials->End();
+	TheMeshMaterialBound = MESH_MATERIAL_NONE;
+}
 //-------------------------------------------------------------------------------------------------
 
 
@@ -285,7 +305,9 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 
 
 			//RENDER STREAK!
+			const Bool material = bindParticleMaterial( texture, sys->getShaderType() == ParticleSystemInfo::ADDITIVE );
 			m_streakLine->Render( rinfo );
+			unbindParticleMaterial( material );
 
 		}
 		else
@@ -326,12 +348,14 @@ void W3DParticleSystemManager::doParticles(RenderInfoClass &rinfo)
 				m_pointGroup->Set_Point_Frame( 0 );
 
 				//RENDER IT!
+				const Bool material = bindParticleMaterial( texture, sys->getShaderType() == ParticleSystemInfo::ADDITIVE );
 				if( sys->getVolumeParticleDepth() > 1 )
 				{
 					m_pointGroup->RenderVolumeParticle( rinfo, sys->getVolumeParticleDepth() );
 				}
 				else
 					m_pointGroup->Render( rinfo );
+				unbindParticleMaterial( material );
 
 			}
 		}

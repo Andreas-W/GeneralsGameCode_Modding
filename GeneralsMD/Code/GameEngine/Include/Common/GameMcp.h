@@ -40,6 +40,7 @@
 
 #include <deque>
 #include <string>
+#include <vector>
 
 class GameMcp
 {
@@ -98,5 +99,55 @@ extern GameMcp *TheGameMcp;	///< null unless the game was started with -mcp
 /// Writes what the display shows to a file; set by the display device, null without one (headless).
 typedef bool (*GameMcpScreenshotFunc)(const char *pathname, ScreenshotFormat format, Int jpegQuality);
 extern GameMcpScreenshotFunc TheGameMcpScreenshot;
+
+/// Average GPU milliseconds per frame of the Direct3D 12 renderer and of its parts.
+struct GameMcpGpuTiming
+{
+	bool enabled;
+	Int frames;
+	Real frame;
+	Real shadowMap;
+	Real shadows;
+	Real postProcess;
+	std::vector<Real> passes;
+	Real draws;				///< per frame
+	Real pipelineChanges;
+	Real tableChanges;
+};
+
+/// Post-processing of the Direct3D 12 renderer; set by the display device, all null without one.
+struct GameMcpPostProcess
+{
+	bool (*isAvailable)();
+	bool (*isRunning)();
+	void (*reload)();
+	bool (*setParameter)(const char *pass, const char *name, const Real *values, Int count);
+	void (*getPasses)(std::vector<AsciiString> &passes, AsciiString &error);
+	void (*setGpuTiming)(bool enabled);
+	void (*getGpuTiming)(GameMcpGpuTiming &timing);	///< averages since the last call
+};
+extern GameMcpPostProcess TheGameMcpPostProcess;
+
+/// Shadow maps of the Direct3D 12 renderer; set by the display device, all null without one.
+struct GameMcpShadowMap
+{
+	bool (*isAvailable)();
+	void (*getState)(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, Int &debug, UnsignedInt &shadowColor);
+	void (*setDebug)(Int debug);	///< 1: shadow amount as grey, 2: also the detail cascade
+};
+extern GameMcpShadowMap TheGameMcpShadowMap;
+
+/// HLSL materials of the Direct3D 12 renderer; set by the display device, all null without one.
+struct GameMcpMaterials
+{
+	bool (*isAvailable)();
+	bool (*isRunning)();
+	void (*setEnabled)(bool enabled);
+	void (*reload)();
+	bool (*setParameter)(const char *material, const char *name, const Real *values, Int count);
+	void (*getState)(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, std::vector<AsciiString> &uses, AsciiString &error);
+	void (*collectTextures)(std::vector<AsciiString> &names);
+};
+extern GameMcpMaterials TheGameMcpMaterials;
 
 #endif // RTS_GAME_MCP

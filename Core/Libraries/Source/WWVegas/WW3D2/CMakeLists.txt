@@ -252,3 +252,9 @@ target_link_libraries(corei_ww3d2 INTERFACE
     core_wwlib
     core_wwmath
 )
+
+if(RTS_BUILD_OPTION_DX12)
+    target_link_libraries(corei_ww3d2 INTERFACE
+        core_d3d8on12
+    )
+endif()

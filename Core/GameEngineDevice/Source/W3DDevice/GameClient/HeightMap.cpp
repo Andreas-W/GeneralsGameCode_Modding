@@ -88,6 +88,8 @@
 #include "WW3D2/scene.h"
 #include "W3DDevice/GameClient/W3DPoly.h"
 #include "W3DDevice/GameClient/W3DCustomScene.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
+#include "GameClient/PostProcess.h"
 
 #include "Common/UnitTimings.h" //Contains the DO_UNIT_TIMINGS define jba.
 
@@ -1935,6 +1937,7 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 	DX8Wrapper::Set_Index_Buffer(m_indexBuffer,0);
 
 	Bool doMultiPassWireFrame=FALSE;
+	Bool terrainMaterial=FALSE;
 
 	if (((RTS3DScene *)rinfo.Camera.Get_User_Data())->getCustomPassMode() == SCENE_PASS_ALPHA_MASK ||
 		((SceneClass *)rinfo.Camera.Get_User_Data())->Get_Extra_Pass_Polygon_Mode() == SceneClass::EXTRA_PASS_CLEAR_LINE)
@@ -1974,6 +1977,10 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		DX8Wrapper::Set_Material(m_vertexMaterialClass);
 		DX8Wrapper::Set_Shader(m_shaderClass);
 
+		// The HLSL terrain material (Direct3D 12) replaces the terrain shaders, not in reflections.
+		terrainMaterial = !m_disableTextures && !ShaderClass::Is_Backface_Culling_Inverted() && TheW3DMaterials != nullptr
+			&& TheW3DMaterials->hasTerrain();
+
  		st=W3DShaderManager::ST_TERRAIN_BASE; //set default shader
 
  		//set correct shader based on current settings
@@ -2012,6 +2019,8 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		//Disable writes to destination alpha channel (if there is one)
 		if (DX8Wrapper::getBackBufferFormat() == WW3D_FORMAT_A8R8G8B8)
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_COLORWRITEENABLE,D3DCOLORWRITEENABLE_BLUE|D3DCOLORWRITEENABLE_GREEN|D3DCOLORWRITEENABLE_RED);
+		if (terrainMaterial)
+			devicePasses = 1;
 	}
 
 	Int pass;
@@ -2023,7 +2032,11 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
  			if (m_disableTextures ) {
  				DX8Wrapper::Set_Shader(ShaderClass::_PresetOpaque2DShader);
  				DX8Wrapper::Set_Texture(0,nullptr);
-   			} else {
+   			} else if (terrainMaterial) {
+				terrainMaterial = bindTerrainMaterial(doCloud, FALSE);
+				if (!terrainMaterial)
+					W3DShaderManager::setShader(st, pass);
+			} else {
  				W3DShaderManager::setShader(st, pass);
 			}
 		}
@@ -2036,17 +2049,17 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 				if (m_xformedVertexBuffer && pass==0) {
 					// Note - m_xformedVertexBuffer should only be used for non T&L hardware.  jba.
 					DX8Wrapper::Apply_Render_State_Changes();
-					int code = DX8Wrapper::_Get_D3D_Device8()->ProcessVertices(0, 0, numVertex, m_xformedVertexBuffer[j*m_numVBTilesX+i], 0);
+					int code = DX8Wrapper::Process_DX8_Vertices(0, 0, numVertex, m_xformedVertexBuffer[j*m_numVBTilesX+i], 0);
 					::OutputDebugString("did process vertex\n");
 				}
 				if (m_xformedVertexBuffer) {
 					// Note - m_xformedVertexBuffer should only be used for non T&L hardware.  jba.
 					DX8Wrapper::Apply_Render_State_Changes();
-					DX8Wrapper::_Get_D3D_Device8()->SetStreamSource(
+					DX8Wrapper::Set_DX8_Stream_Source(
 						0,
 						m_xformedVertexBuffer[j*m_numVBTilesX+i],
-						D3DXGetFVFVertexSize(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2));
-					DX8Wrapper::_Get_D3D_Device8()->SetVertexShader(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2);
+						Get_FVF_Vertex_Size(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2));
+					DX8Wrapper::Set_Vertex_Shader(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2);
 				}
 #endif
 				if (Is_Hidden() == 0) {
@@ -2058,7 +2071,13 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 
 	if (!doMultiPassWireFrame)
 	{
-		if (pass)	//shader was applied at least once?
+		if (terrainMaterial)
+		{
+			TheW3DMaterials->End();
+			DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+			DX8Wrapper::Set_DX8_Texture(1, nullptr);
+		}
+		else if (pass)	//shader was applied at least once?
  			W3DShaderManager::resetShader(st);
 
 		//Draw feathered shorelines
@@ -2249,17 +2268,17 @@ void HeightMapRenderObjClass::renderTerrainPass(CameraClass *pCamera)
 			if (m_xformedVertexBuffer && pass==0) {
 				// Note - m_xformedVertexBuffer should only be used for non T&L hardware.  jba.
 				DX8Wrapper::Apply_Render_State_Changes();
-				int code = DX8Wrapper::_Get_D3D_Device8()->ProcessVertices(0, 0, numVertex, m_xformedVertexBuffer[j*m_numVBTilesX+i], 0);
+				int code = DX8Wrapper::Process_DX8_Vertices(0, 0, numVertex, m_xformedVertexBuffer[j*m_numVBTilesX+i], 0);
 				::OutputDebugString("did process vertex\n");
 			}
 			if (m_xformedVertexBuffer) {
 				// Note - m_xformedVertexBuffer should only be used for non T&L hardware.  jba.
 				DX8Wrapper::Apply_Render_State_Changes();
-				DX8Wrapper::_Get_D3D_Device8()->SetStreamSource(
+				DX8Wrapper::Set_DX8_Stream_Source(
 					0,
 					m_xformedVertexBuffer[j*m_numVBTilesX+i],
-					D3DXGetFVFVertexSize(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2));
-				DX8Wrapper::_Get_D3D_Device8()->SetVertexShader(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2);
+					Get_FVF_Vertex_Size(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2));
+				DX8Wrapper::Set_Vertex_Shader(D3DFVF_XYZRHW |D3DFVF_DIFFUSE|D3DFVF_TEX2);
 			}
 #endif
 			if (Is_Hidden() == 0) {
@@ -2273,6 +2292,82 @@ void HeightMapRenderObjClass::renderTerrainPass(CameraClass *pCamera)
 //=============================================================================
 /** Renders an additional terrain pass including only those tiles which have more than 2 textures
 blended together.  Used primarily for corner cases where 3 different textures meet.*/
+//=============================================================================
+// HeightMapRenderObjClass::bindTerrainMaterial
+//=============================================================================
+/** The terrain texture on stages 0 and 1 (both tiles of a cell), its normal and specular map atlases,
+	* the clouds and the light map for the HLSL terrain material. extraBlend: one tile whose alpha blends it
+	* (the road shader set the blending). */
+//=============================================================================
+Bool HeightMapRenderObjClass::bindTerrainMaterial(Bool doCloud, Bool extraBlend)
+{
+	const MaterialTemplate *settings = TheW3DMaterials->getTerrainSettings();
+	if (settings == nullptr || m_stageZeroTexture == nullptr)
+		return FALSE;
+	DX8Wrapper::Apply_Render_State_Changes();
+
+	const DWORD filter = (TheGlobalData->m_bilinearTerrainTex || TheGlobalData->m_trilinearTerrainTex) ? D3DTEXF_LINEAR : D3DTEXF_POINT;
+	for (Int stage = 0; stage < 2; stage++)
+	{
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MINFILTER, filter);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MAGFILTER, filter);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MIPFILTER, TheGlobalData->m_trilinearTerrainTex ? D3DTEXF_LINEAR : D3DTEXF_POINT);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_TEXCOORDINDEX, stage);
+	}
+	DX8Wrapper::Set_DX8_Texture(0, m_stageZeroTexture->Peek_D3D_Texture());
+	DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+	DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+	if (!extraBlend)
+	{
+		// The second tile; a colour operation on stage 1 makes the material see it.
+		DX8Wrapper::Set_DX8_Texture(1, m_stageZeroTexture->Peek_D3D_Texture());
+		DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLORARG2, D3DTA_CURRENT);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_COLOROP, D3DTOP_BLENDDIFFUSEALPHA);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+		DX8Wrapper::Set_DX8_Render_State(D3DRS_ALPHABLENDENABLE, FALSE);
+	}
+	// The maps: atlases clamped like the terrain texture, clouds and light map repeating.
+	for (Int stage = 2; stage < 6; stage++)
+	{
+		const DWORD address = stage < 4 ? D3DTADDRESS_CLAMP : D3DTADDRESS_WRAP;
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_ADDRESSU, address);
+		DX8Wrapper::Set_DX8_Texture_Stage_State(stage, D3DTSS_ADDRESSV, address);
+	}
+	IDirect3DBaseTexture8 *maps[4] = { nullptr, nullptr, nullptr, nullptr };
+	for (Int i = 0; i < 2; i++)
+	{
+		const AsciiString& suffix = settings->m_maps[i];
+		TextureClass *atlas = suffix.isNotEmpty() && suffix.getCharAt(0) == '_' ? m_map->getTerrainMapTexture(i, suffix) : nullptr;
+		if (atlas != nullptr)
+			maps[i] = atlas->Peek_D3D_Base_Texture();
+	}
+	TextureClass *noise[2] = { doCloud ? m_stageTwoTexture : nullptr, TheGlobalData->m_useLightMap ? m_stageThreeTexture : nullptr };
+	for (Int i = 0; i < 2; i++)
+	{
+		if (noise[i] == nullptr)
+			continue;
+		if (!noise[i]->Is_Initialized())
+			noise[i]->Init();
+		maps[2 + i] = noise[i]->Peek_D3D_Base_Texture();
+	}
+	Real mapping[3];
+	W3DShaderManager::getTerrainNoiseMapping(mapping[0], mapping[1], mapping[2]);
+	const Real extra = extraBlend ? 1.0f : 0.0f;
+	const Real flat = 0.0f;
+	TheW3DMaterials->setTerrainParameter("NoiseMapping", mapping, 3);
+	TheW3DMaterials->setTerrainParameter("ExtraBlend", &extra, 1);
+	TheW3DMaterials->setTerrainParameter("Flat", &flat, 1);
+	return TheW3DMaterials->bindTerrain(maps);
+}
+
 void HeightMapRenderObjClass::renderExtraBlendTiles()
 {
 	Int vertexCount = 0;
@@ -2464,15 +2559,23 @@ void HeightMapRenderObjClass::renderExtraBlendTiles()
  				st = W3DShaderManager::ST_ROAD_BASE_NOISE1;
  			}
 
+			// With the terrain material: the plain road shader for the blending, the material for the colour.
+			const Bool terrainMaterial = !ShaderClass::Is_Backface_Culling_Inverted() && TheW3DMaterials != nullptr && TheW3DMaterials->hasTerrain();
+			if (terrainMaterial)
+				st = W3DShaderManager::ST_ROAD_BASE;
+
 			Int devicePasses=W3DShaderManager::getShaderPasses(st);
 
 			for (Int pass=0; pass < devicePasses; pass++)
 			{
 				W3DShaderManager::setShader(st, pass);
+				const Bool material = terrainMaterial && bindTerrainMaterial(doCloud, TRUE);
 				if (Is_Hidden() == 0) {
 					DX8Wrapper::Draw_Triangles(	0,indexCount/3, 0,	vertexCount);	//draw a quad, 2 triangles, 4 verts
 					m_numVisibleExtraBlendTiles += indexCount/6;
 				}
+				if (material)
+					TheW3DMaterials->End();
 			}
 			W3DShaderManager::resetShader(st);
 		}

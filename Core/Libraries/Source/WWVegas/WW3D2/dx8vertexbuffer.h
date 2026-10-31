@@ -76,12 +76,12 @@ public:
 class VertexBufferClass : public RefCountClass
 {
 protected:
-	VertexBufferClass(unsigned type, unsigned FVF, unsigned short VertexCount);
+	VertexBufferClass(unsigned type, unsigned FVF, unsigned VertexCount);
 	virtual ~VertexBufferClass() override;
 public:
 
 	const FVFInfoClass& FVF_Info() const { return *fvf_info; }
-	unsigned short Get_Vertex_Count() const { return VertexCount; }
+	unsigned Get_Vertex_Count() const { return VertexCount; }
 	unsigned Type() const { return type; }
 
 	void Add_Engine_Ref() const;
@@ -108,7 +108,7 @@ public:
 
 protected:
 	unsigned							type;
-	unsigned short					VertexCount;
+	unsigned						VertexCount;
 	mutable int						engine_refs;
 	FVFInfoClass*					fvf_info;
 };
@@ -205,16 +205,24 @@ public:
 		USAGE_DEFAULT=0,
 		USAGE_DYNAMIC=1,
 		USAGE_SOFTWAREPROCESSING=2,
-		USAGE_NPATCHES=4
+		USAGE_NPATCHES=4,
+		USAGE_POINTS=8,
+		// Create the buffer without an FVF, so that it can be read with any stride (vertex shaders,
+		// buffers shared by several vertex layouts). The FVF then only gives the size per vertex.
+		USAGE_NO_FVF=16
 	};
 
-	DX8VertexBufferClass(unsigned FVF, unsigned short VertexCount, UsageType usage=USAGE_DEFAULT);
+	DX8VertexBufferClass(unsigned FVF, unsigned VertexCount, UsageType usage=USAGE_DEFAULT);
 	DX8VertexBufferClass(const Vector3* vertices, const Vector3* normals, const Vector2* tex_coords, unsigned short VertexCount,UsageType usage=USAGE_DEFAULT);
 	DX8VertexBufferClass(const Vector3* vertices, const Vector3* normals, const Vector4* diffuse, const Vector2* tex_coords, unsigned short VertexCount,UsageType usage=USAGE_DEFAULT);
 	DX8VertexBufferClass(const Vector3* vertices, const Vector4* diffuse, const Vector2* tex_coords, unsigned short VertexCount,UsageType usage=USAGE_DEFAULT);
 	DX8VertexBufferClass(const Vector3* vertices, const Vector2* tex_coords, unsigned short VertexCount,UsageType usage=USAGE_DEFAULT);
 
 	IDirect3DVertexBuffer8* Get_DX8_Vertex_Buffer() { return VertexBuffer; }
+
+	// Locks a byte range of the buffer, for code that manages its own offsets in it.
+	HRESULT Lock(unsigned offset, unsigned size, unsigned char** data, unsigned flags);
+	HRESULT Unlock();
 
 	void Copy(const Vector3* loc, unsigned first_vertex, unsigned count);
 	void Copy(const Vector3* loc, const Vector2* uv, unsigned first_vertex, unsigned count);

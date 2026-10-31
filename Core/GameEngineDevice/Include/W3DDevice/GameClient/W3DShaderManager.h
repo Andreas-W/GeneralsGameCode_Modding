@@ -84,6 +84,8 @@ public:
 	static GraphicsVenderID getCurrentVendor() {return m_currentVendor;}	///<return current card vendor.
 	static __int64 getCurrentDriverVersion() {return m_driverVersion; }	///<return current driver version.
 	static Int getShaderPasses(ShaderTypes shader);	///<rendering passes required for shader
+	/// How the cloud and light map textures lie on the terrain: uv = world xy * stretch (+ cloud offset).
+	static void getTerrainNoiseMapping(Real &stretch, Real &cloudOffsetX, Real &cloudOffsetY);
 	static Int setShader(ShaderTypes shader, Int pass);	///<enable specific shader pass.
 	static Int setShroudTex(Int stage);	///<Set shroud in a texture stage.
 	static void resetShader(ShaderTypes shader);	///<make sure W3D2 gets restored to normal

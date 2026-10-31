@@ -136,6 +136,38 @@ def main() -> int:
             bridge.call("view.screenshot", path=path)
             check(os.path.getsize(path) > 1000, f"screenshot written ({path})")
 
+            print("display mode")
+            mode = bridge.call("view.display_mode")
+            changed = bridge.call("view.display_mode", width=1024, height=768)
+            check(changed["width"] == 1024 and changed["height"] == 768, "resolution changed")
+            step(bridge, 2)
+            bridge.call("view.screenshot", path=path)
+            check(os.path.getsize(path) > 1000, "screenshot after the resolution change")
+            restored = bridge.call("view.display_mode", width=mode["width"], height=mode["height"])
+            check(restored["width"] == mode["width"], "resolution restored")
+
+            print("post-processing")
+            post = bridge.call("render.postprocess")
+            check("available" in post and "passes" in post, f"render.postprocess answers (available: {post['available']})")
+            materials = bridge.call("render.materials", textures=True)
+            check("available" in materials and "materials" in materials,
+                  f"render.materials answers (available: {materials['available']})")
+            timing = bridge.call("render.timing") if post["available"] else {"frames": 0}
+            check("frames" in timing, "render.timing answers" if post["available"] else "render.timing skipped (no DX12)")
+            shadows = bridge.call("render.shadows")
+            check("available" in shadows and "active" in shadows, f"render.shadows answers (available: {shadows['available']})")
+            if shadows["available"] and shadows["active"]:
+                step(bridge, 2)
+                check(bridge.call("render.shadows")["rendered"], "shadow map drawn")
+
+            print("render speed")
+            speed = bridge.call("game.set_speed", fps=30, render_fps=0)
+            check(speed["speed_fps"] == 30, "logic speed kept with an uncapped render rate")
+            step(bridge, 10)
+            status = bridge.call("game.status")
+            check("render_fps" in status and "render_interpolation_factor" in status, "game.status reports render timing")
+            bridge.call("game.set_speed", fps=30)
+
         print("cleanup")
         bridge.call("objects.destroy", ids=spawned, how="remove")
         step(bridge, 2)

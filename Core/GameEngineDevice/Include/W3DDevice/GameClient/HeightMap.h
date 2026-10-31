@@ -122,4 +122,5 @@ protected:
 	virtual Int	getNumExtraBlendTiles(Bool visible) override { return visible?m_numVisibleExtraBlendTiles:m_numExtraBlendTiles;}
 	void freeIndexVertexBuffers();
 	void renderExtraBlendTiles();	///< render 3-way blend tiles that have blend of 3 textures.
+	Bool bindTerrainMaterial(Bool doCloud, Bool extraBlend);	///< the HLSL terrain material for the next draws (Direct3D 12)
 };

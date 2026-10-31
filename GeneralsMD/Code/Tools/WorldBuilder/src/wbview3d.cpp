@@ -71,6 +71,10 @@
 #include "W3DDevice/GameClient/W3DScene.h"
 #include "W3DDevice/Common/W3DConvert.h"
 #include "W3DDevice/GameClient/W3DShadow.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DPostProcess.h"
+#include "WW3D2/render2dsentence.h"
 #include "DrawObject.h"
 #include "Common/MapObject.h"
 #include "Common/GlobalData.h"
@@ -85,6 +89,8 @@
 #include "Common/ThingTemplate.h"
 #include "Common/Language.h"
 #include "Common/FileSystem.h"
+#include "Common/INI.h"
+#include "GameClient/PostProcess.h"
 #include "Common/PlayerTemplate.h"
 #include "GameLogic/SidesList.h"
 #include "GameLogic/TerrainLogic.h"
@@ -412,7 +418,8 @@ WbView3d::WbView3d() :
 	m_showWeaponRanges(false),
 	m_highlightTestArt(false),
 	m_showLetterbox(false),
-  m_showSoundCircles(false)
+  m_showSoundCircles(false),
+	m_labelFont(nullptr)
 {
 	TheTacticalView = &bogusTacticalView;
 	m_actualWinSize.x = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "Width", THREE_D_VIEW_WIDTH);
@@ -440,6 +447,7 @@ WbView3d::WbView3d() :
 	setShowGarrisoned(::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowGarrisoned", 0) != 0);
 	setHighlightTestArt(::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "HighlightTestArt", 0) != 0);
 	setShowLetterbox(::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowLetterbox", 0) != 0);
+	TheWritableGlobalData->m_postProcessing = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowPostProcessing", 1) != 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -473,6 +481,7 @@ void WbView3d::shutdownWW3D()
 		m3DFont->Release();
 		m3DFont = nullptr;
 	}
+	releaseLabelText();
 	if (m_ww3dInited) {
 		m_lightList.Reset_List();
 
@@ -489,6 +498,10 @@ void WbView3d::shutdownWW3D()
 			delete TheW3DShadowManager;
 			TheW3DShadowManager=nullptr;
 		}
+		delete TheW3DPostProcess;
+		TheW3DPostProcess = nullptr;
+		delete TheW3DMaterials;
+		TheW3DMaterials = nullptr;
 		REF_PTR_RELEASE(m_transparentObjectsScene);
 		REF_PTR_RELEASE(m_overlayScene);
 		REF_PTR_RELEASE(m_baseBuildScene);
@@ -523,6 +536,7 @@ void WbView3d::ReleaseResources()
 		m3DFont->Release();
 	}
 	m3DFont = nullptr;
+	releaseLabelText();
 	if (m_drawObject) {
 		m_drawObject->freeMapResources();
 	}
@@ -541,8 +555,7 @@ void WbView3d::ReAcquireResources()
 		TheTerrainRenderObject->worldBuilderUpdateBridgeTowers( m_assetManager, m_scene );
 	}
 	m_drawObject->initData();
-	IDirect3DDevice8* pDev = DX8Wrapper::_Get_D3D_Device8();
-	if (pDev) {
+	if (DX8Wrapper::Has_Device()) {
 
 //		CDC* pDC = GetDC();
 		LOGFONT logFont;
@@ -563,7 +576,7 @@ void WbView3d::ReAcquireResources()
 
 		HFONT hFont = CreateFontIndirect(&logFont);
 		if (hFont) {
-			D3DXCreateFont(pDev, hFont, &m3DFont);
+			DX8Wrapper::_Create_DX8_Font(hFont, &m3DFont);
 			DeleteObject(hFont);
 		} else {
 			m3DFont = nullptr;
@@ -2110,6 +2123,10 @@ void WbView3d::render()
 {
 	++m_updateCount;
 
+	// The shadow map is drawn into before the frame, as the game does.
+	if (TheW3DShadowMap)
+		TheW3DShadowMap->update(m_camera);
+
 	if (WW3D::Begin_Render(true,true,Vector3(0.5f,0.5f,0.5f), TheWaterTransparency->m_minWaterOpacity) == WW3D_ERROR_OK)
 	{
 
@@ -2134,6 +2151,10 @@ void WbView3d::render()
 		m_baseBuildScene->Set_Ambient_Light(newAmb);
 		WW3D::Render(m_baseBuildScene,m_camera);
 		m_baseBuildScene->Set_Ambient_Light(amb);
+
+		// Post-process the world, not the wireframe, tool feedback, icons and labels drawn after it.
+		if (TheW3DPostProcess)
+			TheW3DPostProcess->run(m_camera);
 
 		if (m_showWireframe) {
 			if (m_heightMapRenderObj) {
@@ -2160,7 +2181,11 @@ void WbView3d::render()
 		// Draw the 3d obj icons on top of the rest of the data.
 		WW3D::Render(m_overlayScene,m_camera);
 		//if (mytext) mytext->Render();
-		if (m3DFont) {
+		if (m3DFont == nullptr && m_labelFont == nullptr && DX8Wrapper::Has_Device()) {
+			// D3DX cannot make a font on the Direct3D 12 renderer.
+			m_labelFont = WW3DAssetManager::Get_Instance()->Get_FontChars("Arial", 11);
+		}
+		if (m3DFont || m_labelFont) {
 			drawLabels(nullptr);
 		}
 
@@ -2196,6 +2221,10 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWMACROTEXTURE, OnUpdateViewShowmacrotexture)
 	ON_COMMAND(ID_EDIT_SELECTMACROTEXTURE, OnEditSelectmacrotexture)
 	ON_COMMAND(ID_VIEW_SHOWSOFTWATER, OnViewShowSoftWater)
+	ON_COMMAND(ID_VIEW_SHOWPOSTPROCESSING, OnViewShowPostProcessing)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWPOSTPROCESSING, OnUpdateViewShowPostProcessing)
+	ON_COMMAND(ID_VIEW_RELOADRENDERING, OnViewReloadRendering)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_RELOADRENDERING, OnUpdateViewReloadRendering)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWEXTRABLENDS, OnUpdateViewShowExtraBlends)
 	ON_COMMAND(ID_VIEW_SHOWEXTRABLENDS, OnViewExtraBlends)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWSOFTWATER, OnUpdateViewShowSoftWater)
@@ -2296,8 +2325,7 @@ void WbView3d::initWW3D()
 			}
 		}
 
-		IDirect3DDevice8* pDev = DX8Wrapper::_Get_D3D_Device8();
-		if (pDev) {
+		if (DX8Wrapper::Has_Device()) {
 
 //			CDC* pDC = GetDC();
 			LOGFONT logFont;
@@ -2318,7 +2346,7 @@ void WbView3d::initWW3D()
 
 			HFONT hFont = CreateFontIndirect(&logFont);
 			if (hFont) {
-				D3DXCreateFont(pDev, hFont, &m3DFont);
+				DX8Wrapper::_Create_DX8_Font(hFont, &m3DFont);
 				DeleteObject(hFont);
 			} else {
 				m3DFont = nullptr;
@@ -2333,6 +2361,18 @@ void WbView3d::initWW3D()
 		WW3D::Set_Screen_UV_Bias( TRUE );  ///< this makes text look good :)
 
 		W3DShaderManager::init();
+		// Post-processing, materials and shadow maps of the Direct3D 12 renderer (-dx12), as in the game;
+		// without that renderer they do nothing.
+		if (TheW3DPostProcess == nullptr)
+		{
+			TheW3DPostProcess = new W3DPostProcess;
+			TheW3DPostProcess->init();
+		}
+		if (TheW3DMaterials == nullptr)
+		{
+			TheW3DMaterials = new W3DMaterials;
+			TheW3DMaterials->init();
+		}
 		init3dScene();
 		m_layer = new LayerClass( m_scene, m_camera );
 		m_buildLayer = new LayerClass( m_baseBuildScene, m_camera );
@@ -2446,6 +2486,35 @@ void WbView3d::drawCircle( HDC hdc, const Coord3D & centerPoint, Real radius, CO
 }
 
 
+/// A label in the 3D view with the W3D font; the sentence for each text is built once.
+void WbView3d::drawLabelText(const AsciiString &text, Int x, Int y, UnsignedInt color)
+{
+	if (m_labelFont == nullptr || text.isEmpty()) {
+		return;
+	}
+	Render2DSentenceClass *&sentence = m_labelSentences[text.str()];
+	if (sentence == nullptr) {
+		sentence = new Render2DSentenceClass;
+		sentence->Set_Font(m_labelFont);
+		UnicodeString wide;
+		wide.translate(text);
+		sentence->Build_Sentence(wide.str(), nullptr, nullptr);
+	}
+	sentence->Reset_Polys();
+	sentence->Set_Location(Vector2((Real)x, (Real)y));
+	sentence->Draw_Sentence(color);
+	sentence->Render();
+}
+
+void WbView3d::releaseLabelText()
+{
+	for (std::map<std::string, Render2DSentenceClass*>::iterator it = m_labelSentences.begin(); it != m_labelSentences.end(); ++it) {
+		delete it->second;
+	}
+	m_labelSentences.clear();
+	REF_PTR_RELEASE(m_labelFont);
+}
+
 void WbView3d::drawLabels()
 {
 	CDC * pDC = GetDC();
@@ -2554,6 +2623,8 @@ void WbView3d::drawLabels(HDC hdc)
 							m3DFont->DrawText(name.str(), name.getLength(), &rct,
 								DT_LEFT | DT_NOCLIP | DT_TOP | DT_SINGLELINE, 0xAF000000 + (red<<16) + (green<<8));
 
+						} else if (!m3DFont && !hdc) {
+							drawLabelText(name, pt.x + 1, pt.y - 5, 0xAF000000 + (red<<16) + (green<<8));
 						} else if (!m3DFont) {
 							//docToViewCoords(pos, &pt);
 							::SetBkMode(hdc, TRANSPARENT);
@@ -2999,6 +3070,51 @@ void WbView3d::OnViewShowSoftWater()
 void WbView3d::OnUpdateViewShowSoftWater(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(TheGlobalData->m_showSoftWaterEdge ? 1 : 0);
+}
+
+void WbView3d::OnViewShowPostProcessing()
+{
+	TheWritableGlobalData->m_postProcessing = !TheGlobalData->m_postProcessing;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowPostProcessing", TheGlobalData->m_postProcessing ? 1 : 0);
+}
+
+void WbView3d::OnUpdateViewShowPostProcessing(CCmdUI* pCmdUI)
+{
+	// Only the Direct3D 12 renderer (-dx12) post-processes.
+	pCmdUI->Enable(TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable());
+	pCmdUI->SetCheck(TheGlobalData->m_postProcessing ? 1 : 0);
+}
+
+/// For editing shaders and their INI while the map is open. New files need a restart: the file system
+/// lists the files once at startup.
+void WbView3d::reloadRendering()
+{
+	if (TheW3DPostProcess)
+		TheW3DPostProcess->reload();
+	if (TheW3DMaterials)
+		TheW3DMaterials->reload();
+	// The reload read only the mod's files; the open map's render blocks go on top again.
+	CString path = WbDoc() ? WbDoc()->GetPathName() : CString();
+	const int slash = path.ReverseFind('\\');
+	if (slash >= 0)
+	{
+		ThePostProcessControl.beginMap();
+		AsciiString mapIni((LPCTSTR)path.Left(slash + 1));
+		mapIni.concat("map.ini");
+		INI ini;
+		ini.load(mapIni, INI_LOAD_MAPDATA_ONLY, nullptr, true);
+	}
+	invalObjectInView(nullptr);
+}
+
+void WbView3d::OnViewReloadRendering()
+{
+	reloadRendering();
+}
+
+void WbView3d::OnUpdateViewReloadRendering(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable());
 }
 
 void WbView3d::OnViewExtraBlends()

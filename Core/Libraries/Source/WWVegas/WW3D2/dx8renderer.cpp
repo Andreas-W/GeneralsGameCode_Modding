@@ -1676,6 +1676,9 @@ unsigned DX8TextureCategoryClass::Add_Mesh(
 
 // ----------------------------------------------------------------------------
 
+MeshMaterialBinderClass *TheMeshMaterialBinder = nullptr;
+int TheMeshMaterialBound = MESH_MATERIAL_NONE;
+
 void DX8TextureCategoryClass::Render()
 {
 	#ifdef WWDEBUG
@@ -1720,6 +1723,12 @@ void DX8TextureCategoryClass::Render()
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_SRCBLEND,D3DBLEND_DESTCOLOR);
 	}
 
+
+	// Depth-only passes (shadow maps) draw no colour, so they need no material.
+	MeshMaterialBinderClass *binder = WW3D::Is_Depth_Only_Pass() ? nullptr : TheMeshMaterialBinder;
+	const bool material_bound = binder != nullptr && binder->Begin(Peek_Texture(0));
+	TheMeshMaterialBound = material_bound ? MESH_MATERIAL_MESH : MESH_MATERIAL_NONE;
+	bool mesh_material_bound = material_bound;
 
 	bool renderTasksRemaining=false;
 
@@ -1868,7 +1877,15 @@ void DX8TextureCategoryClass::Render()
 		//(gth) this if statement's contents are not tabbed to avoid perforce merge problems...
 		if (!DX8RendererDebugger::Is_Enabled() || !mesh->Is_Disabled_By_Debugger()) {
 
-		if ((!!mesh->Peek_Model()->Get_Flag(MeshGeometryClass::SORT)) && WW3D::Is_Sorting_Enabled()) {
+		const bool sorted = !!mesh->Peek_Model()->Get_Flag(MeshGeometryClass::SORT) && WW3D::Is_Sorting_Enabled();
+		if (binder != nullptr) {
+			const int bound = binder->Bind_Mesh(mesh, sorted);
+			if (bound >= 0) {
+				mesh_material_bound = bound != 0;
+				TheMeshMaterialBound = mesh_material_bound ? MESH_MATERIAL_MESH : MESH_MATERIAL_NONE;
+			}
+		}
+		if (sorted) {
 			renderer->Render_Sorted(mesh->Get_Base_Vertex_Offset(),mesh->Get_Bounding_Sphere());
 		} else {
 			//non-transparent mesh that will be rendered immediately.  Okay to adjust the shader/material
@@ -1965,6 +1982,10 @@ void DX8TextureCategoryClass::Render()
 		delete prt;
 		prt = next_prt;
 	}
+
+	if (material_bound || mesh_material_bound)
+		TheMeshMaterialBinder->End();
+	TheMeshMaterialBound = MESH_MATERIAL_NONE;
 
 	if (!renderTasksRemaining)
 	{

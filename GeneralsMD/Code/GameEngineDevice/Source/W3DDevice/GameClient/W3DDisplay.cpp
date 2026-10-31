@@ -79,8 +79,16 @@ static void drawFramerateBar();
 #include "W3DDevice/GameClient/W3DWater.h"
 #include "W3DDevice/GameClient/W3DVideoBuffer.h"
 #include "W3DDevice/GameClient/W3DShaderManager.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DPostProcess.h"
 #include "W3DDevice/GameClient/W3DDebugDisplay.h"
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
+#include "W3DDevice/GameClient/W3DShadow.h"
+#include "W3DDevice/GameClient/W3DShadowMap.h"
+
+#ifdef RTS_RENDERER_DX12
+#include <d3d8on12_ext.h>
+#endif
 #include "W3DDevice/GameClient/W3DScreenshot.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
 #include "WWMath/wwmath.h"
@@ -468,6 +476,11 @@ W3DDisplay::~W3DDisplay()
 	// shutdown
 	Debug_Statistics::Shutdown_Statistics();
 	if (!TheGlobalData->m_headless)
+		delete TheW3DPostProcess;
+		TheW3DPostProcess = nullptr;
+		// Before the assets go: it holds map textures.
+		delete TheW3DMaterials;
+		TheW3DMaterials = nullptr;
 		W3DShaderManager::shutdown();
 	m_assetManager->Free_Assets();
 	delete m_assetManager;
@@ -734,10 +747,108 @@ void W3DDisplay::init2DScene()
 /** Initialize or re-initialize the W3D display system.  Here we need to
   * create our window, and get our 3D hardware setup and online */
 //=============================================================================
+#ifdef RTS_GAME_MCP
+static bool mcpPostProcessAvailable() { return TheW3DPostProcess != nullptr && TheW3DPostProcess->isAvailable(); }
+static bool mcpPostProcessRunning() { return TheW3DPostProcess != nullptr && TheW3DPostProcess->isRunning(); }
+static void mcpPostProcessReload() { if (TheW3DPostProcess) TheW3DPostProcess->reload(); }
+static bool mcpPostProcessSetParameter(const char *pass, const char *name, const Real *values, Int count)
+{
+	return TheW3DPostProcess != nullptr && TheW3DPostProcess->setParameter(pass, name, values, count);
+}
+static void mcpPostProcessGetPasses(std::vector<AsciiString> &passes, AsciiString &error)
+{
+	if (TheW3DPostProcess)
+	{
+		passes = TheW3DPostProcess->getPasses();
+		error = TheW3DPostProcess->getError();
+	}
+}
+static void mcpSetGpuTiming(bool enabled)
+{
+#ifdef RTS_RENDERER_DX12
+	if (ID3D8On12PostProcess *postProcess = DX8Wrapper::Get_Post_Process())
+		postProcess->Set_Gpu_Timing(enabled);
+#endif
+}
+static void mcpGetGpuTiming(GameMcpGpuTiming &timing)
+{
+	timing.enabled = false;
+	timing.frames = 0;
+	timing.frame = timing.shadowMap = timing.shadows = timing.postProcess = 0.0f;
+	timing.draws = timing.pipelineChanges = timing.tableChanges = 0.0f;
+	timing.passes.clear();
+#ifdef RTS_RENDERER_DX12
+	if (ID3D8On12PostProcess *postProcess = DX8Wrapper::Get_Post_Process())
+	{
+		D3D8ON12_GPU_TIMING gpu;
+		postProcess->Get_Gpu_Timing(&gpu);
+		timing.enabled = gpu.enabled != FALSE;
+		timing.frames = (Int)gpu.frames;
+		timing.frame = gpu.frame;
+		timing.shadowMap = gpu.shadowMap;
+		timing.shadows = gpu.shadows;
+		timing.postProcess = gpu.postProcess;
+		for (UINT i = 0; i < gpu.passCount; ++i)
+			timing.passes.push_back(gpu.passes[i]);
+		timing.draws = gpu.draws;
+		timing.pipelineChanges = gpu.pipelineChanges;
+		timing.tableChanges = gpu.tableChanges;
+	}
+#endif
+}
+static bool mcpShadowMapAvailable() { return DX8Wrapper::Get_Shadow_Mapper() != nullptr; }
+static void mcpShadowMapGetState(bool &active, bool &rendered, Int &casters, Real &coverage, Real &sunElevation, Int &debug, UnsignedInt &shadowColor)
+{
+	active = TheW3DShadowMap != nullptr && TheW3DShadowMap->isActive();
+	rendered = TheW3DShadowMap != nullptr && TheW3DShadowMap->wasRendered();
+	casters = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getCasterCount() : 0;
+	coverage = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getCoverage() : 0.0f;
+	sunElevation = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getSunElevation() : 0.0f;
+	debug = TheW3DShadowMap != nullptr ? TheW3DShadowMap->getDebug() : 0;
+	shadowColor = TheW3DShadowManager != nullptr ? TheW3DShadowManager->getShadowColor() : 0;
+}
+static void mcpShadowMapSetDebug(Int debug) { if (TheW3DShadowMap) TheW3DShadowMap->setDebug(debug); }
+static bool mcpMaterialsAvailable() { return TheW3DMaterials != nullptr && TheW3DMaterials->isAvailable(); }
+static bool mcpMaterialsRunning() { return TheW3DMaterials != nullptr && TheW3DMaterials->isRunning(); }
+static void mcpMaterialsSetEnabled(bool enabled) { if (TheW3DMaterials) TheW3DMaterials->setEnabled(enabled); }
+static void mcpMaterialsReload() { if (TheW3DMaterials) TheW3DMaterials->reload(); }
+static bool mcpMaterialsSetParameter(const char *material, const char *name, const Real *values, Int count)
+{
+	return TheW3DMaterials != nullptr && TheW3DMaterials->setParameter(material, name, values, count);
+}
+static void mcpMaterialsGetState(std::vector<AsciiString> &names, std::vector<Int> &meshTextures, std::vector<AsciiString> &uses,
+	AsciiString &error)
+{
+	if (TheW3DMaterials)
+	{
+		TheW3DMaterials->getMaterials(names, meshTextures, uses);
+		error = TheW3DMaterials->getError();
+	}
+}
+static void mcpMaterialsCollectTextures(std::vector<AsciiString> &names) { if (TheW3DMaterials) TheW3DMaterials->collectTextures(names); }
+#endif
+
 void W3DDisplay::init()
 {
 #ifdef RTS_GAME_MCP
 	TheGameMcpScreenshot = W3D_WriteScreenshotFile;
+	TheGameMcpPostProcess.isAvailable = mcpPostProcessAvailable;
+	TheGameMcpPostProcess.isRunning = mcpPostProcessRunning;
+	TheGameMcpPostProcess.reload = mcpPostProcessReload;
+	TheGameMcpPostProcess.setParameter = mcpPostProcessSetParameter;
+	TheGameMcpPostProcess.getPasses = mcpPostProcessGetPasses;
+	TheGameMcpPostProcess.setGpuTiming = mcpSetGpuTiming;
+	TheGameMcpPostProcess.getGpuTiming = mcpGetGpuTiming;
+	TheGameMcpShadowMap.isAvailable = mcpShadowMapAvailable;
+	TheGameMcpShadowMap.getState = mcpShadowMapGetState;
+	TheGameMcpShadowMap.setDebug = mcpShadowMapSetDebug;
+	TheGameMcpMaterials.isAvailable = mcpMaterialsAvailable;
+	TheGameMcpMaterials.isRunning = mcpMaterialsRunning;
+	TheGameMcpMaterials.setEnabled = mcpMaterialsSetEnabled;
+	TheGameMcpMaterials.reload = mcpMaterialsReload;
+	TheGameMcpMaterials.setParameter = mcpMaterialsSetParameter;
+	TheGameMcpMaterials.getState = mcpMaterialsGetState;
+	TheGameMcpMaterials.collectTextures = mcpMaterialsCollectTextures;
 #endif
 
 
@@ -943,6 +1054,11 @@ void W3DDisplay::init()
 		init2DScene();
 		init3DScene();
 		W3DShaderManager::init();
+
+		TheW3DPostProcess = new W3DPostProcess;
+		TheW3DPostProcess->init();
+		TheW3DMaterials = new W3DMaterials;
+		TheW3DMaterials->init();
 
 		// Create and initialize the debug display
 		m_nativeDebugDisplay = NEW W3DDebugDisplay();
@@ -1156,7 +1272,7 @@ void W3DDisplay::gatherDebugStats()
 		Int LOD = TheGlobalData->m_terrainLOD;
 		//unibuffer.format( L"FPS: %.2f, %.2fms mapLOD=%d [cumu FPS=%.2f] draws: %.2f sort: %.2f", fps, ms, LOD, cumuFPS, drawsPerFrame,sortPolysPerFrame);
 		if (TheGlobalData->m_useFpsLimit)
-				unibuffer.format( L"%.2f/%d FPS, ", fps, TheFramePacer->getFramesPerSecondLimit());
+				unibuffer.format( L"%.2f/%d FPS, ", fps, TheFramePacer->getActualFramesPerSecondLimit());
 		else
 				unibuffer.format( L"%.2f FPS, ", fps);
 
@@ -1944,7 +2060,7 @@ AGAIN:
 	do {
 
 		// update all views of the world - recomputes data which will affect drawing
-		if (DX8Wrapper::_Get_D3D_Device8() && (DX8Wrapper::_Get_D3D_Device8()->TestCooperativeLevel()) == D3D_OK)
+		if (DX8Wrapper::Has_Device() && DX8Wrapper::Test_Cooperative_Level() == D3D_OK)
 		{	//Checking if we have the device before updating views because the heightmap crashes otherwise while
 			//trying to refresh the visible terrain geometry.
 //			if(TheGlobalData->m_loadScreenRender != TRUE)
@@ -1966,6 +2082,9 @@ AGAIN:
 			//before we enter main rendering loop.
 			if (TheW3DProjectedShadowManager)
 				TheW3DProjectedShadowManager->updateRenderTargetTextures();
+
+			if (TheW3DShadowMap)
+				TheW3DShadowMap->update(primaryW3DView->get3DCamera());
 		}
 
 		Debug_Statistics::End_Statistics();	//record number of polygons rendered in RenderTargetTextures.

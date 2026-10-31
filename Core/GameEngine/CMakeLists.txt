@@ -228,6 +228,7 @@ set(GAMEENGINE_SRC
     Include/GameClient/ShellHooks.h
     Include/GameClient/ShellMenuScheme.h
     Include/GameClient/Smudge.h
+    Include/GameClient/PostProcess.h
     Include/GameClient/Snow.h
     Include/GameClient/Statistics.h
     Include/GameClient/TerrainRoads.h
@@ -838,6 +839,7 @@ set(GAMEENGINE_SRC
     Source/GameClient/ParabolicEase.cpp
     Source/GameClient/RadiusDecal.cpp
     Source/GameClient/SelectionInfo.cpp
+    Source/GameClient/PostProcess.cpp
     Source/GameClient/Snow.cpp
     Source/GameClient/Statistics.cpp
     Source/GameClient/System/Anim2D.cpp
