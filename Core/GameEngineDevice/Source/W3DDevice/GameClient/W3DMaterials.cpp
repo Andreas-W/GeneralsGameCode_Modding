@@ -1058,9 +1058,13 @@ const W3DMaterials::Entry& W3DMaterials::lookupObject(Int material, TextureClass
 		return found->second;
 	Entry entry;
 	entry.material = material;
+	for (Int i = 0; i < 4; ++i)
+		entry.maps[i] = nullptr;
+#ifdef RTS_RENDERER_DX12
 	const AsciiString baseName(baseTextureName(baseTexture->Get_Texture_Name().str()).c_str());
 	for (Int i = 0; i < 4; ++i)
 		entry.maps[i] = findMap(baseName, m_builtMaterials[material].settings->m_maps[i]);
+#endif
 	return m_objectEntries[key] = entry;
 }
 

@@ -706,6 +706,7 @@ void DX8Wrapper::Release_Device()
 		** Release the device
 		*/
 
+#ifdef RTS_RENDERER_DX12
 		if (PostProcess) {
 			PostProcess->Release();
 			PostProcess=nullptr;
@@ -718,6 +719,7 @@ void DX8Wrapper::Release_Device()
 			Materials->Release();
 			Materials=nullptr;
 		}
+#endif
 		D3DDevice->Release();
 		D3DDevice=nullptr;
 	}
