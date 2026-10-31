@@ -1724,7 +1724,9 @@ void DX8TextureCategoryClass::Render()
 	}
 
 
-	const bool material_bound = TheMeshMaterialBinder != nullptr && TheMeshMaterialBinder->Begin(Peek_Texture(0));
+	// Depth-only passes (shadow maps) draw no colour, so they need no material.
+	MeshMaterialBinderClass *binder = WW3D::Is_Depth_Only_Pass() ? nullptr : TheMeshMaterialBinder;
+	const bool material_bound = binder != nullptr && binder->Begin(Peek_Texture(0));
 	TheMeshMaterialBound = material_bound ? MESH_MATERIAL_MESH : MESH_MATERIAL_NONE;
 	bool mesh_material_bound = material_bound;
 
@@ -1876,8 +1878,8 @@ void DX8TextureCategoryClass::Render()
 		if (!DX8RendererDebugger::Is_Enabled() || !mesh->Is_Disabled_By_Debugger()) {
 
 		const bool sorted = !!mesh->Peek_Model()->Get_Flag(MeshGeometryClass::SORT) && WW3D::Is_Sorting_Enabled();
-		if (TheMeshMaterialBinder != nullptr) {
-			const int bound = TheMeshMaterialBinder->Bind_Mesh(mesh, sorted);
+		if (binder != nullptr) {
+			const int bound = binder->Bind_Mesh(mesh, sorted);
 			if (bound >= 0) {
 				mesh_material_bound = bound != 0;
 				TheMeshMaterialBound = mesh_material_bound ? MESH_MATERIAL_MESH : MESH_MATERIAL_NONE;

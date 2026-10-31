@@ -425,24 +425,39 @@ void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int s
 		// Casters draw depth: the depth test may be off since a device reset (no shader turns it on).
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_ZENABLE, TRUE);
 		// The casters of the shadow volumes, also those just outside the view whose shadows reach into
-		// it. Objects outside the light camera are left out before they update their animation.
+		// it. Objects outside the light camera are left out before they update their animation. The main
+		// cascade notes those inside the detail camera, which then draws only them.
 		const FrustumClass &frustum = camera->Get_Frustum();
-		for (W3DVolumetricShadow *shadow = TheW3DVolumetricShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
+		const Bool collectDetail = cascade == 0 && m_detailFitted;
+		const FrustumClass *detailFrustum = collectDetail ? &m_detailCamera->Get_Frustum() : nullptr;
+		if (cascade == 0)
+			m_detailCasters.clear();
+		if (cascade == 0)
 		{
-			if (shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && shadow->m_robj != nullptr
-				&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
+			for (W3DVolumetricShadow *shadow = TheW3DVolumetricShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
 			{
-				shadow->m_robj->Render(rinfo);
-				if (cascade == 0)
+				if (shadow->m_isEnabled && !shadow->m_isInvisibleEnabled && shadow->m_robj != nullptr
+					&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
+				{
+					shadow->m_robj->Render(rinfo);
 					++m_casterCount;
+					if (collectDetail && CollisionMath::Overlap_Test(*detailFrustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
+						m_detailCasters.push_back(shadow->m_robj);
+				}
 			}
+		}
+		else
+		{
+			// The render objects are still alive: nothing runs the logic between the two cascades.
+			for (size_t i = 0; i < m_detailCasters.size(); ++i)
+				m_detailCasters[i]->Render(rinfo);
 		}
 		if (settings.m_terrain)
 			drawTerrain(frustum);
 		if (settings.m_trees)
 		{
 			// Trees are models with decal shadows, or drawn by the terrain's tree buffer.
-			if (TheW3DProjectedShadowManager != nullptr)
+			if (TheW3DProjectedShadowManager != nullptr && cascade == 0)
 			{
 				for (W3DProjectedShadow *shadow = TheW3DProjectedShadowManager->m_shadowList; shadow; shadow = shadow->m_next)
 				{
@@ -450,8 +465,9 @@ void W3DShadowMap::renderCascade(UnsignedInt cascade, CameraClass *camera, Int s
 						&& CollisionMath::Overlap_Test(frustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
 					{
 						shadow->m_robj->Render(rinfo);
-						if (cascade == 0)
-							++m_casterCount;
+						++m_casterCount;
+						if (collectDetail && CollisionMath::Overlap_Test(*detailFrustum, shadow->m_robj->Get_Bounding_Sphere()) != CollisionMath::OUTSIDE)
+							m_detailCasters.push_back(shadow->m_robj);
 					}
 				}
 			}

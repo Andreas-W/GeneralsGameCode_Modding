@@ -79,6 +79,7 @@ private:
 	CameraClass *m_lightCamera;
 	CameraClass *m_detailCamera;	///< the detail cascade, around the middle of the view
 	Bool m_detailFitted;		///< fitLightCamera placed the detail camera this frame
+	std::vector<RenderObjClass *> m_detailCasters;	///< casters the main cascade found inside the detail camera
 	Bool m_rendered;			///< the map was drawn for this frame
 	Int m_debug;
 	Int m_casterCount;
