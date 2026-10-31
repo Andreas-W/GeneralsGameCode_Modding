@@ -1453,6 +1453,8 @@ void WbView3d::invalObjectInView(MapObject *pMapObjIn)
 		}
 		Int health = 100;
 		health = pMapObj->getProperties()->getInt(TheKey_objectInitialHealth, &exists);
+		// The game leaves an object without this key at full health; don't draw it as rubble here.
+		if (!exists) health = 100;
 		Real ratio = health/100.0;
 		if (ratio > TheGlobalData->m_unitDamagedThresh)
 		{

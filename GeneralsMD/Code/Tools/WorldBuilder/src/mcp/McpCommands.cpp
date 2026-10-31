@@ -462,6 +462,7 @@ McpJson mcpDescribeObject(MapObject *obj)
 		j.set("waypoint_name", obj->getWaypointName().str());
 	} else if (obj->getFlags() & FLAG_ROAD_FLAGS) {
 		j.set("kind", "road_point");
+		j.set("end_cap", obj->getFlag(FLAG_ROAD_JOIN) ? true : false);
 	} else if (obj->getFlags() & FLAG_BRIDGE_FLAGS) {
 		j.set("kind", "bridge_point");
 	} else if (obj->isLight()) {

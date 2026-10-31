@@ -435,6 +435,7 @@ McpJson cmdRoute(const McpJson &args)
 			if (turn > PI) turn = 2 * PI - turn;
 			if (turn > PI / 3) flags[i] = FLAG_ROAD_CORNER_TIGHT;
 		}
+		if (mcpArgBool(args, "end_caps", false)) flags[i] |= FLAG_ROAD_JOIN;
 	}
 
 	double length = 0;
@@ -536,5 +537,5 @@ McpJson cmdRoute(const McpJson &args)
 
 void mcpRegisterRouteCommands()
 {
-	mcpRegisterCommand("roads.route", cmdRoute, "{type, from:[x,y], to:[x,y], via?:[[x,y]...], corners?:auto|curved|angled|tight, flatten?, flatten_width?, flatten_feather?, slope_weight?, max_grade?, avoid_cliffs?, avoid_water?, avoid_areas?, object_clearance?, straighten?, snap?} Routes a road over the terrain.");
+	mcpRegisterCommand("roads.route", cmdRoute, "{type, from:[x,y], to:[x,y], via?:[[x,y]...], corners?:auto|curved|angled|tight, flatten?, flatten_width?, flatten_feather?, slope_weight?, max_grade?, avoid_cliffs?, avoid_water?, avoid_areas?, object_clearance?, straighten?, snap?, end_caps?} Routes a road over the terrain.");
 }

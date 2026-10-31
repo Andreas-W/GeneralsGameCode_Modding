@@ -43,6 +43,10 @@ def main() -> int:
     trees = wb.call("objects.list_templates", editor_sorting="SHRUBBERY", limit=1)["templates"]
     if trees:
         wb.call("objects.place", template=trees[0]["name"], x=500, y=200)
+    assert wb.call("objects.get", id=barracks["id"])["properties"]["objectInitialHealth"] == 100
+    damaged = wb.call("objects.place", template=templates[0]["name"], x=420, y=300, properties={"objectInitialHealth": 40})
+    assert wb.call("objects.get", id=damaged["id"])["properties"]["objectInitialHealth"] == 40
+    wb.call("objects.delete", ids=[damaged["id"]])
     wb.call("objects.modify", ids=[barracks["id"]], dx=20, rotate_deg=45)
     moved = wb.call("objects.get", id=barracks["id"])
     assert abs(moved["x"] - 320) < 0.01 and abs(moved["angle_deg"] - 90) < 0.1, moved
@@ -60,6 +64,8 @@ def main() -> int:
     roads = wb.call("roads.list_types")["roads"]
     if roads:
         wb.call("roads.add", type=roads[0], points=[[50, 500], [300, 500], [400, 700]])
+        capped = wb.call("roads.add", type=roads[0], points=[[50, 800], [300, 800]], end_caps=True)
+        assert wb.call("objects.get", id=capped["point_ids"][0])["end_cap"] is True
 
     # Start positions: two players land on the diagonal, replacing the existing start; then undo.
     wp_before = len(wb.call("waypoints.list")["waypoints"])

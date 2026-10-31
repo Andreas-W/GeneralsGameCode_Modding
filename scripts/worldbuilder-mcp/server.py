@@ -1493,10 +1493,11 @@ def roads_list_types() -> dict:
 
 @mcp.tool()
 def roads_add(type: str, points: list[list[float]],
-              corners: Literal["curved", "angled", "tight"] = "curved") -> dict:
+              corners: Literal["curved", "angled", "tight"] = "curved", end_caps: bool = False) -> dict:
     """Adds a road along [x, y] world points (one segment per consecutive pair), or a bridge with
-    exactly 2 points."""
-    return wb.call("roads.add", type=type, points=points, corners=corners)
+    exactly 2 points. end_caps sets the "end cap" flag: the road's open ends fade out instead of
+    stopping with a hard edge."""
+    return wb.call("roads.add", type=type, points=points, corners=corners, end_caps=end_caps)
 
 
 @mcp.tool()
@@ -1505,7 +1506,7 @@ def roads_route(type: str, from_point: list[float], to_point: list[float], via: 
                 flatten_width: float = 50, flatten_feather: float = 40, slope_weight: float = 0.5,
                 max_grade: float = 10, avoid_cliffs: bool = True, avoid_water: bool = True,
                 avoid_areas: list[str] | None = None, object_clearance: float = 20, straighten: float = 1.25,
-                snap: float = 25) -> dict:
+                snap: float = 25, end_caps: bool = False) -> dict:
     """Routes a road from from_point to to_point ([x, y] world units), optionally through via points,
     finding its own way over the terrain: it goes around cliffs, water, structures (plus
     object_clearance) and avoid_areas, prefers gentle slopes (slope_weight) and never climbs steps
@@ -1513,13 +1514,14 @@ def roads_route(type: str, from_point: list[float], to_point: list[float], via: 
     = how much costlier a straight shortcut may be, 0 keeps every grid step) and built like roads_add.
     corners="auto" uses tight corners only at sharp bends. flatten levels the ground under the road
     to a smoothed profile (flatten_width plus a flatten_feather falloff on each side). Ends within
-    `snap` of an existing road point join that road. Fails with a hint when no route exists; water
-    needs a bridge (roads_add with a bridge type). Road, terrain and all are one undo step."""
+    `snap` of an existing road point join that road. end_caps fades out the road's open ends. Fails
+    with a hint when no route exists; water needs a bridge (roads_add with a bridge type). Road,
+    terrain and all are one undo step."""
     return wb.call("roads.route", type=type, to=to_point, via=via, corners=corners, flatten=flatten,
                    flatten_width=flatten_width, flatten_feather=flatten_feather, slope_weight=slope_weight,
                    max_grade=max_grade, avoid_cliffs=avoid_cliffs, avoid_water=avoid_water,
                    avoid_areas=avoid_areas, object_clearance=object_clearance, straighten=straighten,
-                   snap=snap, **{"from": from_point})
+                   snap=snap, end_caps=end_caps, **{"from": from_point})
 
 
 # --------------------------------------------------------------------------------------------------

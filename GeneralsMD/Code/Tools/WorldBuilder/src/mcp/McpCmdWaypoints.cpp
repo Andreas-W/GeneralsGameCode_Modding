@@ -340,6 +340,7 @@ McpJson cmdAddRoad(const McpJson &args)
 	if (corner == "angled") cornerFlag = FLAG_ROAD_CORNER_ANGLED;
 	else if (corner == "tight") cornerFlag = FLAG_ROAD_CORNER_TIGHT;
 	else if (corner != "curved") mcpFail("corners must be curved, angled or tight");
+	if (!isBridge && mcpArgBool(args, "end_caps", false)) cornerFlag |= FLAG_ROAD_JOIN;
 
 	std::vector<Coord2D> pts;
 	for (size_t i = 0; i < points.size(); i++) {
@@ -408,5 +409,5 @@ void mcpRegisterWaypointCommands()
 	mcpRegisterCommand("polygons.add", cmdAddPolygon, "{points:[[x,y]...],kind:area|water|river,name?,water_height?,river_start?} Adds a polygon.");
 	mcpRegisterCommand("polygons.delete", cmdDeletePolygon, "{id} Deletes a polygon.");
 	mcpRegisterCommand("roads.list_types", cmdListRoadTypes, "Road and bridge types.");
-	mcpRegisterCommand("roads.add", cmdAddRoad, "{type,points:[[x,y]...],corners?:curved|angled|tight} Adds a road polyline or a 2-point bridge.");
+	mcpRegisterCommand("roads.add", cmdAddRoad, "{type,points:[[x,y]...],corners?:curved|angled|tight,end_caps?} Adds a road polyline or a 2-point bridge. end_caps fades out the road's open ends.");
 }

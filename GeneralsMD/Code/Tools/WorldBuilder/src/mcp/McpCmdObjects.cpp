@@ -271,16 +271,22 @@ McpJson cmdPlaceObject(const McpJson &args)
 	Real angle = args.has("angle_deg") ? (Real)(mcpArgNumber(args, "angle_deg") * PI / 180.0) : tt->getPlacementViewAngle();
 	AsciiString owner = resolveOwner(mcpArgString(args, "owner", ""));
 
-	Dict props;
+	// No props for the constructor: only then does it set the defaults (health 100, enabled, powered ...).
+	MapObject *obj = newInstance(MapObject)(loc, tt->getName(), angle, 0, nullptr, tt);
+	Dict *props = obj->getProperties();
 	if (args.has("properties")) {
-		mcpJsonToDict(args.get("properties"), props);
+		try {
+			mcpJsonToDict(args.get("properties"), *props);
+		} catch (const McpError &) {
+			deleteInstance(obj);
+			throw;
+		}
 	}
-	props.setAsciiString(TheKey_originalOwner, owner);
+	props->setAsciiString(TheKey_originalOwner, owner);
 	if (args.has("name")) {
-		props.setAsciiString(TheKey_objectName, AsciiString(mcpArgString(args, "name").c_str()));
+		props->setAsciiString(TheKey_objectName, AsciiString(mcpArgString(args, "name").c_str()));
 	}
 
-	MapObject *obj = newInstance(MapObject)(loc, tt->getName(), angle, 0, &props, tt);
 	PointerTool::clearSelection();
 	mcpCommit(new AddObjectUndoable(doc, obj));
 	return mcpDescribeObject(obj);
