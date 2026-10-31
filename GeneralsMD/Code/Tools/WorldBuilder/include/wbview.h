@@ -114,6 +114,13 @@ public:
 	/// so objects, roads, lights and scorches don't need to be refitted to the terrain.
 	virtual void updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects = true) { }
 
+	/// Update the height map during a height stroke: only the terrain and objects inside the range.
+	/// Everything else that follows the ground waits for finishHeightStrokeInView.
+	virtual void updateHeightStrokeInView(WorldHeightMap *htMap, const IRegion2D &partialRange) { Invalidate(); }
+
+	/// The height stroke ended; refit what updateHeightStrokeInView left out.
+	virtual void finishHeightStrokeInView() { }
+
 	/// the doc has changed size; readjust view as necessary.
 	virtual void adjustDocSize() { }
 

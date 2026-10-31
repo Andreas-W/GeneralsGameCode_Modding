@@ -138,6 +138,19 @@ void Tool::getCenterIndex(Coord3D *docLocP, Int brushWidth, CPoint *center, CWor
 	}
 }
 
+IRegion2D Tool::calcHeightEditRange(Int minX, Int maxX, Int minY, Int maxY)
+{
+	// A vertex's normal uses its direct neighbors and a cell draws the vertices at both its ends,
+	// so cells up to two away from a changed vertex look different.
+	const Int NORMAL_MARGIN = 2;
+	IRegion2D range;
+	range.lo.x = minX - NORMAL_MARGIN;
+	range.hi.x = maxX + NORMAL_MARGIN;
+	range.lo.y = minY - NORMAL_MARGIN;
+	range.hi.y = maxY + NORMAL_MARGIN;
+	return range;
+}
+
 void Tool::getAllIndexesIn(const Coord3D *bl, const Coord3D *br,
 													 const Coord3D *tl, const Coord3D *tr,
 													 Int widthOutside, CWorldBuilderDoc *pDoc,

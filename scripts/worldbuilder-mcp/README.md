@@ -160,8 +160,9 @@ CMake option `RTS_BUILD_OPTION_GAME_MCP` (default ON) and listens only when the 
 
 ## Starting the game
 
-`game_launch` starts `generalszh.exe` from `GAME_DIR` (default `F:\Operation-Firestorm-2.0`; set
-`GAME_EXE` for another executable name) and waits until the map has loaded. By hand:
+`game_launch` starts `generalszh.exe` from the mod folder in the `GAME_DIR` environment variable (set
+it per user in the git-ignored `.claude/settings.local.json`, under `env`; set `GAME_EXE` for another
+executable name) and waits until the map has loaded. By hand:
 
 ```
 generalszh.exe -mcp -mcpGame "armed neighbors" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts

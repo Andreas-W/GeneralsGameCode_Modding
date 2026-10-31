@@ -189,6 +189,8 @@ private:
 	Vector3									m_cameraTarget;							// for camera tool display only
 	Int											m_time;
 	Int											m_updateCount;
+	Bool										m_heightStrokePending;			///< Terrain changed in a stroke; roads, lights etc. not yet refitted.
+	IRegion2D								m_heightStrokeRange;				///< Heightmap index range the pending stroke changed.
 	UINT										m_timer;
 	DrawObject							*m_drawObject;
 	RefRenderObjListClass		m_lightList;
@@ -251,12 +253,15 @@ protected:
 	void updateLights();
 	void updateScorches();
 	void updateTrees();
+	void refitObjectsInRange(WorldHeightMap *htMap, const IRegion2D &partialRange);
 
 public:
 	virtual Bool viewToDocCoords(CPoint curPt, Coord3D *newPt, Bool constrain=true) override;
 	virtual Bool docToViewCoords(Coord3D curPt, CPoint* newPt) override;
 
 	virtual void updateHeightMapInView(WorldHeightMap *htMap, Bool partial, const IRegion2D &partialRange, Bool invalObjects = true) override;
+	virtual void updateHeightStrokeInView(WorldHeightMap *htMap, const IRegion2D &partialRange) override;
+	virtual void finishHeightStrokeInView() override;
 
 	/// Invalidates an object. Pass null to inval all objects.
 	virtual void invalObjectInView(MapObject *pObj) override;

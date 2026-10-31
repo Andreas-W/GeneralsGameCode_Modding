@@ -51,7 +51,7 @@ Look for:
 | Removed / renamed fields | `^-` lines in `FieldParse` tables, `DEBUG_CRASH`/"no longer supported" messages |
 | Behavior fixes | fork commits named "fix ..." and upstream `bugfix(...)` that change in-game behavior modders would notice |
 
-Read code **at the target commit** (`git show <target>:<path>`), not the working tree: the checkout can be ahead of or behind the target, and fields from later commits must not leak into this sync. Read the surrounding code for every hit so you can document type, default and semantics correctly. For real usage examples, the mod's INIs are at `F:\Operation-Firestorm-2.0\Data\INI` (read-only).
+Read code **at the target commit** (`git show <target>:<path>`), not the working tree: the checkout can be ahead of or behind the target, and fields from later commits must not leak into this sync. Read the surrounding code for every hit so you can document type, default and semantics correctly. For real usage examples, the mod's INIs are at `$GAME_DIR\Data\INI` (read-only).
 
 ## 3. Map to wiki pages (in `$WIKI`)
 

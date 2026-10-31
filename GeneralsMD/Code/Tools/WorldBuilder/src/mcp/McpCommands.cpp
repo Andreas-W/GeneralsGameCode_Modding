@@ -142,6 +142,7 @@ void registerAllCommands()
 	mcpRegisterScriptToolCommands();
 	mcpRegisterScriptViewCommands();
 	mcpRegisterFactionCommands();
+	mcpRegisterPerfCommands();
 }
 
 std::string makeErrorReply(const McpJson &id, const std::string &message)

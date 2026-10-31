@@ -1408,6 +1408,29 @@ void CWorldBuilderDoc::updateHeightMap(WorldHeightMap *htMap, Bool partial, cons
 	}
 }
 
+void CWorldBuilderDoc::updateHeightStroke(WorldHeightMap *htMap, const IRegion2D &partialRange)
+{
+	POSITION pos = GetFirstViewPosition();
+	while (pos != nullptr)
+	{
+		WbView* pWView = (WbView *)GetNextView(pos);
+		ASSERT_VALID(pWView);
+		pWView->updateHeightStrokeInView(htMap, partialRange);
+	}
+}
+
+void CWorldBuilderDoc::finishHeightStroke()
+{
+	POSITION pos = GetFirstViewPosition();
+	while (pos != nullptr)
+	{
+		WbView* pWView = (WbView *)GetNextView(pos);
+		ASSERT_VALID(pWView);
+		pWView->finishHeightStrokeInView();
+		pWView->Invalidate(false);
+	}
+}
+
 BOOL CWorldBuilderDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
 #ifdef ONLY_ONE_AT_A_TIME

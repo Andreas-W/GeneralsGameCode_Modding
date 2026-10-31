@@ -46,6 +46,9 @@ public:
 	static void setFeather(Int feather);
 	static void setRate(Int rate);
 	static void setRadius(Int Radius);
+	static Int getFeather() {return m_feather;};
+	static Int getRate() {return m_rate;};
+	static Int getRadius() {return m_radius;};
 public:
 	virtual void mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) override;
 	virtual void mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) override;

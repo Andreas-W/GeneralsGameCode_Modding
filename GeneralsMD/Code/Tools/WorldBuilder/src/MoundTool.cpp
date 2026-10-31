@@ -125,6 +125,7 @@ void MoundTool::mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBui
 	REF_PTR_RELEASE(pUndo); // belongs to pDoc now.
 	REF_PTR_RELEASE(m_htMapEditCopy);
 	REF_PTR_RELEASE(m_htMapSaveCopy);
+	pDoc->finishHeightStroke();
 }
 
 void MoundTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc)
@@ -184,7 +185,6 @@ void MoundTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorld
 			if (newHeight > m_htMapSaveCopy->getMaxHeightValue()) newHeight = m_htMapSaveCopy->getMaxHeightValue();
 
 			m_htMapEditCopy->setHeight(i, j, newHeight);
-			pDoc->invalCell(i, j);
 #else
 			// Previous integer calculated mounding and blending.
 			// If not re-enabled by Dec 2001, delete as obsolete.
@@ -228,12 +228,7 @@ void MoundTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorld
 		}
 	}
 
-	IRegion2D partialRange;
-	partialRange.lo.x = ndx.x - brushWidth;
-	partialRange.hi.x = ndx.x + brushWidth;
-	partialRange.lo.y = ndx.y - brushWidth;
-	partialRange.hi.y = ndx.y + brushWidth;
-	pDoc->updateHeightMap(m_htMapEditCopy, true, partialRange);
+	pDoc->updateHeightStroke(m_htMapEditCopy, calcHeightEditRange(ndx.x-sub, ndx.x+add, ndx.y-sub, ndx.y+add));
 }
 
 /*************************************************************************

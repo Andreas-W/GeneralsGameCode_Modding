@@ -19,7 +19,7 @@ from wb_bridge import WorldBuilderBridge, WorldBuilderError
 
 GAME_PORT = 47801
 GAME_EXE = os.environ.get("GAME_EXE", "generalszh.exe")
-GAME_DIR = os.environ.get("GAME_DIR", r"F:\Operation-Firestorm-2.0")
+GAME_DIR = os.environ.get("GAME_DIR", "")
 FRAMES_PER_SECOND = 30
 
 INSTRUCTIONS = """\
@@ -118,11 +118,13 @@ def game_launch(map: str, faction: str = "FactionAmerica", opponents: list[str] 
     - seed fixes start positions and randomness; cash is the starting money.
     - headless: no window, only the game logic (no screenshots, camera or sound).
     - start_paused: pause at the first frame, before anything has happened.
-    The game runs from GAME_DIR (default F:\\Operation-Firestorm-2.0). Waits until the map has
+    The game runs from the mod folder in the GAME_DIR environment variable. Waits until the map has
     loaded and returns game_status. Fails if a game with the bridge is already running (game_quit)."""
     global _process
     if _reachable():
         raise ToolError("a game is already running with the bridge; game_quit it first")
+    if not GAME_DIR:
+        raise ToolError('GAME_DIR is not set; add {"env": {"GAME_DIR": "<mod folder>"}} to .claude/settings.local.json and restart Claude')
     exe = os.path.join(GAME_DIR, GAME_EXE)
     if not os.path.exists(exe):
         raise ToolError(f"{exe} not found (set GAME_DIR / GAME_EXE)")

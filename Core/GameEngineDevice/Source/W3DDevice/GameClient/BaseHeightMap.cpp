@@ -1765,18 +1765,20 @@ void BaseHeightMapRenderObjClass::updateShorelineTiles(Int minX, Int minY, Int m
 	}
 
 	//First remove any existing extra blend tiles within this partial region
+	//Compact in one pass: maps with a lot of shallow water have many thousands of these tiles.
 	Int j=0;
+	Int numKept=0;
 	for (; j<m_numShoreLineTiles; j++)
 	{	Int x = m_shoreLineTilePositions[j].m_xy & 0xffff;
 		Int y = m_shoreLineTilePositions[j].m_xy >> 16;
 		if (x >= minX && x < maxX &&
 			y >= minY && y < maxY)
-		{	//this tile is inside region being updated so remove it by shifting tile array
-			memcpy(m_shoreLineTilePositions+j,m_shoreLineTilePositions+j+1,(m_numShoreLineTiles-1-j)*sizeof(shoreLineTileInfo));
-			m_numShoreLineTiles--;
-			j--;	//look at current tile again since it was removed.
-		}
+			continue;	//this tile is inside region being updated so remove it
+		if (numKept != j)
+			m_shoreLineTilePositions[numKept]=m_shoreLineTilePositions[j];
+		numKept++;
 	}
+	m_numShoreLineTiles=numKept;
 
 	if (TheWaterTransparency->m_transparentWaterDepth == 0 || !TheGlobalData->m_showSoftWaterEdge)
 		return;

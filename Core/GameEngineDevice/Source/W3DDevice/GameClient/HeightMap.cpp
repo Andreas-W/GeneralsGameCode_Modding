@@ -921,18 +921,17 @@ void HeightMapRenderObjClass::doPartialUpdate(const IRegion2D &partialRange, Wor
 	//over the same tile and require an extra render pass.
 
 	Int i, j;
-	//First remove any existing extra blend tiles within this partial region
+	//First remove any existing extra blend tiles within this partial region, compacting in one pass
+	Int numKept = 0;
 	for (j=0; j<m_numExtraBlendTiles; j++)
 	{	Int x = m_extraBlendTilePositions[j] & 0xffff;
 		Int y = m_extraBlendTilePositions[j] >> 16;
 		if (x >= partialRange.lo.x && x < partialRange.hi.x &&
 			y >= partialRange.lo.y && y < partialRange.hi.y)
-		{	//this tile is inside region being updated so remove it by shifting tile array
-			memcpy(m_extraBlendTilePositions+j,m_extraBlendTilePositions+j+1,(m_numExtraBlendTiles-1-j)*sizeof(Int));
-			m_numExtraBlendTiles--;
-			j--;	//need to look at index j again because this tile was removed
-		}
+			continue;	//this tile is inside region being updated so remove it
+		m_extraBlendTilePositions[numKept++] = m_extraBlendTilePositions[j];
 	}
+	m_numExtraBlendTiles = numKept;
 
 	for (j=partialRange.lo.y; j<partialRange.hi.y; j++)
 		for (i=partialRange.lo.x; i<partialRange.hi.x; i++)
