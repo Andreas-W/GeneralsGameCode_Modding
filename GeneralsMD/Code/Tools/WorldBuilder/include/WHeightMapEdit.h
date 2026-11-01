@@ -24,6 +24,8 @@
 
 #include "W3DDevice/GameClient/WorldHeightMap.h"
 
+#include <set>
+
 class DataChunkOutput;
 class TerrainType;
 
@@ -91,6 +93,10 @@ protected:
 	Int allocateTiles(Int textureClass);
 	Int allocateEdgeTiles(Int textureClass);
 	void blendToThisClass(Int xIndex, Int yIndex, Int textureClass, Int edgeClass);
+	void blendCellToClass(Int xIndex, Int yIndex, Int textureClass, Int sides, Int edgeClass, const Int *baseClasses);
+	Int getBlendLayerClass(Int blendNdx);
+	void addCornerBlend(Int xIndex, Int yIndex, Int textureClass, Int blendKind);
+	void blendCellFromCorners(Int xIndex, Int yIndex, Int *corners);
 	void blendSpecificTiles(Int xIndex, Int yIndex, Int srcXIndex, Int srcYIndex,
 									Int curTileNdx, Int blendTileNdx, Bool longDiagonal, Int edgeClass);
 	Int findOrCreateBlendTile(TBlendTileInfo *pBlendInfo);
@@ -145,6 +151,18 @@ public: // Editing methods.
 	void copyTransformedFrom(WorldHeightMapEdit *src, const HeightMapTransform &xf, Bool heights, Bool textures, Bool passability);
 	/// Removes both blend layers from the cells in the inclusive index range.
 	void clearBlends(Int x0, Int y0, Int x1, Int y1);
+	/// Blends every edge of the given texture classes into the neighbouring cells of the inclusive
+	/// index range. Unlike autoBlendOut it decides from the base textures only, so the result does
+	/// not depend on the order and thin regions are blended like wide ones.
+	void blendAllEdges(const std::set<Int> &classes, Int globalEdgeClass, Int x0, Int y0, Int x1, Int y1);
+	/// Removes the blends in the inclusive index range and blends again, treating each cell's
+	/// texture as the texture at its lower left corner. Every boundary gets one blend, so edges
+	/// that step diagonally come out smooth. Textures do not move except where three or four meet.
+	void blendCorners(Int x0, Int y0, Int x1, Int y1);
+	/// Counts the blended cells, the cells with a second blend layer, and the edges between
+	/// different textures that neither side blends across.
+	void getBlendStats(Int x0, Int y0, Int x1, Int y1, Int *pBlended, Int *pThreeWay, Int *pHardEdges);
+	Int getNumBlendTilesUsed() {return m_numBlendedTiles;}
 	static Int getNumTexClasses() {return m_numGlobalTextureClasses;};
 	static AsciiString getTexClassName(int ndx) {return m_globalTextureClasses[ndx].name;}
 	static AsciiString getTexClassUiName(int ndx) ;

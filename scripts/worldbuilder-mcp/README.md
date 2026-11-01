@@ -137,7 +137,8 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - `terrain_generate` builds heights from layered, seeded Perlin noise. It can protect spots such as base locations.
   - `terrain_limit_slope` turns spikes into walkable slopes.
   - `terrain_auto_texture` textures cells as ground, cliff or water, scatters noise overlays and blends the edges.
-  - `terrain_blend_all` and `terrain_remove_blends` are bulk blending helpers.
+  - `terrain_reblend` removes all blends and blends all textures again from the cell corners, as the Genesis map tools do: the usual last step after painting, with smooth diagonals. `terrain_blend_all` blends chosen textures outward and keeps existing blends, and `terrain_remove_blends` only removes them.
+  - `terrain_blend_report` counts blended cells, 3-way tiles (cells with a second blend layer, drawn in an extra pass) and hard edges that neither side blends across.
   - Layouts and sceneries are JSON presets in `presets/` (`terrain_list_presets`), taken from Genesis. See `NOTICE`.
 - **Terrain images.** Heightmap and mask PNGs have north at the top.
   - Heightmaps have one pixel per heightmap vertex, and the pixel value is the raw height. 16-bit images are accepted on import.

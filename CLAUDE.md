@@ -130,7 +130,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/server.py  <-- TCP 127.0.0.1:478
 
 ### Map editing
 
-- **Terrain**: `terrain_generate` (presets), `terrain_brush`, `terrain_set_heights` / `terrain_import_heightmap`, `terrain_limit_slope`, `terrain_set_passability`; textures with `terrain_paint_texture`, `terrain_auto_texture`, `terrain_auto_blend`.
+- **Terrain**: `terrain_generate` (presets), `terrain_brush`, `terrain_set_heights` / `terrain_import_heightmap`, `terrain_limit_slope`, `terrain_set_passability`; textures with `terrain_paint_texture`, `terrain_auto_texture`, `terrain_auto_blend`; finish painting with `terrain_reblend`, and `terrain_blend_report` counts 3-way tiles and hard edges.
 - **Whole-map operations**: `map_resize`, `map_transform`, `map_symmetrize` (mirror or rotate one part onto the rest), `map_replace`.
 - **Objects**: `objects_place` / `objects_place_many` / `objects_scatter`, `objects_modify`, `objects_set_properties`. Owners are team names from `sides_list` (`team` is neutral).
 - **Waypoints, areas, water, roads**: `waypoints_add` / `waypoints_link`, `polygons_add`, `roads_add`, `roads_route` (road that follows the terrain).

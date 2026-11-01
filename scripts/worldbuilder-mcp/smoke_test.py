@@ -188,6 +188,17 @@ def main() -> int:
     wb.call("terrain.blend_all")
     wb.call("terrain.remove_blends")
     steps += 2
+    assert wb.call("terrain.blend_report")["cells_blended"] == 0, "remove_blends left blends"
+    reblend = wb.call("terrain.reblend")
+    steps += 1
+    assert reblend["cells_blended"] > 0, reblend
+    report = wb.call("terrain.blend_report")
+    assert report["hard_edges"] == reblend["hard_edges"], report
+    assert report["blend_table_used"] <= report["blend_table_size"], report
+    # Blending again must not add blends without limit, even where textures meet and base textures change.
+    again = wb.call("terrain.reblend")
+    steps += 1
+    assert abs(again["cells_blended"] - reblend["cells_blended"]) <= reblend["cells_blended"] / 10, (again, reblend)
     wb.call("edit.undo", count=steps)
     assert wb.call("terrain.sample", x=300, y=300)["height_raw"] == 60, "undo did not restore the terrain"
 
