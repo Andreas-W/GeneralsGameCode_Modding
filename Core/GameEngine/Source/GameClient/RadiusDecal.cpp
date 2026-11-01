@@ -66,6 +66,10 @@ void RadiusDecalTemplate::createRadiusDecal(const Coord3D& pos, Real radius, con
 	// it is now considered nonEmpty, regardless of the state of m_decal, etc
 	result.m_empty = false;
 
+	// no shadow manager exists without a renderer (e.g. headless)
+	if (TheProjectedShadowManager == nullptr)
+		return;
+
 	if (!m_onlyVisibleToOwningPlayer ||
 			owningPlayer->getPlayerIndex() == ThePlayerList->getLocalPlayer()->getPlayerIndex())
 	{
