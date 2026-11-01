@@ -1,6 +1,16 @@
 # Town generators
 
-Generates towns on a scratch map from style packs measured on reference maps. The goal: place a town of a chosen style on a new map, with any shape and size. These are scripts so far, not MCP tools.
+Generates towns from style packs measured on reference maps: place a town of a chosen style on any map, with any shape and size. The `town_generate` MCP tool does it on the map open in WorldBuilder; the scripts below it also build samples on flat scratch maps.
+
+## The tool
+
+`town_generate(polygon, style, preset, seed, jitter, theta, irregularity, theme, lots, outline, flatten, max_slope, reblend, clear_nature, dry_run)` (`town_tool.py`, its options are documented in `server.py`):
+
+1. Reads heights, cliffs, water, objects and roads from the open map. Those, and ground steeper than `max_slope`, are blocked for streets and buildings (`town_site.py`).
+2. Runs the generator for the style with that site. On real maps a block grid tries 90 positions, and other angles unless `theta` is given, and keeps the one with the most blocks.
+3. Unless `dry_run`: smooths the ground under streets, levels a pad under each building, paints, places, adds roads, reblends the area. Water and cliffs stay as they are.
+
+It does not touch what lies outside the plan, and saves nothing. It takes more steps than `edit_undo` holds, so the way back is reopening the map. With `dry_run=true`, look at `preview.png` in the plan folder first. `town_tool_test.py` tries it on a map through the second WorldBuilder.
 
 ## Setup
 
@@ -30,7 +40,7 @@ The second WorldBuilder leaves the one Claude and the user work in alone, and sc
 - `theme`: building mix from `packs/building_themes.json` (`highrise`, `asian`, `american`, `eastern`, `arabic`). Only `arabic` is counted from maps; the others are picked by name family.
 - `lots=dock:1,site:2,hospital:1,repair:1,derrick:1,pad:1,radar:1,refinery:1`: see `town_lots.py`.
 - `apply_plan.py plans/<folder> <map name> [x,y,zoom ...]` builds a plan, runs `terrain.reblend`, saves and takes pictures into the plan folder.
-- Sites are hardcoded polygons on a flat scratch map (`POLY` in each generator).
+- Without `site=` the generators build the samples on a flat scratch map (their default polygon). With no site, the same seed must keep giving the same town: compare plans after changing a generator.
 
 ## Measuring references
 
@@ -102,7 +112,9 @@ Shared: Mogadishu buildings, 1-6° off the street's direction, median street gap
 
 ## Open
 
-- **Nothing has been tested in game or on slopes.** Truck access to docks and piles is unchecked. This is the first thing to do after making tools.
+- **Nothing has been tested in game.** Truck access to docks and piles is unchecked; this is the next thing to do. When tried, `generalszh.exe` quit at once with exit code 1 and no new debug log, on any map, also started by hand, so it is not about town maps. Cause not found; the single-instance mutex was held while a WorldBuilder ran, but this build may allow several instances (an `_Instance02` log exists).
+- Slopes: only tried through `town_generate` on Alpenstadt, Bear Town Beatdown, Tournament Desert and Desert Coast, in WorldBuilder.
+- **Block towns need open ground.** Existing objects and roads cut the grid: on Tournament Desert and Desert Coast (25-31% blocked) they came out with one or two blocks, even after trying 90 grid positions. Irregular towns fit in better. Streets do not connect to roads already on the map: they stop before them.
 - Short grey stubs (about 40 units) can appear on open ground, far from any road point, on `TownAlpineLots`. Removing any of five unrelated sidewalk runs cleared one, two others did not, so it looks like a road buffer rendering quirk. Not understood; rings with `angled` corners have shown none so far.
 - Arabic street shape is close but not matched: junctions 3.2 per 1000 street (measured 0.5-2.4), bends 3.3 (measured 5-7). Density is set by hand. El Scorcho's scattered towns are not reproduced.
 - Stair-stepped masks at 45° were a blending problem, fixed by `terrain_reblend`; check again after any change to the masks.
@@ -111,7 +123,7 @@ Shared: Mogadishu buildings, 1-6° off the street's direction, median street gap
 
 ## Next (proposed, the user chooses)
 
-1. Make these MCP tools: a site polygon instead of hardcoded ones, real terrain.
-2. Test a town on real terrain, in game.
-3. Other map aspects from references: cliffs, rivers, outposts (outposts are closest to lots).
+1. Get the game starting again, then test a town in game: `AlpenstadtTownTest` in the user maps has a dock, a construction site and a derrick.
+2. Outposts. The user wants all kinds, as variants: military (guard towers, sandbags, fences, bunkers, like a checkpoint), civilian (a few scattered buildings such as a farm, gas station or depot) and gameplay (a defended Tech building or supply spot between bases). Needs reference maps from the user. Close to lots.
+3. Other map aspects from references: cliffs, rivers.
 4. More town styles; each should be mostly a new pack.

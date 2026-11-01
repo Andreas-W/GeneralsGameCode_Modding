@@ -6,6 +6,9 @@ requires-python = ">=3.10"
 dependencies = [
     "mcp>=2.2,<3",
     "pyyaml>=6",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pillow>=10",
 ]
 
 [tool.uv]

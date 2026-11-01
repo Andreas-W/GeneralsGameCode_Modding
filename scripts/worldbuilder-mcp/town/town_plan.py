@@ -4,17 +4,25 @@ import numpy as np
 import scipy.ndimage as nd
 from PIL import Image, ImageDraw
 import town_lots
+from town_site import Site
 from town_paths import PACKS  # enters the work folder
 pack = json.load(open(f"{PACKS}/alpine_assault.json"))
 geo = json.load(open("gamedata/geo.json"))
 SEED = int(sys.argv[1]) if len(sys.argv) > 1 else 7
 rng = np.random.default_rng(SEED)
 # --- the site: an L shape, about three times the reference town, at another angle ---
-POLY = [(500, 500), (1500, 500), (1500, 1000), (1000, 1000), (1000, 1500), (500, 1500)]
+OPT = dict(a.split("=", 1) for a in sys.argv[2:] if "=" in a)
+OUT = "plans/" + OPT.get("out", "plan")
+SITE = Site(OPT.get("site"), [(500, 500), (1500, 500), (1500, 1000), (1000, 1000), (1000, 1500), (500, 1500)])
+POLY = SITE.poly
 ENTRIES = [(1700, 760), (760, 1700)]
 THETA = math.radians(20)
 GRID = (225, 180)        # block size along and across: the reference's blocks
-B, GN = 30, 300
+B, GN = SITE.B, SITE.GN
+if SITE.live:
+    # two roads out of town, along the grid
+    ca, sa = SITE.center_of_poly()
+    ENTRIES = [SITE.clamp((ca + d * math.cos(THETA) * SITE.exit_radius * 1.2, sa + d * math.sin(THETA) * SITE.exit_radius * 1.2)) for d in (1, -1)]
 ROAD_HW = pack["streets"]["width"] / 2
 def inpoly(x, y, poly=POLY):
     c = False
@@ -24,20 +32,25 @@ def inpoly(x, y, poly=POLY):
     return c
 # --- street network: a jittered grid at the site's angle, some streets dropped, one long diagonal through it for wedge blocks ---
 cx, cy = np.mean([p[0] for p in POLY]), np.mean([p[1] for p in POLY])
-c, s = math.cos(THETA), math.sin(THETA)
-nodes = {}
-for i in range(-8, 9):
-    for j in range(-8, 9):
-        u, v = i * GRID[0] + rng.uniform(-30, 30), j * GRID[1] + rng.uniform(-24, 24)
-        x, y = cx + u * c - v * s, cy + u * s + v * c
-        if inpoly(x, y):
-            nodes[(i, j)] = (x, y)
-edges = set()
-for (i, j) in nodes:
-    for d in ((1, 0), (0, 1)):
-        k = (i + d[0], j + d[1])
-        if k in nodes:
-            edges.add(((i, j), k))
+def build_grid(angle, ou, ov):
+    c, s = math.cos(angle), math.sin(angle)
+    nodes = {}
+    for i in range(-8, 9):
+        for j in range(-8, 9):
+            u, v = ou + i * GRID[0] + rng.uniform(-30, 30), ov + j * GRID[1] + rng.uniform(-24, 24)
+            x, y = cx + u * c - v * s, cy + u * s + v * c
+            if inpoly(x, y):
+                nodes[(i, j)] = (x, y)
+    edges = set()
+    for (i, j) in nodes:
+        for d in ((1, 0), (0, 1)):
+            k = (i + d[0], j + d[1])
+            if k in nodes:
+                edges.add(((i, j), k))
+    return edges, nodes
+edges, nodes = SITE.best_grid(build_grid, rng, THETA, GRID, True)
+if not edges:
+    raise SystemExit("no street fits: this area is too small or too blocked for this grid")
 def connected(es):
     adj = collections.defaultdict(set)
     for a, b in es:
@@ -76,6 +89,9 @@ ENT = []
 entry_nodes = set()
 for ex, ey in ENTRIES:
     n = min(nodes, key=lambda k: math.dist(nodes[k], (ex, ey)))
+    ex, ey = SITE.clip(nodes[n], (ex, ey))
+    if math.dist(nodes[n], (ex, ey)) < 40:
+        continue
     entry_nodes.add(n)
     ENT.append((nodes[n], (ex, ey)))
 while True:
@@ -125,6 +141,7 @@ print("nodes", len(nodes), "streets", len(SEG), "length", round(street_len), "di
 OS = 4.0
 ON = int(GN * 10 / OS)
 occ = np.zeros((ON, ON), bool)
+SITE.stamp(occ, OS)
 def oc(x, y):
     return int((x + B * 10) / OS), int((y + B * 10) / OS)
 def rect(x, y, a, b, deg, m):
@@ -455,20 +472,20 @@ outline = out_town | out_land
 OUTLINE = {"ConcreteType1": out_town & (n_m <= 0.7), "ConcreteType4": out_town & (n_m > 0.7),
            "DirtMediumType12": (out_land & (n_m <= 0.5)) | lotdirt, "DirtMediumType5": out_land & (n_m > 0.5)}   # what SwissMP paints along its country roads
 gr &= ~outline & ~lotdirt
-os.makedirs("plans/plan", exist_ok=True)
+os.makedirs(OUT, exist_ok=True)
 for n_, m_ in OUTLINE.items():
     m_ = m_ & ~cob
-    Image.fromarray((m_[:-1, :-1][::-1] * 255).astype(np.uint8)).save(f"plans/plan/{n_}.png")
+    Image.fromarray((SITE.crop(m_) * 255).astype(np.uint8)).save(f"{OUT}/{n_}.png")
     print("outline", n_, int(m_.sum()))
-Image.fromarray((cob[:-1, :-1][::-1] * 255).astype(np.uint8)).save("plans/plan/CobblestoneType1.png")
-Image.fromarray((gr[:-1, :-1][::-1] * 255).astype(np.uint8)).save("plans/plan/GrassType1.png")
+Image.fromarray((SITE.crop(cob) * 255).astype(np.uint8)).save(f"{OUT}/CobblestoneType1.png")
+Image.fromarray((SITE.crop(gr) * 255).astype(np.uint8)).save(f"{OUT}/GrassType1.png")
 print("cobble cells", int(cob.sum()), "grass", int(gr.sum()))
 tot = collections.Counter(o["template"] for o in OBJ)
 print("objects", len(OBJ), tot.most_common(30))
 roads = [{"type": "TwoLane", "corners": "tight", "end_caps": True, "points": [[round(x, 1), round(y, 1)] for x, y in c]} for c in CHAINS]
 roads += [{"type": "Sidewalk", "corners": "angled", "end_caps": False, "points": w} for w in walk]
 json.dump({"objects": OBJ, "roads": roads, "stats": {"houses": sum(counts.values()), "street": street_len},
-           "surround": "GrassMediumType8", "masks": ["GrassType1"] + list(OUTLINE) + ["CobblestoneType1"]}, open("plans/plan/plan.json", "w"), separators=(",", ":"))
+           "surround": "GrassMediumType8", "masks": ["GrassType1"] + list(OUTLINE) + ["CobblestoneType1"]}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
 # --- preview at the same scale as the reference plan ---
 SC = 0.62
 X0, Y1 = 330, 1800
@@ -500,7 +517,7 @@ for o in OBJ:
     elif "Bib" not in t:
         c_ = PX(x, y)
         dr.ellipse((c_[0] - 2, c_[1] - 2, c_[0] + 2, c_[1] + 2), fill=(255, 140, 0))
-im.save("plans/plan/preview.png")
+im.save(f"{OUT}/preview.png")
 
 base = np.full((W - 1, W - 1), 255, np.uint8)
-Image.fromarray(base).save("plans/plan/base.png")
+Image.fromarray(base).save(f"{OUT}/base.png")
