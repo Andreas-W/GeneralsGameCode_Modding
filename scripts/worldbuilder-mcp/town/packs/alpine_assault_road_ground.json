@@ -1,0 +1,156 @@
+{
+ "TwoLane/town/0-5": {
+  "GrassMediumType8": 0.6,
+  "CobblestoneType1": 0.3,
+  "GrassType1": 0.08,
+  "GrassMediumType13Leaves": 0.02
+ },
+ "TwoLane/town/5-10": {
+  "GrassMediumType8": 0.55,
+  "CobblestoneType1": 0.36,
+  "GrassType1": 0.06,
+  "GrassMediumType13Leaves": 0.03
+ },
+ "TwoLane/town/10-20": {
+  "GrassMediumType8": 0.62,
+  "CobblestoneType1": 0.26,
+  "GrassType1": 0.09,
+  "GrassMediumType13Leaves": 0.02,
+  "GrassMediumType12Leaves": 0.01
+ },
+ "TwoLane/town/20-40": {
+  "GrassMediumType8": 0.63,
+  "CobblestoneType1": 0.22,
+  "GrassType1": 0.07,
+  "GrassMediumType13Leaves": 0.05,
+  "GrassMediumType12Leaves": 0.03
+ },
+ "TwoLane/outside/0-5": {
+  "GrassMediumType8": 0.65,
+  "GrassMediumType13Leaves": 0.16,
+  "GrassMediumType12Leaves": 0.13,
+  "GrassType1": 0.03,
+  "cliff/other": 0.01
+ },
+ "TwoLane/outside/5-10": {
+  "GrassMediumType8": 0.63,
+  "GrassMediumType13Leaves": 0.19,
+  "GrassMediumType12Leaves": 0.1,
+  "GrassType1": 0.03,
+  "cliff/other": 0.03
+ },
+ "TwoLane/outside/10-20": {
+  "GrassMediumType8": 0.66,
+  "GrassMediumType13Leaves": 0.15,
+  "GrassMediumType12Leaves": 0.1,
+  "cliff/other": 0.04,
+  "GrassType1": 0.03
+ },
+ "TwoLane/outside/20-40": {
+  "GrassMediumType8": 0.66,
+  "GrassMediumType13Leaves": 0.12,
+  "GrassMediumType12Leaves": 0.08,
+  "cliff/other": 0.08,
+  "GrassType1": 0.04
+ },
+ "DirtRoad/outside/0-5": {
+  "GrassMediumType8": 0.65,
+  "GrassLargeType1Snow": 0.17,
+  "GrassType1": 0.09,
+  "GrassMediumType13Leaves": 0.04,
+  "GrassMediumType12Leaves": 0.02
+ },
+ "DirtRoad/outside/5-10": {
+  "GrassMediumType8": 0.66,
+  "GrassLargeType1Snow": 0.14,
+  "GrassType1": 0.09,
+  "GrassMediumType13Leaves": 0.04,
+  "GrassMediumType12Leaves": 0.03
+ },
+ "DirtRoad/outside/10-20": {
+  "GrassMediumType8": 0.63,
+  "GrassLargeType1Snow": 0.17,
+  "GrassType1": 0.07,
+  "GrassMediumType13Leaves": 0.04,
+  "cliff/other": 0.03
+ },
+ "DirtRoad/outside/20-40": {
+  "GrassMediumType8": 0.57,
+  "GrassLargeType1Snow": 0.18,
+  "cliff/other": 0.09,
+  "GrassMediumType13Leaves": 0.05,
+  "GrassMediumType10": 0.04
+ },
+ "DirtRoad2/outside/0-5": {
+  "GrassMediumType8": 0.68,
+  "GrassLargeType1Snow": 0.14,
+  "GrassType1": 0.11,
+  "GrassMediumType13Leaves": 0.05,
+  "GrassMediumType12Leaves": 0.01
+ },
+ "DirtRoad2/outside/5-10": {
+  "GrassMediumType8": 0.69,
+  "GrassType1": 0.12,
+  "GrassLargeType1Snow": 0.11,
+  "GrassMediumType13Leaves": 0.05,
+  "GrassMediumType12Leaves": 0.02
+ },
+ "DirtRoad2/outside/10-20": {
+  "GrassMediumType8": 0.66,
+  "GrassLargeType1Snow": 0.16,
+  "GrassType1": 0.08,
+  "GrassMediumType13Leaves": 0.04,
+  "GrassMediumType12Leaves": 0.02
+ },
+ "DirtRoad2/outside/20-40": {
+  "GrassMediumType8": 0.61,
+  "GrassLargeType1Snow": 0.18,
+  "cliff/other": 0.05,
+  "GrassType1": 0.05,
+  "GrassMediumType13Leaves": 0.05
+ },
+ "GravelRoad/town/0-5": {
+  "GrassMediumType8": 0.9,
+  "CobblestoneType1": 0.1
+ },
+ "GravelRoad/town/5-10": {
+  "GrassMediumType8": 0.83,
+  "GrassMediumType12Leaves": 0.11,
+  "CobblestoneType1": 0.06
+ },
+ "GravelRoad/town/10-20": {
+  "GrassMediumType8": 0.72,
+  "CobblestoneType1": 0.24,
+  "GrassMediumType12Leaves": 0.04
+ },
+ "GravelRoad/town/20-40": {
+  "GrassMediumType8": 0.65,
+  "CobblestoneType1": 0.25,
+  "GrassMediumType13Leaves": 0.07,
+  "GrassMediumType12Leaves": 0.03
+ },
+ "GravelRoad/outside/0-5": {
+  "GrassMediumType8": 0.69,
+  "AsphaltType1": 0.3,
+  "CobblestoneType1": 0.01
+ },
+ "GravelRoad/outside/5-10": {
+  "GrassMediumType8": 0.84,
+  "CobblestoneType1": 0.07,
+  "AsphaltType1": 0.04,
+  "GrassMediumType12Leaves": 0.04
+ },
+ "GravelRoad/outside/10-20": {
+  "GrassMediumType8": 0.74,
+  "AsphaltType1": 0.19,
+  "CobblestoneType1": 0.06,
+  "GrassMediumType12Leaves": 0.02
+ },
+ "GravelRoad/outside/20-40": {
+  "GrassMediumType8": 0.66,
+  "AsphaltType1": 0.18,
+  "CobblestoneType1": 0.11,
+  "GrassMediumType12Leaves": 0.03,
+  "cliff/other": 0.02
+ }
+}

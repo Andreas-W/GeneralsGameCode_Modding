@@ -1,0 +1,330 @@
+{
+ "name": "arabic",
+ "sources": [
+  "Cairo Commandos",
+  "Golden Oasis",
+  "Sand Serpent",
+  "El Scorcho",
+  "Bridge Busters",
+  "USA01"
+ ],
+ "measured": {
+  "buildings_per_100x100": {
+   "cairo": 0.51,
+   "golden": 0.35,
+   "serpent": 0.65,
+   "scorcho": 0.48,
+   "bridge": 0.5,
+   "baghdad": 0.46
+  },
+  "street_gap_median": {
+   "cairo": -11,
+   "golden": 11,
+   "serpent": 2,
+   "scorcho": 6,
+   "bridge": 0,
+   "baghdad": 4
+  },
+  "off_axis_deg": {
+   "cairo": 6,
+   "golden": 2,
+   "serpent": 2,
+   "scorcho": 3,
+   "bridge": 1,
+   "baghdad": 2
+  },
+  "bends_per_1000": {
+   "cairo": 5.2,
+   "golden": 1.3,
+   "serpent": 6.5,
+   "scorcho": 7.4,
+   "bridge": 7.3,
+   "baghdad": 2.8
+  },
+  "dead_ends_per_1000": {
+   "cairo": 5.7,
+   "golden": 1.9,
+   "serpent": 3.8,
+   "scorcho": 2.9,
+   "bridge": 2.0,
+   "baghdad": 1.2
+  },
+  "junctions_per_1000": {
+   "cairo": 0.5,
+   "golden": 1.7,
+   "serpent": 1.9,
+   "scorcho": 1.1,
+   "bridge": 2.4,
+   "baghdad": 0.2
+  }
+ },
+ "buildings_per_1000_street": 5.5,
+ "gap_to_street": [
+  0,
+  12
+ ],
+ "presets": {
+  "golden": {
+   "generator": "blocks",
+   "source": "Golden Oasis",
+   "major": "TwoLaneOld",
+   "minor": "TwoLaneOld2",
+   "major_width": 60,
+   "minor_width": 60,
+   "sidewalk": null,
+   "grid": [
+    320,
+    250
+   ],
+   "theta": 40,
+   "floor": "RocksType5",
+   "floor_share": 0.5,
+   "islands": [
+    "GrassMediumType7",
+    "GrassMediumType34"
+   ],
+   "surround": "SandMediumType5c",
+   "trees": {
+    "TreePalm1short": 5,
+    "TreePalm1": 3,
+    "TreePalm2": 5,
+    "TreePalm2short": 5,
+    "TreePalm03": 3,
+    "TreePalm04": 1,
+    "TreeWillow02": 2
+   },
+   "trees_rate": 13,
+   "props": {
+    "ClothesLine": 0.9,
+    "BigWoodenBarrels": 0.4,
+    "Barrel": 0.6,
+    "MarketVender01": 0.3,
+    "MarketVender03": 0.3,
+    "CanvasSunShader": 0.3,
+    "Tent": 0.5,
+    "AsianFruitStand02": 0.3,
+    "MogadishuWell": 0.2,
+    "CarScrap": 0.4
+   }
+  },
+  "baghdad": {
+   "generator": "blocks",
+   "source": "USA01",
+   "major": "TwoLaneOld2",
+   "minor": "TwoLaneOld",
+   "major_width": 60,
+   "minor_width": 60,
+   "sidewalk": {
+    "type": "Sidewalk3",
+    "offset_ratio": 0.33,
+    "outer_keep": 0.8,
+    "lot_gap": 16
+   },
+   "grid": [
+    300,
+    230
+   ],
+   "theta": 40,
+   "floor": "RocksType5",
+   "floor_share": 0.55,
+   "islands": [
+    "SandMediumType12Grassy",
+    "GrassMediumType34"
+   ],
+   "surround": "SandMediumType12Grassy",
+   "trees": {
+    "TreeDogwood1": 2,
+    "TreePalm1": 2,
+    "TreeDogwood2": 2,
+    "TreePalm2": 2,
+    "TreeDogwood8": 2
+   },
+   "trees_rate": 8,
+   "props": {
+    "ClothesLine": 0.9,
+    "BigWoodenBarrels": 0.4,
+    "Barrel": 0.6,
+    "MarketVender01": 0.3,
+    "MarketVender03": 0.3,
+    "CanvasSunShader": 0.3,
+    "Tent": 0.5,
+    "AsianFruitStand02": 0.3,
+    "MogadishuWell": 0.2,
+    "CarScrap": 0.4
+   }
+  },
+  "serpent": {
+   "generator": "organic",
+   "source": "Sand Serpent",
+   "major": "DirtRoad5",
+   "minor": "Sidewalk3",
+   "major_width": 52,
+   "minor_width": 22,
+   "irregularity": 0.8,
+   "street_density": 70,
+   "floor": {
+    "SandMediumType13grassy3": 0.65,
+    "SandMediumType13": 0.35
+   },
+   "patch": "SandMediumType13grassy",
+   "surround": "SandMediumType13b",
+   "trees": {
+    "TreeCypress01": 2,
+    "TreeCypress02": 1,
+    "Bush11": 2,
+    "TreeWillow01": 1
+   },
+   "trees_rate": 8,
+   "props": {
+    "ParkBench": 1.0,
+    "PlanterRound": 0.6,
+    "Dumpster": 0.5,
+    "MarketVender02": 0.5,
+    "BigWoodenBarrels": 0.5,
+    "SidewalkCafeSet": 0.4,
+    "CanvasSunShader": 0.3
+   }
+  },
+  "scorcho": {
+   "generator": "organic",
+   "source": "El Scorcho",
+   "major": "DirtRoad",
+   "minor": "DirtRoad3",
+   "major_width": 52,
+   "minor_width": 33,
+   "irregularity": 0.65,
+   "street_density": 45,
+   "floor": {
+    "SandMediumType11": 0.85,
+    "RocksType5": 0.15
+   },
+   "patch": "GrassLargeType2",
+   "surround": "SandType3",
+   "trees": {
+    "TreePalm2short": 7,
+    "TreeDogwood2": 6,
+    "TreePalm2": 6,
+    "TreePalm03": 3,
+    "Bush01": 3,
+    "Bush03": 1
+   },
+   "trees_rate": 22,
+   "props": {
+    "ClothesLine": 0.9,
+    "BigWoodenBarrels": 0.4,
+    "Barrel": 0.6,
+    "MarketVender01": 0.3,
+    "MarketVender03": 0.3,
+    "CanvasSunShader": 0.3,
+    "Tent": 0.5,
+    "AsianFruitStand02": 0.3,
+    "MogadishuWell": 0.2,
+    "CarScrap": 0.4,
+    "CarCompact": 0.2
+   }
+  },
+  "bridge": {
+   "generator": "organic",
+   "source": "Bridge Busters",
+   "major": "TwoLaneDarkDotted",
+   "minor": "Sidewalk3",
+   "major_width": 35,
+   "minor_width": 22,
+   "irregularity": 0.8,
+   "street_density": 70,
+   "floor": {
+    "RocksType5": 1.0
+   },
+   "patch": "GrassMediumType31",
+   "surround": "GrassMediumType30",
+   "trees": {
+    "TreeDogwood1": 10,
+    "Bush08": 3,
+    "TreeDogwood4": 1,
+    "Bush04": 1,
+    "TreeDogwood7": 1
+   },
+   "trees_rate": 20,
+   "lamp": [
+    "AsianStreetLight",
+    4.0
+   ],
+   "props": {
+    "BikeRack": 0.7,
+    "FireHydrantRed": 0.7,
+    "ParkBench": 0.6,
+    "TrashCanA": 0.4,
+    "MailBox": 0.3,
+    "Dumpster": 0.2
+   }
+  },
+  "cairo": {
+   "generator": "organic",
+   "source": "Cairo Commandos",
+   "major": "DirtRoad",
+   "minor": "DirtRoadTracks2",
+   "major_width": 52,
+   "minor_width": 52,
+   "irregularity": 0.95,
+   "street_density": 40,
+   "floor": {
+    "SandLargeType3Rocky3": 0.55,
+    "SandLargeType3Rocky&Grassy": 0.45
+   },
+   "patch": "SandType4",
+   "surround": "SandMediumType3",
+   "trees": {
+    "TreePalm1short": 9,
+    "TreePalm1": 5,
+    "TreeMaple04": 1
+   },
+   "trees_rate": 15,
+   "props": {
+    "ClothesLine": 1.0,
+    "Tire02": 1.0,
+    "CarScrap": 0.5,
+    "MarketVender01": 0.5,
+    "MarketVender03": 0.5,
+    "CanvasSunShader": 0.5,
+    "Tent": 1.0
+   }
+  },
+  "generic": {
+   "generator": "organic",
+   "source": "all six",
+   "major": "TwoLaneOld",
+   "minor": "DirtRoad3",
+   "major_width": 60,
+   "minor_width": 33,
+   "irregularity": 0.6,
+   "street_density": 45,
+   "floor": {
+    "RocksType5": 0.7,
+    "SandMediumType11": 0.3
+   },
+   "patch": "GrassMediumType34",
+   "surround": "SandMediumType11",
+   "trees": {
+    "TreePalm1short": 5,
+    "TreePalm1": 3,
+    "TreePalm2": 5,
+    "TreePalm2short": 5,
+    "TreePalm03": 3,
+    "TreePalm04": 1
+   },
+   "trees_rate": 14,
+   "props": {
+    "ClothesLine": 0.9,
+    "BigWoodenBarrels": 0.4,
+    "Barrel": 0.6,
+    "MarketVender01": 0.3,
+    "MarketVender03": 0.3,
+    "CanvasSunShader": 0.3,
+    "Tent": 0.5,
+    "AsianFruitStand02": 0.3,
+    "MogadishuWell": 0.2,
+    "CarScrap": 0.4
+   }
+  }
+ }
+}

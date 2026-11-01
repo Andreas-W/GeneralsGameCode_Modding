@@ -1,0 +1,125 @@
+{
+  "name": "urban_generic",
+  "sources": [
+    "Homeland Alliance",
+    "Bear Town Beatdown",
+    "Tournament City"
+  ],
+  "measured": {
+    "street_per_100x100": {
+      "ha": 66.6,
+      "bt": 83.7,
+      "tc": 57.2
+    },
+    "sidewalks_both_sides": {
+      "ha": 0.83,
+      "bt": 0.58,
+      "tc": 0.48
+    },
+    "buildings_per_1000_street": {
+      "ha": 6.2,
+      "bt": 4.6,
+      "tc": 6.7
+    },
+    "building_gap_to_street_edge_median": {
+      "ha": 12,
+      "bt": 14,
+      "tc": 9
+    },
+    "aligned_to_street": {
+      "along": 0.62,
+      "square": 0.32
+    },
+    "facing": {
+      "front": 0.37,
+      "side": 0.33,
+      "back": 0.3
+    },
+    "floor_share_near_street": {
+      "ha": 0.69,
+      "bt": 0.65,
+      "tc": 0.16
+    }
+  },
+  "streets": {
+    "major": "FourLane",
+    "minor": "TwoLane",
+    "major_width": 60,
+    "minor_width": 35,
+    "theta_deg": 45,
+    "grid": [
+      300,
+      240
+    ],
+    "jitter": [
+      24,
+      20
+    ]
+  },
+  "sidewalk": {
+    "type": "Sidewalk",
+    "offset_ratio": 0.486,
+    "outer_keep": 0.7
+  },
+  "buildings": {
+    "per_1000_street": 6.5,
+    "mix": {
+      "StanSmallRetail03": 15,
+      "StanApartment02": 14,
+      "StanSmallRetail01": 9,
+      "MogadishuHighrise02": 11,
+      "MogadishuHighrise03": 10,
+      "StanHotel01": 11,
+      "MogadishuHouse01": 10,
+      "ConvienceStore": 8,
+      "StanRestaurant02": 5,
+      "StanRestaurant01": 4
+    },
+    "gap_to_sidewalk": [
+      5,
+      12
+    ]
+  },
+  "ground": {
+    "floor": "ConcreteType4",
+    "floor_share": 0.62,
+    "islands": [
+      "GrassMediumType31",
+      "GrassMediumType30"
+    ],
+    "parking": "AsphaltType3",
+    "surround": "GrassMediumType31",
+    "lot_dirt": "DirtMediumType5"
+  },
+  "parking": {
+    "type": "ParkingLines",
+    "share_of_street": 0.08,
+    "row_length": 107,
+    "row_spacing": 44
+  },
+  "props_per_1000_street": {
+    "StreetLamp03": 2.0,
+    "BusStop": 0.6,
+    "PhoneBooth": 0.9,
+    "MailBox": 0.9,
+    "Dumpster": 0.4,
+    "TrashDumpster": 0.3
+  },
+  "stoplights_per_major_junction": 2,
+  "cars_per_1000_street": 2.0,
+  "cars": [
+    "CarLuxury01",
+    "CarCompact",
+    "CarSUV01",
+    "CarBug2",
+    "CarLuxury03",
+    "CarCamaro"
+  ],
+  "trees_per_1000_street": 7.0,
+  "trees": {
+    "TreeDogwood1": 24,
+    "TreeDogwood3": 20,
+    "TreeOak01": 16,
+    "TreeMaple1": 13
+  }
+}

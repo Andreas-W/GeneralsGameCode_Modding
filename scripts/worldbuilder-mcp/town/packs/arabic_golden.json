@@ -1,0 +1,113 @@
+{
+ "name": "arabic_golden",
+ "measured": {
+  "street_per_100x100": {},
+  "aligned_to_street": {
+   "along": 0.62,
+   "square": 0.32
+  }
+ },
+ "streets": {
+  "major": "TwoLaneOld",
+  "minor": "TwoLaneOld2",
+  "major_width": 60,
+  "minor_width": 60,
+  "theta_deg": 40,
+  "grid": [
+   320,
+   250
+  ],
+  "jitter": [
+   14,
+   12
+  ]
+ },
+ "sidewalk": {
+  "type": null,
+  "offset_ratio": 0.5,
+  "outer_keep": 0
+ },
+ "buildings": {
+  "per_1000_street": 6.5,
+  "mix": {
+   "JunkDealer": 8,
+   "MogadishuDome": 10,
+   "MogadishuHouse03": 7,
+   "MogadishuHouse17": 11,
+   "MogadishuHouse05": 17,
+   "MogadishuHouse16": 6,
+   "MogadishuHouse07": 9,
+   "MogadishuHouse06": 22,
+   "MogadishuHouse02": 14,
+   "MogadishuHouse04": 16,
+   "MogadishuGarage": 9,
+   "MogadishuHouse11": 17,
+   "MogadishuHouse13": 6,
+   "MogadishuHighrise01": 4,
+   "MogadishuShop02": 9,
+   "MogadishuShop01": 7,
+   "MogadishuHouse12": 9,
+   "MogadishuHouse10": 9,
+   "MogadishuHouse09": 3,
+   "MogadishuHouse08": 2,
+   "MogadishuHouse01": 10,
+   "MogadishuGarage02": 6,
+   "MogadishuArchedHouse": 3,
+   "MogadishuHouse15": 1,
+   "MogadishuSmallApartment": 2,
+   "MogadishuHighrise03": 3,
+   "MogadishuHighrise02": 3
+  },
+  "gap_to_sidewalk": [
+   5,
+   14
+  ]
+ },
+ "ground": {
+  "floor": "RocksType5",
+  "floor_share": 0.5,
+  "islands": [
+   "GrassMediumType7",
+   "GrassMediumType34"
+  ],
+  "parking": "AsphaltType3",
+  "surround": "SandMediumType5c",
+  "lot_dirt": "DirtMediumType12"
+ },
+ "parking": {
+  "type": "ParkingLines",
+  "share_of_street": 0.0,
+  "row_length": 107,
+  "row_spacing": 44
+ },
+ "props_per_1000_street": {
+  "ClothesLine": 0.9,
+  "BigWoodenBarrels": 0.4,
+  "Barrel": 0.6,
+  "MarketVender01": 0.3,
+  "MarketVender03": 0.3,
+  "CanvasSunShader": 0.3,
+  "Tent": 0.5,
+  "AsianFruitStand02": 0.3,
+  "MogadishuWell": 0.2,
+  "CarScrap": 0.4
+ },
+ "stoplights_per_major_junction": 0,
+ "cars_per_1000_street": 1.0,
+ "cars": [
+  "CarScrap",
+  "CarCompact",
+  "CarBug2",
+  "CarSUV01"
+ ],
+ "trees_per_1000_street": 13,
+ "trees": {
+  "TreePalm1short": 5,
+  "TreePalm1": 3,
+  "TreePalm2": 5,
+  "TreePalm2short": 5,
+  "TreePalm03": 3,
+  "TreePalm04": 1,
+  "TreeWillow02": 2
+ }
+}

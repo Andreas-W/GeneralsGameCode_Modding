@@ -1,0 +1,13 @@
+{
+  "ha": {"root": "ref", "path": "Maps/Homeland Alliance/Homeland Alliance.map", "style": "urban"},
+  "bt": {"root": "ref", "path": "Maps/Bear Town Beatdown/Bear Town Beatdown.map", "style": "urban"},
+  "tc": {"root": "ref", "path": "Maps/Tournament City/Tournament City.map", "style": "urban"},
+  "vv": {"root": "ref", "path": "Maps/Victory Valley/Victory Valley.map", "style": "urban, sparse"},
+  "swiss": {"root": "ref", "path": "maps_gens/SwissMP/SwissMP.map", "style": "alpine, road-side ground"},
+  "cairo": {"root": "ref", "path": "Maps/Cairo Commandos/Cairo Commandos.map", "style": "arabic"},
+  "golden": {"root": "ref", "path": "Maps/Golden Oasis/Golden Oasis.map", "style": "arabic"},
+  "serpent": {"root": "ref", "path": "Maps/Sand Serpent/Sand Serpent.map", "style": "arabic"},
+  "scorcho": {"root": "ref", "path": "Maps/El Scorcho/El Scorcho.map", "style": "arabic"},
+  "baghdad": {"root": "ref", "path": "maps_gens/USA01/USA01.map", "style": "arabic"},
+  "bridge": {"root": "game", "path": "Maps/Bridge Busters [OFS]/Bridge Busters [OFS].map", "style": "arabic"}
+}

@@ -164,6 +164,10 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 - AI matches are an engine feature (`GameLogic/AIMatch.h`): `generalszh.exe -aiMatch <map> -aiPlayers Faction:difficulty,... -aiMatchLog <file> [-headless]`.
 - After a change: build `z_worldbuilder`, copy `WorldBuilderZH.exe` to the mod folder, restart it with `-mcp -ignoreAsserts`, run `python scripts/worldbuilder-mcp/smoke_test.py` (it replaces the open map with a test map) and extend that test for new commands.
 
+## Town generators
+
+Scripts that generate towns from style packs measured on reference maps (Alpine, urban, Arabic), with the user's rules for roads, sidewalks, ground and fences, findings and open issues: `scripts/worldbuilder-mcp/town/README.md`. Read it before any work on towns or on learning from reference maps.
+
 ## Game MCP
 
 A second MCP server drives the running game itself, so features can be tested by playing: start a skirmish as the local player (alone in a sandbox or against AI), pause, step frames, inspect every object and player, give orders, spawn and change things, run scripts, take screenshots. Use its tools (`mcp__game__*`) for that. Full reference: the game section of `scripts/worldbuilder-mcp/README.md`.
