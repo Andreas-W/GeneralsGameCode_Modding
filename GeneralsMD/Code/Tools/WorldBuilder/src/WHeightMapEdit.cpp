@@ -3171,7 +3171,68 @@ Bool WorldHeightMapEdit::doCliffAdjustment(Int xIndex, Int yIndex)
 		}
 
 	}
+	delete [] pProcessed;
 	return(true);
+}
+
+Bool WorldHeightMapEdit::isCliffCell(Int xIndex, Int yIndex)
+{
+	if (xIndex<0 || yIndex<0 || xIndex>=m_width-1 || yIndex>=m_height-1) return false;
+	Int ndx = (yIndex*m_width)+xIndex;
+	Int h0 = m_data[ndx];
+	Int h1 = m_data[ndx+1];
+	Int h2 = m_data[ndx+m_width+1];
+	Int h3 = m_data[ndx+m_width];
+	Int maxH = IABS(h0-h1);
+	if (IABS(h1-h2)>maxH) maxH = IABS(h1-h2);
+	if (IABS(h2-h3)>maxH) maxH = IABS(h2-h3);
+	if (IABS(h3-h0)>maxH) maxH = IABS(h3-h0);
+	return maxH*HEIGHT_SCALE > STRETCH_LIMIT/2.0f;
+}
+
+Int WorldHeightMapEdit::mapCliffs(Int x0, Int y0, Int x1, Int y1)
+{
+	Int regions = 0;
+	for (Int y=y0; y<=y1; y++) {
+		for (Int x=x0; x<=x1; x++) {
+			if (!isCliffCell(x, y) || m_cliffInfoNdxes[(y*m_width)+x]) continue;
+			// A cell without a known texture is left out.
+			if (doCliffAdjustment(x, y)) regions++;
+		}
+	}
+	return regions;
+}
+
+void WorldHeightMapEdit::clearCliffMapping(Int x0, Int y0, Int x1, Int y1)
+{
+	for (Int y=y0; y<=y1; y++) {
+		for (Int x=x0; x<=x1; x++) {
+			m_cliffInfoNdxes[(y*m_width)+x] = 0;
+		}
+	}
+	Bool anyLeft = false;
+	for (Int ndx=0; ndx<m_dataSize && !anyLeft; ndx++) {
+		anyLeft = m_cliffInfoNdxes[ndx] != 0;
+	}
+	if (!anyLeft) m_numCliffInfo = 1;
+}
+
+Bool WorldHeightMapEdit::getCliffCell(Int xIndex, Int yIndex, TCliffInfo *pInfo, Int *pClass, Real *pExtent)
+{
+	Int cliffNdx = m_cliffInfoNdxes[(yIndex*m_width)+xIndex];
+	if (cliffNdx==0) return false;
+	*pInfo = m_cliffInfo[cliffNdx];
+	*pClass = getTextureClassFromNdx(pInfo->tileIndex);
+	if (*pClass<0) return false;
+	*pExtent = m_globalTextureClasses[*pClass].width*TILE_PIXEL_EXTENT;
+	*pExtent /= TEXTURE_WIDTH;
+	return true;
+}
+
+void WorldHeightMapEdit::setCliffCell(Int xIndex, Int yIndex, const TCliffInfo &info)
+{
+	Int cliffNdx = m_cliffInfoNdxes[(yIndex*m_width)+xIndex];
+	if (cliffNdx) m_cliffInfo[cliffNdx] = info;
 }
 
 /******************************************************************

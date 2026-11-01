@@ -139,6 +139,7 @@ WorldBuilder rejects commands while a modal dialog is open or a mouse drag is in
   - `terrain_auto_texture` textures cells as ground, cliff or water, scatters noise overlays and blends the edges.
   - `terrain_reblend` removes all blends and blends all textures again from the cell corners, as the Genesis map tools do: the usual last step after painting, with smooth diagonals. `terrain_blend_all` blends chosen textures outward and keeps existing blends, and `terrain_remove_blends` only removes them.
   - `terrain_blend_report` counts blended cells, 3-way tiles (cells with a second blend layer, drawn in an extra pass) and hard edges that neither side blends across.
+  - `terrain_cliff_map` maps textures onto steep cells so walls are not stretched, as WorldBuilder's cliff tool does, for the whole map at once. Run it last: painting removes mapping, and height edits leave it out of date. `terrain_cliff_report` counts cells that leave their texture, `terrain_cliff_repair` fixes mapping that exists, `terrain_cliff_clear` removes it. See "Why cliff mapping shows black gaps" below.
   - Layouts and sceneries are JSON presets in `presets/` (`terrain_list_presets`), taken from Genesis. See `NOTICE`.
 - **Terrain images.** Heightmap and mask PNGs have north at the top.
   - Heightmaps have one pixel per heightmap vertex, and the pixel value is the raw height. 16-bit images are accepted on import.
@@ -202,3 +203,17 @@ python game_smoke_test.py --exe generalszh.exe [--windowed]
 ```
 
 It starts the game headless in a sandbox and goes through every command area, then closes it.
+
+## Why cliff mapping shows black gaps
+
+WorldBuilder's cliff tool maps one connected region of steep cells of one texture, at 32 texels per cell and the same per 10 world units of height. It centres V once for the whole region and never limits it, while U is wrapped per cell. All terrain textures share one atlas, so a region whose height range exceeds its texture samples outside that texture's rectangle: another texture (stripes) or empty atlas (black). A 256 px texture is exhausted after 80 world units of height range, 384 px after 120. What counts is the range of the whole connected region, not the height of one wall, so it also happens to low walls on rising ground.
+
+Seen in WorldBuilder and in the game on test maps from `town/cliff_map_test.py`; the gaps appear on exactly these cells, and `outside_v` in `terrain_cliff_report` counts them. Repairs:
+
+| repair | what it does | looks like |
+|---|---|---|
+| `fit` | squeezes V of each connected region to fit the texture once | continuous, no streaks; texture finer vertically, up to 2.2 times on the test map |
+| `slide` | moves cells by whole repeats, shifts those crossing a repeat | keeps the scale; visible jumps on tall walls |
+| `fold` | moves cells by whole repeats, clamps those crossing a repeat | smears tall walls |
+
+`fit` looked best and is the default, judged on `CliffMediumType2` in the game and in WorldBuilder only. Not tested: blended cliff edges, several textures on one wall, and how far a tall region can be squeezed before it looks wrong. `mutant` cells (mapping that crosses the texture edge in U) stay as WorldBuilder makes them.
