@@ -243,65 +243,24 @@ McpJson cmdLimitSlope(const McpJson &args)
 // Blending
 //-------------------------------------------------------------------------------------------------
 
-/// Runs autoBlendOut once per connected region of each listed texture class inside the range.
-Int blendRegions(WorldHeightMapEdit *map, const std::set<Int> &classes, Int edgeClass, Int x0, Int y0, Int x1, Int y1)
-{
-	const Int w = x1 - x0 + 1, h = y1 - y0 + 1;
-	std::vector<unsigned char> seen(w * h, 0);
-	std::vector<Int> stack;
-	Int regions = 0;
-	for (Int y = y0; y <= y1; y++) {
-		for (Int x = x0; x <= x1; x++) {
-			if (seen[(y - y0) * w + (x - x0)]) continue;
-			const Int cls = map->getTextureClass(x, y, true);
-			if (!classes.count(cls)) continue;
-			// Flood the region, remembering a cell that is not blended yet: autoBlendOut needs one.
-			Int seedX = -1, seedY = -1;
-			stack.clear();
-			stack.push_back(y * 100000 + x);
-			seen[(y - y0) * w + (x - x0)] = 1;
-			while (!stack.empty()) {
-				const Int packed = stack.back();
-				stack.pop_back();
-				const Int cx = packed % 100000, cy = packed / 100000;
-				if (seedX < 0 && map->getTextureClass(cx, cy, false) == cls) {
-					seedX = cx;
-					seedY = cy;
-				}
-				static const Int n4[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-				for (Int d = 0; d < 4; d++) {
-					const Int nx = cx + n4[d][0], ny = cy + n4[d][1];
-					if (nx < x0 || ny < y0 || nx > x1 || ny > y1) continue;
-					unsigned char &s = seen[(ny - y0) * w + (nx - x0)];
-					if (s || map->getTextureClass(nx, ny, true) != cls) continue;
-					s = 1;
-					stack.push_back(ny * 100000 + nx);
-				}
-			}
-			if (seedX >= 0) {
-				map->autoBlendOut(seedX, seedY, edgeClass);
-				regions++;
-			}
-		}
-	}
-	return regions;
-}
-
 Int optionalTexture(const McpJson &args, const char *key)
 {
 	return args.has(key) ? mcpFindTextureClass(args, key) : -1;
 }
 
-McpJson cmdBlendAll(const McpJson &args)
+/// The cell range that blend commands work on: blending reads the cell's right and upper neighbours.
+void blendRange(WorldHeightMapEdit *map, const McpJson &args, Int *x0, Int *y0, Int *x1, Int *y1)
 {
-	WorldHeightMapEdit *map = mcpHeightMap();
 	Area area;
 	area.parse(args, false);
-	Int x0, y0, x1, y1;
-	area.range(map, &x0, &y0, &x1, &y1);
-	if (x1 >= map->getXExtent() - 1) x1 = map->getXExtent() - 2;
-	if (y1 >= map->getYExtent() - 1) y1 = map->getYExtent() - 2;
+	area.range(map, x0, y0, x1, y1);
+	if (*x1 >= map->getXExtent() - 1) *x1 = map->getXExtent() - 2;
+	if (*y1 >= map->getYExtent() - 1) *y1 = map->getYExtent() - 2;
+}
 
+/// The given textures, by default all in the range except the most common, which is taken to be the ground.
+std::set<Int> blendClasses(WorldHeightMapEdit *map, const McpJson &args, Int x0, Int y0, Int x1, Int y1)
+{
 	std::set<Int> classes;
 	if (args.has("textures")) {
 		const McpJson &list = mcpArgArray(args, "textures");
@@ -310,7 +269,6 @@ McpJson cmdBlendAll(const McpJson &args)
 			classes.insert(mcpFindTextureClass(one, "texture"));
 		}
 	} else {
-		// Blend everything except the most common texture, which is taken to be the ground.
 		std::vector<Int> counts(WorldHeightMapEdit::getNumTexClasses(), 0);
 		for (Int y = y0; y <= y1; y++) {
 			for (Int x = x0; x <= x1; x++) {
@@ -325,10 +283,49 @@ McpJson cmdBlendAll(const McpJson &args)
 		}
 		classes.erase(ground);
 	}
+	return classes;
+}
+
+void setBlendStats(McpJson &j, WorldHeightMapEdit *map, Int x0, Int y0, Int x1, Int y1)
+{
+	Int blended, threeWay, hardEdges;
+	map->getBlendStats(x0, y0, x1, y1, &blended, &threeWay, &hardEdges);
+	j.set("cells_blended", blended).set("three_way_tiles", threeWay).set("hard_edges", hardEdges);
+	j.set("blend_table_used", map->getNumBlendTilesUsed()).set("blend_table_size", NUM_BLEND_TILES);
+}
+
+McpJson runBlend(const McpJson &args, bool clearFirst)
+{
+	WorldHeightMapEdit *map = mcpHeightMap();
+	Int x0, y0, x1, y1;
+	blendRange(map, args, &x0, &y0, &x1, &y1);
+	const std::set<Int> classes = blendClasses(map, args, x0, y0, x1, y1);
+	const Int edgeClass = optionalTexture(args, "edge_texture");
 	WorldHeightMapEdit *copy = map->duplicate();
-	const Int regions = blendRegions(copy, classes, optionalTexture(args, "edge_texture"), x0, y0, x1, y1);
+	if (clearFirst) copy->clearBlends(x0, y0, x1, y1);
+	copy->blendAllEdges(classes, edgeClass, x0, y0, x1, y1);
 	McpJson j = mcpCommitHeightMapEdit(copy, true);
-	j.set("regions_blended", regions);
+	setBlendStats(j, mcpHeightMap(), x0, y0, x1, y1);
+	return j;
+}
+
+McpJson cmdBlendAll(const McpJson &args)
+{
+	return runBlend(args, false);
+}
+
+McpJson cmdReblend(const McpJson &args)
+{
+	return runBlend(args, true);
+}
+
+McpJson cmdBlendReport(const McpJson &args)
+{
+	WorldHeightMapEdit *map = mcpHeightMap();
+	Int x0, y0, x1, y1;
+	blendRange(map, args, &x0, &y0, &x1, &y1);
+	McpJson j = McpJson::makeObject();
+	setBlendStats(j, map, x0, y0, x1, y1);
 	return j;
 }
 
@@ -484,7 +481,6 @@ McpJson cmdAutoTexture(const McpJson &args)
 		}
 	}
 
-	Int regions = 0;
 	if (mcpArgBool(args, "blend", true)) {
 		// Blend every texture except the ground base outward, so overlays, cliffs and water
 		// fade into their surroundings (Genesis GenerateBlendTiles).
@@ -494,13 +490,14 @@ McpJson cmdAutoTexture(const McpJson &args)
 		water.collect(toBlend, true);
 		std::set<Int> classes(toBlend.begin(), toBlend.end());
 		classes.erase(ground.base);
-		regions = blendRegions(copy, classes, optionalTexture(args, "edge_texture"), x0, y0, x1, y1);
+		const Int blendX1 = x1 >= copy->getXExtent() - 1 ? copy->getXExtent() - 2 : x1;
+		const Int blendY1 = y1 >= copy->getYExtent() - 1 ? copy->getYExtent() - 2 : y1;
+		copy->blendAllEdges(classes, optionalTexture(args, "edge_texture"), x0, y0, blendX1, blendY1);
 	}
 	ground.free(); cliff.free(); water.free();
 
 	McpJson j = mcpCommitHeightMapEdit(copy, true);
 	j.set("cells_ground", numGround).set("cells_cliff", numCliff).set("cells_water", numWater);
-	j.set("regions_blended", regions);
 	return j;
 }
 
@@ -511,6 +508,8 @@ void mcpRegisterGenerateCommands()
 	mcpRegisterCommand("terrain.generate", cmdGenerate, "{layers:[{height,frequency,octaves?,persistence?,amplitude?,ridged?,signed?}], seed?, mode?:set|add, base_height?, shape?, feather?, protect?:[{x,y,radius,feather?}]} Noise terrain.");
 	mcpRegisterCommand("terrain.limit_slope", cmdLimitSlope, "{max_step?=15, iterations?=20, shape?} Reduces height steps between neighbours; cliff flags follow the slope.");
 	mcpRegisterCommand("terrain.auto_texture", cmdAutoTexture, "{base:{texture,overlays?}, cliff?:{texture,overlays?,slope?,use_impassable?}, water?:{texture,overlays?,below?}, seed?, blend?, edge_texture?, shape?} Textures cells by slope/water with noise overlays.");
-	mcpRegisterCommand("terrain.blend_all", cmdBlendAll, "{textures?, edge_texture?, shape?} Auto-blends every region of the given (default: all but the most common) textures.");
+	mcpRegisterCommand("terrain.blend_all", cmdBlendAll, "{textures?, edge_texture?, shape?} Blends every edge of the given (default: all but the most common) textures, keeping existing blends.");
+	mcpRegisterCommand("terrain.reblend", cmdReblend, "{textures?, edge_texture?, shape?} Removes all blends in the area and blends every edge again, as one undo step.");
+	mcpRegisterCommand("terrain.blend_report", cmdBlendReport, "{shape?} Counts blended cells, 3-way tiles and edges that neither side blends across.");
 	mcpRegisterCommand("terrain.remove_blends", cmdRemoveBlends, "{shape?} Removes texture blends.");
 }

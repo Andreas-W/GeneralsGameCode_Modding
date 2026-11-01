@@ -1812,6 +1812,187 @@ void WorldHeightMapEdit::clearBlends(Int x0, Int y0, Int x1, Int y1)
 	}
 }
 
+/// The texture class that a blend layer fades in, or -1 for an empty layer.
+Int WorldHeightMapEdit::getBlendLayerClass(Int blendNdx)
+{
+	if (blendNdx <= 0) return -1;
+	return getTextureClassFromNdx(m_blendedTiles[blendNdx].blendNdx);
+}
+
+namespace
+{
+	/// How many of a cell's neighbours have one texture class.
+	struct BlendNeighbor
+	{
+		Int texClass;
+		Int sides;
+		Int total;
+	};
+
+	/// Collects the texture classes around a cell that are to blend into it, most sides first:
+	/// a side blend works with either flip of the cell, so it goes into the first layer.
+	Int collectBlendNeighbors(const Int *baseClasses, Int width, Int height, Int x, Int y,
+		const std::set<Int> &classes, BlendNeighbor *out)
+	{
+		const Int self = baseClasses[y*width + x];
+		Int count = 0;
+		for (Int j = y-1; j <= y+1; j++) {
+			for (Int i = x-1; i <= x+1; i++) {
+				if (i < 0 || j < 0 || i >= width || j >= height) continue;
+				if (i == x && j == y) continue;
+				const Int cls = baseClasses[j*width + i];
+				if (cls < 0 || cls == self || !classes.count(cls)) continue;
+				Int k;
+				for (k = 0; k < count; k++) {
+					if (out[k].texClass == cls) break;
+				}
+				if (k == count) {
+					out[k].texClass = cls;
+					out[k].sides = 0;
+					out[k].total = 0;
+					count++;
+				}
+				out[k].total++;
+				if (i == x || j == y) out[k].sides++;
+			}
+		}
+		for (Int a = 1; a < count; a++) {
+			BlendNeighbor cur = out[a];
+			Int b = a-1;
+			while (b >= 0 && (out[b].sides < cur.sides || (out[b].sides == cur.sides &&
+				(out[b].total < cur.total || (out[b].total == cur.total && out[b].texClass > cur.texClass))))) {
+				out[b+1] = out[b];
+				b--;
+			}
+			out[b+1] = cur;
+		}
+		return count;
+	}
+}
+
+/// blendToThisClass, but reading the neighbours from the base classes: a neighbour that already
+/// carries a blend still counts as its texture.
+void WorldHeightMapEdit::blendCellToClass(Int xIndex, Int yIndex, Int textureClass, Int sides, Int edgeClass, const Int *baseClasses)
+{
+	#define IS_CLASS(i, j) ((i) >= 0 && (j) >= 0 && (i) < m_width && (j) < m_height && baseClasses[(j)*m_width + (i)] == textureClass)
+	const Bool left = IS_CLASS(xIndex-1, yIndex);
+	const Bool right = IS_CLASS(xIndex+1, yIndex);
+	const Bool bottom = IS_CLASS(xIndex, yIndex-1);
+	const Bool top = IS_CLASS(xIndex, yIndex+1);
+
+	if (sides == 2 && !(left && right) && !(top && bottom)) {
+		// Corner: a long diagonal blend, as in blendToThisClass.
+		Int srcXIndex = xIndex;
+		Int srcYIndex = yIndex;
+		if (top) srcYIndex--;
+		if (bottom) srcYIndex++;
+		if (left) srcXIndex++;
+		if (right) srcXIndex--;
+		blendSpecificTiles(xIndex, yIndex, srcXIndex, srcYIndex, m_tileNdxes[yIndex*m_width + xIndex],
+			getBlendTileNdxForClass(xIndex, yIndex, textureClass), true, edgeClass);
+	} else if (sides > 0) {
+		if (left) blendTile(xIndex, yIndex, xIndex-1, yIndex, textureClass, edgeClass);
+		else if (right) blendTile(xIndex, yIndex, xIndex+1, yIndex, textureClass, edgeClass);
+		else if (bottom) blendTile(xIndex, yIndex, xIndex, yIndex-1, textureClass, edgeClass);
+		else blendTile(xIndex, yIndex, xIndex, yIndex+1, textureClass, edgeClass);
+	} else {
+		for (Int j = yIndex-1; j <= yIndex+1; j += 2) {
+			for (Int i = xIndex-1; i <= xIndex+1; i += 2) {
+				if (IS_CLASS(i, j)) {
+					blendTile(xIndex, yIndex, i, j, textureClass, edgeClass);
+					return;
+				}
+			}
+		}
+	}
+	#undef IS_CLASS
+}
+
+void WorldHeightMapEdit::blendAllEdges(const std::set<Int> &classes, Int globalEdgeClass, Int x0, Int y0, Int x1, Int y1)
+{
+	const Int localEdgeClass = globalEdgeClass >= 0 ? allocateEdgeTiles(globalEdgeClass) : -1;
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 >= m_width) x1 = m_width-1;
+	if (y1 >= m_height) y1 = m_height-1;
+
+	Int *baseClasses = new Int[m_dataSize];
+	for (Int y = 0; y < m_height; y++) {
+		for (Int x = 0; x < m_width; x++) {
+			baseClasses[y*m_width + x] = getTextureClass(x, y, true);
+		}
+	}
+
+	// A cell mostly surrounded by another texture becomes that texture, as in autoBlendOut:
+	// blends from three sides would obliterate it anyway.
+	BlendNeighbor neighbors[8];
+	Bool changed = true;
+	for (Int pass = 0; changed && pass < 8; pass++) {
+		changed = false;
+		for (Int y = y0; y <= y1; y++) {
+			for (Int x = x0; x <= x1; x++) {
+				const Int count = collectBlendNeighbors(baseClasses, m_width, m_height, x, y, classes, neighbors);
+				for (Int k = 0; k < count; k++) {
+					if (neighbors[k].sides > 2 || neighbors[k].total > 5) {
+						const Int ndx = y*m_width + x;
+						m_tileNdxes[ndx] = getTileNdxForClass(x, y, neighbors[k].texClass);
+						m_blendTileNdxes[ndx] = 0;
+						m_extraBlendTileNdxes[ndx] = 0;
+						baseClasses[ndx] = neighbors[k].texClass;
+						changed = true;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	for (Int y = y0; y <= y1; y++) {
+		for (Int x = x0; x <= x1; x++) {
+			const Int ndx = y*m_width + x;
+			const Int count = collectBlendNeighbors(baseClasses, m_width, m_height, x, y, classes, neighbors);
+			for (Int k = 0; k < count && m_extraBlendTileNdxes[ndx] == 0; k++) {
+				const Int cls = neighbors[k].texClass;
+				if (getBlendLayerClass(m_blendTileNdxes[ndx]) == cls || getBlendLayerClass(m_extraBlendTileNdxes[ndx]) == cls) continue;
+				// When a diagonal cannot match the flip of the first layer nothing is applied, and the next class gets its turn.
+				blendCellToClass(x, y, cls, neighbors[k].sides, localEdgeClass, baseClasses);
+			}
+		}
+	}
+	delete[] baseClasses;
+}
+
+void WorldHeightMapEdit::getBlendStats(Int x0, Int y0, Int x1, Int y1, Int *pBlended, Int *pThreeWay, Int *pHardEdges)
+{
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 >= m_width) x1 = m_width-1;
+	if (y1 >= m_height) y1 = m_height-1;
+	Int blended = 0, threeWay = 0, hardEdges = 0;
+	for (Int y = y0; y <= y1; y++) {
+		for (Int x = x0; x <= x1; x++) {
+			const Int ndx = y*m_width + x;
+			if (m_blendTileNdxes[ndx] != 0 || m_extraBlendTileNdxes[ndx] != 0) blended++;
+			if (m_extraBlendTileNdxes[ndx] != 0) threeWay++;
+			const Int cls = getTextureClass(x, y, true);
+			for (Int d = 0; d < 2; d++) {
+				const Int nx = d == 0 ? x+1 : x;
+				const Int ny = d == 0 ? y : y+1;
+				if (nx > x1 || ny > y1) continue;
+				const Int other = ny*m_width + nx;
+				const Int otherCls = getTextureClass(nx, ny, true);
+				if (cls == otherCls) continue;
+				if (getBlendLayerClass(m_blendTileNdxes[ndx]) == otherCls || getBlendLayerClass(m_extraBlendTileNdxes[ndx]) == otherCls) continue;
+				if (getBlendLayerClass(m_blendTileNdxes[other]) == cls || getBlendLayerClass(m_extraBlendTileNdxes[other]) == cls) continue;
+				hardEdges++;
+			}
+		}
+	}
+	*pBlended = blended;
+	*pThreeWay = threeWay;
+	*pHardEdges = hardEdges;
+}
+
 Bool WorldHeightMapEdit::optimizeTiles()
 {
 	// Run through all the tile indexes changing to tile classes.
