@@ -70,3 +70,6 @@ build.ninja
 __pycache__/
 *.pyc
 .venv/
+
+## Town scripts
+scripts/worldbuilder-mcp/town/work/
