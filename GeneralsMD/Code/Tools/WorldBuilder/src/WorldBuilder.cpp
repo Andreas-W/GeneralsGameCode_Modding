@@ -383,7 +383,7 @@ BOOL CWorldBuilderApp::InitInstance()
 #ifdef DEBUG_CRASHING
 	TheWritableGlobalData->m_debugIgnoreAsserts = ignoreAsserts;
 #endif
-	initSubsystem(TheWritableGlobalData, TheWritableGlobalData, "Data\INI\Default\GameData", "Data\INI\GameData");
+	initSubsystem(TheWritableGlobalData, TheWritableGlobalData, "Data\\INI\\Default\\GameData", "Data\\INI\\GameData");
 	initSubsystem(TheWriteableMapData, new MapData());
 
 	TheFramePacer = new FramePacer();

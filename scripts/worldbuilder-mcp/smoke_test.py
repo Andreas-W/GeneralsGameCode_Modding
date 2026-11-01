@@ -199,6 +199,23 @@ def main() -> int:
     again = wb.call("terrain.reblend")
     steps += 1
     assert abs(again["cells_blended"] - reblend["cells_blended"]) <= reblend["cells_blended"] / 10, (again, reblend)
+    # Cliff mapping: a wall taller than the texture leaves it unless repaired.
+    wb.call("terrain.flood_fill", texture=wb.call("terrain.list_textures", filter="CliffMediumType2")["textures"][0]["name"], x=300, y=300)
+    wall = [[60 + 240 * max(0, min(1, (vy - 40) / 3)) // 1 for _ in range(30)] for vy in range(30, 60)]
+    wb.call("terrain.set_heights", x0=30, y0=30, heights=[[int(min(255, v)) for v in row] for row in wall])
+    steps += 2
+    raw_cliff = wb.call("terrain.cliff_map", repair="none")
+    steps += 1
+    assert raw_cliff["cells_mapped"] > 0 and raw_cliff["cliff_cells_unmapped"] == 0, raw_cliff
+    for mode in ("fit", "slide", "fold"):
+        fixed = wb.call("terrain.cliff_map", repair=mode)
+        steps += 1
+        assert fixed["outside_v"] == 0 and fixed["cells_mapped"] == raw_cliff["cells_mapped"], (mode, fixed)
+    assert wb.call("terrain.cliff_report")["outside_v"] == 0
+    wb.call("terrain.cliff_clear")
+    steps += 1
+    assert wb.call("terrain.cliff_report")["cells_mapped"] == 0, "cliff_clear left mapping"
+    print("cliff mapping:", raw_cliff["cells_mapped"], "cells,", raw_cliff["outside_v"], "outside before repair")
     wb.call("edit.undo", count=steps)
     assert wb.call("terrain.sample", x=300, y=300)["height_raw"] == 60, "undo did not restore the terrain"
 

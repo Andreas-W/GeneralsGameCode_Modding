@@ -565,6 +565,54 @@ def terrain_blend_report(shape: Shape | None = None, x: float | None = None, y: 
     return wb.call("terrain.blend_report", **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
 
 
+@mcp.tool()
+def terrain_cliff_map(repair: str = "fit", shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                      radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                      x1: float | None = None, y1: float | None = None) -> dict:
+    """Maps the texture onto all steep cells in the area (default: the whole map) so that walls are not
+    stretched, like WorldBuilder's cliff tool but everywhere at once, redoing any mapping there. Run it as
+    the last step after heights, painting and blending: painting removes mapping and height edits leave it
+    out of date. A region of connected steep cells of one texture is mapped as a whole.
+
+    As WorldBuilder does it, a region taller than its texture runs out of the texture: black gaps and
+    stripes of other textures. repair decides what happens to those cells:
+    - fit (default): squeezes the region vertically to fit once. No gaps, no seams, finer texture on tall regions.
+    - slide: keeps the scale, moves cells by whole repeats and leaves small jumps where a cell crosses a repeat.
+    - fold: like slide, but clamps those cells, which smears them.
+    - none: leaves them as they are.
+
+    Returns the counts of terrain_cliff_report and what the repair did. One undo step."""
+    return wb.call("terrain.cliff_map", repair=repair, **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
+def terrain_cliff_repair(repair: str = "fit", shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                         radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                         x1: float | None = None, y1: float | None = None) -> dict:
+    """Removes black gaps and foreign texture from mapping that already exists, for example from
+    WorldBuilder's cliff tool, without mapping anything new. repair as in terrain_cliff_map; fit works on
+    the whole map whatever the area is. One undo step."""
+    return wb.call("terrain.cliff_repair", repair=repair, **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
+def terrain_cliff_report(shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                         radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                         x1: float | None = None, y1: float | None = None) -> dict:
+    """Counts cliff_cells (steep enough to map), cliff_cells_unmapped, cells_mapped, outside_v and outside_u
+    (cells that leave their texture: these draw black or another texture), mutants, per texture and with
+    sample positions. Changes nothing."""
+    return wb.call("terrain.cliff_report", **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+@mcp.tool()
+def terrain_cliff_clear(shape: Shape | None = None, x: float | None = None, y: float | None = None,
+                        radius: float | None = None, x0: float | None = None, y0: float | None = None,
+                        x1: float | None = None, y1: float | None = None) -> dict:
+    """Removes cliff texture mapping in the area (default: the whole map). One undo step."""
+    return wb.call("terrain.cliff_clear", **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
 # --------------------------------------------------------------------------------------------------
 # Towns
 # --------------------------------------------------------------------------------------------------

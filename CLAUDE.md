@@ -130,7 +130,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/server.py  <-- TCP 127.0.0.1:478
 
 ### Map editing
 
-- **Terrain**: `terrain_generate` (presets), `terrain_brush`, `terrain_set_heights` / `terrain_import_heightmap`, `terrain_limit_slope`, `terrain_set_passability`; textures with `terrain_paint_texture`, `terrain_auto_texture`, `terrain_auto_blend`; finish painting with `terrain_reblend`, and `terrain_blend_report` counts 3-way tiles and hard edges.
+- **Terrain**: `terrain_generate` (presets), `terrain_brush`, `terrain_set_heights` / `terrain_import_heightmap`, `terrain_limit_slope`, `terrain_set_passability`; textures with `terrain_paint_texture`, `terrain_auto_texture`, `terrain_auto_blend`; finish painting with `terrain_reblend`, and `terrain_blend_report` counts 3-way tiles and hard edges. Last of all `terrain_cliff_map` maps textures onto steep walls without black gaps (painting removes the mapping).
 - **Whole-map operations**: `map_resize`, `map_transform`, `map_symmetrize` (mirror or rotate one part onto the rest), `map_replace`.
 - **Objects**: `objects_place` / `objects_place_many` / `objects_scatter`, `objects_modify`, `objects_set_properties`. Owners are team names from `sides_list` (`team` is neutral).
 - **Waypoints, areas, water, roads**: `waypoints_add` / `waypoints_link`, `polygons_add`, `roads_add`, `roads_route` (road that follows the terrain).
@@ -181,6 +181,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.
 - The bridge exists only in builds with `RTS_BUILD_OPTION_GAME_MCP` and only listens when the game is started with `-mcp`. Without the flag nothing changes for normal play.
 - `game_launch` uses `generalszh.exe` in the mod folder (`GAME_DIR`; `GAME_EXE` picks another exe name). That exe must be an MCP build: if the game starts but the bridge never answers, the installed exe is older than the feature. After changing engine code, rebuild `z_generals` and copy it there (ask first, keep a `.bak` of the user's exe).
 - One game at a time: `game_launch` fails while a game with the bridge runs; `game_quit` it first. If a tool says "Cannot reach the game", no game runs with `-mcp` (or it hangs in a dialog).
+- The game does not start while any WorldBuilder runs: it shares their single-instance check and exits with code 1 before writing a log. Close every WorldBuilder first.
 - A game started by hand works too: `generalszh.exe -mcp -mcpGame "<map>" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts`, run from the mod folder.
 
 ### Testing a feature

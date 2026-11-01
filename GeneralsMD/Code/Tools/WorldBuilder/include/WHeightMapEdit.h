@@ -198,6 +198,17 @@ public: // Editing methods.
 	void dbgVerifyAfterUndo(); ///< Verifies the structures are still consistent.
 	Bool doCliffAdjustment(Int xIndex, Int yIndex);
 	Bool removeCliffMapping();
+	/// True if the cell is steep enough for doCliffAdjustment to map it.
+	Bool isCliffCell(Int xIndex, Int yIndex);
+	/// Runs doCliffAdjustment from every steep cell of the inclusive index range that has no mapping
+	/// yet. A region continues outside the range. Returns the number of regions mapped.
+	Int mapCliffs(Int x0, Int y0, Int x1, Int y1);
+	/// Removes the cliff mapping of the cells in the inclusive index range.
+	void clearCliffMapping(Int x0, Int y0, Int x1, Int y1);
+	/// Reads a cell's mapping, its texture class and the height of that texture in texture coordinates.
+	/// Mapped V runs from -extent to 0, U from 0 to extent. Returns false if the cell has no mapping.
+	Bool getCliffCell(Int xIndex, Int yIndex, TCliffInfo *pInfo, Int *pClass, Real *pExtent);
+	void setCliffCell(Int xIndex, Int yIndex, const TCliffInfo &info);
 
 	Int getNumBoundaries() const ;
 	void getBoundary(Int ndx, ICoord2D* border) const;
