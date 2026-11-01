@@ -1,0 +1,13 @@
+{
+  "desert": {"path": "Maps/Tournament Desert/Tournament Desert.map", "note": "simple cliffs creating plateaus with ramps, mostly straight but jagged and fuzzy"},
+  "continent": {"path": "Maps/Tournament Continent/Tournament Continent.map", "note": "tall rounded realistic cliffs forming plateaus and mountains, cliff mapping likely; smaller decorative elements"},
+  "lake": {"path": "Maps/Tournament Lake/Tournament Lake.map", "note": "large mountain, cliffs and smaller plateaus breaking up the hill slope"},
+  "homeland": {"path": "Maps/Homeland Alliance/Homeland Alliance.map", "note": "cliffs as river shores and to create layers and plateaus"},
+  "overland": {"path": "Maps/Overland/Overland.map", "note": "cliffs as map borders, large but thin playable plateau layer, rounded noisy cliffs with small hills at the upper edge"},
+  "twilight": {"path": "Maps/Twilight Flame/Twilight Flame.map", "note": "simple long cliffs breaking the map into layers, noise and height variation along them"},
+  "manic": {"path": "Maps/Manic Aggression/Manic Aggression.map", "note": "mountains as map borders, two large cliff layers, very large cliff height detail"},
+  "killing": {"path": "Maps/Killing Fields/Killing Fields.map", "note": "very large mountains and height variation, as obstacles, plateaus and along the river"},
+  "hostile": {"path": "Maps/Hostile Dawn/Hostile Dawn.map", "note": "mix of large cliffs and smaller plateaus, mostly fuzzy and jagged, mountains"},
+  "flash": {"path": "Maps/Flash Effect/Flash Effect.map", "note": "islands with cliffs as shoreline, curved and a bit fuzzy"},
+  "dust": {"path": "Maps/Dust Devil/Dust Devil.map", "note": "fuzzy long cliffs in several layers, mountainous map border"}
+}
