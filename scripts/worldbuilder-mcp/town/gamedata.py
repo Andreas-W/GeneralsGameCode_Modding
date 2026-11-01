@@ -27,6 +27,8 @@ for fn in glob.glob(INI + r"\**\*.ini", recursive=True):
         m = re.match(r"\s*(EditorSorting|Side|Geometry|GeometryMajorRadius|GeometryMinorRadius|GeometryHeight)\s*=\s*(\S+)", s)
         if m:
             obj.setdefault(m.group(1), m.group(2))
+        if re.match(r"\s*Behavior\s*=\s*GarrisonContain", s):
+            obj["garrison"] = True
         if re.match(r"\s*KindOf\s*=", s):
             obj["kindof"] = s.split("=", 1)[1].split()
 for v in geo.values():

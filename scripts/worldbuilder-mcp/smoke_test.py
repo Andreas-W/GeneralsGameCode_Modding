@@ -657,6 +657,18 @@ def main() -> int:
     assert town["placed"] == town["objects"] > 0 and "errors" not in town, town
     assert wb.call("map.info")["counts"]["road_points"] > 0
     print("town:", town["objects"], "objects,", town["road_runs"])
+    # Outposts: only kits without Tech buildings or resources on empty spots, and decorating keeps what is there.
+    import outpost_tool
+    wb.call("map.new", width=128, height=128, initial_height=60, discard_changes=True)
+    wb.call("sides.add_player", faction="FactionCivilian", name="PlyrCivilian", display_name="Civilian", is_human=False)
+    tech = wb.call("objects.place", template="TechOilDerrick", x=600, y=600, owner="teamPlyrCivilian")["id"]
+    fill = outpost_tool.populate(wb, count=2, theme="arabic", spacing=300, seed=2)
+    assert fill["placed"] and "errors" not in fill, fill
+    around = outpost_tool.place(wb, around=tech, theme="industrial", seed=1)
+    assert "errors" not in around, around
+    derricks = [o for o in wb.call("objects.list", limit=500)["objects"] if o["template"] == "TechOilDerrick"]
+    assert len(derricks) == 1, derricks
+    print("outposts:", [p["kit"] for p in fill["placed"]], around["placed"]["kit"])
     print("OK")
     return 0
 

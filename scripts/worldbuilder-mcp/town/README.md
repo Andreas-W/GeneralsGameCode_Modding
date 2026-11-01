@@ -12,6 +12,23 @@ Generates towns from style packs measured on reference maps: place a town of a c
 
 It does not touch what lies outside the plan, and saves nothing. It takes more steps than `edit_undo` holds, so the way back is reopening the map. With `dry_run=true`, look at `preview.png` in the plan folder first. `town_tool_test.py` tries it on a map through the second WorldBuilder.
 
+## Outposts
+
+Small groups next to Tech buildings and supplies, on empty map spots, and lone garrisonable buildings with some flavour. The user finds these hard to generalize, so instead of rules, `kit_extract.py` harvests real groups from reference maps into `packs/outposts.json`: 147 kits with objects, painted ground and short paths, relative to their main object.
+
+- `outpost_list(theme, purpose, contains, max_radius)`: themes arabic, tropical, urban, industrial, military; purposes tech, supply, garrison, decor. `plans/kits.png` in the work folder shows them all after `kit_extract.py`.
+- `outpost_place(x, y)` or `outpost_place(around=<object id>)`: one kit. Around a Tech building, dock or pile, that object stays and the rest of a kit goes around it.
+- `outpost_populate(count, theme, area, decorate_tech, spacing)`: fills empty spots, and with `decorate_tech` puts a kit around every Tech building, dock and pile group.
+
+What keeps them sensible:
+- **Gameplay:** decorating and filling add no Tech buildings or resources. Only placing a kit by id or picked by `outpost_place` at x, y can.
+- **Theme** comes from what a kit shows, not from its map: Silent River has towns as well as huts.
+- **Ground:** by default only kit textures the map already uses are painted, because a kit's sand on a meadow looks like a foreign patch. Shore and water textures are never kept.
+- **Docks** (`shore`) stay out of automatic picks, since they need water.
+- A kit's buildings must fit; props that do not are left out.
+
+User's example maps: Cairo Commandos (Arabic clusters, tents, small cluster with walled yard), Lights Out (oil tank and props by a derrick, watchtower with searchlights, mostly for night maps), Golden Oasis (small clusters, walls, cars), Bombardment Beach (grass huts with fireplace and rocks), Defcon6 (nuclear bunker with sandbags and tower), Silent River (river huts), Wasteland Warlords (gas tanks, shipping containers, quonset huts), Winding River (grass and river huts along the river). No Alpine or winter kits yet.
+
 ## Setup
 
 - Python with `numpy`, `scipy`, `pillow`.
@@ -113,6 +130,7 @@ Shared: Mogadishu buildings, 1-6° off the street's direction, median street gap
 ## Open
 
 - **Nothing has been tested in game.** Truck access to docks and piles is unchecked; this is the next thing to do. When tried, `generalszh.exe` quit at once with exit code 1 and no new debug log, on any map, also started by hand, so it is not about town maps. Cause not found; the single-instance mutex was held while a WorldBuilder ran, but this build may allow several instances (an `_Instance02` log exists).
+- Outposts have only been looked at in WorldBuilder, in about ten pictures of the 147 kits. River huts need a shore to look right, but only docks are held back from dry land. Kits from night maps such as searchlights are not marked as night kits.
 - Slopes: only tried through `town_generate` on Alpenstadt, Bear Town Beatdown, Tournament Desert and Desert Coast, in WorldBuilder.
 - **Block towns need open ground.** Existing objects and roads cut the grid: on Tournament Desert and Desert Coast (25-31% blocked) they came out with one or two blocks, even after trying 90 grid positions. Irregular towns fit in better. Streets do not connect to roads already on the map: they stop before them.
 - Short grey stubs (about 40 units) can appear on open ground, far from any road point, on `TownAlpineLots`. Removing any of five unrelated sidewalk runs cleared one, two others did not, so it looks like a road buffer rendering quirk. Not understood; rings with `angled` corners have shown none so far.
@@ -124,6 +142,5 @@ Shared: Mogadishu buildings, 1-6° off the street's direction, median street gap
 ## Next (proposed, the user chooses)
 
 1. Get the game starting again, then test a town in game: `AlpenstadtTownTest` in the user maps has a dock, a construction site and a derrick.
-2. Outposts. The user wants all kinds, as variants: military (guard towers, sandbags, fences, bunkers, like a checkpoint), civilian (a few scattered buildings such as a farm, gas station or depot) and gameplay (a defended Tech building or supply spot between bases). Needs reference maps from the user. Close to lots.
-3. Other map aspects from references: cliffs, rivers.
+2. Other map aspects from references: cliffs, rivers.
 4. More town styles; each should be mostly a new pack.

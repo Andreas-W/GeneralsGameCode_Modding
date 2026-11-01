@@ -22,6 +22,7 @@ import match as match_data
 import scaffold as scaffold_data
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "town"))
+import outpost_tool
 import town_tool
 from wb_bridge import WorldBuilderBridge, WorldBuilderError
 
@@ -591,6 +592,45 @@ def town_generate(polygon: list[list[float]], style: Literal["alpine", "urban", 
     try:
         return town_tool.generate(wb, polygon, style=style, preset=preset, seed=seed, jitter=jitter, theta=theta, irregularity=irregularity,
                                   theme=theme, lots=lots, outline=outline, flatten=flatten, max_slope=max_slope, reblend=reblend, clear_nature=clear_nature, dry_run=dry_run)
+    except (ValueError, RuntimeError) as exc:
+        raise ToolError(str(exc))
+
+
+@mcp.tool()
+def outpost_list(theme: str | None = None, purpose: Literal["tech", "supply", "garrison", "decor"] | None = None,
+                 contains: str | None = None, max_radius: float | None = None) -> dict:
+    """Kits for outpost_place and outpost_populate: small real groups of buildings, props, ground and paths harvested from reference maps.
+    Filter by theme (arabic, tropical, urban, industrial, military), purpose, or contains (part of an object name, such as Tent, GrassHut,
+    Fence). Kits with shore=true hold docks: outpost_populate leaves them out, place them by id at a shore."""
+    return outpost_tool.outpost_list(theme, purpose, contains, max_radius)
+
+
+@mcp.tool()
+def outpost_place(x: float | None = None, y: float | None = None, around: int | None = None, kit: str | None = None, theme: str | None = None,
+                  purpose: Literal["tech", "supply", "garrison", "decor"] | None = None, contains: str | None = None, angle: float | None = None,
+                  seed: int = 1, ground: Literal["auto", "all", "none"] = "auto", roads: bool = True, flatten: bool = True, clear_nature: bool = False, max_slope: float = 12.0,
+                  reblend: Literal["area", "map", "none"] = "area", dry_run: bool = False) -> dict:
+    """Stamps one kit into the open map at x, y; or around=<object id> to decorate an existing Tech building, dock or pile, which stays and
+    is not placed again. Choose kit by id, or let theme, purpose and contains pick one. Buildings of a kit must fit, props that do not
+    are left out; water, cliffs, steep ground, objects and roads are avoided. Decorating adds no Tech buildings or resources.
+    ground: auto paints only kit textures the map already uses, all paints them all, none paints nothing. roads: add its short paths. clear_nature: delete trees, bushes and rocks in its circle first. Nothing is saved until map_save."""
+    try:
+        return outpost_tool.place(wb, x, y, around, kit, theme, purpose, contains, angle, seed, ground, roads, flatten, clear_nature, max_slope, reblend, dry_run)
+    except (ValueError, RuntimeError) as exc:
+        raise ToolError(str(exc))
+
+
+@mcp.tool()
+def outpost_populate(count: int = 4, theme: str | None = None, purpose: Literal["tech", "supply", "garrison", "decor"] | None = None,
+                     contains: str | None = None, area: list[list[float]] | None = None, decorate_tech: bool = False, spacing: float = 350,
+                     seed: int = 1, ground: Literal["auto", "all", "none"] = "auto", roads: bool = True, flatten: bool = True, clear_nature: bool = False,
+                     max_slope: float = 12.0, max_radius: float = 220, reblend: Literal["area", "map", "none"] = "area", dry_run: bool = False) -> dict:
+    """Fills empty spots of the open map with count kits of a theme, at least spacing apart; area is an optional polygon of [x, y] points.
+    Spots get no Tech buildings or resources, since those change how a map plays. ground: as in outpost_place.
+    decorate_tech also puts a matching kit around every Tech building, dock and pile group there, in addition to count (use count=0 for
+    only that). Use dry_run to see what would go where. Nothing is saved until map_save."""
+    try:
+        return outpost_tool.populate(wb, count, theme, purpose, contains, area, decorate_tech, spacing, seed, ground, roads, flatten, clear_nature, max_slope, max_radius, reblend, dry_run)
     except (ValueError, RuntimeError) as exc:
         raise ToolError(str(exc))
 
