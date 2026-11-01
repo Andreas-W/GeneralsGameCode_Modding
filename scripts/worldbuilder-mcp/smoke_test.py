@@ -657,6 +657,13 @@ def main() -> int:
     assert town["placed"] == town["objects"] > 0 and "errors" not in town, town
     assert wb.call("map.info")["counts"]["road_points"] > 0
     print("town:", town["objects"], "objects,", town["road_runs"])
+    # Streets leaving town connect to a road on the map: at a new road point if the types match, at its edge if not.
+    wb.call("map.new", width=240, height=240, initial_height=60, discard_changes=True)
+    wb.call("roads.add", type="FourLane", points=[[60, 200], [1200, 200], [2300, 200]], corners="tight")
+    joined = town_tool.generate(wb, [[500, 500], [1700, 500], [1700, 1500], [500, 1500]], style="urban", seed=5, jitter=0, theta=0)
+    assert joined.get("connections") and "errors" not in joined, joined
+    assert all(c["join"] == "junction" for c in joined["connections"]), joined["connections"]
+    print("connections:", [(c["type"], c["join"], c["length"]) for c in joined["connections"]])
     # Outposts: only kits without Tech buildings or resources on empty spots, and decorating keeps what is there.
     import outpost_tool
     wb.call("map.new", width=128, height=128, initial_height=60, discard_changes=True)

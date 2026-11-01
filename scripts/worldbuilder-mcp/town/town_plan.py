@@ -485,7 +485,8 @@ print("objects", len(OBJ), tot.most_common(30))
 roads = [{"type": "TwoLane", "corners": "tight", "end_caps": True, "points": [[round(x, 1), round(y, 1)] for x, y in c]} for c in CHAINS]
 roads += [{"type": "Sidewalk", "corners": "angled", "end_caps": False, "points": w} for w in walk]
 json.dump({"objects": OBJ, "roads": roads, "stats": {"houses": sum(counts.values()), "street": street_len},
-           "surround": "GrassMediumType8", "masks": ["GrassType1"] + list(OUTLINE) + ["CobblestoneType1"]}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
+           "surround": "GrassMediumType8", "masks": ["GrassType1"] + list(OUTLINE) + ["CobblestoneType1"],
+           "exits": [{"point": [round(b_[0], 1), round(b_[1], 1)], "type": "TwoLane", "width": pack["streets"]["width"], "dir": [(b_[0] - a_[0]) / (math.dist(a_, b_) or 1), (b_[1] - a_[1]) / (math.dist(a_, b_) or 1)]} for a_, b_ in ENT]}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
 # --- preview at the same scale as the reference plan ---
 SC = 0.62
 X0, Y1 = 330, 1800
