@@ -35,6 +35,8 @@
 #include "GameLogic/LocomotorSet.h"
 #include "GameLogic/GameLogic.h"
 
+#include <vector>
+
 class Bridge;
 class Object;
 class Weapon;
@@ -585,6 +587,7 @@ public:
 
 	Bool needToCalculateZones() const {return m_nextFrameToCalculateZones <= TheGameLogic->getFrame() ;} ///< Returns true if the zones need to be recalculated.
 	void markZonesDirty() ; ///< Called when the zones need to be recalculated.
+	void markZonesDirtyNow() ; ///< Recalculate with the next pathfind update, for changes that open or close routes.
 	void updateZonesForModify( PathfindCell **map,  PathfindLayer layers[], const IRegion2D &structureBounds, const IRegion2D &globalBounds ) ; ///< Called to recalculate an area when a structure has been removed.
 	void calculateZones(	PathfindCell **map, PathfindLayer layers[], const IRegion2D &bounds);	///< Does zone calculations.
 	zoneStorageType getEffectiveZone(LocomotorSurfaceTypeMask acceptableSurfaces, Bool crusher, zoneStorageType zone) const;
@@ -699,6 +702,10 @@ public:
 
 	Bool clientSafeQuickDoesPathExist( const LocomotorSet& locomotorSet, Short requiredBridgeHeight, const Coord3D *from, const Coord3D *to );  ///< Can we build any path at all between the locations	(terrain & buildings check - fast)
 	Bool clientSafeQuickDoesPathExistForUI( const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to );  ///< Can we build any path at all between the locations	(terrain only - fast)
+	enum { NAVAL_MAX_WATER_LEVEL = 15 };	///< Water levels are distances to land in cells, capped at this value
+	static Bool isNavalLocomotorSet( const LocomotorSet& locomotorSet );	///< True for ships: water only and a required water level
+	Bool navalPathPossible( const LocomotorSet& locomotorSet, Short requiredBridgeHeight, const PathfindCell *fromCell, const PathfindCell *toCell );	///< False if no water that is deep enough and passable under bridges connects the cells. Always true for non ships.
+	Bool adjustToNavalDestination( const Object *obj, const LocomotorSet& locomotorSet, Coord3D *dest );	///< Moves dest to the nearest free water cell the ship can reach. Returns true if dest was changed.
 	Bool slowDoesPathExist( Object *obj, const Coord3D *from,
 		const Coord3D *to, ObjectID ignoreObject=INVALID_ID );  ///< Can we build any path at all between the locations	(terrain, buildings & units check - slower)
 
@@ -815,8 +822,8 @@ public:
 
 protected:
 	virtual Path *internalFindPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to);	///< Find a short, valid path between given locations
-	Path *findHierarchicalPath( Bool isHuman, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Bool crusher);
-	Path *findClosestHierarchicalPath( Bool isHuman, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Bool crusher);
+	Path *findHierarchicalPath( Bool isHuman, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Bool crusher, Short requiredBridgeHeight = 0);
+	Path *findClosestHierarchicalPath( Bool isHuman, const LocomotorSet& locomotorSet, const Coord3D *from, const Coord3D *to, Bool crusher, Short requiredBridgeHeight = 0);
 	Path *internal_findHierarchicalPath( Bool isHuman, const LocomotorSurfaceTypeMask locomotorSurface, const Coord3D *from, const Coord3D *to, Bool crusher, Bool closestOK);
 	void processHierarchicalCell( const ICoord2D &scanCell, const ICoord2D &deltaPathfindCell,
 																PathfindCell *parentCell,
@@ -899,7 +906,24 @@ protected:
 	Path *buildHierarchicalPath( const Coord3D *fromPos, PathfindCell *goalCell);	///< Work backwards from goal cell to construct final path
 
 	void  prependCells( Path *path, const Coord3D *fromPos,
-																	PathfindCell *goalCell, Bool center ); ///< Add pathfind cells to a path.
+																	PathfindCell *goalCell, Bool center, Short requiredBridgeHeight = 0 ); ///< Add pathfind cells to a path.
+
+	// Connectivity of water a ship can use, one label map per required water level.
+	// Water under a bridge deck forms its own components ("gates"), which join the
+	// water around them only while the bridge is open, destroyed or high enough.
+	struct NavalGate
+	{
+		UnsignedShort label;
+		PathfindLayerEnum layer;
+		Short maxClearance;
+		std::vector<UnsignedShort> neighbors;
+	};
+	const UnsignedShort *getNavalLabels( Int waterLevel );
+	void freeNavalLabels();
+	Int getNavalCellIndex( const PathfindCell *cell ) const;
+	void collectNavalReachable( Int waterLevel, Short requiredBridgeHeight, UnsignedShort startLabel, std::vector<UnsignedShort> &reached );
+	Bool isNavalGoalCell( const Object *obj, Int waterLevel, Short requiredBridgeHeight, const UnsignedShort *labels,
+		UnsignedShort startLabel, const std::vector<UnsignedShort> &reached, Int x, Int y, Int radius, Bool center );
 
 	void debugShowSearch( Bool pathFound );				///< Show all cells touched in the last search
 	static LocomotorSurfaceTypeMask validLocomotorSurfacesForCellType(PathfindCell::CellType t);
@@ -951,6 +975,13 @@ private:
 	Int						m_queuePRHead;
 	Int						m_queuePRTail;
 	Int						m_cumulativeCellsAllocated;
+
+	UnsignedShort	*m_navalLabels[NAVAL_MAX_WATER_LEVEL+1];	///< Computed on first use, 0 = not usable by the ship
+	Bool					m_navalLabelsOverflow[NAVAL_MAX_WATER_LEVEL+1];
+	std::vector<NavalGate> m_navalGates[NAVAL_MAX_WATER_LEVEL+1];
+
+	Int						m_hierWaterLevel;		///< Ship water level the hierarchical search must respect, 0 for other units
+	Short					m_hierBridgeHeight;	///< Bridge clearance the hierarchical search must respect for ships
 
 #if RTS_ZEROHOUR && RETAIL_COMPATIBLE_CRC
 public:
