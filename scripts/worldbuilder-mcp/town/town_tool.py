@@ -152,8 +152,97 @@ def _flatten(wb, heights, hard, plan, geo, widths, B):
     wb.call("terrain.set_heights", x0=int(i0), y0=int(j0), heights=rows)
     return {"changed_vertices": int(changed.sum()), "largest_change_raw": round(float(np.abs(new - heights).max()), 1)}
 
+CONNECTABLE = re.compile(r"Lane|Dirt|Gravel|Cobblestone")
+
+def _existing_roads(listed):
+    """Streets already on the map, as (type, ax, ay, bx, by); no sidewalks, parking lines, rails or bridges."""
+    rp = [o for o in listed if o["kind"] == "road_point"]
+    return [(a["template"], a["x"], a["y"], b["x"], b["y"]) for a, b in zip(rp[0::2], rp[1::2]) if CONNECTABLE.search(a["template"]) and "Bridge" not in a["template"]]
+
+def _plan_connections(exits, segs, widths, reach):
+    """For each street leaving town, the nearest road on the map and how to meet it. The narrower of the two types forms the connection:
+    same type ends on a road point, which makes a real junction; different types end at the edge of the wider road with an end cap,
+    and the wider road keeps its connection."""
+    out = []
+    for ex in exits:
+        p = ex["point"]
+        best = None
+        for s in segs:
+            ax, ay, bx, by = s[1:]
+            dx, dy = bx - ax, by - ay
+            t = max(0, min(1, ((p[0] - ax) * dx + (p[1] - ay) * dy) / max(dx * dx + dy * dy, 1e-6)))
+            q = (ax + dx * t, ay + dy * t)
+            d = math.dist(p, q)
+            if best is None or d < best[0]:
+                best = (d, s, q)
+        if best is None or best[0] > reach:
+            continue
+        d, s, q = best
+        road_w = widths.get(s[0], 30)
+        kind = s[0] if road_w < ex["width"] else ex["type"]
+        start = p
+        if kind != ex["type"]:
+            # a narrower connector ends beside the town's street
+            start = [p[0] + ex["dir"][0] * (ex["width"] / 2), p[1] + ex["dir"][1] * (ex["width"] / 2)]
+        if kind == s[0]:
+            # the place on the road opposite the start; _meet_road makes a road point there
+            to = q
+            join = "junction"
+        else:
+            L = math.dist(start, q) or 1
+            to = (q[0] + (start[0] - q[0]) / L * road_w / 2, q[1] + (start[1] - q[1]) / L * road_w / 2)
+            join = "beside"
+        out.append({"type": kind, "from": [round(start[0], 1), round(start[1], 1)], "to": [round(to[0], 1), round(to[1], 1)], "join": join, "road": s[0], "length": round(math.dist(start, to))})
+    return out
+
+def _meet_road(wb, c):
+    """A junction needs a road point: the nearest one if it is close, otherwise the road is split where the connection meets it."""
+    rp = [o for o in wb.call("objects.list", template=c["road"], include_waypoints_and_roads=True, limit=20000)["objects"] if o["kind"] == "road_point"]
+    p = c["to"]
+    best = None
+    for a, b in zip(rp[0::2], rp[1::2]):
+        dx, dy = b["x"] - a["x"], b["y"] - a["y"]
+        t = max(0, min(1, ((p[0] - a["x"]) * dx + (p[1] - a["y"]) * dy) / max(dx * dx + dy * dy, 1e-6)))
+        q = (a["x"] + dx * t, a["y"] + dy * t)
+        d = math.dist(p, q)
+        if best is None or d < best[0]:
+            best = (d, a, b, q)
+    if best is None:
+        return p
+    _, a, b, q = best
+    for n in (a, b):
+        if math.dist((n["x"], n["y"]), q) < 90:
+            return [n["x"], n["y"]]
+    # the bridge does not report the corner style of a point: tight is what roads_route uses at sharp bends
+    wb.call("objects.delete", ids=[a["id"], b["id"]])
+    q = [round(q[0], 1), round(q[1], 1)]
+    def pieces(u, v):
+        # very long segments can render with gaps, so the parts keep road points every so often
+        n = max(1, int(math.dist(u, v) // 300))
+        return [[round(u[0] + (v[0] - u[0]) * k / n, 1), round(u[1] + (v[1] - u[1]) * k / n, 1)] for k in range(n)]
+    A, B = [a["x"], a["y"]], [b["x"], b["y"]]
+    wb.call("roads.add", type=c["road"], points=pieces(A, q) + pieces(q, B) + [B], corners="tight", end_caps=bool(a.get("end_cap") or b.get("end_cap")))
+    return q
+
+def _build_connections(wb, plans, widths):
+    done, failed = [], []
+    for c in plans:
+        w = widths.get(c["type"], 30)
+        try:
+            if c["join"] == "junction":
+                c["to"] = _meet_road(wb, c)
+                c["length"] = round(math.dist(c["from"], c["to"]))
+            if c["length"] < 60:
+                wb.call("roads.add", type=c["type"], points=[c["from"], c["to"]], corners="tight", end_caps=True)
+            else:
+                wb.call("roads.route", **{"from": c["from"]}, to=c["to"], type=c["type"], corners="auto", flatten=True, flatten_width=w + 10, snap=1, end_caps=True, object_clearance=8)
+            done.append(c)
+        except Exception as exc:
+            failed.append(f"{c['type']} from {c['from']} to {c['road']}: {exc}")
+    return done, failed
+
 def generate(wb, polygon, style="urban", preset=None, seed=1, jitter=None, theta=None, irregularity=None, theme=None, lots=None,
-             outline=False, flatten=True, max_slope=12.0, reblend="area", clear_nature=False, dry_run=False):
+             outline=False, flatten=True, max_slope=12.0, reblend="area", clear_nature=False, connect=True, connect_range=800.0, dry_run=False):
     """See town_generate in server.py."""
     import numpy as np
     game_dir = os.environ.get("GAME_DIR", "")
@@ -227,6 +316,9 @@ def generate(wb, polygon, style="urban", preset=None, seed=1, jitter=None, theta
               "blocked_terrain_cells": terrain_cells, "existing_objects_avoided": existing, "nature_in_area": len(nature)}
     if os.path.exists(os.path.join(folder, "preview.png")):
         result["preview"] = os.path.join(folder, "preview.png")
+    connections = _plan_connections(plan.get("exits", []), _existing_roads(listed), widths, connect_range) if connect else []
+    if connect:
+        result["connections"] = connections
     if dry_run:
         result["dry_run"] = True
         return result
@@ -253,6 +345,10 @@ def generate(wb, polygon, style="urban", preset=None, seed=1, jitter=None, theta
             errors.append(f"{o['template']}: {exc}")
     for r in plan["roads"]:
         wb.call("roads.add", **r)
+    if connections:
+        built, failed = _build_connections(wb, connections, widths)
+        result["connections"] = built
+        errors.extend(failed)
     if reblend == "map":
         report = wb.call("terrain.reblend")
     elif reblend == "area":

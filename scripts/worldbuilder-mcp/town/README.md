@@ -10,6 +10,10 @@ Generates towns from style packs measured on reference maps: place a town of a c
 2. Runs the generator for the style with that site. On real maps a block grid tries 90 positions, and other angles unless `theta` is given, and keeps the one with the most blocks.
 3. Unless `dry_run`: smooths the ground under streets, levels a pad under each building, paints, places, adds roads, reblends the area. Water and cliffs stay as they are.
 
+4. Connects: streets leaving town are routed to the nearest road within `connect_range` (`connect=false` turns it off).
+
+**The intended order is from scratch or a template: terrain, then the map's main roads, then towns.** The user does not build towns into fully finished maps, so that is not what to test on; `town_scratch_test.py` does this order.
+
 It does not touch what lies outside the plan, and saves nothing. It takes more steps than `edit_undo` holds, so the way back is reopening the map. With `dry_run=true`, look at `preview.png` in the plan folder first. `town_tool_test.py` tries it on a map through the second WorldBuilder.
 
 ## Outposts
@@ -123,6 +127,8 @@ Shared: Mogadishu buildings, 1-6° off the street's direction, median street gap
 - **End-capped road near another type**: `W3DRoadBuffer::findCrossTypeJoinVector` treats an end with `FLAG_ROAD_JOIN` closer than 0.55 of the other road's width to its centre line as a join, and draws a strip perpendicular to that road, as long as its segment. On a T junction that strip lies on the side road and is fine. Parallel, as with a sidewalk at offset 17 beside `TwoLane` (limit 19.25), it shows as a long line across the terrain.
 - **Runs of one road type sharing an endpoint** draw similar strips, seen when old and new sidewalk runs overlapped. Inferred from one rebuild, not traced in code.
 - **Road point ids change** after a save or manual edit: list them again before deleting.
+- **T junctions of one road type** render cleanly in every corner style and end cap combination (`road_t_test.py`), as long as the road has a point at the junction. Connecting therefore splits the road there. The bridge does not report a point's corner style, so a split road gets `tight` corners.
+- **Very long road segments render with gaps**, seen around 700 units on hilly ground. Splitting into parts of about 300 fixed it at junctions.
 - **Blending**: `autoBlendOut` blends both sides of a boundary and shows stair steps at 45°. `terrain_reblend` uses the corner method of Genesis, but keeps a cell's base texture where Genesis changes it (which would erode corners on every repeat, about 390 cells per run on a town map). `hard_edges` from `terrain_blend_report` does not prove a good look: the old method also reported 0.
 - **3-way tiles**: an extra draw pass with a vertex buffer rebuilt each frame. Rough guess only: about 0.1-0.2 ms CPU per 1000 visible; `W3DDisplay.cpp` flags more than 2000 visible as a spike. Not measured.
 - **Linking WorldBuilder** can fail with `LNK1201` while Visual Studio holds the PDB: move `WorldBuilderZH.pdb` aside.
@@ -132,7 +138,9 @@ Shared: Mogadishu buildings, 1-6° off the street's direction, median street gap
 - **Nothing has been tested in game.** Truck access to docks and piles is unchecked; this is the next thing to do. When tried, `generalszh.exe` quit at once with exit code 1 and no new debug log, on any map, also started by hand, so it is not about town maps. Cause not found; the single-instance mutex was held while a WorldBuilder ran, but this build may allow several instances (an `_Instance02` log exists).
 - Outposts have only been looked at in WorldBuilder, in about ten pictures of the 147 kits. River huts need a shore to look right, but only docks are held back from dry land. Kits from night maps such as searchlights are not marked as night kits.
 - Slopes: only tried through `town_generate` on Alpenstadt, Bear Town Beatdown, Tournament Desert and Desert Coast, in WorldBuilder.
-- **Block towns need open ground.** Existing objects and roads cut the grid: on Tournament Desert and Desert Coast (25-31% blocked) they came out with one or two blocks, even after trying 90 grid positions. Irregular towns fit in better. Streets do not connect to roads already on the map: they stop before them.
+- **Block towns need open ground.** Existing objects and roads cut the grid: on Tournament Desert and Desert Coast (25-31% blocked) they came out with one or two blocks, even after trying 90 grid positions. Irregular towns fit in better.
+- `roads_route` leaves long straight segments, so a main road can still show small gaps away from junctions. Should be fixed in `roads.route` itself by keeping points every so often.
+- A street leaving town connects only if a road lies within `connect_range`; otherwise it ends at its free end. Exits go straight out, not towards the road.
 - Short grey stubs (about 40 units) can appear on open ground, far from any road point, on `TownAlpineLots`. Removing any of five unrelated sidewalk runs cleared one, two others did not, so it looks like a road buffer rendering quirk. Not understood; rings with `angled` corners have shown none so far.
 - Arabic street shape is close but not matched: junctions 3.2 per 1000 street (measured 0.5-2.4), bends 3.3 (measured 5-7). Density is set by hand. El Scorcho's scattered towns are not reproduced.
 - Stair-stepped masks at 45° were a blending problem, fixed by `terrain_reblend`; check again after any change to the masks.

@@ -573,7 +573,8 @@ def terrain_blend_report(shape: Shape | None = None, x: float | None = None, y: 
 def town_generate(polygon: list[list[float]], style: Literal["alpine", "urban", "arabic"] = "urban", preset: str | None = None,
                   seed: int = 1, jitter: float | None = None, theta: float | None = None, irregularity: float | None = None,
                   theme: str | None = None, lots: str | None = None, outline: bool = False, flatten: bool = True,
-                  max_slope: float = 12.0, reblend: Literal["area", "map", "none"] = "area", clear_nature: bool = False, dry_run: bool = False) -> dict:
+                  max_slope: float = 12.0, reblend: Literal["area", "map", "none"] = "area", clear_nature: bool = False, connect: bool = True,
+                  connect_range: float = 800, dry_run: bool = False) -> dict:
     """Builds a town into the open map, inside polygon ([x, y] world points in the playable area, at least about 800 x 800 for a real town).
     Water, cliffs, ground steeper than max_slope (world height per cell), existing objects and existing roads are avoided. Streets may
     run on past the polygon towards the map edge.
@@ -586,12 +587,14 @@ def town_generate(polygon: list[list[float]], style: Literal["alpine", "urban", 
     derrick, pad, radar, refinery. outline: thin road outline, alpine only.
     flatten: smooth the ground under streets and level a pad under each building, leaving water and cliffs alone.
     reblend: blend the town's area (default), the whole map or nothing. clear_nature: delete trees, bushes and rocks inside polygon first,
-    since in woodland they block most streets. dry_run: only plan, change nothing; look at the preview file.
+    since in woodland they block most streets. connect: streets leaving town are routed to the nearest road on the map within connect_range,
+    so build the map's main roads first; of two road types the narrower forms the connection, ending on a road point if the types match and
+    with an end cap at the wider road's edge if not. dry_run: only plan, change nothing; look at the preview file.
     Paints, places and adds roads as separate steps, far more than edit_undo holds: to take a town back, reopen the map without saving.
     Nothing is saved until map_save."""
     try:
         return town_tool.generate(wb, polygon, style=style, preset=preset, seed=seed, jitter=jitter, theta=theta, irregularity=irregularity,
-                                  theme=theme, lots=lots, outline=outline, flatten=flatten, max_slope=max_slope, reblend=reblend, clear_nature=clear_nature, dry_run=dry_run)
+                                  theme=theme, lots=lots, outline=outline, flatten=flatten, max_slope=max_slope, reblend=reblend, clear_nature=clear_nature, connect=connect, connect_range=connect_range, dry_run=dry_run)
     except (ValueError, RuntimeError) as exc:
         raise ToolError(str(exc))
 

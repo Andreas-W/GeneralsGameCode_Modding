@@ -501,7 +501,10 @@ if "lamp" in PR:
         OBJ.append({"template": lamp, "x": round(qx), "y": round(qy), "angle_deg": round(math.degrees(math.atan2(dy, dx)) % 360, 1)})
         placed[lamp] += 1
 print("trees", len(tpts), "want", want_t, "props", dict(placed), "objects", len(OBJ))
-json.dump({"objects": OBJ, "roads": roads, "surround": PR["surround"], "masks": list(MASKS)}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
+def exit_of(a, q):
+    L = math.dist(a, q) or 1
+    return {"point": [round(q[0], 1), round(q[1], 1)], "type": MAJOR, "width": WIDTH[MAJOR], "dir": [(q[0] - a[0]) / L, (q[1] - a[1]) / L]}
+json.dump({"objects": OBJ, "roads": roads, "surround": PR["surround"], "masks": list(MASKS), "exits": [exit_of(seq[1], seq[0]), exit_of(seq[-2], seq[-1])]}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
 # preview
 SC = 0.5
 VIEW = max(SITE.xmax, SITE.ymax) + 10

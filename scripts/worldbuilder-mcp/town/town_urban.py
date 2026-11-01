@@ -621,7 +621,10 @@ for k in rng.permutation(len(jj_)):
     trees += 1
 print("trees", trees, "want", want_t, "objects", len(OBJ))
 allroads = roads + walk
-json.dump({"objects": OBJ, "roads": allroads, "masks": list(MASKS), "surround": pack["ground"]["surround"], "blend": list(MASKS)}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
+def exit_of(a, q):
+    L = math.dist(a, q) or 1
+    return {"point": [round(q[0], 1), round(q[1], 1)], "type": MAJOR, "width": WIDTH[MAJOR], "dir": [(q[0] - a[0]) / L, (q[1] - a[1]) / L]}
+json.dump({"objects": OBJ, "roads": allroads, "masks": list(MASKS), "surround": pack["ground"]["surround"], "blend": list(MASKS), "exits": [exit_of(P[e], q) for e, q in entries]}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
 # preview
 SC = 0.5
 VIEW = max(SITE.xmax, SITE.ymax) + 10
