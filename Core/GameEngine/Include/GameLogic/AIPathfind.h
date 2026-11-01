@@ -106,10 +106,6 @@ public:
 	/// given a list, prepend this node, return new list
 	PathNode *prependToList( PathNode *list );
 
-	/// given a list, append this node, return new list.  slow implementation.
-	/// @todo optimize this
-	PathNode *appendToList( PathNode *list );
-
 	/// given a node, append to this node
 	void append( PathNode *list );
 
@@ -518,6 +514,7 @@ private:
 
 #define PATHFIND_CELL_SIZE		10
 #define PATHFIND_CELL_SIZE_F	10.0f
+constexpr const Int MOVE_ALLIES_MAX_DEPTH = 2;
 
 enum { PATHFIND_QUEUE_LEN=512};
 
@@ -944,6 +941,9 @@ private:
 	Real					m_wallHeight;
 
 	Int						m_moveAlliesDepth;
+#if !RETAIL_COMPATIBLE_PATHFINDING
+	ObjectID			m_moveAlliesObjects[MOVE_ALLIES_MAX_DEPTH];	///< Object of each active moveAllies call, by depth.
+#endif
 
 
 	// Pathfind queue

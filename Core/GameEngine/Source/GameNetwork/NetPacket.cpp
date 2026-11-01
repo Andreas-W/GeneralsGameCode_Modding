@@ -429,6 +429,8 @@ NetCommandList * NetPacket::getCommandList() {
 				DEBUG_CRASH(("Unrecognized packet entry, ignoring."));
 				DEBUG_LOG_LEVEL(DEBUG_LEVEL_NET, ("NetPacket::getCommandList - Unrecognized packet entry at index %d", i));
 				dumpPacketToLog(m_packet, m_packetLen);
+				deleteInstance(lastCommand);
+				lastCommand = nullptr;
 				continue;
 			}
 
@@ -454,6 +456,7 @@ NetCommandList * NetPacket::getCommandList() {
 			// Repeat the last command, doing some funky cool byte-saving stuff
 			if (lastCommand == nullptr) {
 				DEBUG_CRASH(("Got a repeat command with no command to repeat."));
+				continue;
 			}
 
 			NetCommandMsg *msg = nullptr;

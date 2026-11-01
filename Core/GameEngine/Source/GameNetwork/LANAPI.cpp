@@ -693,6 +693,7 @@ void LANAPI::RequestGameLeave()
 		// Exit out immediately if we're hosting
 		OnPlayerLeave(m_name);
 		removeGame(m_currentGame);
+		delete m_currentGame;
 		m_currentGame = nullptr;
 		m_inLobby = true;
 	}
@@ -710,11 +711,16 @@ void LANAPI::RequestGameAnnounce()
 	{
 		if (m_currentGame->getIP(0) == m_localIP || (m_currentGame->isGameInProgress() && TheNetwork && TheNetwork->isPacketRouter())) // if we're in game we should reply if we're the packet router
 		{
+			AsciiString gameOpts = GameInfoToAsciiString(m_currentGame);
+			if (gameOpts.isEmpty())
+			{
+				return;
+			}
+
 			LANMessage reply;
 			fillInLANMessage( &reply );
 			reply.messageType = LANMessage::MSG_GAME_ANNOUNCE;
 
-			AsciiString gameOpts = GameInfoToAsciiString(m_currentGame);
 			strlcpy(reply.GameInfo.options,gameOpts.str(), ARRAY_SIZE(reply.GameInfo.options));
 			wcslcpy(reply.GameInfo.gameName, m_currentGame->getName().str(), ARRAY_SIZE(reply.GameInfo.gameName));
 			reply.GameInfo.inProgress = m_currentGame->isGameInProgress();
@@ -834,10 +840,12 @@ void LANAPI::RequestGameStartTimer( Int seconds )
 
 void LANAPI::RequestGameOptions( AsciiString gameOptions, Bool isPublic, UnsignedInt ip /* = 0 */ )
 {
-	DEBUG_ASSERTCRASH(gameOptions.getLength() < m_lanMaxOptionsLength, ("Game options string is too long!"));
+	DEBUG_ASSERTCRASH(gameOptions.getLength() <= m_lanMaxOptionsLength, ("Game options string is too long!"));
 
-	if (!m_currentGame)
+	if (!m_currentGame || gameOptions.isEmpty())
+	{
 		return;
+	}
 
 	LANMessage msg;
 	fillInLANMessage( &msg );

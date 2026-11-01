@@ -1955,6 +1955,9 @@ void ConnectionManager::disconnectLocalPlayer() {
  * Takes all the commands that are ready to send and sends them right now.
  */
 void ConnectionManager::flushConnections() {
+	// TheSuperHackers @bugfix arcticdolphin 12/10/2026 Send now, the connections are deleted right after and must not wait for their frame grouping.
+	setFrameGrouping(0);
+
 	for (Int i = 0; i < MAX_SLOTS; ++i) {
 		if (m_connections[i] != nullptr) {
 //			DEBUG_LOG(("ConnectionManager::flushConnections - flushing connection to player %d", i));
@@ -2247,6 +2250,8 @@ void ConnectionManager::sendDisconnectChat(UnicodeString text) {
 
 	sendLocalCommandDirect(msg, 0xff ^ (1 << m_localSlot));
 	processDisconnectChat(msg);
+
+	msg->detach();
 }
 
 UnsignedShort ConnectionManager::sendFileAnnounce(AsciiString path, UnsignedByte playerMask)

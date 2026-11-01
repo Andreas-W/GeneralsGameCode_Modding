@@ -33,6 +33,7 @@
 
 //#include <wsys/StdFileSystem.h>
 #include "W3DDevice/GameClient/W3DFileSystem.h"
+#include "Common/CommandLine.h"
 #include "Common/FramePacer.h"
 #include "Common/GlobalData.h"
 #include "Common/MapData.h"
@@ -156,8 +157,31 @@ FileClass * WB_W3DFileSystem::Get_File( char const *filename )
 	return pFile;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// MFC parses the command line again to select a document to open. Skip the
+// arguments already handled by the startup parser so option values are not
+// mistaken for map filenames.
 
+class WBCommandLineInfo : public CCommandLineInfo
+{
+public:
+	WBCommandLineInfo() : m_argIndex(0) {}
 
+	virtual void ParseParam(const TCHAR* pszParam, BOOL bFlag, BOOL bLast) override
+	{
+		if (CommandLine::wasCommandLineArgumentParsed(m_argIndex++))
+		{
+			// MFC uses bLast to finalize its shell command, even when the final argument is skipped.
+			ParseLast(bLast);
+			return;
+		}
+
+		CCommandLineInfo::ParseParam(pszParam, bFlag, bLast);
+	}
+
+private:
+	int m_argIndex;
+};
 
 /////////////////////////////////////////////////////////////////////////////
 // The one and only CWorldBuilderApp object
@@ -296,6 +320,8 @@ BOOL CWorldBuilderApp::InitInstance()
 	// initialize the memory manager early
 	initMemoryManager();
 
+	CommandLine::parseCommandLineForStartup();
+
 #ifdef DEBUG_LOGGING
 	// Turn on console output jba [3/20/2003]
 	DebugSetFlags(DebugGetFlags() | DEBUG_FLAG_LOG_TO_CONSOLE);
@@ -330,14 +356,6 @@ BOOL CWorldBuilderApp::InitInstance()
 	Enable3dControlsStatic();	// Call this when linking to MFC statically
 #endif
 
-	// Set the current directory to the app directory.
-	char buf[_MAX_PATH];
-	GetModuleFileName(nullptr, buf, sizeof(buf));
-	if (char *pEnd = strrchr(buf, '\\')) {
-		*pEnd = 0;
-	}
-	::SetCurrentDirectory(buf);
-
 	TheFileSystem = new FileSystem;
 
 	initSubsystem(TheLocalFileSystem, (LocalFileSystem*)new Win32LocalFileSystem);
@@ -361,11 +379,11 @@ BOOL CWorldBuilderApp::InitInstance()
 			DX8Wrapper_UseDX12 = 1;
 		}
 	}
-	GlobalData *globalData = new GlobalData();
+	DEBUG_ASSERTCRASH(TheWritableGlobalData, ("TheWritableGlobalData expected to be created"));
 #ifdef DEBUG_CRASHING
-	globalData->m_debugIgnoreAsserts = ignoreAsserts;
+	TheWritableGlobalData->m_debugIgnoreAsserts = ignoreAsserts;
 #endif
-	initSubsystem(TheWritableGlobalData, globalData, "Data\\INI\\Default\\GameData", "Data\\INI\\GameData");
+	initSubsystem(TheWritableGlobalData, TheWritableGlobalData, "Data\INI\Default\GameData", "Data\INI\GameData");
 	initSubsystem(TheWriteableMapData, new MapData());
 
 	TheFramePacer = new FramePacer();
@@ -379,6 +397,7 @@ BOOL CWorldBuilderApp::InitInstance()
 #endif
 
 	DEBUG_LOG(("TheWritableGlobalData %x", TheWritableGlobalData));
+	char buf[_MAX_PATH];
 #if 1
 	// srj sez: put INI into our user data folder, not the ap dir
 	free((void*)m_pszProfileName);
@@ -476,7 +495,7 @@ BOOL CWorldBuilderApp::InitInstance()
 #endif
 
 	// Parse command line for standard shell commands, DDE, file open
-	CCommandLineInfo cmdInfo;
+	WBCommandLineInfo cmdInfo;
 	ParseCommandLine(cmdInfo);
 
 	// Dispatch commands specified on the command line

@@ -644,7 +644,7 @@ Bool W3DTerrainVisual::load( AsciiString filename )
 #ifdef DO_UNIT_TIMINGS
 #pragma MESSAGE("********************* WARNING- Doing UNIT TIMINGS. ")
 #else
-	if (m_waterRenderObject)
+	if (m_waterRenderObject && W3DDisplay::m_3DScene)
 	{
 		W3DDisplay::m_3DScene->Add_Render_Object( m_waterRenderObject);
 		m_waterRenderObject->enableWaterGrid(false);
@@ -1132,6 +1132,14 @@ void W3DTerrainVisual::replaceSkyboxTextures(const AsciiString *oldTexName[5], c
 			}
 		}
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+/** Terrain visual state is only partially initialized in headless mode, so it is excluded from save game data */
+// ------------------------------------------------------------------------------------------------
+Bool W3DTerrainVisual::isXferEnabled() const
+{
+	return TheGlobalData->m_headless == FALSE;
 }
 
 // ------------------------------------------------------------------------------------------------

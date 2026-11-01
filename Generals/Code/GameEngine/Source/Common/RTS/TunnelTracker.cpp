@@ -195,7 +195,7 @@ void TunnelTracker::addToContainList( Object *obj )
 }
 
 // ------------------------------------------------------------------------
-void TunnelTracker::removeFromContain( Object *obj, Bool exposeStealthUnits )
+Bool TunnelTracker::removeFromContain( Object *obj, Bool exposeStealthUnits )
 {
 
 	ContainedItemsList::iterator it = std::find(m_containList.begin(), m_containList.end(), obj);
@@ -210,8 +210,11 @@ void TunnelTracker::removeFromContain( Object *obj, Bool exposeStealthUnits )
 			DEBUG_ASSERTCRASH(m_heroUnitsContained > 0, ("TunnelTracker::removeFromContain - Removing hero but hero count is %d", m_heroUnitsContained));
 			--m_heroUnitsContained;
 		}
+
+		return true;
 	}
 
+	return false;
 }
 
 // ------------------------------------------------------------------------

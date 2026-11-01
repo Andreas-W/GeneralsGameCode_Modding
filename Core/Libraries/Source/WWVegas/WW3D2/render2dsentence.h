@@ -57,16 +57,32 @@ class FontCharsClassCharDataStruct
 public:
 	WCHAR				Value;
 	short				Width;
-	uint16 *		Buffer;
+	uint8 *			Buffer;
 };
 
-enum { CHAR_BUFFER_LEN		= 32768 };
+// TheSuperHackers @tweak Glyph blocks are sized from the font's own glyph cell so that both the
+// relative waste and the allocation count stay bounded at any point size. GLYPH_BLOCK_MIN_BYTES
+// holds as many glyphs as the original fixed 64KB block did at one texel (2 bytes) per pixel,
+// which keeps Arial up to roughly 19 point at the original density. GLYPH_BLOCK_MAX_BYTES
+// bounds the allocation count for very large fonts, and only engages for Arial above roughly 80 point.
+enum
+{
+	GLYPH_BLOCK_MIN_BYTES = 32768,
+	GLYPH_BLOCK_MAX_BYTES = 524288,
+	GLYPH_BLOCK_TARGET_CELLS = 16
+};
 
 class FontCharsBuffer
 {
-	W3DMPO_CODE(FontCharsBuffer)
 public:
-	uint16			Buffer[CHAR_BUFFER_LEN];
+	FontCharsBuffer() : Length( 0 ), Buffer( nullptr ) {}
+	FontCharsBuffer( int length, uint8 *buffer ) : Length( length ), Buffer( buffer ) {}
+
+	bool operator== (const FontCharsBuffer &src) const { return Length == src.Length && Buffer == src.Buffer; }
+	bool operator!= (const FontCharsBuffer &src) const { return !(*this == src); }
+
+	int				Length;
+	uint8 *			Buffer;
 };
 
 
@@ -94,6 +110,8 @@ public:
 
 	void	Blit_Char( WCHAR ch, uint16 *dest_ptr, int dest_stride, int x, int y );
 
+	void	Free_Glyph_Cache();
+
 private:
 
 	//
@@ -104,6 +122,7 @@ private:
 	const FontCharsClassCharDataStruct *	Store_GDI_Char( WCHAR ch );
 	void							Update_Current_Buffer( int char_width );
 	const FontCharsClassCharDataStruct	*	Get_Char_Data( WCHAR ch );
+	const FontCharsClass *			Get_Char_Font( WCHAR ch ) const;
 
 	void							Grow_Unicode_Array( WCHAR ch );
 	void							Free_Character_Arrays();
@@ -112,12 +131,16 @@ private:
 	//	Private member data
 	//
 	StringClass							Name;
-	DynamicVectorClass<FontCharsBuffer*>	BufferList;
+	DynamicVectorClass<FontCharsBuffer>	BufferList;
 	int									CurrPixelOffset;
 	int									CharHeight;
 	int									CharAscent;
 	int									CharOverhang;
 	int									PixelOverlap;
+	int									GlyphBitmapWidth; // extents of the GDI scratch bitmap, derived from the font metrics
+	int									GlyphBitmapHeight;
+	int									GlyphCellBytes; // worst case bytes for one glyph of this font
+	int									GlyphBlockBytes; // size the glyph blocks ramp up to
 	int									PointSize;
 	StringClass							GDIFontName;
 	HFONT									OldGDIFont;

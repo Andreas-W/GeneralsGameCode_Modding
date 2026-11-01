@@ -44,6 +44,9 @@
 #include "Common/Team.h"
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
+#include "Common/TunnelTracker.h"
+#endif
 #include "Common/Upgrade.h"
 #include "Common/WellKnownKeys.h"
 #include "Common/Xfer.h"
@@ -173,7 +176,7 @@ Object::Object( const ThingTemplate *tt, const ObjectStatusMaskType &objectStatu
 	m_physics(nullptr),
 	m_geometryInfo(tt->getTemplateGeometryInfo()),
 	m_containedBy(nullptr),
-	m_containedByID(INVALID_ID),
+	m_xferContainedByID(INVALID_ID),
 	m_containedByFrame(0),
 	m_behaviors(nullptr),
 	m_body(nullptr),
@@ -622,21 +625,8 @@ void Object::onContainedBy( Object *containedBy )
 	m_containedBy = containedBy;
 	m_containedByFrame = TheGameLogic->getFrame();
 
-#if RETAIL_COMPATIBLE_CRC
-	// TheSuperHackers @info Set INVALID_ID if the container object was destroyed
-	// to indicate that the pointer will become a dangling pointer in the next frame.
-	if (containedBy && !containedBy->isDestroyed())
-	{
-		m_containedByID = containedBy->getID();
-	}
-	else
-	{
-		m_containedByID = INVALID_ID;
-	}
-#else
 	DEBUG_ASSERTCRASH(containedBy == nullptr || !containedBy->isDestroyed(),
-		("Object::onContainedBy - Adding into a destroyed container"));
-#endif
+		("Object::onContainedBy - Adding to a destroyed container"));
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -647,11 +637,24 @@ void Object::onRemovedFrom( Object *removedFrom )
 	clearStatus( MAKE_OBJECT_STATUS_MASK2( OBJECT_STATUS_MASKED, OBJECT_STATUS_UNSELECTABLE ) );
 	m_containedBy = nullptr;
 	m_containedByFrame = 0;
-
-#if RETAIL_COMPATIBLE_CRC
-	m_containedByID = INVALID_ID;
-#endif
 }
+
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
+//-------------------------------------------------------------------------------------------------
+void Object::removeFromTunnelContain()
+{
+	for (Int i = 0; i < ThePlayerList->getPlayerCount(); ++i)
+	{
+		TunnelTracker* tracker = ThePlayerList->getNthPlayer(i)->getTunnelSystem();
+		if (tracker && tracker->removeFromContain(this))
+		{
+			break;
+		}
+	}
+
+	onRemovedFrom(nullptr);
+}
+#endif
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -710,33 +713,28 @@ void Object::onDestroy()
 {
 
 	// This is the old cleanUpContain safeguard.  Say goodbye so they don't try to look us up.
-	if (m_containedBy)
+	if( m_containedBy && m_containedBy->getContain() )
 	{
 #if RETAIL_COMPATIBLE_CRC
-		if (m_containedByID == INVALID_ID)
+		// TheSuperHackers @bugfix Caball009 17/10/2026 Check if m_containedBy is still valid to avoid potential crashes.
+		if (!TheGameLogic->findObjectByID(m_containedBy->getID()))
 		{
-			// TheSuperHackers @bugfix Caball009 25/05/2026 Due to a potential use-after-free bug that cannot be fixed
-			// with retail compatibility, the 'contained by' pointer of this object may point to an already destroyed object.
-			// Avoid removing this object from the contain list, because it could crash the game,
-			// as the begin / end iterator for STLPort and MSVC std::list implementations depends on dynamically allocated memory.
-			DEBUG_CRASH(("container object must be valid; this looks like use-after-free"));
+#if RTS_GENERALS
+			// TheSuperHackers @bugfix bobtista / Caball009 17/09/2026 Remove stranded tunnel occupants during destruction.
+			// Surrendering can transfer a tunnel without updating its tunnel tracker. If that tunnel is destroyed,
+			// m_containedBy still points to the freed tunnel, and its ID is read here through that stale pointer.
+			// An unregistered ID means the tunnel is gone, so this object is removed from the tunnel trackers directly.
+			// This is a limited workaround that keeps retail compatibility. It cannot detect reuse of the freed memory.
+			removeFromTunnelContain();
+#else
+			onRemovedFrom(nullptr);
+#endif
 		}
 		else
-		{
-			DEBUG_ASSERTCRASH(TheGameLogic->findObjectByID(m_containedByID) == m_containedBy,
-				("contained by pointer is out of sync with contained by ID"));
-
-			if (ContainModuleInterface* contain = m_containedBy->getContain())
-			{
-				contain->removeFromContain(this);
-			}
-		}
-#else
-		if (ContainModuleInterface* contain = m_containedBy->getContain())
-		{
-			contain->removeFromContain(this);
-		}
 #endif
+		{
+			m_containedBy->getContain()->removeFromContain(this);
+		}
 	}
 
 	//
@@ -3781,19 +3779,16 @@ void Object::xfer( Xfer *xfer )
 		// No, the contain module is just going to friend_ reach in and set this for us.
 		// Containers more complicated than Open (like Tunnel) can't do that.  Our variable,
 		// our responsibility.
-#if RETAIL_COMPATIBLE_CRC
-		// TheSuperHackers @tweak Contained by ID is already set with retail compatibility; don't overwrite it.
-#else
 		if( xfer->getXferMode() == XFER_SAVE )
 		{
 			if( m_containedBy != nullptr )
-				m_containedByID = m_containedBy->getID();
+				m_xferContainedByID = m_containedBy->getID();
 			else
-				m_containedByID = INVALID_ID;
+				m_xferContainedByID = INVALID_ID;
 		}
-#endif
 
-		xfer->xferObjectID( &m_containedByID );
+
+		xfer->xferObjectID( &m_xferContainedByID );
 	}
 
 	// contained by frame
@@ -4018,8 +4013,8 @@ void Object::xfer( Xfer *xfer )
 //-------------------------------------------------------------------------------------------------
 void Object::loadPostProcess()
 {
-	if( m_containedByID != INVALID_ID )
-		m_containedBy = TheGameLogic->findObjectByID(m_containedByID);
+	if( m_xferContainedByID != INVALID_ID )
+		m_containedBy = TheGameLogic->findObjectByID(m_xferContainedByID);
 	else
 		m_containedBy = nullptr;
 
@@ -5610,11 +5605,7 @@ void Object::enterGroup( AIGroup *group )
 	// if we are in another group, remove ourselves from it first
 	leaveGroup();
 
-#if RETAIL_COMPATIBLE_AIGROUP
 	m_group = group;
-#else
-	m_group.Assign_Add_Ref(group);
-#endif
 }
 
 //-------------------------------------------------------------------------------------------------
