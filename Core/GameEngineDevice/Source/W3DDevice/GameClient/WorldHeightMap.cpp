@@ -54,7 +54,6 @@
 #include "W3DDevice/GameClient/W3DShadow.h"
 
 #include "Common/file.h"
-#include "Utility/stringex.h"
 
 
 #define K_OBSOLETE_HEIGHT_MAP_VERSION 8
@@ -548,20 +547,24 @@ WorldHeightMap::WorldHeightMap(ChunkInputStream *pStrm, Bool logicalDataOnly):
 
 Bool WorldHeightMap::isTerrainFlat(const IRegion2D& bounds) const
 {
-	DEBUG_ASSERTCRASH(getLogicalBounds().contains(bounds), ("WorldHeightMap::isTerrainFlat must use a region contained by the logical map bounds."));
+	DEBUG_ASSERTCRASH(bounds.lo.x >= -m_borderSize && bounds.lo.y >= -m_borderSize && bounds.hi.x <= m_width - m_borderSize && bounds.hi.y <= m_height - m_borderSize,
+		("WorldHeightMap::isTerrainFlat must use a region contained by the logical map bounds."));
 
 	const Int width = bounds.width();
 	const Int height = bounds.height();
 	if (width <= 0 || height <= 0)
 		return true;
 
-	const UnsignedByte* firstRow = m_data + (bounds.lo.y + m_borderSize) * m_width + bounds.lo.x + m_borderSize;
-	const UnsignedByte referenceHeight = firstRow[0];
+	const HeightSampleType* firstRow = m_data + (bounds.lo.y + m_borderSize) * m_width + bounds.lo.x + m_borderSize;
+	const HeightSampleType referenceHeight = firstRow[0];
 	for (Int j = 0; j < height; j++)
 	{
-		const UnsignedByte* row = firstRow + j * m_width;
-		if (memcchr(row, referenceHeight, width) != nullptr)
-			return false;
+		const HeightSampleType* row = firstRow + j * m_width;
+		for (Int i = 0; i < width; i++)
+		{
+			if (row[i] != referenceHeight)
+				return false;
+		}
 	}
 
 	return true;

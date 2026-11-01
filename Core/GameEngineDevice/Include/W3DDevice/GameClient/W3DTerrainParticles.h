@@ -19,7 +19,7 @@
 #pragma once
 
 #include <vector>
-#include <Utility/array_adapter.h>
+#include <array>
 
 #include "Common/MapObject.h"
 #include "Lib/BaseType.h"

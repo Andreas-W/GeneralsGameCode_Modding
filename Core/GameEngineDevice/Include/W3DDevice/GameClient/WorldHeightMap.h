@@ -289,7 +289,7 @@ public:  // height map info.
 	};
 
 	///Faster version of above function without all the safety checks
-	UnsignedByte getQuickHeight(Int xIndex, Int yIndex) const
+	HeightSampleType getQuickHeight(Int xIndex, Int yIndex) const
 	{
 		return m_data[yIndex * m_width + xIndex];
 	}

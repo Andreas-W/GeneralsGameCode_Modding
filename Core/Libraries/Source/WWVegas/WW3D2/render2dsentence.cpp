@@ -40,6 +40,7 @@
 #include "WWDebug/wwprofile.h"
 #include "WWDebug/wwmemlog.h"
 #include "dx8wrapper.h"
+#include <algorithm>
 
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -1697,8 +1698,8 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 	// font lacks, and those can be wider than anything a narrow font such as Batang reports.
 	const int min_glypth_width = PointSize * 2;
 
-	GlyphBitmapWidth = clamp (min_glypth_width, GlyphBitmapWidth, max_glyph_extent);
-	GlyphBitmapHeight = CharHeight = clamp (1, CharHeight, max_glyph_extent);
+	GlyphBitmapWidth = std::clamp (GlyphBitmapWidth, min_glypth_width, max_glyph_extent);
+	GlyphBitmapHeight = CharHeight = std::clamp (CharHeight, 1, max_glyph_extent);
 
 	//
 	//	TheSuperHackers @tweak Size the glyph cache blocks from the widest glyph this font can produce,
@@ -1707,7 +1708,7 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 	//
 	GlyphCellBytes = GlyphBitmapWidth * GlyphBitmapHeight;
 	GlyphBlockBytes = GlyphCellBytes * GLYPH_BLOCK_TARGET_CELLS;
-	GlyphBlockBytes = clamp ((int)GLYPH_BLOCK_MIN_BYTES, GlyphBlockBytes, (int)GLYPH_BLOCK_MAX_BYTES);
+	GlyphBlockBytes = std::clamp (GlyphBlockBytes, (int)GLYPH_BLOCK_MIN_BYTES, (int)GLYPH_BLOCK_MAX_BYTES);
 	GlyphBlockBytes = max (GlyphBlockBytes, GlyphCellBytes);
 
 	//
