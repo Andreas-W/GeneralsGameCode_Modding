@@ -168,6 +168,10 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 
 `town_generate` builds a town of a style (Alpine, urban, Arabic with presets) into the open map, inside a polygon, around what is already there. `outpost_list`, `outpost_place` and `outpost_populate` stamp small groups harvested from reference maps: around Tech buildings and supplies, or on empty spots. The scripts behind it, the packs measured on reference maps, the user's rules for roads, sidewalks, ground and fences, findings and open issues: `scripts/worldbuilder-mcp/town/README.md`. Read it before any work on towns or on learning from reference maps.
 
+## Cliffs
+
+`scripts/worldbuilder-mcp/cliffs/`: measurements of cliff shape on reference maps, and a prototype generator (`cliff_gen.py`) that mixes independent properties. Read its README before working on cliffs: findings, corrected claims and what does not match yet.
+
 ## Game MCP
 
 A second MCP server drives the running game itself, so features can be tested by playing: start a skirmish as the local player (alone in a sandbox or against AI), pause, step frames, inspect every object and player, give orders, spawn and change things, run scripts, take screenshots. Use its tools (`mcp__game__*`) for that. Full reference: the game section of `scripts/worldbuilder-mcp/README.md`.
