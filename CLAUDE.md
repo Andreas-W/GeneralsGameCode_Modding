@@ -166,7 +166,7 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 
 ## Town generators
 
-`town_generate` builds a town of a style (Alpine, urban, Arabic with presets) into the open map, inside a polygon, around what is already there. The scripts behind it, the packs measured on reference maps, the user's rules for roads, sidewalks, ground and fences, findings and open issues: `scripts/worldbuilder-mcp/town/README.md`. Read it before any work on towns or on learning from reference maps.
+`town_generate` builds a town of a style (Alpine, urban, Arabic with presets) into the open map, inside a polygon, around what is already there. `outpost_list`, `outpost_place` and `outpost_populate` stamp small groups harvested from reference maps: around Tech buildings and supplies, or on empty spots. The scripts behind it, the packs measured on reference maps, the user's rules for roads, sidewalks, ground and fences, findings and open issues: `scripts/worldbuilder-mcp/town/README.md`. Read it before any work on towns or on learning from reference maps.
 
 ## Game MCP
 
