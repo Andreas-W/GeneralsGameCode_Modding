@@ -645,6 +645,18 @@ def main() -> int:
     wb.call("map.open", path=path)
     assert wb.call("terrain.sample", x=600, y=300)["height_raw"] == 254
     print("height map scale: ok")
+
+    # A town on a new map: plan only, then for real. Needs numpy, scipy and pillow, which uv installs for the server.
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "town"))
+    import town_tool
+    wb.call("map.new", width=128, height=128, initial_height=60, discard_changes=True)
+    area = [[150, 150], [1130, 150], [1130, 1130], [150, 1130]]
+    plan = town_tool.generate(wb, area, style="arabic", preset="generic", seed=4, lots="derrick:1", dry_run=True)
+    assert plan["objects"] > 0 and wb.call("map.info")["counts"]["objects"] == 0, plan
+    town = town_tool.generate(wb, area, style="urban", seed=5, jitter=0, theta=0)
+    assert town["placed"] == town["objects"] > 0 and "errors" not in town, town
+    assert wb.call("map.info")["counts"]["road_points"] > 0
+    print("town:", town["objects"], "objects,", town["road_runs"])
     print("OK")
     return 0
 

@@ -1,11 +1,12 @@
 # Irregular town from a style pack: a main street, side streets that branch off in T junctions, bend and dead-end, buildings close along them.
-# Usage: town_organic.py <pack> <preset> <seed> [irregularity=<0..1>] [theme=<name>] [lots=<kind:count,...>] [out=<folder>]
+# Usage: town_organic.py <pack> <preset> <seed> [irregularity=<0..1>] [theme=<name>] [lots=<kind:count,...>] [out=<folder>] [site=<file>]
 import json, math, os, sys, collections
 import numpy as np
 import scipy.ndimage as nd
 from PIL import Image, ImageDraw
 from town_paths import PACKS  # enters the work folder
 import town_lots
+from town_site import Site
 pack = json.load(open(f"{PACKS}/{sys.argv[1]}.json"))
 PR = pack["presets"][sys.argv[2]]
 SEED = int(sys.argv[3])
@@ -18,8 +19,9 @@ R = float(OPT.get("irregularity", PR["irregularity"]))
 MAJOR, MINOR = PR["major"], PR["minor"]
 WIDTH = {MAJOR: PR["major_width"], MINOR: PR["minor_width"]}
 is_walkway = lambda t: t.startswith("Sidewalk")
-B, GN = 30, 300
-POLY = [(640, 560), (1500, 470), (1860, 1000), (1700, 1640), (1040, 1840), (560, 1360)]
+SITE = Site(OPT.get("site"), [(640, 560), (1500, 470), (1860, 1000), (1700, 1640), (1040, 1840), (560, 1360)])
+POLY = SITE.poly
+B, GN = SITE.B, SITE.GN
 def inpoly(x, y, poly=POLY):
     c = False
     for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
@@ -27,7 +29,7 @@ def inpoly(x, y, poly=POLY):
             c = not c
     return c
 site_area = 0.5 * abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(POLY, POLY[1:] + POLY[:1])))
-cx, cy = np.mean([p[0] for p in POLY]), np.mean([p[1] for p in POLY])
+cx, cy = SITE.free_center() if SITE.live else (np.mean([p[0] for p in POLY]), np.mean([p[1] for p in POLY]))
 # --- street graph ---
 P = []
 edges = {}
@@ -104,14 +106,17 @@ def main_street(angle):
         out = []
         while True:
             a += math.radians(rng.uniform(-22, 22)) * R
+            x0, y0 = x, y
             x, y = x + math.cos(a) * 260, y + math.sin(a) * 260
-            if not (60 <= x <= 2330 and 60 <= y <= 2330):
+            if not SITE.in_map(x, y) or not SITE.line_ok((x0, y0), (x, y)):
                 return out
             out.append((x, y))
-            if not inpoly(x, y) and math.dist((x, y), (cx, cy)) > 900:
+            if not inpoly(x, y) and math.dist((x, y), (cx, cy)) > SITE.exit_radius:
                 return out
     return run(angle + math.pi)[::-1] + [(cx, cy)] + run(angle)
 seq = main_street(rng.uniform(0, math.pi))
+if len(seq) < 2:
+    raise SystemExit("no room for a main street in this area")
 ids = [node(p) for p in seq]
 for a, b in zip(ids[:-1], ids[1:]):
     add_edge(a, b, MAJOR)
@@ -155,7 +160,7 @@ while street_length() < total_want and attempts < 3000:
             heading += math.radians(rng.uniform(-8, 8)) * R
         L_ = rng.uniform(70, 150)
         q = (path[-1][0] + math.cos(heading) * L_, path[-1][1] + math.sin(heading) * L_)
-        if not inpoly(*q):
+        if not inpoly(*q) or not SITE.line_ok(path[-1], q):
             break
         hit = crossing(path[-1], q, skip=e if k == 0 else ())
         if hit:
@@ -260,6 +265,7 @@ SEG = [(P[a], P[b], t) for (a, b), t in edges.items()]
 OS = 4.0
 ON = int(GN * 10 / OS)
 occ = np.zeros((ON, ON), bool)
+SITE.stamp(occ, OS)
 def oc(x, y):
     return int((x + B * 10) / OS), int((y + B * 10) / OS)
 def rect(x, y, a, b, deg_, m):
@@ -429,7 +435,7 @@ MASKS[PR["patch"]] = patch if PR["patch"] not in MASKS else MASKS[PR["patch"]] |
 if lotdirt.any():
     MASKS["DirtMediumType12"] = lotdirt
 for n_, m_ in MASKS.items():
-    Image.fromarray((m_[:-1, :-1][::-1] * 255).astype(np.uint8)).save(f"{OUT}/{n_}.png")
+    Image.fromarray((SITE.crop(m_) * 255).astype(np.uint8)).save(f"{OUT}/{n_}.png")
 Image.fromarray(np.full((W - 1, W - 1), 255, np.uint8)).save(f"{OUT}/base.png")
 print("cells", {k: int(v.sum()) for k, v in MASKS.items()})
 # --- trees and bushes in small groups beside the houses, furniture near them ---
@@ -498,9 +504,10 @@ print("trees", len(tpts), "want", want_t, "props", dict(placed), "objects", len(
 json.dump({"objects": OBJ, "roads": roads, "surround": PR["surround"], "masks": list(MASKS)}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
 # preview
 SC = 0.5
-im = Image.new("RGB", (int(2400 * SC), int(2400 * SC)), (120, 100, 70))
+VIEW = max(SITE.xmax, SITE.ymax) + 10
+im = Image.new("RGB", (int(VIEW * SC), int(VIEW * SC)), (120, 100, 70))
 dr = ImageDraw.Draw(im)
-PX = lambda x, y: (x * SC, (2400 - y) * SC)
+PX = lambda x, y: (x * SC, (VIEW - y) * SC)
 for m_, col in ((town, (170, 150, 120)), (patch, (90, 120, 70)), (lotdirt, (140, 100, 60))):
     for j, i in zip(*np.nonzero(m_)):
         a, b = PX((i - B) * 10, (j - B) * 10 + 10)

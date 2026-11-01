@@ -166,7 +166,7 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 
 ## Town generators
 
-Scripts that generate towns from style packs measured on reference maps (Alpine, urban, Arabic), with the user's rules for roads, sidewalks, ground and fences, findings and open issues: `scripts/worldbuilder-mcp/town/README.md`. Read it before any work on towns or on learning from reference maps.
+`town_generate` builds a town of a style (Alpine, urban, Arabic with presets) into the open map, inside a polygon, around what is already there. The scripts behind it, the packs measured on reference maps, the user's rules for roads, sidewalks, ground and fences, findings and open issues: `scripts/worldbuilder-mcp/town/README.md`. Read it before any work on towns or on learning from reference maps.
 
 ## Game MCP
 

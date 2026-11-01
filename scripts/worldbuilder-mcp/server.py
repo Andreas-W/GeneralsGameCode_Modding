@@ -20,6 +20,9 @@ import faction as faction_data
 import framework as framework_data
 import match as match_data
 import scaffold as scaffold_data
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "town"))
+import town_tool
 from wb_bridge import WorldBuilderBridge, WorldBuilderError
 
 INSTRUCTIONS = """\
@@ -559,6 +562,37 @@ def terrain_blend_report(shape: Shape | None = None, x: float | None = None, y: 
     a cell holds two layers, so a third texture can stay hard); and blend_table_used / blend_table_size
     (the map's table of distinct blend tiles). Changes nothing."""
     return wb.call("terrain.blend_report", **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+
+
+# --------------------------------------------------------------------------------------------------
+# Towns
+# --------------------------------------------------------------------------------------------------
+
+@mcp.tool()
+def town_generate(polygon: list[list[float]], style: Literal["alpine", "urban", "arabic"] = "urban", preset: str | None = None,
+                  seed: int = 1, jitter: float | None = None, theta: float | None = None, irregularity: float | None = None,
+                  theme: str | None = None, lots: str | None = None, outline: bool = False, flatten: bool = True,
+                  max_slope: float = 12.0, reblend: Literal["area", "map", "none"] = "area", clear_nature: bool = False, dry_run: bool = False) -> dict:
+    """Builds a town into the open map, inside polygon ([x, y] world points in the playable area, at least about 800 x 800 for a real town).
+    Water, cliffs, ground steeper than max_slope (world height per cell), existing objects and existing roads are avoided. Streets may
+    run on past the polygon towards the map edge.
+    style/preset: alpine; urban; arabic with preset generic (default), scorcho, serpent, bridge, cairo (irregular streets) or golden,
+    baghdad (regular blocks). See scripts/worldbuilder-mcp/town/README.md for the rules behind them.
+    seed: same map and arguments, same town. jitter: street node jitter of block towns, 0 = perfect grid. theta: grid angle of block
+    towns in degrees, 0 = axis aligned. irregularity: 0..1, how much the streets of irregular towns wind.
+    theme: highrise, asian, american, eastern or arabic (default: the style's mix; not for alpine).
+    lots: special lots such as "dock:1,site:2,hospital:1"; kinds dock, site (construction site with supply piles), hospital, repair,
+    derrick, pad, radar, refinery. outline: thin road outline, alpine only.
+    flatten: smooth the ground under streets and level a pad under each building, leaving water and cliffs alone.
+    reblend: blend the town's area (default), the whole map or nothing. clear_nature: delete trees, bushes and rocks inside polygon first,
+    since in woodland they block most streets. dry_run: only plan, change nothing; look at the preview file.
+    Paints, places and adds roads as separate steps, far more than edit_undo holds: to take a town back, reopen the map without saving.
+    Nothing is saved until map_save."""
+    try:
+        return town_tool.generate(wb, polygon, style=style, preset=preset, seed=seed, jitter=jitter, theta=theta, irregularity=irregularity,
+                                  theme=theme, lots=lots, outline=outline, flatten=flatten, max_slope=max_slope, reblend=reblend, clear_nature=clear_nature, dry_run=dry_run)
+    except (ValueError, RuntimeError) as exc:
+        raise ToolError(str(exc))
 
 
 # --------------------------------------------------------------------------------------------------

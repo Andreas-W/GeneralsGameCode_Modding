@@ -1,5 +1,5 @@
 # Block-based city from a style pack: street hierarchy, sidewalk rings around blocks, buildings along them, parking, concrete floor, grass islands.
-# Usage: town_urban.py <pack> <seed> [jitter=<0..>] [theta=<degrees>] [theme=<name>] [lots=<kind:count,...>] [out=<folder>]
+# Usage: town_urban.py <pack> <seed> [jitter=<0..>] [theta=<degrees>] [theme=<name>] [lots=<kind:count,...>] [out=<folder>] [site=<file>]
 #   theme picks the building mix from packs/building_themes.json (default: the pack's mix). lots: see town_lots.py.
 #   jitter scales the pack's street node jitter (0 = perfect grid); theta turns the grid (0 = axis aligned). Both default to the pack.
 import json, math, os, sys, collections
@@ -7,6 +7,7 @@ import numpy as np
 import scipy.ndimage as nd
 from PIL import Image, ImageDraw
 import town_lots
+from town_site import Site
 from town_paths import PACKS  # enters the work folder
 pack = json.load(open(f"{PACKS}/{sys.argv[1]}.json"))
 geo = json.load(open("gamedata/geo.json"))
@@ -16,8 +17,9 @@ OPT = dict(a.split("=", 1) for a in sys.argv[3:])
 OUT = "plans/" + OPT.get("out", "urban_plan")
 os.makedirs(OUT, exist_ok=True)
 # --- the site ---
-POLY = [(620, 480), (1720, 620), (1880, 1500), (1240, 1880), (560, 1500)]
-B, GN = 30, 300
+SITE = Site(OPT.get("site"), [(620, 480), (1720, 620), (1880, 1500), (1240, 1880), (560, 1500)])
+POLY = SITE.poly
+B, GN = SITE.B, SITE.GN
 def inpoly(x, y, poly=POLY):
     c = False
     for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
@@ -30,21 +32,26 @@ WIDTH = {MAJOR: ST["major_width"], MINOR: ST["minor_width"]}
 TH = math.radians(float(OPT.get("theta", ST["theta_deg"])))
 JIT = float(OPT.get("jitter", 1.0))
 cx, cy = np.mean([p[0] for p in POLY]), np.mean([p[1] for p in POLY])
-c_, s_ = math.cos(TH), math.sin(TH)
-nodes = {}
-for i in range(-8, 9):
-    for j in range(-8, 9):
-        u = i * ST["grid"][0] + JIT * rng.uniform(-ST["jitter"][0], ST["jitter"][0])
-        v = j * ST["grid"][1] + JIT * rng.uniform(-ST["jitter"][1], ST["jitter"][1])
-        x, y = cx + u * c_ - v * s_, cy + u * s_ + v * c_
-        if inpoly(x, y):
-            nodes[(i, j)] = (x, y)
-edges = set()
-for (i, j) in nodes:
-    for d in ((1, 0), (0, 1)):
-        k = (i + d[0], j + d[1])
-        if k in nodes:
-            edges.add(((i, j), k))
+def build_grid(angle, ou, ov):
+    c_, s_ = math.cos(angle), math.sin(angle)
+    nodes = {}
+    for i in range(-8, 9):
+        for j in range(-8, 9):
+            u = ou + i * ST["grid"][0] + JIT * rng.uniform(-ST["jitter"][0], ST["jitter"][0])
+            v = ov + j * ST["grid"][1] + JIT * rng.uniform(-ST["jitter"][1], ST["jitter"][1])
+            x, y = cx + u * c_ - v * s_, cy + u * s_ + v * c_
+            if inpoly(x, y):
+                nodes[(i, j)] = (x, y)
+    edges = set()
+    for (i, j) in nodes:
+        for d in ((1, 0), (0, 1)):
+            k = (i + d[0], j + d[1])
+            if k in nodes:
+                edges.add(((i, j), k))
+    return edges, nodes
+edges, nodes = SITE.best_grid(build_grid, rng, TH, ST["grid"], "theta" not in OPT)
+if not edges:
+    raise SystemExit("no street fits: this area is too small or too blocked for this grid")
 # one major street each way through the middle
 mi = min({k[0] for k in nodes}, key=abs)
 mj = min({k[1] for k in nodes}, key=abs)
@@ -86,13 +93,16 @@ for a, b in edges:
 entries = []
 for axis, fixed in ((0, mj), (1, mi)):
     line = sorted((n for n in used if n[1 - axis] == fixed and any(typeof(n, m) == MAJOR for m in adj[n])), key=lambda n: n[axis])
+    if len(line) < 2:
+        continue
     for end, nxt in ((line[0], line[1]), (line[-1], line[-2])):
         ax, ay = P[end]
         dx, dy = ax - P[nxt][0], ay - P[nxt][1]
         L = math.hypot(dx, dy)
         q = (ax + dx / L * 340, ay + dy / L * 340)
-        q = (min(max(q[0], 60), 2330), min(max(q[1], 60), 2330))
-        entries.append((end, q))
+        q = SITE.clip((ax, ay), SITE.clamp(q))
+        if math.dist((ax, ay), q) > 40:
+            entries.append((end, q))
 # --- road runs ---
 def chains_of(kind):
     es = {e for e in edges if etype[e] == kind}
@@ -153,6 +163,7 @@ print("street per 100x100", round(street_len / site_area * 1e4, 1), "measured", 
 OS = 4.0
 ON = int(GN * 10 / OS)
 occ = np.zeros((ON, ON), bool)
+SITE.stamp(occ, OS)
 def oc(x, y):
     return int((x + B * 10) / OS), int((y + B * 10) / OS)
 def rect(x, y, a, b, deg, m):
@@ -201,6 +212,8 @@ def signed_area(f):
     return 0.5 * sum(P[a][0] * P[b][1] - P[b][0] * P[a][1] for a, b in zip(f, f[1:] + f[:1]))
 blocks = [f for f in faces if signed_area(f) > 0]
 outer = [f for f in faces if signed_area(f) < 0]
+if not blocks:
+    raise SystemExit(f"only {len(edges)} streets fit and they enclose no block: this area is too small or too blocked for a block town")
 print("blocks", len(blocks), "outer faces", len(outer), "median block area", round(float(np.median([signed_area(f) for f in blocks]))))
 SW = pack["sidewalk"]
 OFFS = {t: w * SW["offset_ratio"] for t, w in WIDTH.items()}   # 17 for the 35 wide street, checked on screen; the same share of the 60 wide one
@@ -583,7 +596,7 @@ MASKS = {pack["ground"]["floor"]: floor_m, isl[1]: island & (n_c > 0.3), pack["g
 if lotdirt.any():
     MASKS[pack["ground"]["lot_dirt"]] = lotdirt
 for n_, m_ in MASKS.items():
-    Image.fromarray((m_[:-1, :-1][::-1] * 255).astype(np.uint8)).save(f"{OUT}/{n_}.png")
+    Image.fromarray((SITE.crop(m_) * 255).astype(np.uint8)).save(f"{OUT}/{n_}.png")
 Image.fromarray(np.full((W - 1, W - 1), 255, np.uint8)).save(f"{OUT}/base.png")
 # --- trees on the islands ---
 tn = list(pack["trees"])
@@ -611,9 +624,10 @@ allroads = roads + walk
 json.dump({"objects": OBJ, "roads": allroads, "masks": list(MASKS), "surround": pack["ground"]["surround"], "blend": list(MASKS)}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
 # preview
 SC = 0.5
-im = Image.new("RGB", (int(2400 * SC), int(2400 * SC)), (60, 90, 50))
+VIEW = max(SITE.xmax, SITE.ymax) + 10
+im = Image.new("RGB", (int(VIEW * SC), int(VIEW * SC)), (60, 90, 50))
 dr = ImageDraw.Draw(im)
-PX = lambda x, y: (x * SC, (2400 - y) * SC)
+PX = lambda x, y: (x * SC, (VIEW - y) * SC)
 for m_, col in ((floor_m, (150, 150, 145)), (island, (80, 120, 60)), (park, (70, 70, 75))):
     for j, i in zip(*np.nonzero(m_)):
         a, b = PX((i - B) * 10, (j - B) * 10 + 10)
