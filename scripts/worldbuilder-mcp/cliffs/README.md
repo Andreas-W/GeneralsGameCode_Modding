@@ -98,6 +98,19 @@ What does not match yet:
 - **Seen in the game:** Tournament Desert's mounds come out evenly spaced like a row of eggs, as the noise has one main size. Overland's wall reads as a flat band of busy texture rather than a cliff. Manic Aggression's walls end in blunt rounded ends beside ramps, one with a small dark slit (not looked into).
 - **One crash** of the second WorldBuilder during the Flash Effect recipe, with no exception in the log. The same run then worked. Cause unknown.
 
+## Next steps
+
+In this order:
+
+1. **Noise spacing**: use several bump sizes in `cliff_gen.py`, so that walls stop looking evenly spaced like the mounds on the Tournament Desert recipe. Check in the game whether Overland's flat-looking wall improves too.
+2. **Automatic layouts**: generate outlines instead of hand-written polygons, starting with level steps, then plateaus and frames.
+3. **Symmetry**: build one part and repeat it with `map_symmetrize`.
+4. **Missing features**: rivers and banks, inner masses, ramp width (not measured yet), bays and inlets for Flash Effect.
+5. **AI test**: `ai_skirmish_setup` and an AI match on a generated map, to show that it plays.
+6. **MCP tool**: a `cliff_generate` tool once recipes hold up, as with `town_generate`.
+
+On a new machine: `work/` is git-ignored, so run `cliff_scan.py` and `cliff_measure.py` again (second WorldBuilder running, `TOWN_REF_MAPS` set). `WorldBuilderZH.exe` in the mod folder must be a build with the `terrain.cliff_*` commands. Close every WorldBuilder before testing in the game.
+
 ## Kinds of layout (from the relief pictures, by eye)
 
 Not measured. Each is a way of laying out walls, independent of the wall's shape:
