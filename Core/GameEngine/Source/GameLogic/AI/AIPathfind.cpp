@@ -121,6 +121,11 @@ constexpr const UnsignedInt MAX_SAFE_PATH_CELL_COUNT = 2000;
 constexpr const UnsignedInt PATHFIND_CELLS_PER_FRAME = 5000; // Number of cells we will search pathfinding per frame.
 constexpr const UnsignedInt CELL_INFOS_TO_ALLOCATE = 30000;
 
+constexpr const Int NAVAL_SNAP_RADIUS = 24; // Cells searched around a ship's destination for water it can reach.
+constexpr const Int NAVAL_LINE_PROBE_CELLS = 24; // How far the straight line shortcut looks ahead for ships.
+constexpr const Int NAVAL_PATH_CELL_LIMIT_BASE = 4000; // Cells a ship path may examine, plus the next value per cell of distance.
+constexpr const Int NAVAL_PATH_CELL_LIMIT_PER_CELL = 40;
+
 //-----------------------------------------------------------------------------------
 PathNode::PathNode() :
 	m_nextOpti(nullptr),
@@ -2683,6 +2688,14 @@ void PathfindZoneManager::markZonesDirty()  ///< Called when the zones need to b
 #endif
 }
 
+void PathfindZoneManager::markZonesDirtyNow()
+{
+	markZonesDirty();
+	if (TheGameLogic->getFrame() >= 2) {
+		m_nextFrameToCalculateZones = TheGameLogic->getFrame();
+	}
+}
+
 /**
  * Calculate zones.  A zone is an area of the same terrain - clear, water or cliff.
  * The utility of zones is that if current location and destination are in the same zone,
@@ -4020,12 +4033,19 @@ void PathfindLayer::classifyWallMapCell( Int i, Int j , PathfindCell *cell, Obje
 Pathfinder::Pathfinder() :m_map(nullptr)
 {
 	debugPath = nullptr;
+	for (Int i = 0; i <= NAVAL_MAX_WATER_LEVEL; i++) {
+		m_navalLabels[i] = nullptr;
+		m_navalLabelsOverflow[i] = false;
+	}
+	m_hierWaterLevel = 0;
+	m_hierBridgeHeight = 0;
 	PathfindCellInfo::allocateCellInfos();
 	reset();
 }
 
 Pathfinder::~Pathfinder()
 {
+	freeNavalLabels();
 	PathfindCellInfo::releaseCellInfos();
 }
 
@@ -4039,6 +4059,8 @@ void Pathfinder::reset()
 
 	delete [] m_map;
 	m_map = nullptr;
+
+	freeNavalLabels();
 
 	Int i;
 	for (i=0; i<=LAYER_LAST; i++) {
@@ -4720,18 +4742,19 @@ struct Point {
 	int x, y;
 };
 
+// bounds are inclusive, like the pathfinder extent.
 static void calculateWaterLevels(IRegion2D bounds, PathfindCell** map)
 {
 	std::queue<Point> q;
-	constexpr int MAX_LEVEL = 15;
+	constexpr int MAX_LEVEL = Pathfinder::NAVAL_MAX_WATER_LEVEL;
 
 	// Directions: Up, Down, Left, Right
 	const int dirs[4][2] = { {0, 1}, {0, -1}, {1, 0}, {-1, 0} };
 
 	// 1. Initialization Pass
 	// Iterate only within the defined region
-	for (int i = bounds.lo.x; i < bounds.hi.x; ++i) {
-		for (int j = bounds.lo.y; j < bounds.hi.y; ++j) {
+	for (int i = bounds.lo.x; i <= bounds.hi.x; ++i) {
+		for (int j = bounds.lo.y; j <= bounds.hi.y; ++j) {
 			auto& cell = map[i][j];
 
 			if (cell.getType() != PathfindCell::CELL_WATER) {
@@ -4764,8 +4787,8 @@ static void calculateWaterLevels(IRegion2D bounds, PathfindCell** map)
 			int ny = curr.y + dir[1];
 
 			// Bounds Check: Ensure neighbor is strictly within IRegion2D
-			if (nx >= bounds.lo.x && nx < bounds.hi.x &&
-				ny >= bounds.lo.y && ny < bounds.hi.y) {
+			if (nx >= bounds.lo.x && nx <= bounds.hi.x &&
+				ny >= bounds.lo.y && ny <= bounds.hi.y) {
 
 				auto& neighbor = map[nx][ny];
 
@@ -4784,8 +4807,8 @@ static void calculateWaterLevels(IRegion2D bounds, PathfindCell** map)
 	// 3. Final Cleanup
 	// Handle "Deep Ocean" or isolated water cells that BFS didn't reach 
 	// (either because they are > 15 away, or isolated by bounds/obstacles)
-	for (int i = bounds.lo.x; i < bounds.hi.x; ++i) {
-		for (int j = bounds.lo.y; j < bounds.hi.y; ++j) {
+	for (int i = bounds.lo.x; i <= bounds.hi.x; ++i) {
+		for (int j = bounds.lo.y; j <= bounds.hi.y; ++j) {
 			if (map[i][j].getWaterLevel() == -1) {
 				map[i][j].setWaterLevel(MAX_LEVEL);
 			}
@@ -4984,6 +5007,7 @@ void Pathfinder::classifyMap()
 	DEBUG_LOG(("WATER LEVEL: Checking map"));
 	// set water depth values for ship navigation
 	calculateWaterLevels(m_extent, m_map);
+	freeNavalLabels(); // recomputed from the new water levels on first use
 
 	DEBUG_LOG(("BRIDGE_HEIGHT: Classify map"));
 	// set bridge height values and layers to all cells
@@ -5681,6 +5705,10 @@ Bool Pathfinder::adjustDestination(Object *obj, const LocomotorSet& locomotorSet
 		return true; // missiles can go wherever they want to. jba.
 	}
 
+	// Ships need much more room from the shore than the spiral search below covers, so move
+	// their destination onto water they can reach first.
+	adjustToNavalDestination(obj, locomotorSet, dest);
+
 	Bool isHuman = true;
 	if (obj && obj->getControllingPlayer() && (obj->getControllingPlayer()->getPlayerType()==PLAYER_COMPUTER)) {
 		isHuman = false; // computer gets to cheat.
@@ -5864,6 +5892,8 @@ Bool Pathfinder::checkForPossible(Bool isCrusher, Int fromZone,  Bool center, co
 Bool Pathfinder::adjustToPossibleDestination(Object *obj, const LocomotorSet& locomotorSet,
 																						 Coord3D *dest)
 {
+	adjustToNavalDestination(obj, locomotorSet, dest);
+
 	Int radius;
 	Bool center;
 	getRadiusAndCenter(obj, radius, center);
@@ -6444,6 +6474,17 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 			start.y = parentCell->getYIndex();
 			end.x = goalCell->getXIndex();
 			end.y = goalCell->getYIndex();
+			if (locomotorSet.getRequiredWaterLevel() > 0) {
+				// This line runs for every examined cell and checks the whole footprint of the ship at every step.
+				// Over open water it is long and ends at a coast far away, so only look a limited distance ahead.
+				const Int dx = end.x - start.x;
+				const Int dy = end.y - start.y;
+				const Int length = MAX(IABS(dx), IABS(dy));
+				if (length > NAVAL_LINE_PROBE_CELLS) {
+					end.x = start.x + dx*NAVAL_LINE_PROBE_CELLS/length;
+					end.y = start.y + dy*NAVAL_LINE_PROBE_CELLS/length;
+				}
+			}
 			iterateCellsAlongLine(start, end, parentCell->getLayer(), examineCellsCallback, &info);
 		}
 
@@ -6670,7 +6711,7 @@ Path *Pathfinder::findPath( Object *obj, const LocomotorSet& locomotorSet, const
 	}
 
 	m_zoneManager.clearPassableFlags();
-	Path *hPat = findHierarchicalPath(isHuman, locomotorSet, from, rawTo, false);
+	Path *hPat = findHierarchicalPath(isHuman, locomotorSet, from, rawTo, false, requiredBridgeHeight);
 	if (hPat) {
 		deleteInstance(hPat);
 	}	else {
@@ -6811,6 +6852,14 @@ Path *Pathfinder::internalFindPath( Object *obj, const LocomotorSet& locomotorSe
 		return nullptr;
 	}
 
+	// Zones treat all water alike. Without this a ship would search all the water it can reach
+	// before failing on a goal behind shallows or a bridge it can't pass.
+	if (!navalPathPossible(locomotorSet, requiredBridgeHeight, parentCell, goalCell)) {
+		goalCell->releaseInfo();
+		parentCell->releaseInfo();
+		return nullptr;
+	}
+
 	// sanity check - if destination is invalid, can't path there
 	if (!validMovementPosition( isCrusher, destinationLayer, locomotorSet, requiredBridgeHeight, to ))	{
 		m_isTunneling = false;
@@ -6843,6 +6892,15 @@ Path *Pathfinder::internalFindPath( Object *obj, const LocomotorSet& locomotorSe
 	m_closedList.reset();
 
 	Int cellCount = 0;
+
+	// Ships have checked that the water connects, so a search running far beyond the distance is
+	// stuck behind units or structures. Give up early and let the closest path search take over.
+	Int navalCellLimit = 0;
+	if (isNavalLocomotorSet(locomotorSet)) {
+		const Int dx = IABS(goalCell->getXIndex() - startCellNdx.x);
+		const Int dy = IABS(goalCell->getYIndex() - startCellNdx.y);
+		navalCellLimit = NAVAL_PATH_CELL_LIMIT_BASE + NAVAL_PATH_CELL_LIMIT_PER_CELL*MAX(dx, dy);
+	}
 
 	//
 	// Continue search until "open" list is empty, or
@@ -6902,6 +6960,9 @@ Path *Pathfinder::internalFindPath( Object *obj, const LocomotorSet& locomotorSe
 
 		cellCount += examineNeighboringCells(parentCell, goalCell, locomotorSet, isHuman, centerInCell, radius, startCellNdx, obj, NO_ATTACK);
 
+		if (navalCellLimit > 0 && cellCount > navalCellLimit) {
+			break;
+		}
 	}
 
 	// failure - goal cannot be reached
@@ -7700,6 +7761,15 @@ void Pathfinder::processHierarchicalCell( const ICoord2D &scanCell, const ICoord
 		}
 		PathfindCell *adjNewCell = getCell(LAYER_GROUND, adjacentCell.x, adjacentCell.y);
 		if (adjNewCell->hasInfo() && (adjNewCell->getOpen() || adjNewCell->getClosed())) return; // already looked at this one.
+		if (m_hierWaterLevel > 0) {
+			// Zones treat all water alike, so ships only cross into the next block through water that is deep
+			// enough and not under a bridge they can't pass. Otherwise the corridor can lead through the shallows
+			// and the real search pays the off corridor penalty for every cell of the detour.
+			if (!validMovementPosition(false, LOCOMOTORSURFACE_WATER, m_hierWaterLevel, m_hierBridgeHeight, newCell) ||
+					!validMovementPosition(false, LOCOMOTORSURFACE_WATER, m_hierWaterLevel, m_hierBridgeHeight, adjNewCell)) {
+				return;
+			}
+		}
 		zoneStorageType parentGlobalZone = m_zoneManager.getEffectiveZone(LOCOMOTORSURFACE_GROUND, crusher, parentZone);
 
 		/// @todo - somehow out of bounds or bogus newZone.
@@ -7759,9 +7829,16 @@ void Pathfinder::processHierarchicalCell( const ICoord2D &scanCell, const ICoord
  * Uses A* algorithm.
  */
 Path *Pathfinder::findHierarchicalPath( Bool isHuman, const LocomotorSet& locomotorSet, const Coord3D *from,
-													 const Coord3D *to, Bool crusher)
+													 const Coord3D *to, Bool crusher, Short requiredBridgeHeight)
 {
-	return internal_findHierarchicalPath(isHuman, locomotorSet.getValidSurfaces(), from, to, crusher, FALSE);
+	if (isNavalLocomotorSet(locomotorSet)) {
+		m_hierWaterLevel = locomotorSet.getRequiredWaterLevel();
+		m_hierBridgeHeight = requiredBridgeHeight;
+	}
+	Path *path = internal_findHierarchicalPath(isHuman, locomotorSet.getValidSurfaces(), from, to, crusher, FALSE);
+	m_hierWaterLevel = 0;
+	m_hierBridgeHeight = 0;
+	return path;
 }
 
 
@@ -7770,9 +7847,16 @@ Path *Pathfinder::findHierarchicalPath( Bool isHuman, const LocomotorSet& locomo
  * Uses A* algorithm.
  */
 Path *Pathfinder::findClosestHierarchicalPath( Bool isHuman, const LocomotorSet& locomotorSet, const Coord3D *from,
-													 const Coord3D *to, Bool crusher)
+													 const Coord3D *to, Bool crusher, Short requiredBridgeHeight)
 {
-	return internal_findHierarchicalPath(isHuman, locomotorSet.getValidSurfaces(), from, to, crusher, TRUE);
+	if (isNavalLocomotorSet(locomotorSet)) {
+		m_hierWaterLevel = locomotorSet.getRequiredWaterLevel();
+		m_hierBridgeHeight = requiredBridgeHeight;
+	}
+	Path *path = internal_findHierarchicalPath(isHuman, locomotorSet.getValidSurfaces(), from, to, crusher, TRUE);
+	m_hierWaterLevel = 0;
+	m_hierBridgeHeight = 0;
+	return path;
 }
 
 
@@ -8451,7 +8535,8 @@ Bool Pathfinder::clientSafeQuickDoesPathExist( const LocomotorSet& locomotorSet,
 	// If the terrain is connected using this locomotor set, we can path somehow.
 	if (zone1 == zone2) {
 		// There is not terrain blocking the from & to.
-		return true;
+		// Ships also need deep enough water, and room under the bridges on the way.
+		return navalPathPossible(locomotorSet, requiredBridgeHeight, parentCell, goalCell);
 	}
 	return FALSE;  // no path exists
 
@@ -8512,6 +8597,381 @@ Bool Pathfinder::clientSafeQuickDoesPathExistForUI( const LocomotorSet& locomoto
 	}
 	return FALSE;  // no path exists
 
+}
+
+//-----------------------------------------------------------------------------
+// Ship connectivity
+//-----------------------------------------------------------------------------
+
+static inline Bool isNavalWaterCell( const PathfindCell &cell, Int waterLevel )
+{
+	return cell.getType() == PathfindCell::CELL_WATER && cell.getWaterLevel() >= waterLevel;
+}
+
+// Bridge layer above a ground cell, or LAYER_INVALID when there is no bridge.
+static inline PathfindLayerEnum navalBridgeLayer( const PathfindCell &cell )
+{
+	PathfindLayerEnum layer = cell.getBridgeLayer();
+	if (layer > LAYER_GROUND && layer < LAYER_WALL) {
+		return layer;
+	}
+	return LAYER_INVALID;
+}
+
+static inline Bool containsNavalLabel( const std::vector<UnsignedShort> &labels, UnsignedShort label )
+{
+	for (size_t i = 0; i < labels.size(); i++) {
+		if (labels[i] == label) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static inline Int clampNavalWaterLevel( Int waterLevel )
+{
+	return waterLevel > Pathfinder::NAVAL_MAX_WATER_LEVEL ? Pathfinder::NAVAL_MAX_WATER_LEVEL : waterLevel;
+}
+
+Bool Pathfinder::isNavalLocomotorSet( const LocomotorSet& locomotorSet )
+{
+	return locomotorSet.getRequiredWaterLevel() > 0 && locomotorSet.getValidSurfaces() == LOCOMOTORSURFACE_WATER;
+}
+
+void Pathfinder::freeNavalLabels()
+{
+	for (Int i = 0; i <= NAVAL_MAX_WATER_LEVEL; i++) {
+		delete [] m_navalLabels[i];
+		m_navalLabels[i] = nullptr;
+		m_navalLabelsOverflow[i] = false;
+		m_navalGates[i].clear();
+	}
+}
+
+/**
+ * Index of a ground cell in the naval label maps, or -1 for cells of other layers.
+ */
+Int Pathfinder::getNavalCellIndex( const PathfindCell *cell ) const
+{
+	if (cell == nullptr || m_blockOfMapCells == nullptr) {
+		return -1;
+	}
+	const Int count = (m_extent.hi.x+1)*(m_extent.hi.y+1);
+	if (cell < m_blockOfMapCells || cell >= m_blockOfMapCells + count) {
+		return -1;
+	}
+	return (Int)(cell - m_blockOfMapCells);
+}
+
+/**
+ * Labels the water that is at least waterLevel cells away from land into connected areas.
+ * Water under a bridge deck is labeled separately per bridge, so that a closed or low bridge
+ * can be treated as a gate between the water on either side. Water levels only change when
+ * the map is classified again, which frees the labels.
+ * Returns nullptr if the labels can't be used; callers then fall back to the zone checks.
+ */
+const UnsignedShort *Pathfinder::getNavalLabels( Int waterLevel )
+{
+	if (waterLevel < 1 || m_blockOfMapCells == nullptr) {
+		return nullptr;
+	}
+	waterLevel = clampNavalWaterLevel(waterLevel);
+	if (m_navalLabelsOverflow[waterLevel]) {
+		return nullptr;
+	}
+	if (m_navalLabels[waterLevel]) {
+		return m_navalLabels[waterLevel];
+	}
+
+	const Int width = m_extent.hi.x+1;
+	const Int height = m_extent.hi.y+1;
+	const Int count = width*height;
+	UnsignedShort *labels = MSGNEW("PathfindNavalLabels") UnsignedShort[count];
+	memset(labels, 0, count*sizeof(UnsignedShort));
+	std::vector<NavalGate> &gates = m_navalGates[waterLevel];
+	gates.clear();
+
+	static const Int dirs[4][2] = { {1, 0}, {-1, 0}, {0, 1}, {0, -1} };
+	std::vector<Int> stack;
+	Int nextLabel = 1;
+	for (Int index = 0; index < count; index++) {
+		if (labels[index] != 0 || !isNavalWaterCell(m_blockOfMapCells[index], waterLevel)) {
+			continue;
+		}
+		if (nextLabel > 0xffff) {
+			// Too many separate pools to label.
+			delete [] labels;
+			gates.clear();
+			m_navalLabelsOverflow[waterLevel] = true;
+			return nullptr;
+		}
+		const UnsignedShort label = (UnsignedShort)nextLabel++;
+		const PathfindLayerEnum bridgeLayer = navalBridgeLayer(m_blockOfMapCells[index]);
+		Short maxClearance = 0;
+		labels[index] = label;
+		stack.push_back(index);
+		while (!stack.empty()) {
+			const Int cur = stack.back();
+			stack.pop_back();
+			if (m_blockOfMapCells[cur].getBridgeHeight() > maxClearance) {
+				maxClearance = m_blockOfMapCells[cur].getBridgeHeight();
+			}
+			const Int x = cur / height;
+			const Int y = cur % height;
+			for (Int d = 0; d < 4; d++) {
+				const Int nx = x + dirs[d][0];
+				const Int ny = y + dirs[d][1];
+				if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+					continue;
+				}
+				const Int next = nx*height + ny;
+				if (labels[next] != 0) {
+					continue;
+				}
+				const PathfindCell &nextCell = m_blockOfMapCells[next];
+				if (!isNavalWaterCell(nextCell, waterLevel) || navalBridgeLayer(nextCell) != bridgeLayer) {
+					continue;
+				}
+				labels[next] = label;
+				stack.push_back(next);
+			}
+		}
+		if (bridgeLayer != LAYER_INVALID) {
+			NavalGate gate;
+			gate.label = label;
+			gate.layer = bridgeLayer;
+			gate.maxClearance = maxClearance;
+			gates.push_back(gate);
+		}
+	}
+
+	// Find the water each gate joins.
+	if (!gates.empty()) {
+		std::vector<Int> gateOfLabel(nextLabel, -1);
+		for (size_t g = 0; g < gates.size(); g++) {
+			gateOfLabel[gates[g].label] = (Int)g;
+		}
+		for (Int index = 0; index < count; index++) {
+			const UnsignedShort label = labels[index];
+			if (label == 0 || gateOfLabel[label] < 0) {
+				continue;
+			}
+			NavalGate &gate = gates[gateOfLabel[label]];
+			const Int x = index / height;
+			const Int y = index % height;
+			for (Int d = 0; d < 4; d++) {
+				const Int nx = x + dirs[d][0];
+				const Int ny = y + dirs[d][1];
+				if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+					continue;
+				}
+				const UnsignedShort neighbor = labels[nx*height + ny];
+				if (neighbor != 0 && neighbor != label && !containsNavalLabel(gate.neighbors, neighbor)) {
+					gate.neighbors.push_back(neighbor);
+				}
+			}
+		}
+	}
+
+	m_navalLabels[waterLevel] = labels;
+	return labels;
+}
+
+/**
+ * Collects the labels a ship starting in startLabel can reach, crossing the bridge gates
+ * that are open, destroyed or high enough for it right now.
+ */
+void Pathfinder::collectNavalReachable( Int waterLevel, Short requiredBridgeHeight, UnsignedShort startLabel, std::vector<UnsignedShort> &reached )
+{
+	const std::vector<NavalGate> &gates = m_navalGates[clampNavalWaterLevel(waterLevel)];
+	reached.clear();
+	reached.push_back(startLabel);
+	Bool changed = true;
+	while (changed) {
+		changed = false;
+		for (size_t g = 0; g < gates.size(); g++) {
+			const NavalGate &gate = gates[g];
+			// A ship already under a bridge can always leave it.
+			const Bool open = gate.label == startLabel
+				|| !isPathfindLayerPassable(gate.layer)
+				|| gate.maxClearance >= requiredBridgeHeight;
+			if (!open) {
+				continue;
+			}
+			Bool touched = containsNavalLabel(reached, gate.label);
+			for (size_t n = 0; !touched && n < gate.neighbors.size(); n++) {
+				touched = containsNavalLabel(reached, gate.neighbors[n]);
+			}
+			if (!touched) {
+				continue;
+			}
+			if (!containsNavalLabel(reached, gate.label)) {
+				reached.push_back(gate.label);
+				changed = true;
+			}
+			for (size_t n = 0; n < gate.neighbors.size(); n++) {
+				if (!containsNavalLabel(reached, gate.neighbors[n])) {
+					reached.push_back(gate.neighbors[n]);
+					changed = true;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Is there water that is deep enough, and passable under bridges, between the two cells?
+ * Only answers false when it is sure. For other units than ships, for cells off usable water
+ * (a ship just built near the shore, a goal on land) and on other layers it returns true,
+ * leaving the decision to the regular checks.
+ */
+Bool Pathfinder::navalPathPossible( const LocomotorSet& locomotorSet, Short requiredBridgeHeight, const PathfindCell *fromCell, const PathfindCell *toCell )
+{
+	if (!isNavalLocomotorSet(locomotorSet)) {
+		return true;
+	}
+	const Int fromIndex = getNavalCellIndex(fromCell);
+	const Int toIndex = getNavalCellIndex(toCell);
+	if (fromIndex < 0 || toIndex < 0) {
+		return true;
+	}
+	const Int waterLevel = clampNavalWaterLevel(locomotorSet.getRequiredWaterLevel());
+	const UnsignedShort *labels = getNavalLabels(waterLevel);
+	if (labels == nullptr) {
+		return true;
+	}
+	const UnsignedShort fromLabel = labels[fromIndex];
+	const UnsignedShort toLabel = labels[toIndex];
+	if (fromLabel == 0 || toLabel == 0 || fromLabel == toLabel) {
+		return true;
+	}
+	std::vector<UnsignedShort> reached;
+	collectNavalReachable(waterLevel, requiredBridgeHeight, fromLabel, reached);
+	return containsNavalLabel(reached, toLabel);
+}
+
+Bool Pathfinder::isNavalGoalCell( const Object *obj, Int waterLevel, Short requiredBridgeHeight, const UnsignedShort *labels,
+	UnsignedShort startLabel, const std::vector<UnsignedShort> &reached, Int x, Int y, Int radius, Bool center )
+{
+	if (x < m_extent.lo.x || y < m_extent.lo.y || x > m_extent.hi.x || y > m_extent.hi.y) {
+		return false;
+	}
+	PathfindCell *cell = getCell(LAYER_GROUND, x, y);
+	const Int index = getNavalCellIndex(cell);
+	if (index < 0 || labels[index] == 0) {
+		return false;
+	}
+	if (startLabel != 0 && !containsNavalLabel(reached, labels[index])) {
+		return false;
+	}
+	if (!validMovementPosition(false, LOCOMOTORSURFACE_WATER, waterLevel, requiredBridgeHeight, cell)) {
+		return false;
+	}
+	return checkDestination(obj, x, y, LAYER_GROUND, radius, center);
+}
+
+/**
+ * A ship's destination near the shore, in the shallows or behind a bridge it can't pass is
+ * moved to the nearest free water the ship can reach, so that the path search has a goal it
+ * can find instead of searching all the water for the closest spot.
+ */
+Bool Pathfinder::adjustToNavalDestination( const Object *obj, const LocomotorSet& locomotorSet, Coord3D *dest )
+{
+	if (obj == nullptr || !m_isMapReady || !isNavalLocomotorSet(locomotorSet)) {
+		return false;
+	}
+	const Int waterLevel = clampNavalWaterLevel(locomotorSet.getRequiredWaterLevel());
+	const UnsignedShort *labels = getNavalLabels(waterLevel);
+	if (labels == nullptr) {
+		return false;
+	}
+	const Short requiredBridgeHeight = obj->getRequiredBridgeHeight();
+	Int radius;
+	Bool center;
+	getRadiusAndCenter(obj, radius, center);
+
+	Bool isHuman = true;
+	if (obj->getControllingPlayer() && (obj->getControllingPlayer()->getPlayerType()==PLAYER_COMPUTER)) {
+		isHuman = false;
+	}
+
+	ICoord2D startNdx;
+	worldToCell(obj->getPosition(), &startNdx);
+	Coord3D cellDest = *dest;
+	if (!center) {
+		cellDest.x += PATHFIND_CELL_SIZE_F/2;
+		cellDest.y += PATHFIND_CELL_SIZE_F/2;
+	}
+	ICoord2D goalNdx;
+	worldToCell(&cellDest, &goalNdx);
+
+	UnsignedShort startLabel = 0;
+	const Int startIndex = getNavalCellIndex(getCell(LAYER_GROUND, startNdx.x, startNdx.y));
+	if (startIndex >= 0) {
+		startLabel = labels[startIndex];
+	}
+	std::vector<UnsignedShort> reached;
+	if (startLabel != 0) {
+		collectNavalReachable(waterLevel, requiredBridgeHeight, startLabel, reached);
+	}
+
+	if (isNavalGoalCell(obj, waterLevel, requiredBridgeHeight, labels, startLabel, reached, goalNdx.x, goalNdx.y, radius, center)) {
+		return false; // fine as it is.
+	}
+
+	ICoord2D found;
+	Bool haveFound = false;
+	// Search rings of growing size around the destination.
+	for (Int ring = 1; ring <= NAVAL_SNAP_RADIUS && !haveFound; ring++) {
+		for (Int k = -ring; k <= ring && !haveFound; k++) {
+			ICoord2D candidates[4];
+			Int numCandidates = 0;
+			candidates[numCandidates].x = goalNdx.x + k;
+			candidates[numCandidates++].y = goalNdx.y - ring;
+			candidates[numCandidates].x = goalNdx.x + k;
+			candidates[numCandidates++].y = goalNdx.y + ring;
+			if (k > -ring && k < ring) {
+				candidates[numCandidates].x = goalNdx.x - ring;
+				candidates[numCandidates++].y = goalNdx.y + k;
+				candidates[numCandidates].x = goalNdx.x + ring;
+				candidates[numCandidates++].y = goalNdx.y + k;
+			}
+			for (Int c = 0; c < numCandidates; c++) {
+				if (isHuman && checkCellOutsideExtents(candidates[c])) {
+					continue;
+				}
+				if (isNavalGoalCell(obj, waterLevel, requiredBridgeHeight, labels, startLabel, reached,
+						candidates[c].x, candidates[c].y, radius, center)) {
+					found = candidates[c];
+					haveFound = true;
+					break;
+				}
+			}
+		}
+	}
+
+	if (!haveFound) {
+		// Far from any usable water: walk back toward the ship and take the first spot that works.
+		const Int dx = startNdx.x - goalNdx.x;
+		const Int dy = startNdx.y - goalNdx.y;
+		const Int steps = MAX(IABS(dx), IABS(dy));
+		for (Int s = 1; s <= steps && !haveFound; s++) {
+			ICoord2D cell;
+			cell.x = goalNdx.x + dx*s/steps;
+			cell.y = goalNdx.y + dy*s/steps;
+			if (isNavalGoalCell(obj, waterLevel, requiredBridgeHeight, labels, startLabel, reached,
+					cell.x, cell.y, radius, center)) {
+				found = cell;
+				haveFound = true;
+			}
+		}
+	}
+
+	if (!haveFound) {
+		return false;
+	}
+	adjustCoordToCell(found.x, found.y, center, *dest, LAYER_GROUND);
+	return true;
 }
 
 /**
@@ -9148,6 +9608,13 @@ Path *Pathfinder::findClosestPath( Object *obj, const LocomotorSet& locomotorSet
 
 	if (!obj) return nullptr;
 
+	// A ship's goal it can't reach would make this search all the water for the closest cell.
+	// Moving the goal to the nearest water the ship can reach turns it into a search that ends.
+	// Not when the goal is the obstacle we approach, that one is handled below.
+	if (m_ignoreObstacleID == INVALID_ID) {
+		adjustToNavalDestination(obj, locomotorSet, rawTo);
+	}
+
 	Bool canPathThroughUnits = false;
 	if (obj && obj->getAIUpdateInterface()) {
 		canPathThroughUnits = obj->getAIUpdateInterface()->canPathThroughUnits();
@@ -9235,7 +9702,7 @@ Path *Pathfinder::findClosestPath( Object *obj, const LocomotorSet& locomotorSet
 		m_zoneManager.setAllPassable(); // can't optimize.
 	}	else {
 		m_zoneManager.clearPassableFlags();
-		Path *hPat = findClosestHierarchicalPath(isHuman, locomotorSet, from, rawTo, false);
+		Path *hPat = findClosestHierarchicalPath(isHuman, locomotorSet, from, rawTo, false, requiredBridgeHeight);
 		if (hPat) {
 			deleteInstance(hPat);
 			gotHierarchicalPath = true;
@@ -9383,7 +9850,7 @@ Path *Pathfinder::findClosestPath( Object *obj, const LocomotorSet& locomotorSet
 			if (count>2000) {
 				skip = true;
 			}
-			if (closestDistScreenSqr < 10*10*PATHFIND_CELL_SIZE_F) {
+			if (closestDistScreenSqr < 10*10) { // within 10 cells, both values are in cells
 				skip = true;
 			}
 			if (skip) {
@@ -9510,7 +9977,7 @@ Path *Pathfinder::buildActualPath( const Object *obj, LocomotorSurfaceTypeMask a
 		goalCell = goalCell->getParentCell();
 	}
 
-	prependCells(path, fromPos, goalCell, center);
+	prependCells(path, fromPos, goalCell, center, obj ? obj->getRequiredBridgeHeight() : 0);
 
 	// cleanup the path by checking line of sight
 	path->optimize(obj, acceptableSurfaces, blocked, requiredWaterLevel);
@@ -9553,7 +10020,7 @@ Path *Pathfinder::buildActualPath( const Object *obj, LocomotorSurfaceTypeMask a
  * Work backwards from goal cell to construct final path.
  */
 void Pathfinder::prependCells( Path *path, const Coord3D *fromPos,
-																	PathfindCell *goalCell, Bool center )
+																	PathfindCell *goalCell, Bool center, Short requiredBridgeHeight )
 {
 	// traverse path cells in REVERSE order, creating path in desired order
 	// skip the LAST node, as that will be in the same cell as the unit itself - so use the unit's position
@@ -9594,9 +10061,10 @@ void Pathfinder::prependCells( Path *path, const Coord3D *fromPos,
 			path->setBlockedByAlly(true);
 		}
 
-		//Check if cell is below an opened/destroyed bridge
+		// Check if cell is below an opened/destroyed bridge the unit would not fit under once it closes.
+		// Only those paths have to be computed again when the bridge comes back.
 		PathfindLayerEnum belowBridgeLayer = cell->getUnderDestroyedBridgeLayer();
-		if (belowBridgeLayer > LAYER_GROUND) {
+		if (belowBridgeLayer > LAYER_GROUND && static_cast<Short>(cell->getBridgeHeight()) < requiredBridgeHeight) {
 			path->setPathBelowBridge(belowBridgeLayer);
 		}
 
@@ -10251,7 +10719,8 @@ void Pathfinder::changeBridgeState( PathfindLayerEnum layer, Bool repaired)
 {
 	if (m_layers[layer].isUnused()) return;
 	if (m_layers[layer].setDestroyed(!repaired)) {
-		m_zoneManager.markZonesDirty();
+		// The bridge opens or closes a route, so don't let units plan with the old zones for up to ZONE_UPDATE_FREQUENCY frames.
+		m_zoneManager.markZonesDirtyNow();
 	}
 }
 
@@ -11148,7 +11617,7 @@ Path *Pathfinder::patchPath( const Object *obj, const LocomotorSet& locomotorSet
 			for( node = originalPath->getLastNode(); node != matchNode; node = node->getPrevious() )	{
 				path->prependNode(node->getPosition(), node->getLayer());
 			}
-			prependCells(path, obj->getPosition(), parentCell, centerInCell);
+			prependCells(path, obj->getPosition(), parentCell, centerInCell, obj->getRequiredBridgeHeight());
 
 			// cleanup the path by checking line of sight
 			path->optimize(obj, locomotorSet.getValidSurfaces(), blocked, locomotorSet.getRequiredWaterLevel());
