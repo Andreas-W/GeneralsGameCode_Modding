@@ -1962,6 +1962,144 @@ void WorldHeightMapEdit::blendAllEdges(const std::set<Int> &classes, Int globalE
 	delete[] baseClasses;
 }
 
+namespace
+{
+	enum CornerBlendKind
+	{
+		CORNER_BLEND_TOP,
+		CORNER_BLEND_BOTTOM,
+		CORNER_BLEND_LEFT,
+		CORNER_BLEND_RIGHT,
+		CORNER_BLEND_TOP_LEFT,
+		CORNER_BLEND_TOP_RIGHT,
+		CORNER_BLEND_BOTTOM_LEFT,
+		CORNER_BLEND_BOTTOM_RIGHT,
+		CORNER_BLEND_BOTTOM_LEFT_LARGE
+	};
+}
+
+/// Puts a blend into the cell's first free layer. The two-layer cases of blendCellFromCorners only
+/// pair blends of the same flip, so this needs no flip handling like blendSpecificTiles.
+void WorldHeightMapEdit::addCornerBlend(Int xIndex, Int yIndex, Int textureClass, Int blendKind)
+{
+	const Int ndx = yIndex*m_width + xIndex;
+	TBlendTileInfo blendInfo;
+	blendInfo.blendNdx = getBlendTileNdxForClass(xIndex, yIndex, textureClass);
+	if (blendInfo.blendNdx == m_tileNdxes[ndx]) return;
+	blendInfo.horiz = blendKind == CORNER_BLEND_LEFT || blendKind == CORNER_BLEND_RIGHT;
+	blendInfo.vert = blendKind == CORNER_BLEND_TOP || blendKind == CORNER_BLEND_BOTTOM;
+	blendInfo.rightDiagonal = blendKind == CORNER_BLEND_TOP_LEFT || blendKind == CORNER_BLEND_BOTTOM_LEFT || blendKind == CORNER_BLEND_BOTTOM_LEFT_LARGE;
+	blendInfo.leftDiagonal = blendKind == CORNER_BLEND_TOP_RIGHT || blendKind == CORNER_BLEND_BOTTOM_RIGHT;
+	blendInfo.inverted = blendKind == CORNER_BLEND_TOP || blendKind == CORNER_BLEND_RIGHT
+		|| blendKind == CORNER_BLEND_TOP_LEFT || blendKind == CORNER_BLEND_TOP_RIGHT;
+	blendInfo.longDiagonal = blendKind == CORNER_BLEND_BOTTOM_LEFT_LARGE;
+	blendInfo.customBlendEdgeClass = -1;
+	updateFlatCellForAdjacentCliffs(xIndex, yIndex, textureClass);
+	const Short newNdx = findOrCreateBlendTile(&blendInfo);
+	if (newNdx < 0) return;
+	if (m_blendTileNdxes[ndx] == 0) m_blendTileNdxes[ndx] = newNdx;
+	else if (m_extraBlendTileNdxes[ndx] == 0) m_extraBlendTileNdxes[ndx] = newNdx;
+}
+
+/// Chooses the base texture and blends of a cell from the textures at its four corners.
+/// Based on GenerateBlendTiles of Genesis.Processors/TextureGenerator.cs (The CWC Team).
+void WorldHeightMapEdit::blendCellFromCorners(Int xIndex, Int yIndex, Int *corners)
+{
+	const Int stride = m_width + 1;
+	Int *lowerLeft = corners + yIndex*stride + xIndex;
+	Int t0, t1, t2, t3;
+	for (;;) {
+		t0 = lowerLeft[0];
+		t1 = lowerLeft[1];
+		t2 = lowerLeft[stride];
+		t3 = lowerLeft[stride + 1];
+		if (t0 < 0 || t1 < 0 || t2 < 0 || t3 < 0) return;
+		Int distinct = 1;
+		if (t1 != t0) distinct++;
+		if (t2 != t0 && t2 != t1) distinct++;
+		if (t3 != t0 && t3 != t1 && t3 != t2) distinct++;
+		if (distinct != 4 && !(t0 == t3 && t1 == t2 && t0 != t1)) break;
+		// A checkerboard or four different textures cannot be blended: the upper right corner gives way.
+		lowerLeft[stride + 1] = t1;
+	}
+
+	Int base = t0, blend1 = -1, kind1 = 0, blend2 = -1, kind2 = 0;
+	#define BLEND1(cls, kind) { blend1 = cls; kind1 = kind; }
+	#define BLEND2(cls, kind) { blend2 = cls; kind2 = kind; }
+	if (t0 == t1 && t0 == t2 && t0 == t3) {
+		// One texture.
+	} else if (t0 == t1) {
+		if (t0 == t2) BLEND1(t3, CORNER_BLEND_BOTTOM_LEFT)
+		else if (t0 == t3) BLEND1(t2, CORNER_BLEND_BOTTOM_RIGHT)
+		else if (t2 == t3) BLEND1(t2, CORNER_BLEND_BOTTOM)
+		else {
+			base = t3;
+			BLEND1(t0, CORNER_BLEND_TOP)
+			BLEND2(t2, CORNER_BLEND_BOTTOM_RIGHT)
+		}
+	} else if (t0 == t2) {
+		if (t0 == t3) BLEND1(t1, CORNER_BLEND_TOP_LEFT)
+		else if (t1 == t3) BLEND1(t1, CORNER_BLEND_LEFT)
+		else {
+			base = t3;
+			BLEND1(t0, CORNER_BLEND_RIGHT)
+			BLEND2(t1, CORNER_BLEND_TOP_LEFT)
+		}
+	} else if (t2 == t3) {
+		if (t2 == t1) {
+			// Genesis makes t2 the base and blends a small corner of t0 over it. The same picture with t0
+			// as the base keeps the cell's texture, so that blending again does not eat away this corner.
+			BLEND1(t2, CORNER_BLEND_BOTTOM_LEFT_LARGE)
+		} else {
+			BLEND1(t2, CORNER_BLEND_BOTTOM)
+			BLEND2(t1, CORNER_BLEND_TOP_LEFT)
+		}
+	} else if (t1 == t3) {
+		BLEND1(t1, CORNER_BLEND_LEFT)
+		BLEND2(t2, CORNER_BLEND_BOTTOM_RIGHT)
+	} else if (t0 == t3) {
+		BLEND1(t1, CORNER_BLEND_TOP_LEFT)
+		BLEND2(t2, CORNER_BLEND_BOTTOM_RIGHT)
+	} else {
+		base = t1;
+		BLEND1(t0, CORNER_BLEND_TOP_RIGHT)
+		BLEND2(t3, CORNER_BLEND_BOTTOM_LEFT)
+	}
+	#undef BLEND1
+	#undef BLEND2
+
+	const Int ndx = yIndex*m_width + xIndex;
+	if (getTextureClass(xIndex, yIndex, true) != base) {
+		m_tileNdxes[ndx] = getTileNdxForClass(xIndex, yIndex, base);
+	}
+	if (blend1 >= 0) addCornerBlend(xIndex, yIndex, blend1, kind1);
+	if (blend2 >= 0) addCornerBlend(xIndex, yIndex, blend2, kind2);
+}
+
+void WorldHeightMapEdit::blendCorners(Int x0, Int y0, Int x1, Int y1)
+{
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 >= m_width) x1 = m_width-1;
+	if (y1 >= m_height) y1 = m_height-1;
+	clearBlends(x0, y0, x1, y1);
+
+	// One more row and column than cells: the last ones repeat the edge of the map.
+	const Int stride = m_width + 1;
+	Int *corners = new Int[stride * (m_height + 1)];
+	for (Int y = 0; y <= m_height; y++) {
+		for (Int x = 0; x <= m_width; x++) {
+			corners[y*stride + x] = getTextureClass(x < m_width ? x : m_width-1, y < m_height ? y : m_height-1, true);
+		}
+	}
+	for (Int x = x0; x <= x1; x++) {
+		for (Int y = y0; y <= y1; y++) {
+			blendCellFromCorners(x, y, corners);
+		}
+	}
+	delete[] corners;
+}
+
 void WorldHeightMapEdit::getBlendStats(Int x0, Int y0, Int x1, Int y1, Int *pBlended, Int *pThreeWay, Int *pHardEdges)
 {
 	if (x0 < 0) x0 = 0;

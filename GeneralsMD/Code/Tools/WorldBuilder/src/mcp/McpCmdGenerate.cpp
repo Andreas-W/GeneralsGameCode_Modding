@@ -294,7 +294,7 @@ void setBlendStats(McpJson &j, WorldHeightMapEdit *map, Int x0, Int y0, Int x1, 
 	j.set("blend_table_used", map->getNumBlendTilesUsed()).set("blend_table_size", NUM_BLEND_TILES);
 }
 
-McpJson runBlend(const McpJson &args, bool clearFirst)
+McpJson cmdBlendAll(const McpJson &args)
 {
 	WorldHeightMapEdit *map = mcpHeightMap();
 	Int x0, y0, x1, y1;
@@ -302,21 +302,24 @@ McpJson runBlend(const McpJson &args, bool clearFirst)
 	const std::set<Int> classes = blendClasses(map, args, x0, y0, x1, y1);
 	const Int edgeClass = optionalTexture(args, "edge_texture");
 	WorldHeightMapEdit *copy = map->duplicate();
-	if (clearFirst) copy->clearBlends(x0, y0, x1, y1);
 	copy->blendAllEdges(classes, edgeClass, x0, y0, x1, y1);
 	McpJson j = mcpCommitHeightMapEdit(copy, true);
 	setBlendStats(j, mcpHeightMap(), x0, y0, x1, y1);
 	return j;
 }
 
-McpJson cmdBlendAll(const McpJson &args)
-{
-	return runBlend(args, false);
-}
-
 McpJson cmdReblend(const McpJson &args)
 {
-	return runBlend(args, true);
+	WorldHeightMapEdit *map = mcpHeightMap();
+	Area area;
+	area.parse(args, false);
+	Int x0, y0, x1, y1;
+	area.range(map, &x0, &y0, &x1, &y1);
+	WorldHeightMapEdit *copy = map->duplicate();
+	copy->blendCorners(x0, y0, x1, y1);
+	McpJson j = mcpCommitHeightMapEdit(copy, true);
+	setBlendStats(j, mcpHeightMap(), x0, y0, x1, y1);
+	return j;
 }
 
 McpJson cmdBlendReport(const McpJson &args)
@@ -508,8 +511,8 @@ void mcpRegisterGenerateCommands()
 	mcpRegisterCommand("terrain.generate", cmdGenerate, "{layers:[{height,frequency,octaves?,persistence?,amplitude?,ridged?,signed?}], seed?, mode?:set|add, base_height?, shape?, feather?, protect?:[{x,y,radius,feather?}]} Noise terrain.");
 	mcpRegisterCommand("terrain.limit_slope", cmdLimitSlope, "{max_step?=15, iterations?=20, shape?} Reduces height steps between neighbours; cliff flags follow the slope.");
 	mcpRegisterCommand("terrain.auto_texture", cmdAutoTexture, "{base:{texture,overlays?}, cliff?:{texture,overlays?,slope?,use_impassable?}, water?:{texture,overlays?,below?}, seed?, blend?, edge_texture?, shape?} Textures cells by slope/water with noise overlays.");
-	mcpRegisterCommand("terrain.blend_all", cmdBlendAll, "{textures?, edge_texture?, shape?} Blends every edge of the given (default: all but the most common) textures, keeping existing blends.");
-	mcpRegisterCommand("terrain.reblend", cmdReblend, "{textures?, edge_texture?, shape?} Removes all blends in the area and blends every edge again, as one undo step.");
+	mcpRegisterCommand("terrain.blend_all", cmdBlendAll, "{textures?, edge_texture?, shape?} Blends every edge of the given (default: all but the most common) textures outward, keeping existing blends.");
+	mcpRegisterCommand("terrain.reblend", cmdReblend, "{shape?} Removes all blends in the area and blends all textures again from the cell corners, as one undo step.");
 	mcpRegisterCommand("terrain.blend_report", cmdBlendReport, "{shape?} Counts blended cells, 3-way tiles and edges that neither side blends across.");
 	mcpRegisterCommand("terrain.remove_blends", cmdRemoveBlends, "{shape?} Removes texture blends.");
 }

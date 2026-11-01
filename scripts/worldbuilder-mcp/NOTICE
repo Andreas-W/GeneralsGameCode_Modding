@@ -9,6 +9,8 @@ Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0):
 - scripts/worldbuilder-mcp/presets/layouts.json and sceneries.json: terrain layout and
   scenery presets from Genesis.UI/MapLayouts.xml, Genesis.UI/Sceneries/*.xml and
   MapTools/MapTools.cs.
+- GeneralsMD/Code/Tools/WorldBuilder/src/WHeightMapEdit.cpp, blendCellFromCorners: based on
+  GenerateBlendTiles in Genesis.Processors/TextureGenerator.cs.
 
 The terrain generation, texturing and symmetry commands follow the design of the Genesis
 processors and map tools.

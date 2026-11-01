@@ -523,8 +523,9 @@ def terrain_blend_all(textures: list[str] | None = None, edge_texture: str | Non
                       radius: float | None = None, x0: float | None = None, y0: float | None = None,
                       x1: float | None = None, y1: float | None = None) -> dict:
     """Blends every edge of the given textures (default: all textures except the most common one,
-    taken as the ground) into the neighbouring cells, keeping existing blends. Use terrain_reblend
-    to start clean. Returns the same counts as terrain_blend_report. One undo step."""
+    taken as the ground) outward into the neighbouring cells, keeping existing blends. Use it to add
+    single textures with an edge_texture; to blend a whole map use terrain_reblend, which gives
+    smoother diagonals. Returns the same counts as terrain_blend_report. One undo step."""
     return wb.call("terrain.blend_all", textures=textures, edge_texture=edge_texture,
                    **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
 
@@ -538,15 +539,15 @@ def terrain_remove_blends(shape: Shape | None = None, x: float | None = None, y:
 
 
 @mcp.tool()
-def terrain_reblend(textures: list[str] | None = None, edge_texture: str | None = None,
-                    shape: Shape | None = None, x: float | None = None, y: float | None = None,
+def terrain_reblend(shape: Shape | None = None, x: float | None = None, y: float | None = None,
                     radius: float | None = None, x0: float | None = None, y0: float | None = None,
                     x1: float | None = None, y1: float | None = None) -> dict:
-    """Removes all blends in the area (default: the whole map) and blends every edge again: the usual
-    last step after painting. The textures argument works as in terrain_blend_all. Returns the same
-    counts as terrain_blend_report. One undo step."""
-    return wb.call("terrain.reblend", textures=textures, edge_texture=edge_texture,
-                   **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
+    """Removes all blends in the area (default: the whole map) and blends all textures again: the
+    usual last step after painting. Each boundary gets one blend chosen from the textures at the cell
+    corners (as the Genesis map tools do), so edges that step diagonally come out smooth. Where three or
+    four textures meet a cell's base texture can change. Returns the same counts as
+    terrain_blend_report. One undo step."""
+    return wb.call("terrain.reblend", **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
 
 
 @mcp.tool()
