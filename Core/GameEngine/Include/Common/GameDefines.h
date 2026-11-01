@@ -92,7 +92,7 @@
 #endif
 
 #ifndef RETAIL_COMPATIBLE_CRC
-#define RETAIL_COMPATIBLE_CRC (1) // Game is expected to be CRC compatible with retail Generals 1.08, Zero Hour 1.04
+#define RETAIL_COMPATIBLE_CRC (0) // Off in this modding fork: mods are not CRC compatible with retail anyway, so take the logic fixes behind this flag
 #endif
 
 #ifndef RETAIL_COMPATIBLE_XFER_SAVE
