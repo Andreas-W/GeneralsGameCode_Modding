@@ -384,13 +384,19 @@ void FiringTracker::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: TheSuperHackers @bugfix bobtista 11/10/2026 Save m_frameToForceReload and m_frameToStopLoopingSound
+	*/
 // ------------------------------------------------------------------------------------------------
 void FiringTracker::xfer( Xfer *xfer )
 {
 
 	// version
+#if RETAIL_COMPATIBLE_XFER_SAVE
 	XferVersion currentVersion = 1;
+#else
+	XferVersion currentVersion = 2;
+#endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -408,6 +414,15 @@ void FiringTracker::xfer( Xfer *xfer )
 
 	// currenly applied weaponBonus against the prev target
 	m_prevTargetWeaponBonus.xfer(xfer);
+
+	if( version >= 2 )
+	{
+		// frame to force reload
+		xfer->xferUnsignedInt( &m_frameToForceReload );
+
+		// frame to stop looping sound
+		xfer->xferUnsignedInt( &m_frameToStopLoopingSound );
+	}
 
 }  // end xfer
 

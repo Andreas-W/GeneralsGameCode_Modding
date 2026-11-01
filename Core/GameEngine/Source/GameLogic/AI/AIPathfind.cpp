@@ -175,28 +175,6 @@ PathNode *PathNode::prependToList( PathNode *list )
 	return this;
 }
 
-//-----------------------------------------------------------------------------------
-/// given a list, append this node, return new list.  slow implementation.
-/// @todo optimize this
-PathNode *PathNode::appendToList( PathNode *list )
-{
-	if (list == nullptr)
-	{
-		m_next = nullptr;
-		m_prev = nullptr;
-		return this;
-	}
-
-	PathNode *tail;
-	for( tail = list; tail->m_next; tail = tail->m_next )
-		;
-
-	tail->m_next = this;
-	m_prev = tail;
-	m_next = nullptr;
-
-	return list;
-}
 
 //-----------------------------------------------------------------------------------
 /// given a node, append new node to this.
@@ -441,9 +419,17 @@ void Path::appendNode( const Coord3D *pos, PathfindLayerEnum layer )
 	node->setPosition( pos );
 	node->setLayer(layer);
 
-	m_path = node->appendToList( m_path );
+	if (!m_path)
+	{
+		m_path = node;
+		m_pathTail = node;
 
-	if (m_isOptimized && m_pathTail)
+		return;
+	}
+
+	m_pathTail->append(node);
+
+	if (m_isOptimized)
 	{
 		m_pathTail->setNextOptimized(node);
 	}
@@ -2740,12 +2726,7 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 			bounds.lo.y = globalBounds.lo.y + yBlock*ZONE_BLOCK_SIZE;
 			bounds.hi.x = bounds.lo.x + ZONE_BLOCK_SIZE - 1; // bounds are inclusive.
 			bounds.hi.y = bounds.lo.y + ZONE_BLOCK_SIZE - 1; // bounds are inclusive.
-			if (bounds.hi.x > globalBounds.hi.x) {
-				bounds.hi.x = globalBounds.hi.x;
-			}
-			if (bounds.hi.y > globalBounds.hi.y) {
-				bounds.hi.y = globalBounds.hi.y;
-			}
+			bounds.hi.updateMin(globalBounds.hi);
 #if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
 			if (bounds.lo.x>bounds.hi.x || bounds.lo.y>bounds.hi.y) {
 				DEBUG_CRASH(("Incorrect bounds calculation. Logic error, fix me. jba."));
@@ -2842,11 +2823,7 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 			bounds.hi.x = bounds.lo.x + ZONE_BLOCK_SIZE - 1; // bounds are inclusive.
 			bounds.hi.y = bounds.lo.y + ZONE_BLOCK_SIZE - 1; // bounds are inclusive.
 
-			if (bounds.hi.x > globalBounds.hi.x)
-				bounds.hi.x = globalBounds.hi.x;
-
-			if (bounds.hi.y > globalBounds.hi.y)
-				bounds.hi.y = globalBounds.hi.y;
+			bounds.hi.updateMin(globalBounds.hi);
 #if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
 			if (bounds.lo.x>bounds.hi.x || bounds.lo.y>bounds.hi.y) {
 				DEBUG_CRASH(("Incorrect bounds calculation. Logic error, fix me. jba."));
@@ -3065,12 +3042,7 @@ void PathfindZoneManager::updateZonesForModify(PathfindCell **map, PathfindLayer
 	IRegion2D bounds = structureBounds;
 	bounds.hi.x++;
 	bounds.hi.y++;
-	if (bounds.hi.x > globalBounds.hi.x) {
-		bounds.hi.x = globalBounds.hi.x;
-	}
-	if (bounds.hi.y > globalBounds.hi.y) {
-		bounds.hi.y = globalBounds.hi.y;
-	}
+	bounds.hi.updateMin(globalBounds.hi);
 
 	Int xBlock, yBlock;
 	for (xBlock = 0; xBlock<m_zoneBlockExtent.x; xBlock++) {
@@ -3080,18 +3052,7 @@ void PathfindZoneManager::updateZonesForModify(PathfindCell **map, PathfindLayer
 			blockBounds.lo.y = globalBounds.lo.y + yBlock*ZONE_BLOCK_SIZE;
 			blockBounds.hi.x = blockBounds.lo.x + ZONE_BLOCK_SIZE - 1; // blockBounds are inclusive.
 			blockBounds.hi.y = blockBounds.lo.y + ZONE_BLOCK_SIZE - 1; // blockBounds are inclusive.
-			if (blockBounds.hi.x > bounds.hi.x) {
-				blockBounds.hi.x = bounds.hi.x;
-			}
-			if (blockBounds.hi.y > bounds.hi.y) {
-				blockBounds.hi.y = bounds.hi.y;
-			}
-			if (blockBounds.lo.x < bounds.lo.x) {
-				blockBounds.lo.x = bounds.lo.x;
-			}
-			if (blockBounds.lo.y < bounds.lo.y) {
-				blockBounds.lo.y = bounds.lo.y;
-			}
+			blockBounds.intersectWith(bounds);
 			if (blockBounds.lo.x>blockBounds.hi.x || blockBounds.lo.y>blockBounds.hi.y) {
 				continue;
 			}
@@ -3630,10 +3591,7 @@ void PathfindLayer::allocateCellsForWallLayer(const IRegion2D *extent, ObjectID 
 			bridgeBounds = objBounds;
 			first = false;
 		} else {
-			if (bridgeBounds.lo.x>objBounds.lo.x) bridgeBounds.lo.x = objBounds.lo.x;
-			if (bridgeBounds.lo.y>objBounds.lo.y) bridgeBounds.lo.y = objBounds.lo.y;
-			if (bridgeBounds.hi.x<objBounds.hi.x) bridgeBounds.hi.x = objBounds.hi.x;
-			if (bridgeBounds.hi.y<objBounds.hi.y) bridgeBounds.hi.y = objBounds.hi.y;
+			bridgeBounds.uniteWith(objBounds);
 		}
 	}
 
@@ -3923,10 +3881,8 @@ void PathfindLayer::classifyLayerMapCell( Int i, Int j , PathfindCell *cell, Bri
 		// check against the end lines.
 
 		Region2D cellBounds;
-		cellBounds.lo.x = topLeftCorner.x;
-		cellBounds.lo.y = topLeftCorner.y;
-		cellBounds.hi.x = bottomRightCorner.x;
-		cellBounds.hi.y = bottomRightCorner.y;
+		cellBounds.lo = topLeftCorner.asCoord2D();
+		cellBounds.hi = bottomRightCorner.asCoord2D();
 
 #if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
 		if (m_bridge->isCellOnEnd(&cellBounds)) {
@@ -4099,6 +4055,9 @@ void Pathfinder::reset()
 	m_isTunneling = false;
 
 	m_moveAlliesDepth = 0;
+#if !RETAIL_COMPATIBLE_PATHFINDING
+	std::fill(m_moveAlliesObjects, m_moveAlliesObjects + ARRAY_SIZE(m_moveAlliesObjects), INVALID_ID);
+#endif
 
 	// pathfind grid cells have not been classified yet
 	m_isMapReady = false;
@@ -4627,21 +4586,7 @@ void Pathfinder::internal_classifyObjectFootprint( Object *obj, Bool insert )
 
 	Int i, j;
 
-	if (cellBounds.lo.x < m_extent.lo.x) {
-		cellBounds.lo.x = m_extent.lo.x;
-	}
-	if (cellBounds.lo.y < m_extent.lo.y) {
-		cellBounds.lo.y = m_extent.lo.y;
-	}
-	if (cellBounds.lo.y < m_extent.lo.y) {
-		cellBounds.lo.y = m_extent.lo.y;
-	}
-	if (cellBounds.hi.x > m_extent.hi.x) {
-		cellBounds.hi.x = m_extent.hi.x;
-	}
-	if (cellBounds.hi.y > m_extent.hi.y) {
-		cellBounds.hi.y = m_extent.hi.y;
-	}
+	cellBounds.intersectWith(m_extent);
 
 	if (!insert) {
 		for( j=cellBounds.lo.y; j<=cellBounds.hi.y; j++ )
@@ -6378,6 +6323,7 @@ struct ExamineCellsStruct
 	const LocomotorSet	*theLoco;
 	Bool								centerInCell;
 	Bool								isHuman;
+	Bool								isCrusher;
 	Int									radius;
 	const Object				*obj;
 	PathfindCell				*goalCell;
@@ -6386,10 +6332,9 @@ struct ExamineCellsStruct
 /*static*/ Int Pathfinder::examineCellsCallback(Pathfinder* pathfinder, PathfindCell* from, PathfindCell* to, Int to_x, Int to_y, void* userData)
 {
 	ExamineCellsStruct* d = (ExamineCellsStruct*)userData;
-	Bool isCrusher = d->obj ? d->obj->getCrusherLevel() > 0 : false;
 	if (d->thePathfinder->m_isTunneling) return 1; // abort.
 	if (from && to) {
-			if (!d->thePathfinder->validMovementPosition( isCrusher, d->theLoco->getValidSurfaces(), d->theLoco->getRequiredWaterLevel(), d->obj->getRequiredBridgeHeight(), to, from )) {
+			if (!d->thePathfinder->validMovementPosition( d->isCrusher, d->theLoco->getValidSurfaces(), d->theLoco->getRequiredWaterLevel(), d->obj->getRequiredBridgeHeight(), to, from )) {
 				return 1;
 			}
 			if ( (to->getLayer() == LAYER_GROUND) && !d->thePathfinder->m_zoneManager.isPassable(to_x, to_y) ) {
@@ -6492,6 +6437,7 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 			info.radius = radius;
 			info.obj = obj;
 			info.isHuman = isHuman;
+			info.isCrusher = isCrusher;
 			info.goalCell = goalCell;
 			ICoord2D start, end;
 			start.x = parentCell->getXIndex();
@@ -6516,6 +6462,11 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 		Bool neighborFlags[8] = { 0 };
 
 		UnsignedInt newCostSoFar = 0;
+
+		Coord3D fromPos;
+		fromPos.x = parentCell->getXIndex() * PATHFIND_CELL_SIZE_F ;
+		fromPos.y = parentCell->getYIndex() * PATHFIND_CELL_SIZE_F ;
+		fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
 
 		for( int i=0; i<numNeighbors; i++ )
 		{
@@ -6555,11 +6506,6 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 			// do the gravity check here
 			if ( locomotorSet.isDownhillOnly() )
 			{
-				Coord3D fromPos;
-				fromPos.x = parentCell->getXIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.y = parentCell->getYIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
-
 				Coord3D toPos;
 				toPos.x = newCellCoord.x * PATHFIND_CELL_SIZE_F ;
 				toPos.y = newCellCoord.y * PATHFIND_CELL_SIZE_F ;
@@ -6625,11 +6571,6 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 			}
 
 			if (newCell->getType() == PathfindCell::CELL_CLIFF && !newCell->getPinched() ) {
-				Coord3D fromPos;
-				fromPos.x = parentCell->getXIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.y = parentCell->getYIndex() * PATHFIND_CELL_SIZE_F ;
-				fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
-
 				Coord3D toPos;
 				toPos.x = newCellCoord.x * PATHFIND_CELL_SIZE_F ;
 				toPos.y = newCellCoord.y * PATHFIND_CELL_SIZE_F ;
@@ -7780,24 +7721,16 @@ void Pathfinder::processHierarchicalCell( const ICoord2D &scanCell, const ICoord
 			return;
 		}
 
-		newCell->allocateInfo(scanCell);
-#if RETAIL_COMPATIBLE_PATHFINDING
-		if (!s_useFixedPathfinding)
-		{
-			if (!newCell->getClosed() && !newCell->getOpen()) {
-				newCell->putOnClosedList(m_closedList);
-			}
-		}
-		else
+#if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
+		// TheSuperHackers @bugfix Caball009 14/09/2026 Check newCell->m_info before accessing it to prevent a possible crash.
+		// The Zero Hour / non-retail compatible pathfinding code performs this check earlier in the function.
+		if (newCell->allocateInfo(scanCell) && !newCell->getOpen() && !newCell->getClosed())
 #endif
 		{
-			if (newCell->hasInfo() && !newCell->getClosed() && !newCell->getOpen()) {
-				newCell->putOnClosedList(m_closedList);
-			}
+			newCell->putOnClosedList(m_closedList);
 		}
 
-		adjNewCell->allocateInfo(adjacentCell);
-		if( adjNewCell->hasInfo() )
+		if (adjNewCell->allocateInfo(adjacentCell))
 		{
 
 			cellCount++;
@@ -10752,9 +10685,12 @@ if (g_UT_startTiming) return false;
 		}
 	}
 	LatchRestore<Int> recursiveDepth(m_moveAlliesDepth, m_moveAlliesDepth+1);
-	if (m_moveAlliesDepth > 2) {
+	if (m_moveAlliesDepth > MOVE_ALLIES_MAX_DEPTH) {
 		return false;
 	}
+#if !RETAIL_COMPATIBLE_PATHFINDING
+	m_moveAlliesObjects[m_moveAlliesDepth - 1] = obj->getID();
+#endif
 
 	Bool centerInCell;
 	Int radius;
@@ -10822,6 +10758,20 @@ if (g_UT_startTiming) return false;
 				//Black Lotus exploit fix -- moving while hacking.
 				if( otherObj->testStatus( OBJECT_STATUS_IS_USING_ABILITY ) || otherObj->getAI()->isBusy() ) {
 					continue; // Packing or unpacking objects for example
+				}
+#endif
+
+#if !RETAIL_COMPATIBLE_PATHFINDING
+				// TheSuperHackers @bugfix bobtista 13/10/2026 Do not order a unit whose moveAllies call is still walking its path. The order destroys that path.
+				Bool isOuterCaller = false;
+				for (Int k = 0; k < m_moveAlliesDepth - 1; ++k) {
+					if (m_moveAlliesObjects[k] == unitId) {
+						isOuterCaller = true;
+						break;
+					}
+				}
+				if (isOuterCaller) {
+					continue;
 				}
 #endif
 
@@ -10948,10 +10898,8 @@ Path *Pathfinder::getMoveAwayFromPath(Object* obj, Object *otherObj,
 
 		for( node = pathToAvoid->getFirstNode(); node && node->getNextOptimized(); node = node->getNextOptimized() )	{
 			Coord2D start, end;
-			start.x = node->getPosition()->x;
-			start.y = node->getPosition()->y;
-			end.x = node->getNextOptimized()->getPosition()->x;
-			end.y = node->getNextOptimized()->getPosition()->y;
+			start = node->getPosition()->asCoord2D();
+			end = node->getNextOptimized()->getPosition()->asCoord2D();
 			if (LineInRegion(&start, &end, &bounds)) {
 				overlap = true;
 				break;
@@ -10961,10 +10909,8 @@ Path *Pathfinder::getMoveAwayFromPath(Object* obj, Object *otherObj,
 		if (!overlap && pathToAvoid2) {
 			for( node = pathToAvoid2->getFirstNode(); node && node->getNextOptimized(); node = node->getNextOptimized() )	{
 				Coord2D start, end;
-				start.x = node->getPosition()->x;
-				start.y = node->getPosition()->y;
-				end.x = node->getNextOptimized()->getPosition()->x;
-				end.y = node->getNextOptimized()->getPosition()->y;
+				start = node->getPosition()->asCoord2D();
+				end = node->getNextOptimized()->getPosition()->asCoord2D();
 				if (LineInRegion(&start, &end, &bounds)) {
 					overlap = true;
 					break;

@@ -72,6 +72,7 @@ public:
 	void markLogicUpdate(); ///< Signal that a logic step was just done. Anchors the render interpolation.
 	void updateLogicInterpolation(); ///< Compute the render interpolation factor for the coming render update.
 	Real getLogicInterpolation() const { return m_logicInterpolation; } ///< How far the render update is between the previous and the last logic step, 0..1.
+	Real getLogicFramePhase() const; ///< Get how far the current render step reaches into the current logic frame, in [0,1]. Used to interpolate render updates between logic updates.
 
 protected:
 
@@ -88,6 +89,7 @@ protected:
 
 	Real m_updateTime; ///< Last update delta time in seconds
 	Real m_logicInterpolation; ///< Render interpolation factor between the previous and the last logic step
+	Real m_logicFramePhase; ///< How far the current render step reaches into the current logic frame, ranging 0 to 1.
 
 	Bool m_enableFpsLimit;
 	Bool m_enableLogicTimeScale;

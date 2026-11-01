@@ -741,7 +741,7 @@ public:
 		m_landingSoundPlayed = FALSE;
 		if (m_landing)
 		{
-			loco->setMaxSpeed(loco->getMinSpeed());
+			loco->setMaxSpeedToMinSpeed();
 		}
 		else
 		{

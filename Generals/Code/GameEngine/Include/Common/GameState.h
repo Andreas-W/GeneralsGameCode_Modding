@@ -171,6 +171,7 @@ public:
 										 SnapshotType which = SNAPSHOT_SAVELOAD );  ///< save a game
 	SaveResult missionSave();																 ///< do a in between mission save
 	SaveCode loadGame( AvailableGameInfo gameInfo );							 ///< load a save file
+	void loadQueuedSaveGame();																 ///< load the save file requested on startup
 	SaveGameInfo *getSaveGameInfo() { return &m_gameInfo; }
 
 	// snapshot interaction
@@ -190,6 +191,7 @@ public:
 
 	AsciiString getSaveDirectory() const;
 	AsciiString getFilePathInSaveDirectory(const AsciiString& leaf) const;
+	AsciiString getSaveGamePathForRead(const AsciiString& filenameOrPath) const;
 	Bool isInSaveDirectory(const AsciiString& path) const;
 
 	AsciiString realMapPathToPortableMapPath(const AsciiString& in) const;
