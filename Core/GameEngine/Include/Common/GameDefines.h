@@ -99,7 +99,7 @@
 // Whether to preserve the 1.41x speed discrepancy between straight and diagonal movements of all objects that move via a Locomotor.
 // Set this to 0 when world objects need to move at consistent speed in all directions.
 #ifndef PRESERVE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY
-#define PRESERVE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY (1)
+#define PRESERVE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY (0) // Off in this modding fork: units move at the same speed in every direction
 #endif
 
 // Whether to preserve the harmonic mean of the straight and diagonal speeds of the original forward speed discrepancy bug.

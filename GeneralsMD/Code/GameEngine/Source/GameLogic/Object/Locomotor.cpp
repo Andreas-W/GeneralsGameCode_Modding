@@ -1100,7 +1100,7 @@ void Locomotor::locoUpdate_moveTowardsAngle(Object* obj, Real goalAngle, Bool tu
 				BodyDamageType bdt = obj->getBodyModule()->getDamageState();
 				Real maxSpeed = getMaxSpeedForCondition(bdt);
 				// mirrors the turnSpeed clamp in moveTowardsPositionWheels
-				Real speed = m_template->m_minTurnSpeed;
+				Real speed = getMinTurnSpeed();
 				if (speed < maxSpeed/4.0f)
 					speed = maxSpeed/4.0f;
 				if (speed > maxSpeed)

@@ -154,16 +154,7 @@ public:
 	static Bool useLegacyForwardSpeedInCinematics();
 #endif
 
-	static Bool useLegacyForwardSpeed()
-	{
-#if USE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY()
-		return true;
-#elif USE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY_IN_CINEMATICS()
-		return useLegacyForwardSpeedInCinematics();
-#else
-		return false;
-#endif
-	}
+	static Bool useLegacyForwardSpeed();
 
 	ObjectID getCurrentOverlap() const;					///< return object(s) being overlapped
 	ObjectID getPreviousOverlap() const;					///< return object(s) that were overlapped last frame

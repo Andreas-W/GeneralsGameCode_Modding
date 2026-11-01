@@ -1087,6 +1087,22 @@ Bool PhysicsBehavior::useLegacyForwardSpeedInCinematics()
 }
 #endif
 
+//-------------------------------------------------------------------------------------------------
+Bool PhysicsBehavior::useLegacyForwardSpeed()
+{
+#if USE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY()
+	return true;
+#else
+	// The GameData switch UseVanillaDiagonalMoveSpeed lets a mod keep the retail speeds
+	if (TheGlobalData->m_useOldMoveSpeed)
+		return true;
+#if USE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY_IN_CINEMATICS()
+	return useLegacyForwardSpeedInCinematics();
+#else
+	return false;
+#endif
+#endif
+}
 
 //-------------------------------------------------------------------------------------------------
 Bool PhysicsBehavior::isCurrentlyOverlapped(Object *obj) const
