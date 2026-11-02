@@ -326,6 +326,11 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_requestedDestination.zero();
 	m_requestedDestination2.zero();
 	m_pathTimestamp = 0;
+	m_lastPathRequestFrame = 0;
+	m_lastPathRequestCell.x = m_lastPathRequestCell.y = -1;
+	m_lastPathRequestGoalCell.x = m_lastPathRequestGoalCell.y = -1;
+	m_repeatedPathRequests = 0;
+	m_lastPathQueueFrame = 0;
 	m_ignoreObstacleID = INVALID_ID;
 	m_pathExtraDistance = 0;
 	m_pathfindGoalCell.x = m_pathfindGoalCell.y = -1;
@@ -612,6 +617,33 @@ void AIUpdateInterface::requestPath( Coord3D *destination, Bool isFinalGoal )
 		}
 		return;
 	}
+
+	// A unit can ask for the same path every few frames without ever moving, for example when attack move
+	// keeps picking a target it cannot attack and drops the new path each time. Each request is a full search,
+	// so after a few repeats search at most once a second.
+	ICoord2D cell, goalCell;
+	TheAI->pathfinder()->worldToCell(getObject()->getPosition(), &cell);
+	TheAI->pathfinder()->worldToCell(destination, &goalCell);
+	const UnsignedInt now = TheGameLogic->getFrame();
+	if (now - m_lastPathRequestFrame <= LOGICFRAMES_PER_SECOND &&
+			cell.x == m_lastPathRequestCell.x && cell.y == m_lastPathRequestCell.y &&
+			goalCell.x == m_lastPathRequestGoalCell.x && goalCell.y == m_lastPathRequestGoalCell.y) {
+		m_repeatedPathRequests++;
+	} else {
+		m_repeatedPathRequests = 0;
+	}
+	m_lastPathRequestFrame = now;
+	m_lastPathRequestCell = cell;
+	m_lastPathRequestGoalCell = goalCell;
+	if (m_repeatedPathRequests >= 2 && now - m_lastPathQueueFrame < LOGICFRAMES_PER_SECOND) {
+		// Ending a move cancels this wait, so a unit stuck in such a loop gets its next search
+		// from a later request, once the second is up.
+		if (m_queueForPathFrame == 0) {
+			setQueueForPathTime(m_lastPathQueueFrame + LOGICFRAMES_PER_SECOND - now);
+		}
+		return;
+	}
+	m_lastPathQueueFrame = now;
 	TheAI->pathfinder()->queueForPath(getObject()->getID());
 
 }
@@ -1236,6 +1268,7 @@ UpdateSleepTime AIUpdateInterface::update()
 		if (now >= m_queueForPathFrame)
 		{
 			TheAI->pathfinder()->queueForPath(getObject()->getID());
+			m_lastPathQueueFrame = now;
 			setQueueForPathTime(0);
 		}
 		else

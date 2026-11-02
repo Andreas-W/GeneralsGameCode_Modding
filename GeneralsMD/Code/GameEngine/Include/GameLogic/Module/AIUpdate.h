@@ -773,6 +773,11 @@ private:
 	Coord3D			m_requestedDestination;
 	Coord3D			m_requestedDestination2;
 	UnsignedInt	m_pathTimestamp;						///< time of path construction
+	UnsignedInt	m_lastPathRequestFrame;			///< when requestPath last asked the pathfinder
+	ICoord2D		m_lastPathRequestCell;			///< cell we were in at that request
+	ICoord2D		m_lastPathRequestGoalCell;	///< cell we asked a path to at that request
+	Int					m_repeatedPathRequests;			///< same request again soon after, without having moved
+	UnsignedInt	m_lastPathQueueFrame;				///< when we last went into the pathfind queue
 	ObjectID		m_ignoreObstacleID;					///< ignore this obstacle when pathfinding
 	Real				m_pathExtraDistance;				///< If we are following a waypoint path, there will be extra distance beyond the current path.
 	ICoord2D		m_pathfindGoalCell;					///< Cell we are moving towards.
