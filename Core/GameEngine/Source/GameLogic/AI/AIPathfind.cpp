@@ -7738,9 +7738,7 @@ void Pathfinder::processHierarchicalCell( const ICoord2D &scanCell, const ICoord
 	if (parentZone == m_zoneManager.getBlockZone(LOCOMOTORSURFACE_GROUND,
 		crusher, scanCell.x, scanCell.y, m_map)) {
 		PathfindCell *newCell = getCell(LAYER_GROUND, scanCell.x, scanCell.y);
-#if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
-		if (newCell->hasInfo() && (newCell->getOpen() || newCell->getClosed())) return; // already looked at this one.
-#else
+#if !RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
 		if( !newCell->hasInfo() )
 		{
  			return;
@@ -7748,6 +7746,10 @@ void Pathfinder::processHierarchicalCell( const ICoord2D &scanCell, const ICoord
 
 		if( newCell->getOpen() || newCell->getClosed() )
 			return; // already looked at this one.
+#else
+		// Retail Zero Hour returned here for every cell without info, which is nearly every border cell.
+		// The search then could not leave the start block, and paths got no corridor.
+		if (newCell->hasInfo() && (newCell->getOpen() || newCell->getClosed())) return; // already looked at this one.
 #endif
 
 		ICoord2D adjacentCell = scanCell;
@@ -7795,6 +7797,10 @@ void Pathfinder::processHierarchicalCell( const ICoord2D &scanCell, const ICoord
 		// TheSuperHackers @bugfix Caball009 14/09/2026 Check newCell->m_info before accessing it to prevent a possible crash.
 		// The Zero Hour / non-retail compatible pathfinding code performs this check earlier in the function.
 		if (newCell->allocateInfo(scanCell) && !newCell->getOpen() && !newCell->getClosed())
+#else
+		if (!newCell->allocateInfo(scanCell)) {
+			return; // Out of cell infos.
+		}
 #endif
 		{
 			newCell->putOnClosedList(m_closedList);

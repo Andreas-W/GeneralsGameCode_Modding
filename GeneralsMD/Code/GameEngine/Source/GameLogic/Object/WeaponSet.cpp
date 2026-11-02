@@ -866,10 +866,23 @@ CanAttackResult WeaponSet::getAbleToUseWeaponAgainstTarget( AbleToAttackType att
 			last = PRIMARY_WEAPON;
 		}
 
+		// When the weapon is picked automatically, skip the weapons chooseBestWeaponForTarget would skip.
+		// Otherwise a weapon it never picks makes the target look attackable, and the AI keeps choosing a
+		// target whose attack fails at once (Marines with their mine clearing grenade against buildings).
+		const Bool autoChoose = first != last;
+
 		//Check each weapon, until we find one that can do damage (or fail)
 		for( Int i = first; i >= last ; --i )
 		{
 			Weapon *weapon = m_weapons[ i ];
+			if (weapon && autoChoose)
+			{
+				CommandSourceMask okSrcs = m_curWeaponTemplateSet->getNthCommandSourceMask((WeaponSlotType)i);
+				if( ( okSrcs & (1 << commandSource) ) == 0 && !( okSrcs & CMD_DEFAULT_SWITCH_WEAPON ) )
+					continue;
+				if (!(weapon->getAntiMask() & targetAntiMask))
+					continue;
+			}
 			if (weapon && weapon->estimateWeaponDamage( source, victim ))
 			{
 				//Kris: Aug 22, 2003
