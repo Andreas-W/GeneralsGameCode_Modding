@@ -4855,6 +4855,22 @@ void AIUpdateInterface::applySpeedMultiplier(Real scalar) {
 }
 
 
+//-------------------------------------------------------------------------------------------------
+// A computer player does not chase aircraft that are out of range, unless hunting or retaliating
+// (AIAttackApproachTargetState::onEnter). Such a target makes the attack fail as soon as it starts,
+// and the unit picks the same target again every few frames instead of moving on.
+static Bool isAircraftNotChased( const Object *obj, const AIUpdateInterface *ai, Object *victim )
+{
+	if (!victim->isKindOf(KINDOF_AIRCRAFT) || !victim->isAirborneTarget())
+		return FALSE;
+	if (!obj->getControllingPlayer() || obj->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN)
+		return FALSE;
+	StateID state = ai->getCurrentStateID();
+	if (state == AI_HUNT || state == AI_GUARD_RETALIATE)
+		return FALSE;
+	return obj->getAbleToAttackSpecificObject( ATTACK_NEW_TARGET, victim, CMD_FROM_AI ) == ATTACKRESULT_POSSIBLE_AFTER_MOVING;
+}
+
 //----------------------------------------------------------------------------------------------
 /**
  * Return the next object that our mood suggests we should attack.
@@ -4919,6 +4935,9 @@ Object* AIUpdateInterface::getNextMoodTarget( Bool calledByAI, Bool calledDuring
 			CanAttackResult result = obj->getAbleToAttackSpecificObject( ATTACK_NEW_TARGET, teamVictim, CMD_FROM_AI );
 			if( result != ATTACKRESULT_POSSIBLE && result != ATTACKRESULT_POSSIBLE_AFTER_MOVING ) {
 				teamVictim = nullptr; // Can't attack him. jba [8/27/2003]
+			}
+			else if( isAircraftNotChased( obj, this, teamVictim ) ) {
+				teamVictim = nullptr;
 			}
 		}
 
@@ -5008,6 +5027,8 @@ Object* AIUpdateInterface::getNextMoodTarget( Bool calledByAI, Bool calledDuring
 	}
 
 	Object *newVictim = TheAI->findClosestEnemy(obj, rangeToFindWithin, flags, getAttackInfo());
+	if (newVictim && isAircraftNotChased(obj, this, newVictim))
+		newVictim = nullptr;
 
 /*
 DEBUG_LOG(("GNMT frame %d: %s %08lx (con %s %08lx) uses range %f, flags %08lx, %s finds %s %08lx",
