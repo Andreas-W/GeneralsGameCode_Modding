@@ -4,7 +4,9 @@ Generates towns from style packs measured on reference maps: place a town of a c
 
 ## The tool
 
-`town_generate(polygon, style, preset, seed, jitter, theta, irregularity, theme, lots, outline, flatten, max_slope, reblend, clear_nature, dry_run)` (`town_tool.py`, its options are documented in `server.py`):
+`town_generate(polygon, style, preset, seed, jitter, theta, irregularity, theme, lots, outline, flatten, max_slope, reblend, clear_nature, dry_run, grid_scale, major, contain)` (`town_tool.py`, its options are documented in `server.py`):
+
+Block towns (urban, golden, baghdad) need about 800 x 800 at the pack's block size. For smaller or broken-up sites: `grid_scale` (block size relative to the pack; 0.6 to 0.75 worked on a 640 x 650 island and a city cut by cliffs), `major` (road type of the major streets, e.g. `TwoLane` for a town without four-lane roads), `contain` (major streets stay inside the area instead of running on past it, e.g. on an island with cliff edges; a contained town makes no connections to outside roads). Roads crossing the area block streets and leave only the largest piece. Found on the first generated map, see `../mapgen/README.md`.
 
 1. Reads heights, cliffs, water, objects and roads from the open map. Those, and ground steeper than `max_slope`, are blocked for streets and buildings (`town_site.py`).
 2. Runs the generator for the style with that site. On real maps a block grid tries 90 positions, and other angles unless `theta` is given, and keeps the one with the most blocks.

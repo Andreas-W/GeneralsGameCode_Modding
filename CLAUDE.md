@@ -174,7 +174,7 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 
 ## Map generation
 
-The goal behind towns, outposts and cliffs: generate a map from the user's rough mockup in WorldBuilder plus a description naming reference maps or styles. `scripts/worldbuilder-mcp/mapgen/DESIGN.md` holds the agreed design (mockup conventions, plan step, styles, checks, first slice). Read it before working on map generation or on style extraction.
+The goal behind towns, outposts and cliffs: generate a map from the user's rough mockup in WorldBuilder plus a description naming reference maps or styles. `scripts/worldbuilder-mcp/mapgen/DESIGN.md` holds the agreed design (mockup conventions, plan step, styles, checks, first slice); `mapgen/README.md` the scripts, how the first map was built and the rules learned on it. Read both before working on map generation or on style extraction.
 
 ## Game MCP
 

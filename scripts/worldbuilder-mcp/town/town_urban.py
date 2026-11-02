@@ -1,7 +1,10 @@
 # Block-based city from a style pack: street hierarchy, sidewalk rings around blocks, buildings along them, parking, concrete floor, grass islands.
-# Usage: town_urban.py <pack> <seed> [jitter=<0..>] [theta=<degrees>] [theme=<name>] [lots=<kind:count,...>] [out=<folder>] [site=<file>]
+# Usage: town_urban.py <pack> <seed> [jitter=<0..>] [theta=<degrees>] [grid_scale=<factor>] [theme=<name>] [lots=<kind:count,...>] [out=<folder>] [site=<file>]
 #   theme picks the building mix from packs/building_themes.json (default: the pack's mix). lots: see town_lots.py.
 #   jitter scales the pack's street node jitter (0 = perfect grid); theta turns the grid (0 = axis aligned). Both default to the pack.
+#   grid_scale scales the pack's block size: below 1 for small or broken-up sites, where the pack's blocks leave no street to fit.
+#   major=<road type> builds the major streets as that road type (e.g. the minor one) with its width; contain=1 keeps the major streets
+#   inside the site instead of running them on past it, e.g. on an island whose edges are cliffs.
 import json, math, os, sys, collections
 import numpy as np
 import scipy.ndimage as nd
@@ -27,8 +30,17 @@ def inpoly(x, y, poly=POLY):
             c = not c
     return c
 ST = pack["streets"]
+GS = float(OPT.get("grid_scale", 1.0))
+ST = dict(ST, grid=[g * GS for g in ST["grid"]], jitter=[j * GS for j in ST["jitter"]])
 MAJOR, MINOR = ST["major"], ST["minor"]
 WIDTH = {MAJOR: ST["major_width"], MINOR: ST["minor_width"]}
+# Street kinds stay apart (layout, sidewalks); TYPE says which road each is built as.
+TYPE = {MAJOR: MAJOR, MINOR: MINOR}
+if "major" in OPT:
+    TYPE[MAJOR] = OPT["major"]
+    if OPT["major"] == MINOR:
+        WIDTH[MAJOR] = WIDTH[MINOR]
+CONTAIN = OPT.get("contain", "0") not in ("0", "false", "False")
 TH = math.radians(float(OPT.get("theta", ST["theta_deg"])))
 JIT = float(OPT.get("jitter", 1.0))
 cx, cy = np.mean([p[0] for p in POLY]), np.mean([p[1] for p in POLY])
@@ -101,7 +113,7 @@ for axis, fixed in ((0, mj), (1, mi)):
         L = math.hypot(dx, dy)
         q = (ax + dx / L * 340, ay + dy / L * 340)
         q = SITE.clip((ax, ay), SITE.clamp(q))
-        if math.dist((ax, ay), q) > 40:
+        if math.dist((ax, ay), q) > 40 and not CONTAIN:
             entries.append((end, q))
 # --- road runs ---
 def chains_of(kind):
@@ -136,7 +148,7 @@ for ch in major_chains:
             pts = [q] + pts
         elif ch[-1] == end:
             pts = pts + [q]
-    roads.append({"type": MAJOR, "corners": "tight", "end_caps": False, "points": [[round(x, 1), round(y, 1)] for x, y in pts]})
+    roads.append({"type": TYPE[MAJOR], "corners": "tight", "end_caps": False, "points": [[round(x, 1), round(y, 1)] for x, y in pts]})
 entry_nodes = {e for e, _ in entries}
 def beside_major(n, m):
     """Where a minor street from m ends at node n: at the major street's edge, not on it. The major street keeps its connection."""
@@ -623,7 +635,7 @@ print("trees", trees, "want", want_t, "objects", len(OBJ))
 allroads = roads + walk
 def exit_of(a, q):
     L = math.dist(a, q) or 1
-    return {"point": [round(q[0], 1), round(q[1], 1)], "type": MAJOR, "width": WIDTH[MAJOR], "dir": [(q[0] - a[0]) / L, (q[1] - a[1]) / L]}
+    return {"point": [round(q[0], 1), round(q[1], 1)], "type": TYPE[MAJOR], "width": WIDTH[MAJOR], "dir": [(q[0] - a[0]) / L, (q[1] - a[1]) / L]}
 json.dump({"objects": OBJ, "roads": allroads, "masks": list(MASKS), "surround": pack["ground"]["surround"], "blend": list(MASKS), "exits": [exit_of(P[e], q) for e, q in entries]}, open(f"{OUT}/plan.json", "w"), separators=(",", ":"))
 # preview
 SC = 0.5

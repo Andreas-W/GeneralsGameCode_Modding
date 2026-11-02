@@ -130,6 +130,8 @@ The passable-parts check in `cliff_gen.py` and the AI tools exist; they need to 
 
 ## First slice
 
+**Status:** under way on the user's TaintedParadise mockup, stages A to D done (terrain shape, textures, trees, towns and outposts), E and F (naval and AI markers, checks) next. Scripts, how each stage went and what was learned: `README.md`.
+
 One real mockup from the user to a playable map, end to end, even if each step is crude. It shows which step matters most; the guess is ground texturing and scattering rather than cliff fidelity.
 
 1. The user makes a mockup and a short description.
@@ -140,6 +142,17 @@ One real mockup from the user to a playable map, end to end, even if each step i
 6. AI setup and the checks.
 
 Then: style extraction for all reference maps, symmetry, and better cliff fidelity (mountains as ridges, bridges).
+
+## Texturing rules (from the user, for a later pass)
+
+The first slice paints each role with one reference's textures in its measured shares, split by noise (`textures_from_plan.py`, roles measured by `texture_roles.py`). The user judged that a step up, but painting needs more rules:
+
+- **Larger noise:** textures meet as intersecting strands and bands, not single cells or dots. The per-cell scatter of the first slice is too fine.
+- **Mostly one texture family per layer:** the beach mostly sand, the main level mostly grass, with different grasses only as detail within the grass. A large slope between two layers gets a transition from one to the other, not a mix of both.
+- **No strong contrast side by side:** e.g. dark grass next to bright sand. Textures mixed within a layer, and those meeting at a transition, should be close in brightness and colour.
+- **Edge detail:** the edge of a layer may carry a detail texture, e.g. dirt or rocks between grass and a cliff.
+
+Measuring this on references means more than shares per role: which textures border which, how wide transitions are, and what lines a layer's edge.
 
 ## Settled
 

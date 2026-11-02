@@ -19,14 +19,14 @@ def _inside(x, y, poly):
 def styles():
     return {"alpine": [], "urban": [], "arabic": list(ARABIC_ORGANIC + ARABIC_BLOCKS)}
 
-def _command(style, preset, seed, site, out, jitter, theta, irregularity, theme, lots, outline):
+def _command(style, preset, seed, site, out, jitter, theta, irregularity, theme, lots, outline, grid_scale=None, major=None, contain=False):
     """The generator command for a style; each generator takes its own options."""
     opts = [f"site={site}", f"out={out}"]
     if lots:
         opts.append(f"lots={lots}")
     if theme:
         opts.append(f"theme={theme}")
-    grid = ([f"jitter={jitter}"] if jitter is not None else []) + ([f"theta={theta}"] if theta is not None else [])
+    grid = ([f"jitter={jitter}"] if jitter is not None else []) + ([f"theta={theta}"] if theta is not None else []) +         ([f"grid_scale={grid_scale}"] if grid_scale is not None else []) + ([f"major={major}"] if major else []) + (["contain=1"] if contain else [])
     if style == "alpine":
         return ["town_plan.py", str(seed)] + ([] if outline else ["no-outline"]) + opts
     if style == "urban":
@@ -242,7 +242,8 @@ def _build_connections(wb, plans, widths):
     return done, failed
 
 def generate(wb, polygon, style="urban", preset=None, seed=1, jitter=None, theta=None, irregularity=None, theme=None, lots=None,
-             outline=False, flatten=True, max_slope=12.0, reblend="area", clear_nature=False, connect=True, connect_range=800.0, dry_run=False):
+             outline=False, flatten=True, max_slope=12.0, reblend="area", clear_nature=False, connect=True, connect_range=800.0, dry_run=False,
+             grid_scale=None, major=None, contain=False):
     """See town_generate in server.py."""
     import numpy as np
     game_dir = os.environ.get("GAME_DIR", "")
@@ -295,7 +296,7 @@ def generate(wb, polygon, style="urban", preset=None, seed=1, jitter=None, theta
     json.dump({"polygon": [[float(p[0]), float(p[1])] for p in polygon], "border": B, "x_extent": nx, "y_extent": ny,
                "blocked": os.path.join(folder, "blocked.npy")}, open(site, "w"))
     # --- plan ---
-    cmd = _command(style, preset, seed, site, stamp, jitter, theta, irregularity, theme, lots, outline)
+    cmd = _command(style, preset, seed, site, stamp, jitter, theta, irregularity, theme, lots, outline, grid_scale, major, contain)
     try:
         out = _run(cmd)
     except RuntimeError as exc:
