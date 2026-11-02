@@ -172,6 +172,10 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 
 `scripts/worldbuilder-mcp/cliffs/`: measurements of cliff shape on reference maps, and a prototype generator (`cliff_gen.py`) that mixes independent properties. Read its README before working on cliffs: findings, corrected claims and what does not match yet.
 
+## Map generation
+
+The goal behind towns, outposts and cliffs: generate a map from the user's rough mockup in WorldBuilder plus a description naming reference maps or styles. `scripts/worldbuilder-mcp/mapgen/DESIGN.md` holds the agreed design (mockup conventions, plan step, styles, checks, first slice). Read it before working on map generation or on style extraction.
+
 ## Game MCP
 
 A second MCP server drives the running game itself, so features can be tested by playing: start a skirmish as the local player (alone in a sandbox or against AI), pause, step frames, inspect every object and player, give orders, spawn and change things, run scripts, take screenshots. Use its tools (`mcp__game__*`) for that. Full reference: the game section of `scripts/worldbuilder-mcp/README.md`.
