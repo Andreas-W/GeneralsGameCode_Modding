@@ -5337,6 +5337,13 @@ void ScriptActions::doMoveUnitTowardsNearest( const AsciiString& unitName, const
 		}
 	}
 
+	// Without an object the move goes to the cleared goal position (0,0), and the unit searches a path
+	// to the map corner again and again.
+	if( !bestObj )
+	{
+		return;
+	}
+
 	ai->chooseLocomotorSet( LOCOMOTORSET_NORMAL );
 	ai->aiMoveToObject( bestObj, CMD_FROM_SCRIPT );
 }
@@ -5424,6 +5431,11 @@ void ScriptActions::doMoveTeamTowardsNearest( const AsciiString& teamName, const
 				}
 			}
 		}
+	}
+	// See doMoveUnitTowardsNearest: no object means a move to (0,0).
+	if( !bestObj )
+	{
+		return;
 	}
 	for( iter = team->iterate_TeamMemberList(); !iter.done(); iter.advance() )
 	{

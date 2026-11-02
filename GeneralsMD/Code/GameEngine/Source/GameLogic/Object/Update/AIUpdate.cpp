@@ -326,6 +326,11 @@ AIUpdateInterface::AIUpdateInterface( Thing *thing, const ModuleData* moduleData
 	m_requestedDestination.zero();
 	m_requestedDestination2.zero();
 	m_pathTimestamp = 0;
+	m_lastPathRequestFrame = 0;
+	m_lastPathRequestCell.x = m_lastPathRequestCell.y = -1;
+	m_lastPathRequestGoalCell.x = m_lastPathRequestGoalCell.y = -1;
+	m_repeatedPathRequests = 0;
+	m_lastPathQueueFrame = 0;
 	m_ignoreObstacleID = INVALID_ID;
 	m_pathExtraDistance = 0;
 	m_pathfindGoalCell.x = m_pathfindGoalCell.y = -1;
@@ -612,6 +617,33 @@ void AIUpdateInterface::requestPath( Coord3D *destination, Bool isFinalGoal )
 		}
 		return;
 	}
+
+	// A unit can ask for the same path every few frames without ever moving, for example when attack move
+	// keeps picking a target it cannot attack and drops the new path each time. Each request is a full search,
+	// so after a few repeats search at most once a second.
+	ICoord2D cell, goalCell;
+	TheAI->pathfinder()->worldToCell(getObject()->getPosition(), &cell);
+	TheAI->pathfinder()->worldToCell(destination, &goalCell);
+	const UnsignedInt now = TheGameLogic->getFrame();
+	if (now - m_lastPathRequestFrame <= LOGICFRAMES_PER_SECOND &&
+			cell.x == m_lastPathRequestCell.x && cell.y == m_lastPathRequestCell.y &&
+			goalCell.x == m_lastPathRequestGoalCell.x && goalCell.y == m_lastPathRequestGoalCell.y) {
+		m_repeatedPathRequests++;
+	} else {
+		m_repeatedPathRequests = 0;
+	}
+	m_lastPathRequestFrame = now;
+	m_lastPathRequestCell = cell;
+	m_lastPathRequestGoalCell = goalCell;
+	if (m_repeatedPathRequests >= 2 && now - m_lastPathQueueFrame < LOGICFRAMES_PER_SECOND) {
+		// Ending a move cancels this wait, so a unit stuck in such a loop gets its next search
+		// from a later request, once the second is up.
+		if (m_queueForPathFrame == 0) {
+			setQueueForPathTime(m_lastPathQueueFrame + LOGICFRAMES_PER_SECOND - now);
+		}
+		return;
+	}
+	m_lastPathQueueFrame = now;
 	TheAI->pathfinder()->queueForPath(getObject()->getID());
 
 }
@@ -1236,6 +1268,7 @@ UpdateSleepTime AIUpdateInterface::update()
 		if (now >= m_queueForPathFrame)
 		{
 			TheAI->pathfinder()->queueForPath(getObject()->getID());
+			m_lastPathQueueFrame = now;
 			setQueueForPathTime(0);
 		}
 		else
@@ -4822,6 +4855,22 @@ void AIUpdateInterface::applySpeedMultiplier(Real scalar) {
 }
 
 
+//-------------------------------------------------------------------------------------------------
+// A computer player does not chase aircraft that are out of range, unless hunting or retaliating
+// (AIAttackApproachTargetState::onEnter). Such a target makes the attack fail as soon as it starts,
+// and the unit picks the same target again every few frames instead of moving on.
+static Bool isAircraftNotChased( const Object *obj, const AIUpdateInterface *ai, Object *victim )
+{
+	if (!victim->isKindOf(KINDOF_AIRCRAFT) || !victim->isAirborneTarget())
+		return FALSE;
+	if (!obj->getControllingPlayer() || obj->getControllingPlayer()->getPlayerType() == PLAYER_HUMAN)
+		return FALSE;
+	StateID state = ai->getCurrentStateID();
+	if (state == AI_HUNT || state == AI_GUARD_RETALIATE)
+		return FALSE;
+	return obj->getAbleToAttackSpecificObject( ATTACK_NEW_TARGET, victim, CMD_FROM_AI ) == ATTACKRESULT_POSSIBLE_AFTER_MOVING;
+}
+
 //----------------------------------------------------------------------------------------------
 /**
  * Return the next object that our mood suggests we should attack.
@@ -4886,6 +4935,9 @@ Object* AIUpdateInterface::getNextMoodTarget( Bool calledByAI, Bool calledDuring
 			CanAttackResult result = obj->getAbleToAttackSpecificObject( ATTACK_NEW_TARGET, teamVictim, CMD_FROM_AI );
 			if( result != ATTACKRESULT_POSSIBLE && result != ATTACKRESULT_POSSIBLE_AFTER_MOVING ) {
 				teamVictim = nullptr; // Can't attack him. jba [8/27/2003]
+			}
+			else if( isAircraftNotChased( obj, this, teamVictim ) ) {
+				teamVictim = nullptr;
 			}
 		}
 
@@ -4975,6 +5027,8 @@ Object* AIUpdateInterface::getNextMoodTarget( Bool calledByAI, Bool calledDuring
 	}
 
 	Object *newVictim = TheAI->findClosestEnemy(obj, rangeToFindWithin, flags, getAttackInfo());
+	if (newVictim && isAircraftNotChased(obj, this, newVictim))
+		newVictim = nullptr;
 
 /*
 DEBUG_LOG(("GNMT frame %d: %s %08lx (con %s %08lx) uses range %f, flags %08lx, %s finds %s %08lx",
