@@ -9,6 +9,8 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `mockup_read.py <mock dir> <plan.json>` | read | Levels, steep and gentle edges, beaches, building clusters (town or outpost, families), tree clumps, kept objects; `plan_read.json` and `plan.png` |
 | `style_scan.py <out json> <maps...>` | styles | Quick scan of reference maps: main textures on flat and steep ground, trees, civilian building families, water, time of day |
 | `texture_roles.py <reference .map>` | styles | Which textures a reference uses per role (deep water, shallows, shore, main, high, slope, mountain, cliff) and the share each covers; JSON for the plan |
+| `relief_measure.py [names] [--maps]` | relief | Relief of the references (or generated maps): height variation at three scales, gentle slopes, hills and pits, flat patches and soft slopes inside the levels, flatness around starts, Tech, supplies and buildings (starts and Tech from `MapCache.ini`); `work/relief.json` |
+| `relief.py <plan> <heights> <objects.json> <out dir>` | A2 relief | After stage A: stage A's noise taken off the levels, flat patches at different heights with soft slopes, hills and pits, fine noise on slopes only; nothing near cliffs, ramps, beaches and water; starts levelled and kept flat, Tech and buildings kept flat; slopes softened, never steeper than before. Plan `relief` sets the numbers and extra kept areas |
 | `layout_blobs.py <plan> <out dir>` | read | When the mockup's heights are only a rough guide: an idealised mockup drawn from the plan's `layout` (land blobs joined by necks, plateaus with ramps, beaches, gentle hills, the seabed), repeated by rotation with jitter for rough symmetry; output goes into `terrain_from_mockup.py` like a read mockup |
 | `terrain_from_mockup.py <plan> <heights> <mock.json> <mockup passability> <out>` | A | Terrain shape: cliffs on the mockup's level outlines, slopes, ramps, beaches, mountain frame, hills; passability; connectivity check |
 | `textures_from_plan.py <plan> <heights> <impassable> <out>` | B | One mask per texture layer, by role, in the reference's shares; imported in order, then `terrain_reblend` and `terrain_cliff_map` |
@@ -25,6 +27,10 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `import_masks.py <map> <masks dir>` | texturing 5 | Imports a `masks.json` set through the second WorldBuilder, largest first, then reblends, maps the cliffs and saves |
 | `examples/arab_coast_stage_c.py` | C | The third map's vegetation: palm groves by the water and scrub at the cliff foot, in the references' mixes and clump sizes, clear of the template's town areas, bases, roads and Tech |
 | `examples/arab_coast_stage_d.py` | D | The third map's towns: one city over the highway (its stretch through the city gives way and is joined to the town's streets), a small island town, dirt tracks to the docks, kits around Tech and on open ground, rock groups |
+| `symmetry.py` | any | Exact symmetry for square maps by folding (d4: mirror across both axes and both diagonals): heights, cell grids, object images |
+| `examples/oasis_lake_stage_a.py` | A | The fourth map's terrain from a description only: one octant designed (lake lobes with bays, island, corner plateaus with ramps, side ridges), the same for every player, folded only on request |
+| `examples/oasis_lake_stage_c.py` | C | The fourth map's vegetation by ground: each cell gets the style reference's plants per 1000 cells for its texture, and its mix there |
+| `examples/oasis_lake_stage_d.py` | D | The fourth map's island: symmetric Tech and docks, kits, dirt roads to a plaza, Arabic houses in rings |
 | `examples/island_cross_stage_c.py` | C | The second map's jungle: groves in a jungle reference's mix, bamboo stands, beach palms; base cores, neck lanes and the city area kept open; placed through the second WorldBuilder |
 | `examples/tainted_paradise_stage_d.py` | D | The first map's stage D: flatten the city's levels, bridge ends onto cliff edges, both towns, roads to the bridges |
 
@@ -69,6 +75,19 @@ The user's template `TemplatesPArabCoast02.map` (two players north and south, a
 
 **Next: E** (naval and AI markers) **and F**. Backups: `stage_a`, `stage_b`, `stage_c`.
 
+## Fourth map: OasisLakeGen
+
+From a description only (no template): 8 players placed as on Twilight Flame, high symmetry, a very large deep lake with an island, a beach close to every base, desert after Golden Oasis.
+
+1. **A**: one octant designed and the same for every player. The first lake had narrow bumps toward the starts and became an eight-pointed star (a cosine over the octant gives round lobes); island beaches of 18 degrees became pits ringed by cliffs (40 degrees with a quick climb work); the desert cliff recipe was too jagged (face 1.8, bend 8). The user first saw an exact mirror (folded terrain and textures) and preferred rough symmetry: the same layout, each cliff and shore its own.
+2. **B**: Golden Oasis land and its own wet-sand lake bottom (a pale seabed jumped against the warm sands).
+3. **C**: the user's idea, grass more likely to carry trees than sand, is what Golden Oasis does: 28 to 70 plants per 1000 cells on its grasses, 0.4 on its main sand. 204 plants.
+4. **D**: the island (some 700 across) with nine Tech objects fitted 0 to 4 buildings as a block town; a village of kits, dock roads and houses in rings instead.
+
+5. **Relief** (`relief.py`, the user asked for soft hills and height changes): the check found the starts standing on their bay's beach slope (spread 6 to 9 within 300): starts moved out to 2250, start cores levelled. A quicker beach climb (150) meant to help made stage A turn 8 of 12 beach slopes into cliffs (the user: "soft slopes into cliffs"): back to 220. With the median reference's numbers the user saw little change: relief reached 31 % of the main level, kept-flat circles around eight bases covering most of it; now starts flat to 350 and full relief by 550, patch heights and hills doubled: 48 % of the main level changes by over 3, -26 to +29. `examples/oasis_lake_rebuild.py` rebuilds the map from the plan (stage A, relief, import, textures, plants).
+
+**Next**: supplies for the bases and the corner plateaus, then E and F. Backups: `stage_a` (folded), `stage_b`, `stage_c`, `stage_d` (before the relief).
+
 ## Learned (rules now in the scripts)
 
 ### Terrain shape
@@ -92,6 +111,15 @@ The user's template `TemplatesPArabCoast02.map` (two players north and south, a
 - The user's rules for the next pass (larger strands, one family per layer with transitions, no strong contrast, edge detail) are in `DESIGN.md`.
 - Cliff textures are left out of the water roles; underwater faces get theirs from cliff mapping.
 
+### Relief
+
+- **Reference relief is terraces, not noise**: 92 % of the ground inside the levels is flat; height changes are flat patches (some 600 across) at different heights joined by soft slopes (some 70 wide, slope 0.06). Plain noise tilts everything a little: 21 % flat.
+- **Fine noise only on slopes**, **one height per patch** (scaled by how free the patch is): fading relief point by point tilted every patch reaching into the fade around a start, cliff or shore.
+- **Starts are flat**: 0.03 within 300 on the references. Check bases against bays and ramps in the layout: a start 90 from its beach top cannot be flat.
+- **Relief strength**: the median reference is nearly flat; a map asked for hills wants the hilly references' numbers (patch spread 12, hills to 20). Kept-flat areas must stay small (references: flat core 300, normal relief by 600 to 800), or eight bases leave no ground for it.
+- **One client on the bridge**: a script that keeps its WorldBuilder connection open while starting another script that connects takes the second WorldBuilder down; close it first.
+- **Never steeper than before**: slopes of beaches near the limit (0.35) became impassable when a softening step skipped what was already above its own limit.
+
 ### Trees
 
 - `objects_scatter` with `cluster` noise can leave a small area empty when the noise is low across all of it; use it only for large areas.
@@ -107,7 +135,7 @@ The user's template `TemplatesPArabCoast02.map` (two players north and south, a
 - **Small sites** (under some 500 across) get 1 to 8 buildings from the block grids, and the organic layouts find no street at all (they crashed on it; now a clear error): use kits for villages.
 - **Kits in woodland**: `outpost_place` with `clear_nature` refused every spot in the jungle, since its buildings were tested against the trees that it would clear. With `clear_nature` the tree cells now count as free.
 - **Bridges** (`WoodenSectional`, `roads.add` with two points) go from cliff edge to cliff edge: the first point along the bridge's axis where the land reaches its top, 20 units in. The island side of a bridge is the end nearer the island's middle (its ends lie outside the flat top's outline; testing against that outline sent island ends to mainland roads across the water).
-- **The second WorldBuilder keeps its copy** when `map.open` names the path it has open, even with `discard_changes`: the jungle was placed on the map as it was before texturing and saved over the textures. Open another map (`map.new`) first.
+- **The second WorldBuilder keeps its copy** when `map.open` names the path it has open, even with `discard_changes`: the jungle was placed on the map as it was before texturing and saved over the textures. Open another map (`map.new`) first. `ref_scan.scan` (and so `paint_map.py --scan`) does that now too: it had scanned a map's old terrain after a new heightmap.
 - `clear_nature` is needed where kits or forests stand; the generators flatten pads and streets (up to 18 world units under kits).
 
 ## Open
