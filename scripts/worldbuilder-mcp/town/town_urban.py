@@ -5,6 +5,8 @@
 #   grid_scale scales the pack's block size: below 1 for small or broken-up sites, where the pack's blocks leave no street to fit.
 #   major=<road type> builds the major streets as that road type (e.g. the minor one) with its width; contain=1 keeps the major streets
 #   inside the site instead of running them on past it, e.g. on an island whose edges are cliffs.
+#   street_style=<pack> builds streets, sidewalks, ground, props, cars and trees as that pack does, on this pack's block layout (e.g. the
+#   denser urban layout with Baghdad's old roads, narrow sidewalks and rocky ground for an Arabic city).
 import json, math, os, sys, collections
 import numpy as np
 import scipy.ndimage as nd
@@ -17,6 +19,11 @@ geo = json.load(open("gamedata/geo.json"))
 SEED = int(sys.argv[2])
 rng = np.random.default_rng(SEED)
 OPT = dict(a.split("=", 1) for a in sys.argv[3:])
+if "street_style" in OPT:
+    look = json.load(open(f"{PACKS}/{OPT['street_style']}.json"))
+    pack = dict(pack, streets=dict(pack["streets"], **{k: look["streets"][k] for k in ("major", "minor", "major_width", "minor_width")}),
+                **{k: look[k] for k in ("sidewalk", "ground", "parking", "props_per_1000_street", "stoplights_per_major_junction",
+                                        "cars_per_1000_street", "cars", "trees_per_1000_street", "trees")})
 OUT = "plans/" + OPT.get("out", "urban_plan")
 os.makedirs(OUT, exist_ok=True)
 # --- the site ---

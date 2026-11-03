@@ -623,7 +623,7 @@ def town_generate(polygon: list[list[float]], style: Literal["alpine", "urban", 
                   theme: str | None = None, lots: str | None = None, outline: bool = False, flatten: bool = True,
                   max_slope: float = 12.0, reblend: Literal["area", "map", "none"] = "area", clear_nature: bool = False, connect: bool = True,
                   connect_range: float = 800, dry_run: bool = False, grid_scale: float | None = None,
-                  major: str | None = None, contain: bool = False) -> dict:
+                  major: str | None = None, contain: bool = False, street_style: str | None = None) -> dict:
     """Builds a town into the open map, inside polygon ([x, y] world points in the playable area, at least about 800 x 800 for a real town).
     Water, cliffs, ground steeper than max_slope (world height per cell), existing objects and existing roads are avoided. Streets may
     run on past the polygon towards the map edge.
@@ -634,7 +634,8 @@ def town_generate(polygon: list[list[float]], style: Literal["alpine", "urban", 
     grid_scale: block size of block towns (urban, golden, baghdad) relative to their pack, e.g. 0.6 for a small or broken-up site
     where the pack's blocks leave no street to fit. major: road type for the major streets of block towns, e.g. TwoLane to build
     a town without four-lane roads. contain: keep the major streets inside polygon instead of running them on past it (an island
-    with cliff edges).
+    with cliff edges). street_style: build streets, sidewalks, ground, props, cars and trees as another block pack does
+    (urban_generic, arabic_golden, arabic_baghdad) on this layout, e.g. urban with theme arabic and street_style arabic_baghdad.
     theme: highrise, asian, american, eastern or arabic (default: the style's mix; not for alpine).
     lots: special lots such as "dock:1,site:2,hospital:1"; kinds dock, site (construction site with supply piles), hospital, repair,
     derrick, pad, radar, refinery. outline: thin road outline, alpine only.
@@ -647,7 +648,7 @@ def town_generate(polygon: list[list[float]], style: Literal["alpine", "urban", 
     Nothing is saved until map_save."""
     try:
         return town_tool.generate(wb, polygon, style=style, preset=preset, seed=seed, jitter=jitter, theta=theta, irregularity=irregularity,
-                                  theme=theme, lots=lots, outline=outline, flatten=flatten, max_slope=max_slope, reblend=reblend, clear_nature=clear_nature, connect=connect, connect_range=connect_range, dry_run=dry_run, grid_scale=grid_scale, major=major, contain=contain)
+                                  theme=theme, lots=lots, outline=outline, flatten=flatten, max_slope=max_slope, reblend=reblend, clear_nature=clear_nature, connect=connect, connect_range=connect_range, dry_run=dry_run, grid_scale=grid_scale, major=major, contain=contain, street_style=street_style)
     except (ValueError, RuntimeError) as exc:
         raise ToolError(str(exc))
 
