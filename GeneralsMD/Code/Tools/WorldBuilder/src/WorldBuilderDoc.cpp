@@ -99,6 +99,7 @@ BEGIN_MESSAGE_MAP(CWorldBuilderDoc, CDocument)
 	ON_COMMAND(ID_TS_INFO, OnTsInfo)
 	ON_COMMAND(ID_TS_CANONICAL, OnTsCanonical)
 	ON_UPDATE_COMMAND_UI(ID_TS_CANONICAL, OnUpdateTsCanonical)
+	ON_COMMAND(ID_TOOLS_REBLENDALLTILES, OnToolsReblendAllTiles)
 	ON_COMMAND(ID_FILE_RESIZE, OnFileResize)
 	ON_COMMAND(ID_FILE_JUMPTOGAME, OnJumpToGame)
 	ON_COMMAND(ID_TS_REMAP, OnTsRemap)
@@ -1065,6 +1066,22 @@ void CWorldBuilderDoc::OnTsCanonical()
 
 void CWorldBuilderDoc::OnUpdateTsCanonical(CCmdUI* pCmdUI)
 {
+}
+
+void CWorldBuilderDoc::OnToolsReblendAllTiles()
+{
+	if (m_heightMap) {
+		WorldHeightMapEdit *htMapEditCopy = GetHeightMap()->duplicate();
+		if (htMapEditCopy == nullptr) return;
+		// Same as the MCP command terrain.reblend over the whole map.
+		htMapEditCopy->blendCorners(0, 0, htMapEditCopy->getXExtent() - 1, htMapEditCopy->getYExtent() - 1);
+		IRegion2D partialRange = {0,0,0,0};
+		updateHeightMap(htMapEditCopy, false, partialRange);
+		WBDocUndoable *pUndo = new WBDocUndoable(this, htMapEditCopy);
+		this->AddAndDoUndoable(pUndo);
+		REF_PTR_RELEASE(pUndo); // belongs to this now.
+		REF_PTR_RELEASE(htMapEditCopy);
+	}
 }
 
 void CWorldBuilderDoc::OnFileResize()

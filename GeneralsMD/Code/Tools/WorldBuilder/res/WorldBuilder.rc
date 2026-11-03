@@ -297,9 +297,13 @@ BEGIN
         MENUITEM "Layers List",                 ID_VIEW_LAYERS_LIST
         MENUITEM SEPARATOR
     END
+    POPUP "&Tools"
+    BEGIN
+        MENUITEM "Re-blend All Tiles",          ID_TOOLS_REBLENDALLTILES
+    END
     POPUP "&Window"
     BEGIN
-        MENUITEM "640x480",                     ID_WINDOW_PREVIEW640X480
+        MENUITEM "640x480",                    ID_WINDOW_PREVIEW640X480
         MENUITEM "800x600",                     ID_WINDOW_PREVIEW800X600
         MENUITEM "1024x768",                    ID_WINDOW_PREVIEW1024X768
         MENUITEM SEPARATOR

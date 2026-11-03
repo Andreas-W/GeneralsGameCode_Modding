@@ -720,6 +720,7 @@
 #define ID_VIEW_SHOW_SOUND_CIRCLES      33346
 #define ID_VIEW_SHOWPOSTPROCESSING      33347
 #define ID_VIEW_RELOADRENDERING         33348
+#define ID_TOOLS_REBLENDALLTILES        33349
 #define IDS_NEW                         61446
 #define IDS_RESIZE                      61447
 #define IDS_REMOVING_INUSE_TEAM         61448
@@ -768,7 +769,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        242
-#define _APS_NEXT_COMMAND_VALUE         33349
+#define _APS_NEXT_COMMAND_VALUE         33350
 #define _APS_NEXT_CONTROL_VALUE         1354
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

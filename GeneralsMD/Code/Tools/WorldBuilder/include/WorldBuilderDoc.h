@@ -188,6 +188,7 @@ protected:
 	afx_msg void OnUpdateEditUndo(CCmdUI* pCmdUI);
 	afx_msg void OnTsInfo();
 	afx_msg void OnTsCanonical();
+	afx_msg void OnToolsReblendAllTiles();
 	afx_msg void OnUpdateTsCanonical(CCmdUI* pCmdUI);
 	afx_msg void OnFileResize();
 	afx_msg void OnJumpToGame();
