@@ -141,7 +141,10 @@ def patch_stats(m):
         angles.append(float(np.degrees(np.arctan2(v[1, 1], v[0, 1])) % 180))
         weights.append(int(areas[i - 1]))
     ragged = per / (2 * np.sqrt(np.pi * areas))
-    out = {"patches": int(n), "area_median": float(np.median(areas)), "area_p90": float(np.percentile(areas, 90)),
+    # The size of the patch a typical cell lies in (area-weighted median): many specks hardly count, unlike in area_median.
+    srt = np.sort(areas)
+    cell_median = float(srt[np.searchsorted(np.cumsum(srt), srt.sum() / 2)])
+    out = {"patches": int(n), "area_median": float(np.median(areas)), "area_cell_median": cell_median, "area_p90": float(np.percentile(areas, 90)),
            "area_max": int(areas.max()), "ragged": float(np.average(ragged, weights=areas))}
     if elong:
         out["elongation"] = round(float(np.average(elong, weights=weights)), 2)
@@ -226,6 +229,11 @@ def build(name, tx, score=True):
     role, host, root, count, nb, steep, near = roles(tex, f, names)
     labels, zmap = zones_of(tex, names, role, host, root)
     N = tex.size
+    zone_border = np.zeros(tex.shape, bool)
+    zone_border[:, 1:] |= zmap[:, 1:] != zmap[:, :-1]
+    zone_border[1:] |= zmap[1:] != zmap[:-1]
+    far = ndimage.distance_transform_edt(~zone_border) if zone_border.any() else np.full(tex.shape, 999.0)
+    strand = np.zeros(tex.shape, bool)
     textures = {}
     for t in sorted(role, key=lambda t: -count[t]):
         e = {"role": role[t], "share": round(float(count[t] / N), 4), "steep": round(float(steep[t]), 2), "near_cliff": round(float(near[t]), 2)}
@@ -237,6 +245,9 @@ def build(name, tx, score=True):
         if role[t] == "transition":
             e["between"] = [names[x] for x in host[t]]
             e["width"] = transition_width(tex, t, *host[t])
+            # Share of its cells away from any zone border: strands through a zone rather than a band between zones.
+            strand[tex == t] = far[tex == t] > max(3, (e["width"] or 0) / 2 + 1)
+            e["strand_share"] = round(float(strand[tex == t].mean()), 3)
         e["borders"] = {names[j]: round(float(nb[t, j]), 2) for j in np.argsort(-nb[t])[:4] if nb[t, j] >= 0.05}
         if count[t] >= MIN_CELLS:
             e["patches"] = patch_stats(tex == t)
@@ -260,6 +271,9 @@ def build(name, tx, score=True):
         comp = {names[t]: round(float((inside == t).mean()), 3) for t in np.unique(inside)}
         zones[z] = {"share": round(float(m.mean()), 4), "members": members,
                     "composition": dict(sorted(comp.items(), key=lambda x: -x[1])), "patches": patch_stats(m)}
+        st = {names[t]: round(float((strand[m] & (inside == t)).mean()), 3) for t in np.unique(inside[strand[m]])}
+        if st:
+            zones[z]["strands"] = st
         if len(parts) > 1:
             zones[z]["variants"] = {p: {"share": round(float((zmap[m] == labels.index(p)).mean()), 3),
                                         "patches": patch_stats(zmap == labels.index(p))} for p in parts}
@@ -290,11 +304,24 @@ def build(name, tx, score=True):
     clf.fit(X[::2, ::2].reshape(-1, len(FEATS)), y[::2, ::2].ravel())
     result["importance"] = {k: round(float(v), 3) for k, v in sorted(zip(FEATS, clf.feature_importances_), key=lambda x: -x[1])}
     os.makedirs(OUT, exist_ok=True)
-    pickle.dump({"labels": labels, "features": FEATS, "classifier": clf}, open(os.path.join(OUT, name + ".pkl"), "wb"))
+    # Texture by location, for where accents and transitions lie inside their zone (the painter adds it to its noise).
+    tclf = RandomForestClassifier(n_estimators=40, min_samples_leaf=40, n_jobs=-1, random_state=1)
+    tclf.fit(X[::2, ::2].reshape(-1, len(FEATS)), tex[::2, ::2].ravel())
+    pickle.dump({"labels": labels, "features": FEATS, "classifier": clf, "texture_labels": names, "texture_classifier": tclf},
+                open(os.path.join(OUT, name + ".pkl"), "wb"))
     json.dump(result, open(os.path.join(OUT, name + ".json"), "w"), indent=1)
     gap = np.full((tex.shape[0], 6, 3), 255, np.uint8)
     Image.fromarray(np.concatenate(sum([[im, gap] for im in img], [])[:-1], 1)).save(os.path.join(OUT, name + ".png"))
     return result
+
+
+def texture_probabilities(name, f):
+    """Per cell the probability of each of the reference's textures by location alone. Returns {texture: array}."""
+    m = pickle.load(open(os.path.join(OUT, name + ".pkl"), "rb"))
+    X = np.stack([f[k] for k in m["features"]], -1)
+    c = m["texture_classifier"]
+    p = c.predict_proba(X.reshape(-1, X.shape[-1])).reshape(X.shape[:2] + (-1,))
+    return {m["texture_labels"][int(k)]: p[..., i] for i, k in enumerate(c.classes_)}
 
 
 def zone_probabilities(name, f):
