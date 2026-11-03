@@ -6,6 +6,7 @@
 # the tops are some way above the water.
 # The map must be scanned first (paint_map.py ... --scan). Writes masks like paint_map.py: one per texture, largest first, masks.json.
 # Usage: paint_coast.py <map name> <land model> <sea model> <out dir> --sand Main[,Accent] [--band Tex] [--sand-top 18] [--band-top 26] [--seed N]
+#   [--fold d4]  (folds the painting for an exactly symmetric map, see symmetry.py)
 import json, os, sys
 import numpy as np
 from PIL import Image
@@ -61,7 +62,10 @@ def main():
         # The accent in patches of a typical accent's size, inside the beach only.
         tex[beach & (painter.field(tex.shape, 5, rng) > 0.8)] = names.index(sand[1])
     tex = painter.despeckle(painter.soften_corners(painter.despeckle(tex)))
-
+    if opt("--fold"):
+        # A symmetric map gets symmetric ground: one part painted, folded onto the rest (symmetry.py).
+        import symmetry
+        tex = symmetry.fold_grid(tex, opt("--fold"))
     txinfo = json.load(open(os.path.join(HERE, "work", "textures.json")))
     st = painter.stats(tex[border:-border, border:-border], names, txinfo)
     os.makedirs(out, exist_ok=True)
