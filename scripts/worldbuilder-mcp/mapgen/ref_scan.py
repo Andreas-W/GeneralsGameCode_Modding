@@ -62,6 +62,8 @@ def scan(wb, root, name):
     if os.path.exists(os.path.join(out, "info.json")):
         return "done before"
     os.makedirs(out, exist_ok=True)
+    # A WorldBuilder that has this path open already keeps its copy on map.open; a new map in between makes it read the file.
+    wb.call("map.new", width=32, height=32, discard_changes=True)
     info = wb.call("map.open", path=os.path.join(root, name, name + ".map"), discard_changes=True)
     hm = info["heightmap"]
     b = hm["border"]
