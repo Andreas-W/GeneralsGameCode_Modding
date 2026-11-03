@@ -209,6 +209,9 @@ print("rejected", dict(why))
 print("streets", len(edges), "length", round(street_length()), "want", round(total_want), "attempts", attempts)
 deg = collections.Counter(len(v) for v in adj.values())
 sl = street_length()
+if sl <= 0:
+    # Only the main street's stub fitted: nothing to build along, and the summary below would divide by zero.
+    raise SystemExit("no street fits: this area is too small or too blocked for this layout")
 bends = 0
 for n, v in adj.items():
     if len(v) == 2:
