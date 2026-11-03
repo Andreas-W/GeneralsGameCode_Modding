@@ -9,6 +9,7 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `mockup_read.py <mock dir> <plan.json>` | read | Levels, steep and gentle edges, beaches, building clusters (town or outpost, families), tree clumps, kept objects; `plan_read.json` and `plan.png` |
 | `style_scan.py <out json> <maps...>` | styles | Quick scan of reference maps: main textures on flat and steep ground, trees, civilian building families, water, time of day |
 | `texture_roles.py <reference .map>` | styles | Which textures a reference uses per role (deep water, shallows, shore, main, high, slope, mountain, cliff) and the share each covers; JSON for the plan |
+| `layout_blobs.py <plan> <out dir>` | read | When the mockup's heights are only a rough guide: an idealised mockup drawn from the plan's `layout` (land blobs joined by necks, plateaus with ramps, beaches, gentle hills, the seabed), repeated by rotation with jitter for rough symmetry; output goes into `terrain_from_mockup.py` like a read mockup |
 | `terrain_from_mockup.py <plan> <heights> <mock.json> <mockup passability> <out>` | A | Terrain shape: cliffs on the mockup's level outlines, slopes, ramps, beaches, mountain frame, hills; passability; connectivity check |
 | `textures_from_plan.py <plan> <heights> <impassable> <out>` | B | One mask per texture layer, by role, in the reference's shares; imported in order, then `terrain_reblend` and `terrain_cliff_map` |
 | `town_offline.py <map> <runs.json> [save]` | D | `town_tool.generate` in the second WorldBuilder, for dry runs and options the MCP server does not know yet |
@@ -20,6 +21,8 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `texture_model.py [names]` | texturing 3 | Texture model per reference in `work/models/`: roles from what borders what (main, accent inside one host, transition between two, cliff, edge detail), zones (a main texture with its accents) merged into families where location does not tell similar zones apart, a classifier for zone by cell features, patch statistics (size, raggedness, elongation, direction), transition widths. `zone_probabilities(name, features)` applies a model to any map. Preview `<name>.png`: textures, zones, right half predicted. Needs scikit-learn |
 | `painter.py <model> [terrain] [--seed N]` | texturing 4 | Paints a terrain with a reference's model: zones by location (smoothed, noisy borders), family variants and accents by warped noise at the reference's patch sizes (accents leaning to where the reference has them), transitions as bands where their sides meet and as strands through a zone, cliff textures by slope; no specks under 3 x 3, fewer three-texture corners; the border plain. Offline: `work/paint/<model>__<terrain>.png` (terrain's textures, painted) and the numbers of both. `terrain` is a reference or a map scanned into `work/maps/` |
 | `paint_map.py <name> <model> <out dir> [--scan <map>]` | texturing 5 | Paints a map with a model and writes one mask per texture (largest first, `masks.json`) for `terrain_import_mask` (`fit=exact`); then `terrain_reblend`, `terrain_cliff_map`. Keeps cells of town ground and road surfaces (Concrete, Asphalt). `--scan` scans the map first through the second WorldBuilder (the map must lie in a folder of its name) |
+| `examples/island_cross_stage_b.py` | B | The second map's textures from two references: land from a jungle model, the seabed from an island model, beaches by rule (sand, then a dirt band) |
+| `examples/island_cross_stage_c.py` | C | The second map's jungle: groves in a jungle reference's mix, bamboo stands, beach palms; base cores, neck lanes and the city area kept open; placed through the second WorldBuilder |
 | `examples/tainted_paradise_stage_d.py` | D | The first map's stage D: flatten the city's levels, bridge ends onto cliff edges, both towns, roads to the bridges |
 
 Everything else is existing tools: `objects_scatter` (forests), `objects_place_many`, `outpost_place` / `outpost_populate`, `town_generate`. Scripts that change a map work through the second WorldBuilder (`town/start_wb.py`, port 47810) or write files that Claude imports with the MCP tools. `uv run --with numpy --with scipy --with pillow python <script>`.
@@ -39,6 +42,18 @@ The user's mockup `TaintedParadise002.map` (MapWork), generated into `TaintedPar
 7. **B again** (texturing steps 1 to 5): repainted with `painter.py` and TournamentA's model after the towns, keeping their ground: three-way tiles 5299 to 895, hard edges 67 to 25 (`terrain_blend_report`). Backup before: `stage_b1`; masks in `mapgen_work\stageB2\`.
 
 **Next: E** (naval markers: shipyards, naval perimeters, naval paths; AI paths with `ai_skirmish_setup`) **and F** (checks, an AI match). Backups in the map's folder: `before_towns`, `towns_v1`, `stage_b1` (before the repaint). The scripts' inputs and outputs (the mockup as read, stage A heights and impassable mask, stage B masks, reference scans) are in `mapgen_work\` there.
+
+## Second map: IslandCrossGen
+
+The user's template `TemplatesPIslandCross02.map`, generated into `IslandCrossGen\IslandCrossGen.map`. Prompt: four players, naval, one island with a peninsula per player, an Asian city over a plateau hill in the centre (two levels), tropical jungle; the template's heights only a rough guide, rough symmetry, not mirrored.
+
+1. **Layout** (`layout_blobs.py`): main island, four peninsulas on necks, plateau with four ramps facing the peninsulas, beaches in the bays and at the peninsula tips; copies rotated with jitter. Then **A** with `terrain_from_mockup.py` unchanged. The user found one peninsula larger: copies are now scaled per copy (`scale`) until their building area (flat, passable, main level) matches within 1 %.
+2. **B**: no single reference fits; jungle maps paint grass under the sea, island maps bright sand inland. Land from Eastern Everglades, seabed from Seaside Mutiny, beaches by rule. Sand bands of 1 to 2 cells looked like nothing: most of a beach's low ground lies in the shallows, so the sand reaches 18 above the water.
+3. **C**: 2051 plants (Everglades' mix: palms, dogwood, oak; bamboo stands; Bush08), beach palms. A first pass with large base cores and many clearings looked like edge belts only.
+
+4. **D** (`examples/island_cross_stage_d.py`): levels snapped flat, a TwoLane road from every peninsula over its neck to the city, one Asian town over both levels (66 buildings, 42 on the plateau; hospital and repair bay on top, refinery below as lots, the construction yard placed first on the east side); four tropical hut kits at the necks. 2185 objects in all, no limit reached, the jungle kept as it was.
+
+**Next: E** (naval and AI markers) **and F** (checks, a match). Backups in the map's folder: `stage_a`, `stage_b`, `stage_c`.
 
 ## Learned (rules now in the scripts)
 
@@ -70,7 +85,10 @@ The user's mockup `TaintedParadise002.map` (MapWork), generated into `TaintedPar
 - **The town generator wants about 800 x 800.** Smaller or broken-up sites fail with "no street fits". New options in `town_urban.py`, `town_tool.py` and the `town_generate` tool (the tool shows them after Claude restarts): `grid_scale` (block size relative to the pack, 0.6 to 0.75 worked), `major` (road type of the major streets, e.g. TwoLane for a town without four-lane roads), `contain` (major streets stay inside the area instead of running on 340 units, for an island with cliff edges).
 - **Mockup roads through a town area cut it apart**: the generator treats roads as blocked and builds only in the largest piece. The mockup's ring road around the city was a hint; without it the city got 27 buildings instead of 9.
 - **Kits around Tech in a small area** may not fit at all ("nothing fits around ..."); urban kits are from Wasteland Warlords and Golden Oasis, not Asian.
+- **A ring around a plateau is no town site.** At about 250 across, block grids and the organic layout found no room, neither per level nor per ring sector (1 to 6 buildings, or "no street fits"). One block grid over the whole hill puts blocks on both levels; its streets keep off ground steeper than 0.4 and climb only at the ramps and soft stretches of the edge.
+- **Kits in woodland**: `outpost_place` with `clear_nature` refused every spot in the jungle, since its buildings were tested against the trees that it would clear. With `clear_nature` the tree cells now count as free.
 - **Bridges** (`WoodenSectional`, `roads.add` with two points) go from cliff edge to cliff edge: the first point along the bridge's axis where the land reaches its top, 20 units in. The island side of a bridge is the end nearer the island's middle (its ends lie outside the flat top's outline; testing against that outline sent island ends to mainland roads across the water).
+- **The second WorldBuilder keeps its copy** when `map.open` names the path it has open, even with `discard_changes`: the jungle was placed on the map as it was before texturing and saved over the textures. Open another map (`map.new`) first.
 - `clear_nature` is needed where kits or forests stand; the generators flatten pads and streets (up to 18 world units under kits).
 
 ## Open
