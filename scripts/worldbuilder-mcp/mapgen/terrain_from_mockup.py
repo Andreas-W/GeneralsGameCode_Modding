@@ -73,6 +73,11 @@ def build(plan, z0, mock_pass, objs, border, seed, extra_ramps):
     calm_keep = np.ones(shape, np.float32)
     for kx, ky in keep:
         calm_keep *= 1 - bump(np.hypot(X - kx, Y - ky), KEEP_CALM)
+    # Shape edits from the plan: "calm" scales the wall and shore noise within "radius" of "at" (an island the user found too jagged).
+    for e in plan.get("shape_edits", []):
+        if "calm" in e:
+            inside = smooth_profile((e["radius"] - np.hypot(X - e["at"][0], Y - e["at"][1])) / 200 + 0.5)
+            calm_keep *= 1 - (1 - e["calm"]) * inside
 
     # Mountains are large high areas; a small one is a hill that the user painted passable. Ramps inside or at the foot of one are useless.
     high, nh = ndimage.label(z0 > plan["mountain_above"])
@@ -370,6 +375,25 @@ def main():
     plan = json.load(open(sys.argv[1]))
     TOP = 255 * RAW * plan.get("height_scale", 1.0)
     z0 = np.load(sys.argv[2]).astype(np.float32) * RAW
+    # Shape edits from the plan: "grow" pushes the whole profile of the piece of land under "at" outward by that many world units, so
+    # its top grows with its outline (the height of the nearest edge would only add a rim at the waterline).
+    for e in plan.get("shape_edits", []):
+        if "grow" in e:
+            border = plan["border"]
+            lab, _ = ndimage.label(z0 >= plan["water"]["height"])
+            piece = lab == lab[int(round(e["at"][1] / CELL + border)), int(round(e["at"][0] / CELL + border))]
+            r = int(round(e["grow"] / CELL))
+            disk = np.hypot(*np.mgrid[-r:r + 1, -r:r + 1]) <= r
+            pushed = ndimage.grey_dilation(np.where(piece, z0, 0), footprint=disk)
+            near = ndimage.distance_transform_edt(~piece) * CELL <= e["grow"] + 2 * CELL
+            z0 = np.where(near | piece, np.maximum(z0, pushed), z0)
+    # "carve": [rx, ry] makes an ellipse around "at" sea, down to "floor" (a channel wide enough for a bridge between two cliffs).
+    for e in plan.get("shape_edits", []):
+        if "carve" in e:
+            yy, xx = np.indices(z0.shape, dtype=np.float32)
+            X, Y = (xx - plan["border"]) * CELL, (yy - plan["border"]) * CELL
+            inside = ((X - e["at"][0]) / e["carve"][0]) ** 2 + ((Y - e["at"][1]) / e["carve"][1]) ** 2 <= 1
+            z0 = np.where(inside, np.minimum(z0, e.get("floor", 1.0)), z0)
     mock = json.load(open(sys.argv[3]))
     imp0 = np.array(Image.open(sys.argv[4]).convert("L")) > 127
     out = sys.argv[5]
