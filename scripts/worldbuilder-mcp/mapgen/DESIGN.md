@@ -154,6 +154,38 @@ The first slice paints each role with one reference's textures in its measured s
 
 Measuring this on references means more than shares per role: which textures border which, how wide transitions are, and what lines a layer's edge.
 
+## Texturing: the plan
+
+Agreed with the user. Texturing is learned from reference maps, one reference at a time, and painted by location with texture sets.
+
+**Locations are measured, not named.** Every cell gets features: height relative to its level, slope, convexity (ridge or hollow), distance to water, to a cliff foot and to a cliff top, size of the flat area it belongs to, and what is near it (trees, roads, buildings). Named locations (beach, hill top, connected plain) are combinations of these. The same code measures references and generated terrain.
+
+**Texture sets instead of single textures.** A location is painted with a set: a main texture, accents (e.g. a darker grass), a soft contrast (e.g. dirt or leaves), transitions to neighbouring locations (e.g. grassy sand between grass and beach, snowy dirt between dirt and snow), and edge detail (e.g. rocks between grass and a cliff). Roles in a set are measured: the main texture covers most of a location, accents lie inside its patches, transitions and edge detail along its borders.
+
+**What a texture looks like** is needed for "no strong contrast": mean colour, brightness and variation of each texture, and its tile size (a patch smaller than one tile of its texture looks cut out). Read from the game's terrain art: `Terrain.ini` names the file of each texture class, the files are TGAs in `Terrain.big` / `TerrainZH.big`, read in place with `bigfs.py` (the engine's lookup order; terrain textures rarely change, so reading again on demand is enough).
+
+**Painting methods**, all with a minimum patch size (no speckles: patches and holes below about 3 x 3 cells are removed):
+- fractal noise with a minimum feature size, and warped noise for interlocking, flowing shapes;
+- gradients between locations (grass to sand), dithered at a large scale;
+- outlines (a grass patch in a desert has a rim of grassy sand), from distance to the patch;
+- streaks and bands: along the contour on slopes (strata), down the slope (erosion), or along a map-wide wind direction on flat ground;
+- context: forest floor under tree clumps, worn ground around buildings, Tech and roads.
+
+**Constraints:** a cell blends only two textures, and where three meet the edge is hard (fine scattering raised hard edges from 37 to 201 on the first map), so tiny three-way corners are avoided; the number of texture classes a map can hold is limited (`can_fit` in `terrain_list_textures`); textures side by side stay close in brightness and colour.
+
+**Steps:**
+1. **Data:** per-cell texture maps (base texture per cell) of all multiplayer reference maps, with heights, water, passability, trees, roads and buildings; every texture's mean colour, brightness, variation and tile size. Which maps are multiplayer: `Maps\MapCache.ini` in `MapsZH.big` (`isMultiplayer`): 64 maps, 62 of them in `MapsZH.big`, 2 from Generals' `maps.big`.
+2. **Features** per cell, on references and generated terrain alike.
+3. **Model per reference:** texture by location (as probabilities: painters are not consistent), texture sets and their roles from what appears together and what borders what, transitions and their widths, patch statistics per texture (area, raggedness, elongation and direction, mixing).
+4. **Painter:** per location the set's main texture, then accents and soft contrast by warped noise, then outlines and transitions at location borders, then context; under the constraints above.
+5. **Evaluate** on the same numbers as the reference, plus an offline top-down preview in each texture's mean colour (fast iterations without WorldBuilder), then repaint stage B of the first map for the user.
+
+Mixing references comes later: the first map's mix of four references looked like "desert and tropical".
+
+**Done so far:**
+- Step 1 (`texture_colors.py`, `ref_scan.py`): 235 textures measured; all 64 multiplayer maps scanned (8 to 28 textures each, 219 in all, every cell with a texture). The numbers confirm the user's contrast complaint on the first map: `GrassMediumType21` brightness 0.47 next to `SandLargeType2` 0.80.
+- Step 2 (`cell_features.py`, `feature_check.py`): 17 features per cell on all 64 maps. Alone, each explains 10 to 21 % of where a map's textures go (height rank most, then distance to a cliff, height against the surroundings, flat area size; rocks, water depth and cliff side little). Together, one half of a map predicts the other half's texture on 60 % of cells (median; 26 to 89 %), against 37 % for always the most common texture. Weakest are maps with many textures in mixes the features cannot see (Flash Fire, Tournament Urban, Leipzig Lowlands, Silent River): accents and urban ground, for step 3's patch statistics. Distance to the map edge ranks high, partly because mirrored layouts let position give the answer away; to be watched.
+
 ## Settled
 
 - **Named areas** need no prefix: a mockup has no other triggers. `Mock` is an optional prefix for editing an existing map.
