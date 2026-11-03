@@ -282,7 +282,11 @@ def build(plan, z0, mock_pass, objs, border, seed, extra_ramps):
     h_at_shore = hland[idx[0], idx[1]]
     # A ramp that ends near the water meets it as a beach; as a cliff shore it ended in a small wall.
     beach = (h_at_shore < (levels[0] + levels[1]) / 2) | ramp_area[idx[0], idx[1]]
-    floor = np.where(sea, z0, water - 12.0)
+    # A cliff's foot lies some way under water. A beach runs down to the real seabed next to it: down to a fixed depth, while the sea
+    # beside it kept the mockup's shallower floor, it left a ditch along the waterline with a dam in front.
+    sea_idx = ndimage.distance_transform_edt(sea, return_distances=False, return_indices=True)
+    near_floor = np.minimum(z0[sea_idx[0], sea_idx[1]], water - 1.0)
+    floor = np.where(sea, z0, np.where(beach, near_floor, water - 12.0))
     w_shore = np.where(beach, plan["beach_width"], np.maximum(30.0, (h_at_shore - floor) * WIDTH_PER_RISE))
     shore_noise = np.where(beach, 1.0, cliff["face"]) * DISPLACE_PER_FACE * wall_noise(shape, rng) * calm_keep
     ds = land_d + shore_noise + cliff["bend"] * noise(shape, rng, [(45, 1.0), (18, 0.35)]) * calm_keep
