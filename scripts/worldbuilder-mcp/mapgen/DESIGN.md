@@ -189,6 +189,26 @@ Mixing references comes later: the first map's mix of four references looked lik
 - Step 4 (`painter.py`): paints offline from a model in about 5 seconds. Order: zones (the model's probabilities smoothed over 1.5 cells, noise on their borders, steep faces always cliff), family variants, transitions (bands of the measured width where their two sides meet, plus the share the reference has away from zone borders as strands through the zone), accents (inside their host, by noise plus where the reference has them by location: a second classifier per texture), cliff textures by slope rank, then no patches under 3 x 3 and at three-texture corners the weakest cell takes the texture around it. The border is the nearest zone's main texture, held the same over 41 cells along the edge. Painting a reference with its own model gives its shares and patch sizes roughly back, with 1 to 2 times its three-texture corners (2 to 7 before the corner pass) and less fine detail. On the first map's terrain (scanned into `work/maps/`) four tropical and grass references cut its three-texture corners from 4717 (stage B) to 750 to 1000 and the brightness step across texture borders (90th percentile) from 0.33 to 0.15 to 0.29.
 - Step 5, first run (`paint_map.py`): the first map repainted in WorldBuilder with TournamentA's model (the user's choice), its town ground kept (Concrete, Asphalt: 5024 cells). 13 textures. WorldBuilder counts three-way tiles 5299 before and 895 after, hard edges 67 and 25. The user judged it good in WorldBuilder.
 
+## Relief: the plan
+
+The user's request: soft hills and height changes, general noise, soft plateaus, pits and hills, start areas, towns and outposts kept mostly flat. Stage A so far gives flat levels joined by cliffs, ramps and beaches, plus a little noise on the levels.
+
+**Measured on the 64 multiplayer maps** (`relief_measure.py`, inside the levels: 300 or more from cliffs and water):
+- The ground is mostly flat: 92 % of it has no slope (median; 83 to 97 %). Relief is **flat patches at different heights**, about 2.3 per km^2 and some 4000 cells each (630 x 630), **joined by soft slopes** some 70 wide (45 to 100), of slope 0.06 (90th percentile 0.14). The heights of the patches spread by 1 (median) to 18 (75th percentile), up to 30 on Golden Oasis and Twilight Flame: some maps are flat, others terraced.
+- **Hills and pits** on top: 1.2 hills per km^2 (some 430 cells, 15 high), 0.7 pits per km^2 (larger, 1200 cells, 12 deep), a few with a flat top.
+- **Fine noise** is small: 0.7 (standard deviation below some 80 units).
+- **Starts are flat**: height spread 0.03 within 300 of a start, 0.2 to 450, 1.5 to 600, normal relief (8) only from 600 to 800.
+- Our generated maps roll slightly everywhere instead (slope 0.03 over most of the ground, patches of 500 cells): plain noise.
+
+**The relief step** (`relief.py`, after stage A): on each level's interior, away from cliffs, ramps, beaches and water (anything not on a level fades it out):
+1. **Patches**: warped cells of some 600 units, each lifted or lowered by a random amount (the plan's spread), smoothed so that the borders become soft slopes of the measured width; soft plateaus and soft pits are patches that stand out.
+2. **Hills and pits**: rounded bumps and hollows at the measured rate, size and height, some with a flat top.
+3. **Fine noise**, small.
+4. **Kept flat**: starts (flat to 450, back to full relief by 650), towns, outposts, Tech and supplies (flat to their radius); the relief fades in around them.
+5. **Checks**: no slope above the plan's limit (softened where it is), no new impassable ground, land stays above the water; the same numbers as the references to compare.
+
+**Settled on the fourth map** (OasisLakeGen): the user approved the result as the general height variation. `relief.py`'s defaults hold it: patches of 600 lifted or lowered by about 12, hills 8 to 20, pits 6 to 14, starts flat to 350 and levelled to 240, full relief by 550, nothing within 40 to 150 of cliffs, ramps and beaches. About half of a level then changes by over 3, soft slopes are as on the references (0.06, 90th percentile 0.15).
+
 ## Settled
 
 - **Named areas** need no prefix: a mockup has no other triggers. `Mock` is an optional prefix for editing an existing map.
