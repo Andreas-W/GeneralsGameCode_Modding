@@ -62,6 +62,8 @@ class _Map:
         self.textures = {t["name"] for t in wb.call("map.usage")["textures"]}
         self.listed = wb.call("objects.list", include_waypoints_and_roads=True, limit=20000)["objects"]
         self.nature_cells = np.zeros_like(self.blocked)
+        # With clear_nature the trees in a kit's circle go before it is placed, so buildings may stand where they are (set by the caller).
+        self.clear_nature = False
         for o in self.listed:
             if o["kind"] == "object" and not o["template"].startswith("Amb"):
                 a, b = self.geo.get(o["template"], [6, 6])
@@ -99,7 +101,7 @@ def _layout(m, kit, x, y, angle, skip_anchor, include_ground, include_roads):
         deg = (o["a"] + angle) % 360
         a, b = m.geo.get(t, [4, 4])
         big = max(a, b) >= 12
-        if not (0 <= wx <= m.px and 0 <= wy <= m.py) or not m.rect_free(wx, wy, a + 2, b + 2, deg, nature_ok=not big):
+        if not (0 <= wx <= m.px and 0 <= wy <= m.py) or not m.rect_free(wx, wy, a + 2, b + 2, deg, nature_ok=not big or m.clear_nature):
             if big:
                 return None
             dropped += 1
@@ -188,6 +190,7 @@ def place(wb, x=None, y=None, around=None, kit=None, theme=None, purpose=None, c
     rng = np.random.default_rng(seed)
     lib = library()
     m = _Map(wb, max_slope)
+    m.clear_nature = clear_nature
     skip_anchor = False
     if around is not None:
         target = next((o for o in m.listed if o["id"] == around and o["kind"] == "object"), None)
@@ -236,6 +239,7 @@ def populate(wb, count=4, theme=None, purpose=None, contains=None, area=None, de
     rng = np.random.default_rng(seed)
     lib = library()
     m = _Map(wb, max_slope)
+    m.clear_nature = clear_nature
     placed, used_at, notes = [], [], []
     def far(x, y):
         return all(math.dist((x, y), q) >= spacing for q in used_at)
