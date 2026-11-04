@@ -33,6 +33,14 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `examples/oasis_lake_stage_d.py` | D | The fourth map's island: symmetric Tech and docks, kits, dirt roads to a plaza, Arabic houses in rings |
 | `examples/island_cross_stage_c.py` | C | The second map's jungle: groves in a jungle reference's mix, bamboo stands, beach palms; base cores, neck lanes and the city area kept open; placed through the second WorldBuilder |
 | `examples/tainted_paradise_stage_d.py` | D | The first map's stage D: flatten the city's levels, bridge ends onto cliff edges, both towns, roads to the bridges |
+| `examples/tainted_paradise_island.py` | A to D | The first map's top-left island redone: rocky, cliffs on most sides, a soft beach toward the centre (eased into the water, no flat ground at the water level), rock outcrops, an Oil Refinery, supply and hut kits, palms |
+| `examples/tainted_paradise_sea.py` | B | The usual blue seabed (SandMediumType9blue bands with noise) over the open sea only: lagoons keep theirs, rock textures stay near cliffs, tight bays get a short gradient |
+| `examples/team_islands_stage_a.py` | A | The fifth map's terrain from a template: land averaged over four mirror images, rounded-rectangle player lobes, straight channels between them, the user's marked corners rounded, a steep seabed; folded for exact symmetry |
+| `examples/team_islands_build.py` | A2 | The fifth map: relief, folded; new map, heights, water, symmetric Tech, `map.ini` (ships, light) |
+| `examples/team_islands_stage_c.py` | C | The fifth map's plants after Tournament Island, clear of starts and Tech |
+| `examples/team_islands_mirror_lobes.py` | D | Copies the user's hand-made lobes (huts, Tech, supplies, grass patches with their textures, heights and plants, the start) mirrored onto the other lobes |
+| `examples/team_islands_ai_markers.py` | E | User areas to `NO_SHIPYARD` zones, `ai_skirmish_setup` with narrow flanks, three shipyards per player in open water, naval perimeters and paths; worked out for two players and mirrored |
+| `map_lighting.py <map> [--blend FROM TO T [--dir D] [--brighter]]` | any | Reads a map's global lighting, or blends one time of day toward another (no bridge command sets lighting); writes the map uncompressed, WorldBuilder compresses it on its next save |
 
 Everything else is existing tools: `objects_scatter` (forests), `objects_place_many`, `outpost_place` / `outpost_populate`, `town_generate`. Scripts that change a map work through the second WorldBuilder (`town/start_wb.py`, port 47810) or write files that Claude imports with the MCP tools. `uv run --with numpy --with scipy --with pillow python <script>`.
 
@@ -87,6 +95,17 @@ From a description only (no template): 8 players placed as on Twilight Flame, hi
 5. **Relief** (`relief.py`, the user asked for soft hills and height changes): the check found the starts standing on their bay's beach slope (spread 6 to 9 within 300): starts moved out to 2250, start cores levelled. A quicker beach climb (150) meant to help made stage A turn 8 of 12 beach slopes into cliffs (the user: "soft slopes into cliffs"): back to 220. With the median reference's numbers the user saw little change: relief reached 31 % of the main level, kept-flat circles around eight bases covering most of it; now starts flat to 350 and full relief by 550, patch heights and hills doubled: 48 % of the main level changes by over 3, -26 to +29. `examples/oasis_lake_rebuild.py` rebuilds the map from the plan (stage A, relief, import, textures, plants).
 
 **Next**: supplies for the bases and the corner plateaus, then E and F. Backups: `stage_a` (folded), `stage_b`, `stage_c`, `stage_d` (before the relief).
+
+## Fifth map: TeamIslandsGen
+
+The user's template `6pTournamentTeamIslands.map` (placeholder buildings for six starts and the centre), generated into `TeamIslandsGen\TeamIslandsGen.map`. Prompt: after Tournament Island, six players 3 vs 3, an island or peninsula per player with soft shores, symmetric layout with textures not mirrored, a larger centre for several Tech buildings, naval, 50 cells more on every side.
+
+1. **A**: mirroring the template closed the notches between lobes, so straight channels are cut between them; the user then asked for slightly larger, rounded-rectangle lobes, four marked corners rounded and a steeper seabed.
+2. **B, C**: Tournament Island's model and plants; the blue seabed of `tainted_paradise_sea.py`.
+3. **D**: the user arranged two lobes by hand; `team_islands_mirror_lobes.py` copied them onto the other four.
+4. **E**: no-shipyard zones from the user's areas, AI paths, naval markers; `ai_skirmish_check` clean. Lighting: Morning blended halfway toward Afternoon, never darker (`map_lighting.py`).
+
+**Next: F** (an AI match). Backups in the map's folder.
 
 ## Learned (rules now in the scripts)
 
