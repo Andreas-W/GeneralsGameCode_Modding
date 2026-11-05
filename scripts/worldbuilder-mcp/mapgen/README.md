@@ -45,9 +45,11 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `examples/snowy_mountains_stage_c.py` | C | The sixth map's trees by ground after Bitter Winter, mountain flanks included; other maps set `MAPGEN_NAME` (nothing below the water) |
 | `examples/snowy_mountains_hamlets.py` | D | The sixth map's rural hamlets: farm, chalets, cottage, windmill along one dirt lane with a fence, turned for the other player |
 | `examples/northern_island_build.py` | A2 | The seventh map: Tech, docks and expansions on flat spots by distance from each start, relief, new map at HeightMapScale 1.2 with ships, water, civilian player, snowfall |
-| `examples/northern_island_sea.py` | B | The seventh map's seabed: blue bands with noise by distance from land |
-| `examples/northern_island_forests.py` | C | Dense woods on top of the scatter: spread out (700 apart), irregular blobs of Bitter Winter's conifers, forest floor under the trees only |
-| `examples/northern_island_roads.py` | D | Gravel roads from each base to the nearest town street end, dirt tracks to the expansions, plants on them removed |
+| `examples/northern_island_sea.py` | B | The seventh and eighth maps' seabed: blue bands with noise by distance from land, grey shingle beaches |
+| `examples/northern_island_forests.py` | C | Dense woods on top of the scatter: spread out (700 apart), irregular blobs of Bitter Winter's conifers, forest floor under the trees only; plan `woods` sets the count and the town site kept free |
+| `examples/northern_island_roads.py` | D | Gravel roads from each base to the nearest town street end (plan `roads.join: any`: any street point not yet joined that a route reaches), dirt tracks to each base's nearest oil derrick, plants on them removed |
+| `examples/winter_isle_plan.py` | plan | The eighth map's plan: five player lobes at uneven angles around a round main body, a different feature between each pair of neighbours, a shared derrick per pair |
+| `examples/winter_isle_build.py` | A2 | The eighth map: dock and expansion per player by a ring search (same distance band, nearest flat spot), shared derricks, centre Tech, relief, new map |
 | `examples/northern_island_ai_markers.py` | E | AI paths, then per player three shipyards off its own shore, a naval perimeter in front of them and naval paths along both coasts, for a map without symmetry |
 | `map_lighting.py <map> [--blend FROM TO T [--dir D] [--brighter]]` | any | Reads a map's global lighting, or blends one time of day toward another (no bridge command sets lighting); writes the map uncompressed, WorldBuilder compresses it on its next save |
 
@@ -146,6 +148,19 @@ From a description only, into `NorthernIslandGen\NorthernIslandGen.map`. Prompt:
 
 **Not done**: no test in the game, no AI match. Backups `stage_a`, `stage_b`, `stage_c` in the map's folder; the plan records objects, town, woods, roads, markers and checks.
 
+## Eighth map: WinterIsleGen
+
+From a description only, into `WinterIsleGen\WinterIsleGen.map` (499 x 499 cells). Prompt: the NorthernIslandGen style for five players, asymmetric but roughly balanced, more compact with fewer empty peninsulas; no AI or naval markers yet.
+
+1. **Plan** (`examples/winter_isle_plan.py`): a round main body (radius 1250) with five player lobes (560) merged into it, at angles 15 / 85 / 158 / 228 / 300 (gaps 68 to 75) and 1480 to 1520 from the centre. Between each pair of neighbours something else: a mountain massif (1-2), a fjord with a knoll at its head (2-3), an upland (3-4), a mountain spine (4-5), a bay with an upland (5-1). Every pair shares an oil derrick on its middle line, on the upland or knoll where there is one. Each lobe has a harbour beach.
+2. **A**: the mountains first stood in the bays between lobes and mostly fell into the sea; headland blobs under them fill those bays, which also makes the island compact. The fjord as four round pieces 180 apart became separate ponds; eight pieces 100 apart, each overlapping the next by over half, make one inlet. No cut-off pieces.
+3. **A2** (`examples/winter_isle_build.py`): a fixed direction per object ended on the lobes' cliff coasts and the derricks slid 200 to 380 back into the bases. A ring search (the flat spot in an angle range whose distance is nearest the wanted one) gives every player the same: dock 360 to 400, own derrick 410 to 490, two shared derricks 847 to 1017, centre 1449 to 1490. The 2-3 derrick first slid 330 off a small knoll (647 against 1146); a larger knoll keeps it on top.
+4. **B, C**: as NorthernIslandGen (Bitter Winter, blue bands, shingle beaches); 413 plants by ground and 7 woods (1254 trees).
+5. **D**: an alpine town of 38 houses around the hospital and repair bay (seed 11 of six tried: the tightest footprint, 38 to 57 houses), turned to winter. The town had two open street ends for five roads (three went to one end, one ran 1458 long), so roads now join any street point another base has not taken; a point among the houses can be boxed in, so the next one is tried. Roads 745 to 1189.
+6. **F**: starts, docks, supplies and Tech in one land piece; cut off are the two mountain tops and three beach pockets under 160 cells. Flat buildable cells within 600 of the start: 7,227 to 8,358 (within 7 % of the mean). Cliff report: none unmapped or outside.
+
+**Not done**: AI and naval markers (skipped on request), no test in the game. Backups `stage_a`, `stage_b`, `stage_c` in the map's folder.
+
 ## Learned (rules now in the scripts)
 
 ### Terrain shape
@@ -164,7 +179,9 @@ From a description only, into `NorthernIslandGen\NorthernIslandGen.map`. Prompt:
 - Every new WorldBuilder map has a "Default Water" area at height 7 (see `../cliffs/cliff_gen.py`).
 - **Mountains have a height limit**: the crest is the ground under the frame plus `rise` and `relief`, clipped at the map's top. Standing on a level of 100 with scale 1.2 (top 191), a rise of 105 left flat-topped mesas; 55 with relief 45 stays below.
 - **Mountains are not a level.** A level for them makes flat tops at the level height (clipped at the limit). Mark mountain ground for `layout_blobs` with a level only it sees, and let `mountain_above` raise it.
-- **Carve with chains**: one ellipse is a straight canal; three overlapping, each turned a little, make a bent fjord.
+- **Carve with chains**: one ellipse is a straight canal; three overlapping, each turned a little, make a bent fjord. Pieces must overlap by over half (spacing under the radius), or each becomes its own pond.
+- **Features between lobes need land under them**: a mountain on the middle line between two merged lobes stands in their bay. Give it a headland blob.
+- **Place by distance band, not direction**: a fixed direction from a start often ends on cliff coast; search an angle range for the flat spot nearest the wanted distance.
 - **A template's gentle terraces stay slopes** in stage A; to get cliffs, snap them to a hard step first and give the ramps as road hints (`road_point` pairs crossing the step, not built as roads).
 
 ### Cliff mapping
