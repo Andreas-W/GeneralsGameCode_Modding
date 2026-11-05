@@ -12,8 +12,10 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 plan_path, work = sys.argv[1:3]
 plan = json.load(open(plan_path))
 CELL, B, WATER = 10.0, plan["border"], plan["water"]["height"]
-COUNT, SPACING = 6, 21.0
-TOWN = ((1950, 1880), 480)
+# Other maps set plan "woods": {"count": N, "town": [x, y, radius]} (the town site kept free); the defaults are NorthernIslandGen's.
+WOODS = plan.get("woods", {})
+COUNT, SPACING = WOODS.get("count", 6), 21.0
+TOWN = (tuple(WOODS["town"][:2]), WOODS["town"][2]) if "town" in WOODS else ((1950, 1880), 480)
 MIX = [("TreeSpruceSnow", 34), ("TreePine5snow2", 22), ("TreePine3snow", 20), ("TreeSpruce05Snow", 9), ("TreeFir07Snow", 6), ("Bush14Snow", 3)]
 rng = np.random.default_rng(plan.get("seed", 1) + 40)
 z = np.load(os.path.join(work, "heights_world.npy")).astype(np.float64)
