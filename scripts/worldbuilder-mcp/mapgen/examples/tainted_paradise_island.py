@@ -237,7 +237,7 @@ for _ in range(3000):
     n += 1
 print("palms", n, flush=True)
 wb.call("terrain.reblend")
-wb.call("terrain.cliff_map")
+wb.call("terrain.cliff_map", repair="fit")
 wb.call("map.save", path=map_path)
 print("saved", map_path)
 wb.close()

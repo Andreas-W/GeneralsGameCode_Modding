@@ -9,5 +9,6 @@
   "killing": {"path": "Maps/Killing Fields/Killing Fields.map", "note": "very large mountains and height variation, as obstacles, plateaus and along the river"},
   "hostile": {"path": "Maps/Hostile Dawn/Hostile Dawn.map", "note": "mix of large cliffs and smaller plateaus, mostly fuzzy and jagged, mountains"},
   "flash": {"path": "Maps/Flash Effect/Flash Effect.map", "note": "islands with cliffs as shoreline, curved and a bit fuzzy"},
-  "dust": {"path": "Maps/Dust Devil/Dust Devil.map", "note": "fuzzy long cliffs in several layers, mountainous map border"}
+  "dust": {"path": "Maps/Dust Devil/Dust Devil.map", "note": "fuzzy long cliffs in several layers, mountainous map border"},
+  "bitter": {"path": "Maps/Bitter Winter/Bitter Winter.map", "note": "snowy mountain map; style reference of SnowyMountainsGen"}
 }

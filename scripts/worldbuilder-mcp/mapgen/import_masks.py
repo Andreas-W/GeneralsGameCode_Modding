@@ -15,7 +15,7 @@ wb.call("map.open", path=path, discard_changes=True)
 for m in json.load(open(os.path.join(folder, "masks.json")))["masks"]:
     wb.call("terrain.import_mask", path=m["path"], target="texture", texture=m["texture"], fit="exact")
 blend = wb.call("terrain.reblend")
-cliffs = wb.call("terrain.cliff_map")
+cliffs = wb.call("terrain.cliff_map", repair="fit")
 wb.call("map.save", path=path)
 print({k: blend.get(k) for k in ("three_way_tiles", "hard_edges", "blend_table_used")},
       {k: cliffs.get(k) for k in ("cliff_cells", "cliff_cells_unmapped", "regions")}, "saved", path)

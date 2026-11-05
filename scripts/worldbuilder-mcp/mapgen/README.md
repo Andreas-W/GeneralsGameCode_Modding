@@ -40,6 +40,15 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `examples/team_islands_stage_c.py` | C | The fifth map's plants after Tournament Island, clear of starts and Tech |
 | `examples/team_islands_mirror_lobes.py` | D | Copies the user's hand-made lobes (huts, Tech, supplies, grass patches with their textures, heights and plants, the start) mirrored onto the other lobes |
 | `examples/team_islands_ai_markers.py` | E | User areas to `NO_SHIPYARD` zones, `ai_skirmish_setup` with narrow flanks, three shipyards per player in open water, naval perimeters and paths; worked out for two players and mirrored |
+| `examples/snowy_mountains_stage_a.py` | A | The sixth map's terrain from a template: centred on the starts, west half turned 180 degrees into the east half, heights spread, gentle terraces snapped to a cliff step with ramps given as road hints, pockets outside the frame filled |
+| `examples/snowy_mountains_build.py` | A2 | The sixth map: Tech and supplies as 180-degree pairs on flat ground, relief, new map at HeightMapScale 1.2, starts, snowfall |
+| `examples/snowy_mountains_stage_c.py` | C | The sixth map's trees by ground after Bitter Winter, mountain flanks included; other maps set `MAPGEN_NAME` (nothing below the water) |
+| `examples/snowy_mountains_hamlets.py` | D | The sixth map's rural hamlets: farm, chalets, cottage, windmill along one dirt lane with a fence, turned for the other player |
+| `examples/northern_island_build.py` | A2 | The seventh map: Tech, docks and expansions on flat spots by distance from each start, relief, new map at HeightMapScale 1.2 with ships, water, civilian player, snowfall |
+| `examples/northern_island_sea.py` | B | The seventh map's seabed: blue bands with noise by distance from land |
+| `examples/northern_island_forests.py` | C | Dense woods on top of the scatter: spread out (700 apart), irregular blobs of Bitter Winter's conifers, forest floor under the trees only |
+| `examples/northern_island_roads.py` | D | Gravel roads from each base to the nearest town street end, dirt tracks to the expansions, plants on them removed |
+| `examples/northern_island_ai_markers.py` | E | AI paths, then per player three shipyards off its own shore, a naval perimeter in front of them and naval paths along both coasts, for a map without symmetry |
 | `map_lighting.py <map> [--blend FROM TO T [--dir D] [--brighter]]` | any | Reads a map's global lighting, or blends one time of day toward another (no bridge command sets lighting); writes the map uncompressed, WorldBuilder compresses it on its next save |
 
 Everything else is existing tools: `objects_scatter` (forests), `objects_place_many`, `outpost_place` / `outpost_populate`, `town_generate`. Scripts that change a map work through the second WorldBuilder (`town/start_wb.py`, port 47810) or write files that Claude imports with the MCP tools. `uv run --with numpy --with scipy --with pillow python <script>`.
@@ -62,7 +71,7 @@ The user's mockup `TaintedParadise002.map` (MapWork), generated into `TaintedPar
 
 ## Second map: IslandCrossGen
 
-The user's template `TemplatesPIslandCross02.map`, generated into `IslandCrossGen\IslandCrossGen.map`. Prompt: four players, naval, one island with a peninsula per player, an Asian city over a plateau hill in the centre (two levels), tropical jungle; the template's heights only a rough guide, rough symmetry, not mirrored.
+The user's template `Templates\4PIslandCross02.map`, generated into `IslandCrossGen\IslandCrossGen.map`. Prompt: four players, naval, one island with a peninsula per player, an Asian city over a plateau hill in the centre (two levels), tropical jungle; the template's heights only a rough guide, rough symmetry, not mirrored.
 
 1. **Layout** (`layout_blobs.py`): main island, four peninsulas on necks, plateau with four ramps facing the peninsulas, beaches in the bays and at the peninsula tips; copies rotated with jitter. Then **A** with `terrain_from_mockup.py` unchanged. The user found one peninsula larger: copies are now scaled per copy (`scale`) until their building area (flat, passable, main level) matches within 1 %.
 2. **B** (now `paint_coast.py`): no single reference fits; jungle maps paint grass under the sea, island maps bright sand inland. Land from Eastern Everglades, seabed from Seaside Mutiny, beaches by rule. Sand bands of 1 to 2 cells looked like nothing: most of a beach's low ground lies in the shallows, so the sand reaches 18 above the water.
@@ -74,7 +83,7 @@ The user's template `TemplatesPIslandCross02.map`, generated into `IslandCrossG
 
 ## Third map: ArabCoastGen
 
-The user's template `TemplatesPArabCoast02.map` (two players north and south, a divided highway, a drawbridge to an island), generated into `ArabCoastGen\ArabCoastGen.map`. Prompt: desert / Arabic coast, naval; a big city along the existing road, a smaller town on the island, cliffs as the west border, patches of vegetation, desert details, existing roads integrated.
+The user's template `Templates\2PArabCoast02.map` (two players north and south, a divided highway, a drawbridge to an island), generated into `ArabCoastGen\ArabCoastGen.map`. Prompt: desert / Arabic coast, naval; a big city along the existing road, a smaller town on the island, cliffs as the west border, patches of vegetation, desert details, existing roads integrated.
 
 1. **A** from the template's heights (62 terraces, 87 main level, 142 west high ground) with Tournament Desert's cliff recipe. The user's corrections became plan `shape_edits`: island grown 30 and calmed, a channel carved for the drawbridge, calm cliffs at its ends; the beach ditch was a bug in the shore floor.
 2. **B** with `paint_coast.py`: Cairo Commandos land, Tournament Continent seabed.
@@ -107,6 +116,36 @@ The user's template `6pTournamentTeamIslands.map` (placeholder buildings for six
 
 **Next: F** (an AI match). Backups in the map's folder.
 
+## Sixth map: SnowyMountainsGen
+
+The user's template `Templates\2PSnowyMountains.map` (a valley ringed by high ground, terraces, a bowl in the middle with rock hills beside it, two starts), generated into `SnowyMountainsGen\SnowyMountainsGen.map`. Prompt: two players, snowy mountains, the template as a rough guide, roughly symmetric and fair but not mirrored, height and detail as Claude sees fit.
+
+1. **Style**: of seven snowy references (`style_scan.py`) Bitter Winter has the most cliffs and mountains (5.7 % steep), snow ground, snowy cliff textures and snowy spruces; it gives textures, plants and the cliff recipe (face 4.2, spread 1.8, measured with `cliffs/cliff_measure.py`).
+2. **A**: averaging the template with its 180-degree turn doubled the rock hills beside the bowl (they are not where a turn puts them); the west half turned into the east half keeps one of each. The template's terraces were gentle brush strokes, which stage A keeps as slopes: snapped to a step at 100 with two ramps each. Heights spread: bowl 42, valley 70, terraces 100, mountains above, `HeightMapScale = 1.2`.
+3. **A2, D**: per player a supply dock near the start and an expansion (oil derrick, three supply piles) on the terrace by its ramp, two oil derricks in the bowl and a hospital at the centre, all as exact pairs; relief with the defaults.
+4. **B, C, E**: Bitter Winter's model (2 zones, 16 textures), 504 plants, AI paths; `ai_skirmish_check` clean.
+5. **Roads** (asked for afterwards): `GravelRoadSnow`, Bitter Winter's road outside its town, from each base into the bowl to the hospital; `DirtRoadSnow` tracks over each terrace ramp to the expansion. `roads_route` with via points turned for the other player; with `straighten=0` it keeps every grid step and the road zigzags, so via points with the default straightening and curved corners. Roads flatten the ground, so cliff mapping is redone after them. A ring road (radius 300: at 340 it ran over the foot of both rock hills, which a passability check along the road found) joins both main roads around the hospital; each main road ends on a ring point. Side paths: from each expansion over its terrace and down the bowl ramp to the ring, and to each supply dock. The router can leave 10-unit kinks where it dodges something; deleting the tiny segment and joining its neighbours fixes them.
+6. **Hamlets** (asked for afterwards): `town_generate` alpine on matching sites (the ground free on both terraces after a 180-degree turn); the same seed gave 5 houses on one side and 10 without streets on the other, so seeds were tried in dry runs until both matched (seed 2: 7 and 6). The Alpine pack is summer: its streets, sidewalks, ground and trees were swapped for Bitter Winter's with `map_replace`; the German houses need no swap, the game draws them with snow under snowy weather. The town put trees among the expansion's supply piles, and one link road ending beside the dirt track drew a long stray road strip (the end cap bug): both removed.
+7. **Rural hamlets instead** (user: chalets, farms, no sidewalks): the town houses, lamps, benches, streets and sidewalks deleted; `examples/snowy_mountains_hamlets.py` lays out a farm (farmhouse, barn with silo, shed), two chalets, a cottage and a windmill along one dirt lane, picket fence along the lane with a gate, on the west terrace, and the same turned for the east. A fenced yard around the farm ran onto the terrace edge and through a chalet; a fence along the lane fits.
+8. **Pond and forest per base** (user: on the outer part of each player area, keep enough buildable space): spots found offline on the base's outer side, 400 to 800 from the start, clear of roads, dock and ramps, with the turned twin free too. The pond is an irregular bowl (`terrain_set_heights`) under a water area 3 below the ground; the forest 48 plants at least 19 apart. A forest floor painted as a disc looked artificial; painted only under the trees (a mask of the cells near them) it does not. Ponds cost 4 % of the flat ground within 600 of a start (about 10,100 cells remain on each side).
+
+**Not done**: no test in the game (the game does not start while a WorldBuilder runs), no AI match. Backups `stage_a`, `stage_b` in the map's folder.
+
+## Seventh map: NorthernIslandGen
+
+From a description only, into `NorthernIslandGen\NorthernIslandGen.map`. Prompt: two players, naval, one realistic irregular northern / winter island with mountains and forests, a hub, outpost or town in the centre, asymmetric.
+
+1. **Layout** (`layout_blobs.py`, no symmetry): a main body with two player lobes (west, east), a north-west peninsula, a south-east headland, small capes and a spit; a mountain spine on the north-west peninsula and a massif in the north-east; two uplands (level 2, three ramps each) as contested ground; beaches at both bases and in the south bay. Fjords and an inlet are `carve` chains of three ellipses each, bent: one ellipse cut a straight canal.
+2. **A**: levels 64 / 90 / 120 with mountains from 140. A first plan gave the mountains a terrain level (175): they came out as flat tables clipped at the height limit. Now `mapgen_work\plan_layout.json` has that level for `layout_blobs` only (to mark mountain ground) and the main plan only `mountain_above`. Bitter Winter's cliff recipe with more bend (40) for a ragged coast.
+3. **A2** (`examples/northern_island_build.py`): fairness from distances, not shape. Per player a dock (448 / 361 from the start), an expansion with an oil derrick and three supply piles on its own cape (663 / 731), one upland derrick nearer each (988 / 910) and the other farther (1457 / 1453), a hospital at the centre. The south-east upland was first too small (592 flat cells against 2074) and its derrick slid 400 off it: moved and grown to 320.
+4. **B**: Bitter Winter's model on the land, blue bands on the seabed (`examples/northern_island_sea.py`); the snowy sand beach looked orange, `DirtSnowType1` (grey shingle) instead.
+5. **C**: 301 plants by ground (`snowy_mountains_stage_c.py` with `MAPGEN_NAME`), then five woods (`examples/northern_island_forests.py`, 818 trees). Picking the roomiest spots put them all together: now at least 700 apart, radius at most 200.
+6. **D**: an alpine town around the hospital (`town_offline.py`, seed 5, 23 houses), turned to winter with `map_replace` (snow ground, snowy concrete, snowy oaks and bushes, gravel roads, `Sidewalk2`). Gravel roads from each base to the nearest street end of the town, dirt tracks to the expansions (`examples/northern_island_roads.py`).
+7. **E** (`examples/northern_island_ai_markers.py`): `ai_skirmish_setup`, then shipyards, naval perimeters and paths worked out per player (no mirror). An octagon of 500 around the shipyards' middle ran off the map on both sides; its corners are clamped inside the playable area. `ai_skirmish_check`: ready, naval ready, no problems.
+8. **F**: starts, docks, supplies and Tech in one land piece (46,572 cells); cut off are the spine and massif tops, a strip north of the north fjord (1,170 cells, reachable by hovercraft) and small pockets. Flat buildable cells within 650 of the start: 9,680 west, 7,041 east (more sea in front of the east base; its dock is nearer). Cliff report: 5,556 cliff cells, none unmapped or outside; blend report: 1,740 three-way tiles, 96 hard edges.
+
+**Not done**: no test in the game, no AI match. Backups `stage_a`, `stage_b`, `stage_c` in the map's folder; the plan records objects, town, woods, roads, markers and checks.
+
 ## Learned (rules now in the scripts)
 
 ### Terrain shape
@@ -123,6 +162,14 @@ The user's template `6pTournamentTeamIslands.map` (placeholder buildings for six
 - **A beach runs down to the real seabed beside it.** Falling toward a fixed depth (12 under the water) while the sea next to it kept the mockup's shallow floor left a ditch along the waterline with a dam in front (third map).
 - **Shape edits** in the plan (`shape_edits`): `grow` pushes a land piece's whole profile outward (its height at the nearest edge only added a rim at the waterline), `calm` with `radius` scales the cliff and shore noise there, `carve` ([rx, ry]) makes an ellipse sea. The third map: the island grew 30 with calm 0.3 (60 was too much), a carved channel puts the cliff tops where the drawbridge ends (geometry in `town/work/gamedata/geo.json`: `IndustrialDrawBridge_New_Large` is 285 long), calm 0.15 at both ends.
 - Every new WorldBuilder map has a "Default Water" area at height 7 (see `../cliffs/cliff_gen.py`).
+- **Mountains have a height limit**: the crest is the ground under the frame plus `rise` and `relief`, clipped at the map's top. Standing on a level of 100 with scale 1.2 (top 191), a rise of 105 left flat-topped mesas; 55 with relief 45 stays below.
+- **Mountains are not a level.** A level for them makes flat tops at the level height (clipped at the limit). Mark mountain ground for `layout_blobs` with a level only it sees, and let `mountain_above` raise it.
+- **Carve with chains**: one ellipse is a straight canal; three overlapping, each turned a little, make a bent fjord.
+- **A template's gentle terraces stay slopes** in stage A; to get cliffs, snap them to a hard step first and give the ramps as road hints (`road_point` pairs crossing the step, not built as roads).
+
+### Cliff mapping
+
+- `import_masks.py` mapped the cliffs without repair until the sixth map (the bridge's `terrain.cliff_map` defaults to `repair=none`; only the MCP tool defaults to `fit`): 6123 cells outside their texture and black gaps on its tall walls. It now passes `repair="fit"`. **Maps textured with it before (the first five) may show black gaps on tall cliffs**: `terrain_cliff_report` counts them, `terrain_cliff_repair` fixes them.
 
 ### Textures
 
