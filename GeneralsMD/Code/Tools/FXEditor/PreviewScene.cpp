@@ -36,6 +36,7 @@
 #include "GameLogic/Object.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/TerrainLogic.h"
+#include "W3DDevice/GameClient/BaseHeightMap.h"
 
 namespace
 {
@@ -243,6 +244,7 @@ Bool PreviewScene::play(PreviewKind kind, const AsciiString &name, AsciiString &
 	}
 
 	stop();
+	clearScorches();
 	m_kind = kind;
 	m_name = name;
 	m_playing = TRUE;
@@ -260,10 +262,21 @@ void PreviewScene::restart()
 	if (!m_playing || !m_ready)
 		return;
 	killPreviewSystems();
+	clearScorches();
 	m_playCount = 0;
 	m_startFrame = TheGameLogic->getFrame();
 	markFirstSystem();
 	fire();
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Scorch marks stay on the terrain for good; a new or restarted preview starts on clean ground.
+	Repeats of one preview keep theirs, as in the game. */
+//-------------------------------------------------------------------------------------------------
+void PreviewScene::clearScorches()
+{
+	if (TheTerrainRenderObject)
+		TheTerrainRenderObject->clearAllScorches();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -282,6 +295,7 @@ void PreviewScene::stop()
 //-------------------------------------------------------------------------------------------------
 void PreviewScene::clearAllParticles()
 {
+	clearScorches();
 	m_systemIDs.clear();
 	if (TheParticleSystemManager)
 	{

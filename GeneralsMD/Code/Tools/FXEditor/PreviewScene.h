@@ -77,13 +77,14 @@ public:
 
 	Bool isReady() const { return m_ready; }
 
-	/// Plays something by name; replaces what played before. False with a reason if unknown.
+	/// Plays something by name; replaces what played before and removes the scorch marks.
+	/// False with a reason if unknown.
 	Bool play(PreviewKind kind, const AsciiString &name, AsciiString &error);
-	/// Starts the current one again (after an edit), killing its particles first.
+	/// Starts the current one again (after an edit), killing its particles and scorch marks first.
 	void restart();
 	/// Stops repeating and removes the particle systems it made.
 	void stop();
-	/// Removes every particle system in the game.
+	/// Removes every particle system and scorch mark in the game.
 	void clearAllParticles();
 
 	Bool isPlaying() const { return m_playing; }
@@ -113,6 +114,7 @@ private:
 	void prepareScene();
 	void fire();
 	void killPreviewSystems();
+	void clearScorches();
 	void markFirstSystem();
 	Object *ensureAttachObject();
 	void removeAttachObject();

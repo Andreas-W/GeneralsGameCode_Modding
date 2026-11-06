@@ -1217,6 +1217,7 @@ void FXEditorPanels::drawPreview()
 	ImGui::SameLine();
 	if (ImGui::Button("Clear particles"))
 		scene.clearAllParticles();
+	ImGui::SetItemTooltip("Removes all particles and scorch marks.");
 	ImGui::SameLine();
 	float speed = scene.getSpeed();
 	ImGui::SetNextItemWidth(150.0f);
