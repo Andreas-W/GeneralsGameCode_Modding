@@ -1,4 +1,4 @@
-# NorthernIslandGen (and WinterIsleGen), stage B after paint_map.py / import_masks.py (land from Bitter Winter, which has no water): the sea and the beaches.
+# NorthernIslandGen (WinterIsleGen, TropicTrefoilGen), stage B after paint_map.py / import_masks.py (land from Bitter Winter, which has no water): the sea and the beaches.
 # The seabed gets the navy skill's blue bands by distance from land (SandMediumType9blue4 in the shallows to SandMediumType9blue in the
 # deep), their borders wandering with noise; the first two cells from land keep what the painter gave them, so cliff shores stay rock.
 # Beaches (low, gentle land at the water and the shallows beside it) get grey shingle (DirtSnowType1). Then reblend, cliff mapping (fit), save.
@@ -34,8 +34,9 @@ beach = beach_land | (sea & (d <= 3) & ndimage.binary_dilation(beach_land, itera
 beach = ndimage.binary_opening(beach, iterations=1)
 layers = [("SandMediumType9blue4", sea & (dn >= 2)), ("SandMediumType9blue3", sea & (dn >= 14)),
           ("SandMediumType9blue2", sea & (dn >= 28)), ("SandMediumType9blue", sea & (dn >= 45)),
-          # Grey shingle: SandMediumType9Snow looked orange on NorthernIslandGen and was swapped for this one afterwards.
-          ("DirtSnowType1", beach)]
+          # Grey shingle: SandMediumType9Snow looked orange on NorthernIslandGen and was swapped for this one afterwards. Plan
+          # "beach_texture" sets another (TropicTrefoilGen: the user's light sand).
+          (plan.get("beach_texture", "DirtSnowType1"), beach)]
 out = os.path.join(work, "stageB_sea")
 os.makedirs(out, exist_ok=True)
 paths = []

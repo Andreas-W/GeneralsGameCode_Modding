@@ -45,11 +45,18 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `examples/snowy_mountains_stage_c.py` | C | The sixth map's trees by ground after Bitter Winter, mountain flanks included; other maps set `MAPGEN_NAME` (nothing below the water) |
 | `examples/snowy_mountains_hamlets.py` | D | The sixth map's rural hamlets: farm, chalets, cottage, windmill along one dirt lane with a fence, turned for the other player |
 | `examples/northern_island_build.py` | A2 | The seventh map: Tech, docks and expansions on flat spots by distance from each start, relief, new map at HeightMapScale 1.2 with ships, water, civilian player, snowfall |
-| `examples/northern_island_sea.py` | B | The seventh and eighth maps' seabed: blue bands with noise by distance from land, grey shingle beaches |
+| `examples/northern_island_sea.py` | B | The seventh and eighth maps' seabed: blue bands with noise by distance from land, grey shingle beaches (plan `beach_texture` for another; the ninth map uses it too) |
 | `examples/northern_island_forests.py` | C | Dense woods on top of the scatter: spread out (700 apart), irregular blobs of Bitter Winter's conifers, forest floor under the trees only; plan `woods` sets the count and the town site kept free |
 | `examples/northern_island_roads.py` | D | Gravel roads from each base to the nearest town street end (plan `roads.join: any`: any street point not yet joined that a route reaches), dirt tracks to each base's nearest oil derrick, plants on them removed |
 | `examples/winter_isle_plan.py` | plan | The eighth map's plan: five player lobes at uneven angles around a round main body, a different feature between each pair of neighbours, a shared derrick per pair |
 | `examples/winter_isle_build.py` | A2 | The eighth map: dock and expansion per player by a ring search (same distance band, nearest flat spot), shared derricks, centre Tech, relief, new map |
+| `examples/tropic_trefoil_stage_a.py` | A | The ninth map's terrain from a template: player 1's 120-degree wedge (heights, texture hints, objects) turned onto the other two, levels lifted and spread, beaches where the template has light sand at the coast |
+| `examples/tropic_trefoil_build.py` | A2 | The ninth map: the turned objects, structures kept on their spots (levelled pads on slopes), copies moved alike, relief, new map |
+| `examples/tropic_trefoil_paint.py` | B | The ninth map's land textures from the template's own textures as hints: gaps filled by the nearest hint, cliffs and mountains with the nearest cliff hint, beach sand at the water |
+| `examples/gold_coast_stage_a.py` | A | The tenth map's terrain from a template: beach band to the beach level, the river's channel filled for stage A and carved after it (a second water level), the high band east of the river as mountain ridge |
+| `examples/gold_coast_build.py` | A2 | The tenth map: docks (player 2's mirrored from player 1's offsets), relief kept above the river, new map with two water areas |
+| `examples/gold_coast_paint.py` | B | The tenth map's land textures by role (dry grass patches, beach, coastal and ridge cliffs, river bed and banks) with the user's hints where painted |
+| `examples/gold_coast_farms.py` | D | Farms (farmhouse, barn, shed, haystacks, tractor, fence, dirt yard, crop field, windbreaks), country roads to the town, farm tracks, river-bank trees and thin scatter |
 | `examples/northern_island_ai_markers.py` | E | AI paths, then per player three shipyards off its own shore, a naval perimeter in front of them and naval paths along both coasts, for a map without symmetry |
 | `map_lighting.py <map> [--blend FROM TO T [--dir D] [--brighter]]` | any | Reads a map's global lighting, or blends one time of day toward another (no bridge command sets lighting); writes the map uncompressed, WorldBuilder compresses it on its next save |
 
@@ -161,6 +168,38 @@ From a description only, into `WinterIsleGen\WinterIsleGen.map` (499 x 499 cells
 
 **Not done**: AI and naval markers (skipped on request), no test in the game. Backups `stage_a`, `stage_b`, `stage_c` in the map's folder.
 
+## Ninth map: TropicTrefoilGen
+
+The user's template `Templates/3p_IslandTemplate.map`, generated into `TropicTrefoilGen\TropicTrefoilGen.map`. Prompt: three players, roughly balanced, refine the heightmap, the template's non-default textures as hints, the planned lower-left start applied to the other two, tropical, naval; no AI or naval markers yet. The template is a trefoil: three lobes 2 above the water around a hub plateau (87), a peak at each neck, a mountain rim on each lobe's outer coast. Only player 1's lobe was painted (sands, grassy sands, grass patches with palm groves on both flanks, rocks, cliff textures on the rim, light sand beaches, dirt and cobblestone under the start, dock and Tech) and decorated (palms, huts, six supply piles, ruins).
+
+1. **A** (`examples/tropic_trefoil_stage_a.py`): player 1's wedge is turned by 120 and 240 degrees about the starts' centre, moved to the map's centre, blended over 8 degrees at the seams. The wedge runs from 55 degrees before player 1 to 65 after, so that the neck refineries are counted once. Heights: lobes 76, hub 100, slopes between them kept; template ground above 105 becomes mountain (rise 65, flank 110). Beaches where the turned light-sand hint meets the coast. The neck peaks (330 cells) were under stage A's 400-cell mountain minimum and came out as flat-topped hills; grown by 2 cells they are mountains (3 cells, with a flank of 150, buried the refineries at their feet).
+2. **A2** (`examples/tropic_trefoil_build.py`): searching each structure's nearest flat spot moved the copies differently (one refinery at 451 from a start, the others 815) and pushed the neck refineries onto the hub next to the construction yard, since the necks are the template's slopes between lobe and hub. Now every structure keeps the user's spot (turned): flat ground as it is, a slope on a levelled pad (13 pads), a cliff or mountain foot moves to the nearest spot a pad can level; copies 1 and 2 take copy 0's move, turned. Every player: dock 234 to 235, derricks 464 to 482, 562 and 1113, refineries 794 to 795 and 887.
+3. **B** (`examples/tropic_trefoil_paint.py`, then `examples/northern_island_sea.py` with plan `beach_texture`): the user's textures turned with the wedge, gaps filled by the nearest hint. The gentle tops of the mountains first took the nearest ground hint (grass inside a cliff ring looked like a crater, rocks like a flat grey dome): ground above 122 now takes the nearest cliff hint, as the user painted player 1's rim.
+4. **C**: the user's palms (50 per lobe) turned; no tropical reference is scanned on this machine for more plants by ground.
+5. **F**: starts, docks, supplies and Tech in one land piece; only the mountain tops are cut off. Flat buildable cells within 600 of the start: 7,213 to 7,484. Cliff report: none unmapped or outside.
+
+6. **Second version** (user: smoother beach shores at the player areas, the outer cliffs as mountain ridges instead of plateaus, the hub's small hills as impassable mountains, texturing that follows the objects, objects may move a bit; the first version is kept as `v1`):
+   - Beaches reach 400 inland (260 before), stay low for 80 and climb over 320, eased along the coast; `beach_width` 220.
+   - Stage A's mountains are a frame with a flat crest. After it, each rim is reshaped: the crest follows the rim's middle (distance to its edge over the largest distance nearby), the profile `t ** 1.3` gives a crest line and hollow flanks (`t ** 0.75` was a broad dome), ridged noise cuts gullies. The plain maximum filter left flat facets; smoothed, it does not.
+   - The hub's hills (template above 97 within 350 of the centre; the turned pairs merge into three) rise 35 to 50 above the hub and are impassable.
+   - Structures take flat ground within 160 of the user's spot (the copies within 80 of copy 0's move, turned) before a pad; 4 pads remain. Palms on structures are removed.
+   - The painter follows the objects: cobblestone core and dirt fringe under Tech, dirt under docks, supply piles and starts, rocks under guard towers; the turned cobblestone and dirt hints with no object near any more take the surrounding ground.
+   - Every player: dock 234 to 242, derricks 455, 488 and 1194, refineries 639 to 671 and 997 to 1036. Flat buildable cells within 600: 7,237 to 7,268. All structures on the main land piece.
+
+**Not done**: AI and naval markers (left out on request), no test in the game. Backups `v1` (first version) and `stage_a` in the map's folder.
+
+## Tenth map: GoldCoastGen
+
+The user's template `Templates/2PGoldCoast.map` (279 x 299 cells), generated into `GoldCoastGen\GoldCoastGen.map`. Prompt: two players, naval; west to east a soft beach shore, cliffs, the main area with dry grass and farmland, a river on the east as border; a few farms and a small American rural town in the centre; no AI or waypoints yet. The template: the sea in the west, a beach band (60 to 66), a short steep climb to the plateau (about 112) with hills, a narrow river channel in its own water area at 105 (bed near 60), a high band and peaks east of it; starts south and north; four docks (one on the beach and one by the river per player); hints in the Desert_2 family (dry grasses, dark grass along the river, sand strips at the cliff top, crop fields and grass field squares).
+
+1. **A** (`examples/gold_coast_stage_a.py`): beach band to the beach level (64), so stage A makes the soft shore; the climb stays cliff, with one ramp at each base where the template is gentle. The river is a second water level that stage A does not know: its channel is filled to the plateau for stage A and carved after it (bed 28 below the surface, banks eased over 70). The peaks above 135 alone left gaps in the eastern border; the whole band above 122 east of the river is the ridge.
+2. **A2** (`examples/gold_coast_build.py`): player 2's docks mirror player 1's offsets north-south (the template's were 152 and 159 farther): 442 and 792 for both. The flat-spot test rejected ground below water + 6, and the beach docks slid onto the plateau; the beach counts as ground now. Relief with the defaults lowered a patch by 20, below the river's surface beside its water area: the plan's `relief` is gentler here (spread 5, pits 3 to 6), and land beside the river stays 1.5 above its water.
+3. **B** (`examples/gold_coast_paint.py`): GrassMediumType32 as the base showed stripes over the whole plateau; GrassMediumType35 is the base with 32 and 34 patches. The ridge's gentler ground in CliffMediumType19 tiled into rows like haystacks; dark grass with rock patches instead. Coastal cliffs CliffLargeType11 (tall faces), ridge and hills CliffLargeType12 and CliffMediumType20, river bed SandType3wet, beach SandMediumType13 (plan `beach_texture` for the seabed script).
+4. **D**: the town (`town_offline.py`, urban, theme `american`, grid 0.7, TwoLane, contained, seed 2 of eight runs: 9 buildings, no parking garage) on the free ground between the user's crop and field hints. Farms (`examples/gold_coast_farms.py`): a flat-ground test under 0.12 sent farms 665 to 959 away and one across the river off the map; gentle ground (under 0.2), west of the river, each farm keeping the next 420 away. One farm moved 435 to beside the town (the south-east is hilly). TwoLane roads from both bases into the town, dirt tracks to the farms, 345 trees and shrubs (windbreaks, river banks, scatter).
+5. **F**: both starts and all docks on the main land piece; flat buildable cells within 600 of the start 9,713 and 10,292; no ground beside the river below its water; cliff report clean.
+
+**Not done**: AI and naval markers (left out on request), no test in the game. Backups `stage_a`, `stage_b`, `stage_c` in the map's folder.
+
 ## Learned (rules now in the scripts)
 
 ### Terrain shape
@@ -182,6 +221,13 @@ From a description only, into `WinterIsleGen\WinterIsleGen.map` (499 x 499 cells
 - **Carve with chains**: one ellipse is a straight canal; three overlapping, each turned a little, make a bent fjord. Pieces must overlap by over half (spacing under the radius), or each becomes its own pond.
 - **Features between lobes need land under them**: a mountain on the middle line between two merged lobes stands in their bay. Give it a headland blob.
 - **Place by distance band, not direction**: a fixed direction from a start often ends on cliff coast; search an angle range for the flat spot nearest the wanted distance.
+- **Stage A's mountains need 400 cells** (`MOUNTAIN_CELLS`): smaller marked peaks become flat-topped hills. Grow small peaks in the mockup until they pass.
+- **Copies move alike**: when a layout is turned onto other players, place copy 0 and turn its move for the others; a separate search per copy breaks the balance the turn made. Where the user put a structure on a slope, level a pad instead of moving it.
+- **Texture hints are painted on the template's terrain**: after stage A, steep ground and mountains take the nearest cliff hint, gentle ground the nearest other hint.
+- **Ground follows the objects**: paint cobblestone, dirt or rock under structures where they finally stand; hints for object ground that moved away are dropped.
+- **Ridges, not frames**: stage A's mountain frame has a flat crest. A ridge needs a profile from the edge to the local middle that is concave (`t ** 1.3`), plus gullies.
+- **A second water level** (a river or lake above the sea) is outside stage A: fill it for stage A, carve it after, and keep relief from lowering land beside it below its surface.
+- **Pick base textures by looking**: some tile into visible stripes or rows over large areas (GrassMediumType32, CliffMediumType19); use them as patches.
 - **A template's gentle terraces stay slopes** in stage A; to get cliffs, snap them to a hard step first and give the ramps as road hints (`road_point` pairs crossing the step, not built as roads).
 
 ### Cliff mapping
