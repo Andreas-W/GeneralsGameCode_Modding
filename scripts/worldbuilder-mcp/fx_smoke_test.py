@@ -63,10 +63,14 @@ def step(bridge: WorldBuilderBridge, frames: int) -> dict:
 
 def install_map() -> None:
     target = Path.home() / "Documents" / "Command and Conquer Generals Zero Hour Data" / "Maps" / "FXEditorPreview"
-    if (target / "FXEditorPreview.map").exists() or not REPO_MAP.exists():
+    if not REPO_MAP.exists():
+        return
+    changed = [f for f in REPO_MAP.iterdir()
+               if not (target / f.name).exists() or (target / f.name).read_bytes() != f.read_bytes()]
+    if not changed:
         return
     target.mkdir(parents=True, exist_ok=True)
-    for f in REPO_MAP.iterdir():
+    for f in changed:
         (target / f.name).write_bytes(f.read_bytes())
     print(f"installed the preview map into {target}")
 

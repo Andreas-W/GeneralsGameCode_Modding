@@ -1,7 +1,7 @@
 """MCP server for the FX Editor (FXEditorZH.exe): previews and edits ParticleSystem and FXList INI
 with the game's own renderer and audio.
 
-The editor runs the game engine in a sandbox skirmish on a flat preview map and serves the game MCP
+The editor runs the game engine on a flat preview map (a single player game) and serves the game MCP
 bridge on port 47802, with its own fx.* commands. fx_launch starts it from the mod folder (GAME_DIR).
 """
 
@@ -34,8 +34,8 @@ INSTRUCTIONS = """\
 Previews and edits particle systems and FXLists of Command & Conquer Generals Zero Hour with the
 game's own rendering (Direct3D 8, or 12 with dx12=true) and audio, in the FX Editor.
 
-Starting: fx_launch starts FXEditorZH.exe from the mod folder; it loads a flat preview map with a
-sandbox player and returns fx_status. fx_quit ends it. One editor at a time.
+Starting: fx_launch starts FXEditorZH.exe from the mod folder; it loads a flat preview map as a
+single player game and returns fx_status. fx_quit ends it. One editor at a time.
 
 Finding things: fx_list(kind, contains) lists names the game knows (kind particle, fxlist, sound).
 Never guess names. fx_get shows a block: its INI text, file, fields (particle systems) or nuggets
@@ -89,12 +89,17 @@ def _user_maps_dir() -> Path:
 
 
 def _install_preview_map() -> str | None:
-    """Copies the preview map from the repository into the user's Maps folder if it is not there."""
+    """Copies the preview map from the repository into the user's Maps folder when it is missing or
+    differs from the repository's."""
     target = _user_maps_dir() / PREVIEW_MAP
-    if (target / f"{PREVIEW_MAP}.map").exists() or not REPO_MAP_DIR.exists():
+    if not REPO_MAP_DIR.exists():
+        return None
+    changed = [f for f in REPO_MAP_DIR.iterdir()
+               if not (target / f.name).exists() or (target / f.name).read_bytes() != f.read_bytes()]
+    if not changed:
         return None
     target.mkdir(parents=True, exist_ok=True)
-    for f in REPO_MAP_DIR.iterdir():
+    for f in changed:
         shutil.copy2(f, target / f.name)
     return str(target)
 
@@ -119,8 +124,9 @@ def fx_launch(dx12: bool = False, map: str | None = None, width: int = 1600, hei
               extra_args: list[str] | None = None, wait_seconds: float = 180) -> dict:
     """Starts the FX Editor from the mod folder (GAME_DIR) and waits until the preview game runs.
     - dx12: render with Direct3D 12 instead of 8 (needs a build with RTS_BUILD_OPTION_DX12).
-    - map: another multiplayer map as backdrop (default: the flat preview map, installed into the
-      user's Maps folder from the repository when missing).
+    - map: another map as backdrop, a name from a Maps folder or a .map path (default: the flat
+      preview map, installed into the user's Maps folder from the repository when missing or old).
+      The local player is the map's human player.
     Returns fx_status. Fails if an editor with the bridge already runs (fx_quit it)."""
     global _process
     if _reachable():

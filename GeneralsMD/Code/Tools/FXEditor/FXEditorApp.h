@@ -44,6 +44,8 @@ public:
 	// Hooks for the window procedure and the engine.
 	static void setPreviewMap(const char *map);
 	static const AsciiString &getPreviewMap();
+	static void setStartError(const char *error);
+	static const AsciiString &getStartError(); ///< why the preview game did not start, or empty
 	static Bool handleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 	static Bool wantsMouse();
 	static Bool wantsKeyboard();

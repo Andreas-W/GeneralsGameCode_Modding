@@ -110,7 +110,7 @@ PreviewScene::PreviewScene() :
 }
 
 //-------------------------------------------------------------------------------------------------
-/** The preview game has started: an empty, revealed scene around the local player's start. */
+/** The preview game has started: a revealed scene around the middle of the map. */
 //-------------------------------------------------------------------------------------------------
 void PreviewScene::prepareScene()
 {
@@ -128,13 +128,8 @@ void PreviewScene::prepareScene()
 	m_center = center;
 	TheTacticalView->lookAt(&m_center);
 
-	// Nothing hides the effects: no shroud, no starting units, no control bar.
+	// Nothing hides the effects: no shroud, no control bar.
 	ThePartitionManager->revealMapForPlayerPermanently(local->getPlayerIndex());
-	for (Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject())
-	{
-		if (obj->getControllingPlayer() == local)
-			TheGameLogic->destroyObject(obj);
-	}
 	HideControlBar(TRUE);
 
 	m_ready = TRUE;

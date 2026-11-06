@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
+#include <shlobj.h>
 #include <crtdbg.h>
 
 #include <string>
@@ -235,9 +236,64 @@ static const char *argumentValue(const std::vector<std::string> &args, const cha
 }
 
 //-------------------------------------------------------------------------------------------------
+static Bool fileExists(const std::string &path)
+{
+	DWORD attributes = GetFileAttributesA(path.c_str());
+	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The map for -file: a .map path, or a map name looked up in the Maps folder of the game folder
+	and of the user data folder. Names that are found nowhere are left to the game's archives
+	(Maps\<name>\<name>.map). The game expects maps in a folder of the same name and is given the
+	path without that folder (Maps\<name>.map), as on its own command line. */
+//-------------------------------------------------------------------------------------------------
+static std::string previewMapArgument(const std::string &map, std::string &error)
+{
+	std::string path;
+	if (map.size() > 4 && _stricmp(map.c_str() + map.size() - 4, ".map") == 0)
+	{
+		path = map;
+	}
+	else
+	{
+		std::string inGame = "Maps\\" + map + "\\" + map + ".map";
+		path = inGame;
+		if (!fileExists(inGame))
+		{
+			char documents[MAX_PATH];
+			if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_PERSONAL, nullptr, SHGFP_TYPE_CURRENT, documents)))
+			{
+				std::string inUserData = std::string(documents) + "\\Command and Conquer Generals Zero Hour Data\\" + inGame;
+				if (fileExists(inUserData))
+					path = inUserData;
+			}
+		}
+	}
+
+	for (size_t i = 0; i < path.size(); ++i)
+	{
+		if (path[i] == '/')
+			path[i] = '\\';
+	}
+	const size_t fileStart = path.find_last_of('\\');
+	const std::string folderPath = fileStart == std::string::npos ? std::string() : path.substr(0, fileStart);
+	const std::string stem = path.substr(fileStart + 1, path.size() - fileStart - 1 - 4);
+	const size_t folderStart = folderPath.find_last_of('\\');
+	const std::string folder = folderStart == std::string::npos ? folderPath : folderPath.substr(folderStart + 1);
+	if (_stricmp(folder.c_str(), stem.c_str()) != 0)
+	{
+		error = "the map must be in a folder of its own name: " + path;
+		return path;
+	}
+	// The game wants at least one folder in the path.
+	return (folderStart == std::string::npos ? ".\\" : "") + folderPath + ".map";
+}
+
+//-------------------------------------------------------------------------------------------------
 /** The engine reads its options from __argv. The editor adds the options that make the game start
-	right into the preview: windowed, no intro, no shell map, and the MCP bridge with a sandbox game
-	on the preview map. Options given on the command line win. */
+	right into the preview: windowed, no intro, no shell map, the preview map as a single player
+	game (-file) and the MCP bridge. Options given on the command line win. */
 //-------------------------------------------------------------------------------------------------
 static std::vector<std::string> s_args;
 static std::vector<char *> s_argv;
@@ -247,13 +303,10 @@ static void addEditorArguments()
 	for (Int i = 0; i < __argc; ++i)
 		s_args.push_back(__argv[i]);
 
-	// -map <name> picks the preview map; -player <faction> the local player's faction.
+	// -map <name or .map path> picks the preview map. The local player is the map's human player.
 	std::string map = "FXEditorPreview";
 	if (const char *value = argumentValue(s_args, "-map"))
 		map = value;
-	std::string player = "FactionAmerica";
-	if (const char *value = argumentValue(s_args, "-player"))
-		player = value;
 	FXEditorApp::setPreviewMap(map.c_str());
 
 	if (!hasArgument(s_args, "-win") && !hasArgument(s_args, "-fullscreen"))
@@ -275,19 +328,25 @@ static void addEditorArguments()
 	if (!hasArgument(s_args, "-asserts") && !hasArgument(s_args, "-ignoreAsserts"))
 		s_args.push_back("-ignoreAsserts");
 
-	// The game MCP bridge starts the sandbox game and serves the editor's own commands.
+	// The game starts the map as a single player game: no skirmish setup, no starting units.
+	if (!hasArgument(s_args, "-file"))
+	{
+		std::string error;
+		std::string file = previewMapArgument(map, error);
+		if (error.empty())
+		{
+			s_args.push_back("-file");
+			s_args.push_back(file);
+		}
+		else
+		{
+			FXEditorApp::setStartError(error.c_str());
+		}
+	}
+
+	// The game MCP bridge serves the editor's own commands.
 	if (!hasArgument(s_args, "-mcpport", TRUE))
 		s_args.push_back("-mcpport:" + std::to_string(FXEditorApp::DEFAULT_MCP_PORT));
-	if (!hasArgument(s_args, "-mcpGame"))
-	{
-		s_args.push_back("-mcpGame");
-		s_args.push_back(map);
-	}
-	if (!hasArgument(s_args, "-mcpPlayers"))
-	{
-		s_args.push_back("-mcpPlayers");
-		s_args.push_back(player);
-	}
 
 	for (size_t i = 0; i < s_args.size(); ++i)
 		s_argv.push_back(const_cast<char *>(s_args[i].c_str()));

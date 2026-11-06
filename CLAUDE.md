@@ -213,7 +213,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.
 
 ## FX Editor
 
-`FXEditorZH.exe` (target `z_fxeditor`, `GeneralsMD/Code/Tools/FXEditor/`) previews and edits `ParticleSystem` and `FXList` INI with the real engine: it runs the whole game in a sandbox skirmish on a flat preview map and draws an ImGui interface on top (Direct3D 8, or 12 with `-dx12`; Miles audio). A third MCP server drives it (`mcp__fx__*`); full reference: the FX Editor section of `scripts/worldbuilder-mcp/README.md`.
+`FXEditorZH.exe` (target `z_fxeditor`, `GeneralsMD/Code/Tools/FXEditor/`) previews and edits `ParticleSystem` and `FXList` INI with the real engine: it runs the whole game with a flat preview map started as a single player game (`-file`) and draws an ImGui interface on top (Direct3D 8, or 12 with `-dx12`; Miles audio). A third MCP server drives it (`mcp__fx__*`); full reference: the FX Editor section of `scripts/worldbuilder-mcp/README.md`.
 
 ```
 Claude  <-- stdio -->  scripts/worldbuilder-mcp/fx_server.py  <-- TCP 127.0.0.1:47802 -->  FXEditorZH.exe

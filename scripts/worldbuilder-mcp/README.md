@@ -216,10 +216,10 @@ MCP client  <-- stdio -->  fx_server.py  <-- TCP 127.0.0.1:47802, JSON lines -->
 ```
 
 The C++ side lives in `GeneralsMD/Code/Tools/FXEditor/`. The editor has its own `WinMain` and
-`CreateGameEngine()`; it adds `-win -quickstart -noshellmap -ignoreAsserts` and the game MCP options
-that start a sandbox skirmish (`-mcpport:47802 -mcpGame FXEditorPreview -mcpPlayers FactionAmerica`),
-so every `game.*`, `view.*` and `objects.*` command works there too, next to the editor's `fx.*`
-commands. Its ImGui renderer is `Core/Libraries/Source/ImGuiDX8` (the D3D8 interface, which the
+`CreateGameEngine()`; it adds `-win -quickstart -noshellmap -ignoreAsserts`, starts the preview map
+as a single player game (`-file`, no skirmish setup and no starting units; the local player is the
+map's human player) and opens the game MCP bridge (`-mcpport:47802`), so every `game.*`, `view.*`
+and `objects.*` command works there too, next to the editor's `fx.*` commands. Its ImGui renderer is `Core/Libraries/Source/ImGuiDX8` (the D3D8 interface, which the
 Direct3D 12 renderer implements as well); the engine draws it through `W3DDisplay::m_overlayDraw`.
 It needs `RTS_BUILD_OPTION_GAME_MCP` and fetches ImGui (`cmake/imgui.cmake`).
 
@@ -227,12 +227,16 @@ It needs `RTS_BUILD_OPTION_GAME_MCP` and fetches ImGui (`cmake/imgui.cmake`).
 
 Copy `FXEditorZH.exe` into the mod folder. `fx_launch` starts it from `GAME_DIR` (`FX_EXE` for another
 name) and installs the preview map from `GeneralsMD/Code/Tools/FXEditor/Data/Maps/FXEditorPreview`
-into `Documents\Command and Conquer Generals Zero Hour Data\Maps` when it is missing (the map cache
-only picks up new maps there, and only with two start positions). By hand:
+into `Documents\Command and Conquer Generals Zero Hour Data\Maps` when it is missing or older. By hand:
 
 ```
-FXEditorZH.exe [-dx12] [-map "<multiplayer map>"] [-player FactionChina] [-xres 1600 -yres 900] [-mcpport:N]
+FXEditorZH.exe [-dx12] [-map "<map name or .map path>"] [-xres 1600 -yres 900] [-mcpport:N]
 ```
+
+`-map` takes a name, looked up as `Maps\<name>\<name>.map` in the mod folder, then in the user data
+folder, then in the game's archives, or a path to a `.map` file in a folder of the same name. Any map
+works, scenario or multiplayer; on a map without a human player (multiplayer maps) the local player
+is an observer.
 
 The editor does not take the game's single-instance lock, so it runs next to the game and
 WorldBuilder. Its window layout is kept in `FXEditorLayout.ini` in the user data folder.

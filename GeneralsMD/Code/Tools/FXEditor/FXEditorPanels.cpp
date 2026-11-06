@@ -1389,7 +1389,7 @@ void FXEditorPanels::drawOverlayInfo()
 {
 	if (FXEditorApp::scene().isReady())
 		return;
-	const AsciiString &error = gameMcpStartError();
+	const AsciiString &error = FXEditorApp::getStartError();
 	ImGuiViewport *viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f, viewport->WorkPos.y + viewport->WorkSize.y * 0.4f),
 		ImGuiCond_Always, ImVec2(0.5f, 0.5f));
@@ -1398,7 +1398,7 @@ void FXEditorPanels::drawOverlayInfo()
 	if (!error.isEmpty())
 	{
 		ImGui::TextColored(COLOR_ERROR, "The preview game did not start: %s", error.str());
-		ImGui::TextWrapped("Put the preview map into the Maps folder or start the editor with -map <multiplayer map name>.");
+		ImGui::TextWrapped("Put the preview map into the Maps folder or start the editor with -map <map name or .map path>.");
 	}
 	else
 	{

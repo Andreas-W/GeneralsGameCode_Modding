@@ -23,6 +23,7 @@
 #include "FXEditorMcp.h"
 #include "IniDatabase.h"
 
+#include "Common/FileSystem.h"
 #include "Common/GameEngine.h"
 #include "Common/GameMcp.h"
 #include "Common/GlobalData.h"
@@ -53,6 +54,7 @@ namespace
 {
 
 AsciiString s_previewMap;
+AsciiString s_startError;
 Bool s_imguiReady = FALSE;
 Bool s_hideOverlay = FALSE;
 Bool s_frameBuilt = FALSE;
@@ -216,6 +218,16 @@ const AsciiString &FXEditorApp::getPreviewMap()
 	return s_previewMap;
 }
 
+void FXEditorApp::setStartError(const char *error)
+{
+	s_startError = error;
+}
+
+const AsciiString &FXEditorApp::getStartError()
+{
+	return s_startError;
+}
+
 //-------------------------------------------------------------------------------------------------
 Bool FXEditorApp::handleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -249,6 +261,11 @@ void FXEditorApp::init()
 {
 	s_scene = new PreviewScene;
 	s_ini = new IniDatabase;
+
+	// A missing map would start an empty world without terrain.
+	const AsciiString &mapFile = TheGlobalData->m_initialFile;
+	if (s_startError.isEmpty() && !mapFile.isEmpty() && !TheFileSystem->doesFileExist(mapFile.str()))
+		s_startError.format("no map found for '%s' (looked for %s)", s_previewMap.str(), mapFile.str());
 
 	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
 	if (device == nullptr || ApplicationHWnd == nullptr)
