@@ -302,6 +302,13 @@ def fx_play(name: str, kind: Kind = "particle", repeat: bool | None = None, repe
 
 
 @mcp.tool()
+def fx_select(name: str, kind: EditKind = "particle") -> dict:
+    """Selects a particle system or FXList as a click in the editor's library does: the inspector
+    shows it, and while an effect plays, the selected one plays instead (with the same settings)."""
+    return fx.call("fx.select", kind=kind, name=name)
+
+
+@mcp.tool()
 def fx_stop(action: Literal["stop", "restart", "clear"] = "stop") -> dict:
     """stop: stop playing and remove its particles; restart: start it again; clear: remove all particles."""
     return fx.call("fx.stop", action=action)

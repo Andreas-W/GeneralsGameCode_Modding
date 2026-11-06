@@ -263,7 +263,7 @@ WorldBuilder. Its window layout is kept in `FXEditorLayout.ini` in the user data
 - **Editor:** `fx_launch` (`dx12`, `map`), `fx_status`, `fx_quit`, `fx_log`.
 - **Looking up:** `fx_list` (particle, fxlist, sound), `fx_get` (text, file, fields or nuggets), `fx_schema` (field types, allowed values, help), `fx_validate` (unknown fields, missing textures, systems, FXLists, sounds, objects).
 - **Editing:** `fx_set_fields` (null removes a field; `nugget` for FXList nuggets), `fx_set_text`, `fx_nugget` (add, remove, move, duplicate), `fx_create` (copy under a new name), `fx_undo` (undo, redo, revert), `fx_save` (needs `overwrite=true`), `fx_reload`.
-- **Playing:** `fx_play` (repeat, height, moving in a circle, on a spawned object with `attach_to`), `fx_stop` (stop, restart, clear), `fx_time` (pause, step frames, speed for slow motion), `fx_stats` (particle counts, live systems), `fx_center` (preview point and camera), `fx_capture` (game view without the interface), `fx_capture_sequence` (contact sheet of the effect over time).
+- **Playing:** `fx_play` (repeat, height, moving in a circle, on a spawned object with `attach_to`), `fx_select` (as a click in the library: while an effect plays, the selected one plays instead, in the editor as well), `fx_stop` (stop, restart, clear), `fx_time` (pause, step frames, speed for slow motion), `fx_stats` (particle counts, live systems), `fx_center` (preview point and camera), `fx_capture` (game view without the interface), `fx_capture_sequence` (contact sheet of the effect over time).
 - `fx_command` runs any bridge command of the editor.
 
 ## Checking the editor without MCP

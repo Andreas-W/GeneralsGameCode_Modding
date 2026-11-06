@@ -62,7 +62,8 @@ public:
 	static void log(Bool error, const char *format, ...);
 	static const FXEditorLogEntry *getLog(Int &count);
 
-	/// Shows a ParticleSystem or FXList in the inspector (sounds are only played).
+	/// Shows a ParticleSystem or FXList in the inspector (sounds are only played). While an effect
+	/// plays, the newly selected one plays instead.
 	static void select(PreviewKind kind, const AsciiString &name);
 	static PreviewKind getSelectedKind();
 	static const AsciiString &getSelectedName();

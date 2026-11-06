@@ -169,6 +169,9 @@ def main() -> int:
         check(len(moved["nuggets"]) == count + 1, "nugget moved")
         bridge.call("fx.play", kind="fxlist", name=fx_name)
         step(bridge, 10)
+        selected = bridge.call("fx.select", kind="particle", name=name)
+        check(selected.get("playing", {}).get("name") == name, "selecting while playing plays the selection")
+        bridge.call("fx.select", kind="fxlist", name=fx_name)
         bridge.call("fx.undo", kind="fxlist", name=fx_name, action="revert")
         check(len(bridge.call("fx.get", kind="fxlist", name=fx_name)["nuggets"]) == count, "FXList reverted")
 

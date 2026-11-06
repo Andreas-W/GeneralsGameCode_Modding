@@ -584,6 +584,20 @@ McpJson cmdPlay(const McpJson &args)
 		.set("position", coord(scene.getEmitterPosition())).set("frame", (unsigned int)TheGameLogic->getFrame());
 }
 
+McpJson cmdSelect(const McpJson &args)
+{
+	const PreviewKind kind = kindArg(args, "particle");
+	if (kind == PREVIEW_SOUND)
+		gameMcpFail("sounds are not selected; play them with fx.play");
+	const std::string name = gameMcpArgString(args, "name");
+	FXEditorApp::select(kind, AsciiString(name.c_str()));
+	PreviewScene &scene = FXEditorApp::scene();
+	McpJson j = McpJson::makeObject().set("kind", previewKindName(kind)).set("name", name);
+	if (scene.isPlaying())
+		j.set("playing", McpJson::makeObject().set("kind", previewKindName(scene.getKind())).set("name", scene.getName().str()));
+	return j;
+}
+
 McpJson cmdStop(const McpJson &args)
 {
 	PreviewScene &scene = FXEditorApp::scene();
@@ -753,6 +767,8 @@ void FXEditorMcp::registerCommands()
 	gameMcpRegisterCommand("fx.play", cmdPlay,
 		"{kind=particle|fxlist|sound, name, height?, repeat?, repeat_seconds?, move?, move_radius?, move_speed?, angle?, attach_to?, x?, y?} "
 		"Plays at the preview point (or on a spawned object).");
+	gameMcpRegisterCommand("fx.select", cmdSelect,
+		"{kind=particle|fxlist, name} Shows it in the inspector, as a click in the library; while an effect plays, it plays instead.");
 	gameMcpRegisterCommand("fx.stop", cmdStop, "{action=stop|restart|clear} Stops or restarts what plays, or removes all particles.");
 	gameMcpRegisterCommand("fx.time", cmdTime, "{paused?, step?, speed?} Pauses, steps logic frames, sets the speed (1 = normal).");
 	gameMcpRegisterCommand("fx.stats", cmdStats, "{systems=true} Particle counts in total and of the preview, and the live systems.");

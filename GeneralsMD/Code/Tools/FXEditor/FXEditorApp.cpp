@@ -397,8 +397,18 @@ void FXEditorApp::select(PreviewKind kind, const AsciiString &name)
 {
 	if (kind == PREVIEW_SOUND)
 		return;
+	if (kind == s_selectedKind && name == s_selectedName)
+		return;
 	s_selectedKind = kind;
 	s_selectedName = name;
+
+	// While an effect plays, the preview follows the selection (a playing sound keeps playing).
+	if (s_scene && s_scene->isPlaying() && s_scene->getKind() != PREVIEW_SOUND && !name.isEmpty())
+	{
+		AsciiString error;
+		if (!s_scene->play(kind, name, error))
+			log(TRUE, "%s", error.str());
+	}
 }
 
 PreviewKind FXEditorApp::getSelectedKind()
@@ -423,7 +433,11 @@ Bool FXEditorApp::play(PreviewKind kind, const AsciiString &name, AsciiString &e
 {
 	if (!s_scene->play(kind, name, error))
 		return FALSE;
-	select(kind, name);
+	if (kind != PREVIEW_SOUND)
+	{
+		s_selectedKind = kind;
+		s_selectedName = name;
+	}
 	return TRUE;
 }
 
