@@ -7,6 +7,10 @@
     "game": {
       "command": "uv",
       "args": ["run", "--directory", "scripts/worldbuilder-mcp", "game_server.py"]
+    },
+    "fx": {
+      "command": "uv",
+      "args": ["run", "--directory", "scripts/worldbuilder-mcp", "fx_server.py"]
     }
   }
 }
