@@ -172,9 +172,14 @@ void GameMcp::startGameFromCommandLine()
 		DEBUG_LOG(("Game MCP bridge: %s", s_startError.str()));
 		return;
 	}
+	// An observing local player takes no start position.
+	Int playersNeedingStart = (Int)slots.size();
+	if (slots[0].faction.isEmpty() || slots[0].faction.compareNoCase("Observer") == 0) {
+		playersNeedingStart--;
+	}
 	const Int startPositions = SkirmishLaunch::countStartPositions(mapKey);
-	if (startPositions >= 0 && (Int)slots.size() > startPositions) {
-		s_startError.format("-mcpGame: the map has %d start positions for %d players", startPositions, (Int)slots.size());
+	if (startPositions >= 0 && playersNeedingStart > startPositions) {
+		s_startError.format("-mcpGame: the map has %d start positions for %d players", startPositions, playersNeedingStart);
 		DEBUG_LOG(("Game MCP bridge: %s", s_startError.str()));
 		return;
 	}
