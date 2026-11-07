@@ -322,8 +322,8 @@ def fx_play(name: str, kind: Kind = "particle", repeat: bool | None = None, repe
     - move, move_radius, move_speed: the emitter circles the preview point (trails, drift).
     - attach_to: thing template to spawn and play on (object FX, attached systems); "" for none.
     - x, y: moves the preview point first.
-    - follow_camera: while it plays, moving the camera (fx_center look, or the user) moves the
-      preview point and its running emitters along (default on).
+    - follow_camera: each start (play, restart, repeat) happens where the camera looks, if the camera
+      moved since the preview point was set; what already runs stays (default on).
     Settings not given stay as they were."""
     return fx.call("fx.play", kind=kind, name=name, repeat=repeat, repeat_seconds=repeat_seconds, height=height,
                    move=move, move_radius=move_radius, move_speed=move_speed, angle=angle, attach_to=attach_to, x=x, y=y,

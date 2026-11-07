@@ -147,11 +147,15 @@ def main() -> int:
         center = bridge.call("fx.center", look=True)["center"]
         bridge.call("view.camera", x=center["x"] + 80, y=center["y"] + 40)
         step(bridge, 2)
+        still = bridge.call("fx.center", look=False)["center"]
+        check(abs(still["x"] - center["x"]) < 2 and abs(still["y"] - center["y"]) < 2,
+              "what runs stays when the camera moves")
+        bridge.call("fx.stop", action="restart")
         moved = bridge.call("fx.center", look=False)["center"]
         check(abs(moved["x"] - center["x"] - 80) < 2 and abs(moved["y"] - center["y"] - 40) < 2,
-              f"preview point followed the camera ({center['x']:.0f},{center['y']:.0f} -> {moved['x']:.0f},{moved['y']:.0f})")
+              f"a restart starts at the camera ({center['x']:.0f},{center['y']:.0f} -> {moved['x']:.0f},{moved['y']:.0f})")
         step(bridge, 15)
-        check(bridge.call("fx.stats", systems=False)["preview_particles"] > 0, "still emitting after the move")
+        check(bridge.call("fx.stats", systems=False)["preview_particles"] > 0, "emitting at the new point")
         bridge.call("fx.center", x=center["x"], y=center["y"], look=True)
 
         print("edit, undo")

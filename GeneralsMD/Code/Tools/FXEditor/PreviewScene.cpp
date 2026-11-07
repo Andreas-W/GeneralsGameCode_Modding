@@ -190,8 +190,6 @@ void PreviewScene::update()
 	if (!m_playing)
 		return;
 
-	followCamera();
-
 	const UnsignedInt now = TheGameLogic->getFrame();
 
 	// Moving emitters follow a circle around the center, in logic time.
@@ -249,52 +247,19 @@ void PreviewScene::setCenter(const Coord3D &pos)
 }
 
 //-------------------------------------------------------------------------------------------------
-/** While something plays, a camera that moves takes the preview point with it. Only a moving camera
-	does: a point set elsewhere (by MCP) stays until the camera moves again. */
+/** Each start of the effect takes the camera's target as the preview point, if the camera moved
+	since the point was last set. What already runs stays where it started. */
 //-------------------------------------------------------------------------------------------------
 void PreviewScene::followCamera()
 {
-	if (TheTacticalView == nullptr)
+	if (TheTacticalView == nullptr || !m_settings.followCamera)
 		return;
-	const Coord3D target = TheTacticalView->getPosition();
+	const Coord3D &target = TheTacticalView->getPosition();
 	const Real dx = target.x - m_cameraTarget.x;
 	const Real dy = target.y - m_cameraTarget.y;
 	if (dx * dx + dy * dy < 0.25f)
 		return;
-	m_cameraTarget = target;
-	if (m_settings.followCamera)
-		moveTo(target);
-}
-
-//-------------------------------------------------------------------------------------------------
-/** Moves the preview point, and the emitters still running there, by the same distance.
-	Particles already emitted stay where they are. */
-//-------------------------------------------------------------------------------------------------
-void PreviewScene::moveTo(const Coord3D &center)
-{
-	const Coord3D oldCenter = m_center;
-	setCenter(center);
-	Coord3D delta;
-	delta.x = m_center.x - oldCenter.x;
-	delta.y = m_center.y - oldCenter.y;
-	delta.z = m_center.z - oldCenter.z;
-
-	if (TheParticleSystemManager)
-	{
-		ParticleSystemManager::ParticleSystemList &list = TheParticleSystemManager->getAllParticleSystems();
-		for (ParticleSystemManager::ParticleSystemListIt it = list.begin(); it != list.end(); ++it)
-		{
-			ParticleSystem *sys = *it;
-			if ((UnsignedInt)sys->getSystemID() < m_firstSystemID || sys->getAttachedObject() != INVALID_ID)
-				continue;
-			Coord3D pos;
-			sys->getPosition(&pos);
-			pos.x += delta.x;
-			pos.y += delta.y;
-			pos.z += delta.z;
-			sys->setPosition(&pos);
-		}
-	}
+	setCenter(target);
 	if (Object *obj = TheGameLogic->findObjectByID(m_attachObjectID))
 	{
 		Coord3D pos = getEmitterPosition();
@@ -348,7 +313,6 @@ Bool PreviewScene::play(PreviewKind kind, const AsciiString &name, AsciiString &
 	m_startFrame = TheGameLogic->getFrame();
 	m_lastMoveFrame = m_startFrame;
 	markFirstSystem();
-	followCamera();
 	fire();
 	return TRUE;
 }
@@ -363,7 +327,6 @@ void PreviewScene::restart()
 	m_playCount = 0;
 	m_startFrame = TheGameLogic->getFrame();
 	markFirstSystem();
-	followCamera();
 	fire();
 }
 
@@ -482,6 +445,7 @@ void PreviewScene::fire()
 {
 	m_lastFireFrame = TheGameLogic->getFrame();
 	m_playCount++;
+	followCamera();
 
 	const Coord3D pos = getEmitterPosition();
 	Matrix3D mtx(1);
