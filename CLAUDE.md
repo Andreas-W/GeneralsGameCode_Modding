@@ -220,6 +220,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/fx_server.py  <-- TCP 127.0.0.1:
 ```
 
 - Build `z_fxeditor` (needs `RTS_BUILD_OPTION_GAME_MCP`; ImGui is fetched by `cmake/imgui.cmake`) and copy `FXEditorZH.exe` into the mod folder. `fx_launch` starts it and installs the preview map (`Data/Maps/FXEditorPreview` in the tool folder) into the user's Maps folder when missing.
+- Another backdrop: `fx_maps` / `fx_load_map(map, faction)` (multiplayer maps run as a sandbox skirmish of that faction, others as single player games).
 - Look names up with `fx_list` / `fx_schema`, play with `fx_play`, measure with `fx_stats`, look with `fx_capture` / `fx_capture_sequence`, step time with `fx_time`.
 - Edits (`fx_set_fields`, `fx_nugget`, `fx_set_text`) are parsed by the game at once; nothing is written until `fx_save(overwrite=true)`, which changes the user's INI files: ask first. It keeps `<file>.fxeditor.bak`.
 - Engine hooks it uses, all inert in the game: `W3DDisplay::m_overlayDraw`, `ParticleSystemTemplate::resetToDefaults`, `FXListStore::getNames`. Its fx.* commands are registered on the game MCP bridge (`gameMcpRegisterCommand`); after a change run `python scripts/worldbuilder-mcp/fx_smoke_test.py` and extend it.

@@ -105,7 +105,8 @@ PreviewScene::PreviewScene() :
 	m_lastMoveFrame(0),
 	m_firstSystemID(0xFFFFFFFF),
 	m_attachObjectID(INVALID_ID),
-	m_soundHandle(0)
+	m_soundHandle(0),
+	m_resumeKind(PREVIEW_PARTICLE_SYSTEM)
 {
 	m_center.zero();
 }
@@ -129,11 +130,44 @@ void PreviewScene::prepareScene()
 	m_center = center;
 	TheTacticalView->lookAt(&m_center);
 
-	// Nothing hides the effects: no shroud, no control bar.
+	// Nothing hides the effects: no shroud, no starting units (of a skirmish), no control bar.
 	ThePartitionManager->revealMapForPlayerPermanently(local->getPlayerIndex());
+	if (TheGameLogic->isInSkirmishGame())
+	{
+		for (Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject())
+		{
+			if (obj->getControllingPlayer() == local)
+				TheGameLogic->destroyObject(obj);
+		}
+	}
 	HideControlBar(TRUE);
 
 	m_ready = TRUE;
+
+	if (!m_resumeName.isEmpty())
+	{
+		const AsciiString name = m_resumeName;
+		m_resumeName.clear();
+		AsciiString error;
+		play(m_resumeKind, name, error);
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void PreviewScene::leaveGame()
+{
+	if (m_playing)
+	{
+		m_resumeKind = m_kind;
+		m_resumeName = m_name;
+	}
+	if (m_ready)
+		stop();
+	m_systemIDs.clear();
+	m_attachObjectID = INVALID_ID;
+	m_attachTemplate.clear();
+	m_ready = FALSE;
+	m_playing = FALSE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -147,8 +181,7 @@ void PreviewScene::update()
 	}
 	if (!TheGameLogic->isInGame() || TheGameLogic->isInShellGame())
 	{
-		m_ready = FALSE;
-		m_playing = FALSE;
+		leaveGame();
 		return;
 	}
 	if (!m_playing)

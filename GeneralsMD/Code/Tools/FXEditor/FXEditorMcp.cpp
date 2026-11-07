@@ -29,6 +29,7 @@
 #include "Common/McpJson.h"
 #include "Common/ThingFactory.h"
 #include "GameClient/FXList.h"
+#include "GameClient/MapUtil.h"
 #include "GameClient/ParticleSys.h"
 #include "GameClient/View.h"
 #include "GameLogic/GameLogic.h"
@@ -272,6 +273,9 @@ McpJson cmdStatus(const McpJson &)
 	McpJson j = McpJson::makeObject()
 		.set("ready", scene.isReady())
 		.set("map", FXEditorApp::getPreviewMap().str())
+		.set("map_key", FXEditorApp::getPreviewMapKey().str())
+		.set("faction", FXEditorApp::getPreviewFaction().str())
+		.set("map_loading", FXEditorApp::isMapLoading())
 		.set("start_error", FXEditorApp::getStartError().str())
 		.set("renderer", FXEditorApp::isDX12() ? "dx12" : "dx8")
 		.set("frame", TheGameLogic ? (unsigned int)TheGameLogic->getFrame() : 0u)
@@ -584,6 +588,44 @@ McpJson cmdPlay(const McpJson &args)
 		.set("position", coord(scene.getEmitterPosition())).set("frame", (unsigned int)TheGameLogic->getFrame());
 }
 
+McpJson cmdMaps(const McpJson &args)
+{
+	const std::string contains = gameMcpArgString(args, "contains", "");
+	AsciiString needle = contains.c_str();
+	needle.toLower();
+	McpJson maps = McpJson::makeArray();
+	for (MapCache::const_iterator it = TheMapCache->begin(); it != TheMapCache->end(); ++it)
+	{
+		AsciiString display;
+		display.translate(it->second.m_displayName);
+		AsciiString lowerDisplay = display;
+		lowerDisplay.toLower();
+		if (!needle.isEmpty() && strstr(it->first.str(), needle.str()) == nullptr && strstr(lowerDisplay.str(), needle.str()) == nullptr)
+			continue;
+		maps.push(McpJson::makeObject().set("key", it->first.str()).set("name", display.str())
+			.set("start_positions", FXEditorApp::countStartPositions(it->first)).set("official", it->second.m_isOfficial != FALSE));
+	}
+	std::vector<AsciiString> factions;
+	FXEditorApp::getFactions(factions);
+	McpJson factionList = McpJson::makeArray();
+	for (size_t i = 0; i < factions.size(); ++i)
+		factionList.push(factions[i].str());
+	return McpJson::makeObject().set("maps", maps).set("factions", factionList);
+}
+
+McpJson cmdLoadMap(const McpJson &args)
+{
+	const std::string map = gameMcpArgString(args, "map");
+	const std::string faction = gameMcpArgString(args, "faction", "FactionAmerica");
+	AsciiString error;
+	if (!FXEditorApp::loadMap(AsciiString(map.c_str()), AsciiString(faction.c_str()), error))
+		gameMcpFail("%s", error.str());
+	const AsciiString key = FXEditorApp::findMapKey(AsciiString(map.c_str()));
+	const Bool skirmish = FXEditorApp::countStartPositions(key) > 0;
+	return McpJson::makeObject().set("map_key", key.str()).set("mode", skirmish ? "skirmish" : "single_player")
+		.set("faction", skirmish ? faction : std::string());
+}
+
 McpJson cmdSelect(const McpJson &args)
 {
 	const PreviewKind kind = kindArg(args, "particle");
@@ -767,6 +809,10 @@ void FXEditorMcp::registerCommands()
 	gameMcpRegisterCommand("fx.play", cmdPlay,
 		"{kind=particle|fxlist|sound, name, height?, repeat?, repeat_seconds?, move?, move_radius?, move_speed?, angle?, attach_to?, x?, y?} "
 		"Plays at the preview point (or on a spawned object).");
+	gameMcpRegisterCommand("fx.maps", cmdMaps, "{contains?} Maps of the map cache (key, name, start positions) and the playable factions.");
+	gameMcpRegisterCommand("fx.load_map", cmdLoadMap,
+		"{map, faction=FactionAmerica} Loads a map (key, name or part of the path) at the next frame: a multiplayer map as a "
+		"sandbox skirmish with that faction, otherwise as a single player game. Wait for fx.status map_loading=false.");
 	gameMcpRegisterCommand("fx.select", cmdSelect,
 		"{kind=particle|fxlist, name} Shows it in the inspector, as a click in the library; while an effect plays, it plays instead.");
 	gameMcpRegisterCommand("fx.stop", cmdStop, "{action=stop|restart|clear} Stops or restarts what plays, or removes all particles.");

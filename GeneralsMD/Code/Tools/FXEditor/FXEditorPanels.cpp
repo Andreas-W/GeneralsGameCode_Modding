@@ -33,6 +33,7 @@
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
 #include "GameClient/FXList.h"
+#include "GameClient/MapUtil.h"
 #include "GameClient/ParticleSys.h"
 #include "GameClient/View.h"
 #include "GameLogic/GameLogic.h"
@@ -70,6 +71,20 @@ Bool s_showAudio = TRUE;
 Bool s_showLog = TRUE;
 Bool s_showDemo = FALSE;
 Bool s_showAllFields = FALSE;
+Bool s_showMapDialog = FALSE;
+
+// The map dialog: the maps of the map cache, the picked one and the faction for multiplayer maps.
+struct MapEntry
+{
+	AsciiString key;
+	std::string label;
+	Int startPositions;
+};
+std::vector<MapEntry> s_maps;
+std::vector<AsciiString> s_factions;
+std::string s_mapFilter;
+AsciiString s_mapPicked;
+AsciiString s_factionPicked;	// FactionAmerica until one is picked
 
 // Undo of drags: the text before the drag is recorded once when it ends.
 Int s_gestureBlock = -1;
@@ -851,6 +866,136 @@ void saveBlock(Int block)
 	}
 }
 
+//-------------------------------------------------------------------------------------------------
+// Map dialog
+//-------------------------------------------------------------------------------------------------
+
+const char *const DEFAULT_PREVIEW_MAP = "FXEditorPreview";
+
+void loadMap(const AsciiString &map, const AsciiString &faction)
+{
+	AsciiString error;
+	if (!FXEditorApp::loadMap(map, faction, error))
+		FXEditorApp::log(TRUE, "Cannot load the map: %s", error.str());
+}
+
+Bool lessMapLabel(const MapEntry &a, const MapEntry &b)
+{
+	return _stricmp(a.label.c_str(), b.label.c_str()) < 0;
+}
+
+void openMapDialog()
+{
+	s_maps.clear();
+	if (TheMapCache)
+	{
+		for (MapCache::const_iterator it = TheMapCache->begin(); it != TheMapCache->end(); ++it)
+		{
+			if (!it->second.m_doesExist)
+				continue;
+			MapEntry entry;
+			entry.key = it->first;
+			entry.startPositions = FXEditorApp::countStartPositions(it->first);
+			AsciiString display;
+			display.translate(it->second.m_displayName);
+			if (display.isEmpty())
+				display = it->first.reverseFind('\\') ? it->first.reverseFind('\\') + 1 : it->first.str();
+			char label[300];
+			if (entry.startPositions > 0)
+				snprintf(label, sizeof(label), "%s  (%d players)", display.str(), entry.startPositions);
+			else
+				snprintf(label, sizeof(label), "%s  (scenario)", display.str());
+			entry.label = label;
+			s_maps.push_back(entry);
+		}
+	}
+	std::sort(s_maps.begin(), s_maps.end(), lessMapLabel);
+	FXEditorApp::getFactions(s_factions);
+	if (!FXEditorApp::getPreviewFaction().isEmpty())
+		s_factionPicked = FXEditorApp::getPreviewFaction();
+	else if (s_factionPicked.isEmpty())
+		s_factionPicked = "FactionAmerica";
+	s_mapPicked = FXEditorApp::getPreviewMapKey();
+	s_showMapDialog = TRUE;
+}
+
+void drawMapDialog()
+{
+	ImGuiViewport *viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f, viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
+		ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowSize(ImVec2(560.0f, 520.0f), ImGuiCond_FirstUseEver);
+	if (!ImGui::Begin("Load map", (bool *)&s_showMapDialog, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse))
+	{
+		ImGui::End();
+		return;
+	}
+
+	ImGui::SetNextItemWidth(-1.0f);
+	ImGui::InputTextWithHint("##mapfilter", "Filter (name or path)", &s_mapFilter);
+
+	Bool load = FALSE;
+	const float footer = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetStyle().ItemSpacing.y;
+	if (ImGui::BeginChild("##maps", ImVec2(0.0f, -footer), ImGuiChildFlags_Borders))
+	{
+		for (size_t i = 0; i < s_maps.size(); ++i)
+		{
+			const MapEntry &entry = s_maps[i];
+			if (!s_mapFilter.empty() && !containsNoCase(entry.label, s_mapFilter.c_str())
+				&& !containsNoCase(std::string(entry.key.str()), s_mapFilter.c_str()))
+				continue;
+			ImGui::PushID((int)i);
+			if (ImGui::Selectable(entry.label.c_str(), entry.key == s_mapPicked, ImGuiSelectableFlags_AllowDoubleClick))
+			{
+				s_mapPicked = entry.key;
+				if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+					load = TRUE;
+			}
+			ImGui::SetItemTooltip("%s", entry.key.str());
+			ImGui::PopID();
+		}
+	}
+	ImGui::EndChild();
+	const MapEntry *picked = nullptr;
+	for (size_t i = 0; i < s_maps.size(); ++i)
+	{
+		if (s_maps[i].key == s_mapPicked)
+			picked = &s_maps[i];
+	}
+
+	// The faction counts only on multiplayer maps; other maps bring their own player.
+	const Bool skirmish = picked && picked->startPositions > 0;
+	ImGui::BeginDisabled(!skirmish);
+	ImGui::SetNextItemWidth(260.0f);
+	if (ImGui::BeginCombo("Faction", skirmish ? s_factionPicked.str() : "the map's own player"))
+	{
+		for (size_t i = 0; i < s_factions.size(); ++i)
+		{
+			if (ImGui::Selectable(s_factions[i].str(), s_factions[i] == s_factionPicked))
+				s_factionPicked = s_factions[i];
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::EndDisabled();
+	ImGui::SetItemTooltip("Maps with start positions run as a sandbox skirmish with a player of this faction.\n"
+		"Other maps run as a single player game with the map's own player.");
+
+	ImGui::BeginDisabled(picked == nullptr);
+	if (ImGui::Button("Load", ImVec2(120.0f, 0.0f)))
+		load = TRUE;
+	ImGui::EndDisabled();
+	ImGui::SameLine();
+	if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+		s_showMapDialog = FALSE;
+
+	if (load && picked)
+	{
+		loadMap(picked->key, skirmish ? s_factionPicked : AsciiString::TheEmptyString);
+		s_showMapDialog = FALSE;
+	}
+	ImGui::End();
+}
+
 } // namespace
 
 //=================================================================================================
@@ -902,6 +1047,16 @@ void FXEditorPanels::drawMainMenu()
 			scene.setCenter(TheTacticalView->getPosition());
 		ImGui::EndMenu();
 	}
+	if (ImGui::BeginMenu("Map"))
+	{
+		if (ImGui::MenuItem("Load map..."))
+			openMapDialog();
+		if (ImGui::MenuItem("Reload map", nullptr, false, !FXEditorApp::getPreviewMapKey().isEmpty()))
+			loadMap(FXEditorApp::getPreviewMapKey(), FXEditorApp::getPreviewFaction());
+		if (ImGui::MenuItem("Empty preview map"))
+			loadMap(AsciiString(DEFAULT_PREVIEW_MAP), AsciiString::TheEmptyString);
+		ImGui::EndMenu();
+	}
 	if (ImGui::BeginMenu("View"))
 	{
 		ImGui::MenuItem(LIBRARY, nullptr, (bool *)&s_showLibrary);
@@ -913,10 +1068,16 @@ void FXEditorPanels::drawMainMenu()
 		ImGui::MenuItem("ImGui demo", nullptr, (bool *)&s_showDemo);
 		ImGui::EndMenu();
 	}
-	ImGui::SameLine(ImGui::GetWindowWidth() - 360.0f);
-	ImGui::TextColored(COLOR_DIM, "%s | %.0f fps | MCP port %d", FXEditorApp::isDX12() ? "D3D12" : "D3D8",
-		ImGui::GetIO().Framerate, TheGameMcp ? TheGameMcp->getPort() : 0);
+	char status[256];
+	snprintf(status, sizeof(status), "%s%s%s | %s | %.0f fps | MCP port %d", FXEditorApp::getPreviewMap().str(),
+		FXEditorApp::getPreviewFaction().isEmpty() ? "" : " as ", FXEditorApp::getPreviewFaction().str(),
+		FXEditorApp::isDX12() ? "D3D12" : "D3D8", ImGui::GetIO().Framerate, TheGameMcp ? TheGameMcp->getPort() : 0);
+	ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(status).x - 20.0f);
+	ImGui::TextColored(COLOR_DIM, "%s", status);
 	ImGui::EndMainMenuBar();
+
+	if (s_showMapDialog)
+		drawMapDialog();
 
 	// Shortcuts that work while the view, not a text field, has the keyboard.
 	ImGuiIO &io = ImGui::GetIO();

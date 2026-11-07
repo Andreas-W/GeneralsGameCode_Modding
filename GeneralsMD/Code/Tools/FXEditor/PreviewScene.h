@@ -86,6 +86,8 @@ public:
 	void stop();
 	/// Removes every particle system and scorch mark in the game.
 	void clearAllParticles();
+	/// The game ends (another map is loaded): stops, and plays the same again once the next game is ready.
+	void leaveGame();
 
 	Bool isPlaying() const { return m_playing; }
 	PreviewKind getKind() const { return m_kind; }
@@ -137,4 +139,6 @@ private:
 	ObjectID m_attachObjectID;
 	AsciiString m_attachTemplate;
 	UnsignedInt m_soundHandle;	///< AudioHandle of the sound played last
+	PreviewKind m_resumeKind;		///< what played when the last game ended, played again in the next
+	AsciiString m_resumeName;
 };

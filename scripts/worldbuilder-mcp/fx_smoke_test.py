@@ -50,6 +50,18 @@ def wait_ready(bridge: WorldBuilderBridge, process: subprocess.Popen, timeout: f
     raise AssertionError("the editor was not ready in time")
 
 
+def wait_map(bridge: WorldBuilderBridge, process: subprocess.Popen, key: str, timeout: float = 120) -> dict:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if process.poll() is not None:
+            raise AssertionError(f"the editor exited with code {process.returncode} while loading {key}")
+        time.sleep(0.3)
+        status = bridge.call("fx.status")
+        if status.get("map_key") == key and not status.get("map_loading"):
+            return status
+    raise AssertionError(f"{key} was not ready in time")
+
+
 def step(bridge: WorldBuilderBridge, frames: int) -> dict:
     start = bridge.call("fx.time", step=frames)["frame"]
     deadline = time.time() + 60
@@ -187,6 +199,29 @@ def main() -> int:
         created = bridge.call("fx.create", kind="particle", name=copy_name, copy_from=name)
         check(created["dirty"] and created["name"] == copy_name, "copy created")
         bridge.call("fx.play", kind="particle", name=copy_name)
+
+        print("maps")
+        maps = bridge.call("fx.maps")
+        check(len(maps["factions"]) > 0, f"{len(maps['maps'])} maps, factions {', '.join(maps['factions'][:4])} ...")
+        skirmish_map = next((m for m in maps["maps"] if m["start_positions"] >= 2 and m["official"]), None)
+        bridge.call("fx.play", kind="particle", name=name, repeat=False)
+        if skirmish_map:
+            faction = maps["factions"][-1]
+            loading = bridge.call("fx.load_map", map=skirmish_map["key"], faction=faction)
+            status = wait_map(bridge, process, loading["map_key"])
+            check(status["faction"] == faction and loading["mode"] == "skirmish", f"loaded {skirmish_map['name']} as {faction}")
+            step(bridge, 2)  # destroyed objects go at the end of a frame
+            local = bridge.call("objects.list", player="local")["objects"]
+            check(len(local) == 0, "the starting units are gone")
+            check(status.get("playing", {}).get("name") == name, "what played plays again")
+        loading = bridge.call("fx.load_map", map="FXEditorPreview")
+        status = wait_map(bridge, process, loading["map_key"])
+        check(loading["mode"] == "single_player" and status["faction"] == "", "back on the preview map")
+        try:
+            bridge.call("fx.load_map", map="NoSuchMapAnywhere")
+            check(False, "an unknown map is refused")
+        except WorldBuilderError:
+            check(True, "an unknown map is refused")
 
         if args.save:
             print("save")

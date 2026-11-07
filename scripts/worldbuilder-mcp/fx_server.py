@@ -170,6 +170,32 @@ def fx_launch(dx12: bool = False, map: str | None = None, width: int = 1600, hei
 
 
 @mcp.tool()
+def fx_maps(contains: str | None = None) -> dict:
+    """Maps the editor can load (map cache key, name, start positions, official) and the playable
+    factions. contains filters by part of the key or name."""
+    return fx.call("fx.maps", contains=contains)
+
+
+@mcp.tool()
+def fx_load_map(map: str, faction: str = "FactionAmerica", wait_seconds: float = 120) -> dict:
+    """Loads another map into the running editor and waits until the preview is ready again.
+    - map: a key from fx_maps, a map name or part of its path; "FXEditorPreview" is the empty
+      default map.
+    - faction: the local player's faction on multiplayer maps (2+ start positions), which run as a sandbox
+      skirmish (starting units removed). Other maps run as a single player game
+      with the map's own player and ignore it.
+    What played is played again on the new map; edits are kept. Returns fx_status."""
+    result = fx.call("fx.load_map", map=map, faction=faction)
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
+        time.sleep(0.3)
+        status = fx.call("fx.status")
+        if status.get("map_key") == result["map_key"] and not status.get("map_loading"):
+            return status
+    raise ToolError(f"{result['map_key']} was not ready within {wait_seconds} s")
+
+
+@mcp.tool()
 def fx_status() -> dict:
     """Preview game ready, map, renderer (dx8/dx12), frame, paused, speed, what plays, preview point,
     and the blocks with unsaved changes."""

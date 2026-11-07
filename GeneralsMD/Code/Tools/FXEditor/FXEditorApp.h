@@ -22,6 +22,7 @@
 #pragma once
 
 #include <windows.h>
+#include <vector>
 
 #include "Common/AsciiString.h"
 #include "Lib/BaseType.h"
@@ -53,6 +54,23 @@ public:
 	static void init();
 	static void shutdown();
 	static void update();
+
+	// The map the preview runs on.
+	/// The map cache key of a map key, display name or part of a map's path; empty if none matches.
+	static AsciiString findMapKey(const AsciiString &map);
+	/// Start positions of a multiplayer map (two or more, as the game counts them); 0 for other maps,
+	/// for which the map cache cannot tell one start position from none.
+	static Int countStartPositions(const AsciiString &mapKey);
+	/// Factions the local player can have on a multiplayer map.
+	static void getFactions(std::vector<AsciiString> &factions);
+	/// Loads another map at the start of the next frame. Multiplayer maps run as a sandbox
+	/// skirmish with the local player of that faction (starting units removed); other maps as a
+	/// single player game with the map's own player. What plays is played again on the new map.
+	/// False with a reason when the map or faction is unknown.
+	static Bool loadMap(const AsciiString &map, const AsciiString &faction, AsciiString &error);
+	static const AsciiString &getPreviewMapKey(); ///< map cache key of the current map, or empty
+	static const AsciiString &getPreviewFaction(); ///< faction asked for on a multiplayer map, or empty
+	static Bool isMapLoading();
 
 	// What the panels and the MCP commands share.
 	static PreviewScene &scene();

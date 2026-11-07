@@ -238,6 +238,13 @@ folder, then in the game's archives, or a path to a `.map` file in a folder of t
 works, scenario or multiplayer; on a map without a human player (multiplayer maps) the local player
 is an observer.
 
+Another map is loaded while the editor runs with **Map > Load map...** (or `fx_load_map`): a list of
+all maps of the map cache with a filter, and a faction. Multiplayer maps (two or more start
+positions) run as a sandbox skirmish with a local player of that faction, whose starting units are
+removed; other maps run as a single player game with the map's own player and ignore the faction.
+Edits are kept and what played plays again on the new map. **Map > Empty preview map** goes back to
+the default map, **Reload map** starts the current one again.
+
 The editor does not take the game's single-instance lock, so it runs next to the game and
 WorldBuilder. Its window layout is kept in `FXEditorLayout.ini` in the user data folder.
 
@@ -263,6 +270,7 @@ WorldBuilder. Its window layout is kept in `FXEditorLayout.ini` in the user data
 - **Editor:** `fx_launch` (`dx12`, `map`), `fx_status`, `fx_quit`, `fx_log`.
 - **Looking up:** `fx_list` (particle, fxlist, sound), `fx_get` (text, file, fields or nuggets), `fx_schema` (field types, allowed values, help), `fx_validate` (unknown fields, missing textures, systems, FXLists, sounds, objects).
 - **Editing:** `fx_set_fields` (null removes a field; `nugget` for FXList nuggets), `fx_set_text`, `fx_nugget` (add, remove, move, duplicate), `fx_create` (copy under a new name), `fx_undo` (undo, redo, revert), `fx_save` (needs `overwrite=true`), `fx_reload`.
+- **Map:** `fx_maps` (maps and factions), `fx_load_map(map, faction)` (waits until the new map is ready).
 - **Playing:** `fx_play` (repeat, height, moving in a circle, on a spawned object with `attach_to`), `fx_select` (as a click in the library: while an effect plays, the selected one plays instead, in the editor as well), `fx_stop` (stop, restart, clear), `fx_time` (pause, step frames, speed for slow motion), `fx_stats` (particle counts, live systems), `fx_center` (preview point and camera), `fx_capture` (game view without the interface), `fx_capture_sequence` (contact sheet of the effect over time).
 - `fx_command` runs any bridge command of the editor.
 

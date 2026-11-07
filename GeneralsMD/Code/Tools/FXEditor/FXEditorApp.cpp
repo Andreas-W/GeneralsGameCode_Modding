@@ -27,7 +27,13 @@
 #include "Common/GameEngine.h"
 #include "Common/GameMcp.h"
 #include "Common/GlobalData.h"
+#include "Common/MessageStream.h"
+#include "Common/PlayerTemplate.h"
+#include "Common/RandomValue.h"
 #include "GameClient/Display.h"
+#include "GameClient/MapUtil.h"
+#include "GameLogic/SkirmishLaunch.h"
+#include "GameNetwork/GameInfo.h"
 #include "GameClient/GUICallbacks.h"
 #include "GameClient/HeaderTemplate.h"
 #include "GameClient/InGameUI.h"
@@ -54,6 +60,10 @@ namespace
 {
 
 AsciiString s_previewMap;
+AsciiString s_previewMapKey;
+AsciiString s_previewFaction;
+AsciiString s_pendingMapKey;
+AsciiString s_pendingFaction;
 AsciiString s_startError;
 Bool s_imguiReady = FALSE;
 Bool s_hideOverlay = FALSE;
@@ -318,11 +328,169 @@ void FXEditorApp::shutdown()
 }
 
 //-------------------------------------------------------------------------------------------------
+AsciiString FXEditorApp::findMapKey(const AsciiString &map)
+{
+	if (TheMapCache == nullptr || map.isEmpty())
+		return AsciiString::TheEmptyString;
+	AsciiString key = map;
+	key.toLower();
+	if (TheMapCache->find(key) != TheMapCache->end())
+		return key;
+	// A display name, then the folder name, then any part of the path.
+	for (MapCache::const_iterator it = TheMapCache->begin(); it != TheMapCache->end(); ++it)
+	{
+		AsciiString display;
+		display.translate(it->second.m_displayName);
+		if (display.compareNoCase(map) == 0)
+			return it->first;
+	}
+	AsciiString folder;
+	folder.format("\\%s\\", key.str());
+	for (MapCache::const_iterator it = TheMapCache->begin(); it != TheMapCache->end(); ++it)
+	{
+		if (strstr(it->first.str(), folder.str()) != nullptr)
+			return it->first;
+	}
+	for (MapCache::const_iterator it = TheMapCache->begin(); it != TheMapCache->end(); ++it)
+	{
+		if (strstr(it->first.str(), key.str()) != nullptr)
+			return it->first;
+	}
+	return AsciiString::TheEmptyString;
+}
+
+Int FXEditorApp::countStartPositions(const AsciiString &mapKey)
+{
+	if (TheMapCache == nullptr)
+		return 0;
+	MapCache::const_iterator it = TheMapCache->find(mapKey);
+	if (it == TheMapCache->end() || !it->second.m_isMultiplayer)
+		return 0;
+	return it->second.m_numPlayers;
+}
+
+void FXEditorApp::getFactions(std::vector<AsciiString> &factions)
+{
+	factions.clear();
+	if (ThePlayerTemplateStore == nullptr)
+		return;
+	for (Int i = 0; i < ThePlayerTemplateStore->getPlayerTemplateCount(); ++i)
+	{
+		const PlayerTemplate *pt = ThePlayerTemplateStore->getNthPlayerTemplate(i);
+		if (pt && pt->isPlayableSide() && !pt->isObserver())
+			factions.push_back(pt->getName());
+	}
+}
+
+Bool FXEditorApp::loadMap(const AsciiString &map, const AsciiString &faction, AsciiString &error)
+{
+	const AsciiString key = findMapKey(map);
+	if (key.isEmpty())
+	{
+		error.format("no map matches '%s'", map.str());
+		return FALSE;
+	}
+	const Bool skirmish = countStartPositions(key) > 0;
+	if (skirmish)
+	{
+		const PlayerTemplate *pt = faction.isEmpty() ? nullptr : ThePlayerTemplateStore->findPlayerTemplate(NAMEKEY(faction));
+		if (pt == nullptr || !pt->isPlayableSide() || pt->isObserver())
+		{
+			error.format("'%s' is not a playable faction", faction.str());
+			return FALSE;
+		}
+	}
+	s_pendingMapKey = key;
+	s_pendingFaction = skirmish ? faction : AsciiString::TheEmptyString;
+	return TRUE;
+}
+
+const AsciiString &FXEditorApp::getPreviewMapKey()
+{
+	return s_previewMapKey;
+}
+
+const AsciiString &FXEditorApp::getPreviewFaction()
+{
+	return s_previewFaction;
+}
+
+Bool FXEditorApp::isMapLoading()
+{
+	return !s_pendingMapKey.isEmpty() || (s_scene && !s_scene->isReady());
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Ends the current game and starts the pending map, as the game's own restart does. */
+//-------------------------------------------------------------------------------------------------
+static void startPendingMap()
+{
+	const AsciiString key = s_pendingMapKey;
+	const AsciiString faction = s_pendingFaction;
+	s_pendingMapKey.clear();
+	s_pendingFaction.clear();
+
+	s_scene->leaveGame();
+	if (TheGameLogic->isInGame())
+	{
+		TheGameLogic->clearGameData(FALSE);
+		// The game quits after a game that was started from the command line (-file).
+		TheGameEngine->setQuitting(FALSE);
+	}
+
+	const Int fps = TheGlobalData->m_framesPerSecondLimit;
+	if (!faction.isEmpty())
+	{
+		std::vector<SkirmishSlot> slots(1);
+		slots[0].faction = faction;
+		slots[0].slotState = SLOT_PLAYER;
+		slots[0].team = -1;
+		const Int seed = (Int)GetTickCount();
+		AsciiString error;
+		if (!SkirmishLaunch::prepare(key, slots, seed, 0, error))
+		{
+			FXEditorApp::log(TRUE, "Cannot start %s: %s", key.str(), error.str());
+			return;
+		}
+		if (TheGameMcp)
+			TheGameMcp->setSandbox(TRUE);
+		SkirmishLaunch::launch(key, seed, fps);
+	}
+	else
+	{
+		if (TheGameMcp)
+			TheGameMcp->setSandbox(FALSE);
+		TheWritableGlobalData->m_pendingFile = key;
+		GameMessage *msg = TheMessageStream->appendMessage(GameMessage::MSG_NEW_GAME);
+		msg->appendIntegerArgument(GAME_SINGLE_PLAYER);
+		msg->appendIntegerArgument(DIFFICULTY_NORMAL);
+		msg->appendIntegerArgument(0);
+		msg->appendIntegerArgument(fps);
+		InitRandom(0);
+	}
+
+	AsciiString display;
+	display.translate((*TheMapCache)[key].m_displayName);
+	s_previewMap = display.isEmpty() ? key : display;
+	s_previewMapKey = key;
+	s_previewFaction = faction;
+	FXEditorApp::log(FALSE, "Loading %s%s%s", s_previewMap.str(), faction.isEmpty() ? "" : " as ", faction.str());
+}
+
+//-------------------------------------------------------------------------------------------------
 void FXEditorApp::update()
 {
 	applyPendingResize();
+	if (!s_pendingMapKey.isEmpty() && s_scene)
+		startPendingMap();
 	if (s_scene)
 		s_scene->update();
+	// The map the editor was started with.
+	if (s_previewMapKey.isEmpty() && s_scene && s_scene->isReady())
+	{
+		s_previewMapKey = TheGlobalData->m_mapName;
+		s_previewMapKey.toLower();
+	}
 
 	// The INI text is read once the game data is loaded.
 	if (s_ini && !s_ini->isLoaded() && s_scene && s_scene->isReady())
