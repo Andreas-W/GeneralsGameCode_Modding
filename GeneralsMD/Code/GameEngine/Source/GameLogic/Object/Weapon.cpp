@@ -2479,13 +2479,17 @@ void Weapon::rebuildScatterTargets(Bool recenter/* = false*/)
 			// Recenter case is relevant when we have "sweep" target set up in a line around the target.
 			// When we reset, we want to keep the next shots around the target, which would be the
 			// indices in the center of the list.
-			UnsignedInt startIndex = REAL_TO_INT_FLOOR((m_template->getClipSize() - m_ammoInClip) / 2);
-			for (Int targetIndex = startIndex + m_ammoInClip - 1; targetIndex > startIndex; targetIndex--) {
-
-				m_scatterTargetsUnused.push_back(targetIndex);
+			// One target per shot left in the clip. startIndex is signed so that the loop ends at 0.
+			Int startIndex = REAL_TO_INT_FLOOR((m_template->getClipSize() - m_ammoInClip) / 2);
+			for (Int targetIndex = startIndex + m_ammoInClip - 1; targetIndex >= startIndex; targetIndex--) {
+				// The clip can hold more shots than the pattern has targets.
+				if (targetIndex < scatterTargetsCount)
+					m_scatterTargetsUnused.push_back(targetIndex);
 			}
 		}
-		else {
+
+		// Firing takes a target from this list, so it must never be left empty.
+		if (m_scatterTargetsUnused.empty()) {
 			// When I reload, I need to rebuild the list of ScatterTargets to shoot at.
 			for (Int targetIndex = scatterTargetsCount - 1; targetIndex >= 0; targetIndex--)
 				m_scatterTargetsUnused.push_back(targetIndex);
