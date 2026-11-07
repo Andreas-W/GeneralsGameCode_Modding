@@ -540,6 +540,10 @@ public:
 
 	void validate();
 
+	/// Back to the values of a new template, so that parsing its INI block again does not keep
+	/// fields the block no longer has (editors that reload a single block).
+	void resetToDefaults();
+
 	const AsciiString& getName() const { return m_name; }
 
 	// This function was made const because of update modules' module data being all const.

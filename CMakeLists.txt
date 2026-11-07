@@ -67,6 +67,11 @@ include(cmake/gamespy.cmake)
 include(cmake/lzhl.cmake)
 include(cmake/stb.cmake)
 
+# Dear ImGui for the FX Editor, which needs the Zero Hour tools, the game MCP bridge and the D3D8 SDK.
+if(RTS_BUILD_ZEROHOUR AND RTS_BUILD_ZEROHOUR_TOOLS AND RTS_BUILD_OPTION_GAME_MCP AND NOT IS_VS6_BUILD AND TARGET d3d8lib)
+    include(cmake/imgui.cmake)
+endif()
+
 if (IS_VS6_BUILD)
     # The original max sdk does not compile against a modern compiler.
     # If there is a desire to make this work, then a fixed max sdk needs to be created.

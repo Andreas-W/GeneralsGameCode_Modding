@@ -204,6 +204,109 @@ python game_smoke_test.py --exe generalszh.exe [--windowed]
 
 It starts the game headless in a sandbox and goes through every command area, then closes it.
 
+# FX Editor
+
+`fx_server.py` drives the FX Editor (`FXEditorZH.exe`, CMake target `z_fxeditor`): a separate
+program that runs the whole game engine on a flat preview map and edits `ParticleSystem` and
+`FXList` INI blocks with an ImGui interface on top of the game view. What it shows is the game's own
+particle renderer (Direct3D 8, or 12 with `-dx12`), FXList nuggets and Miles audio.
+
+```
+MCP client  <-- stdio -->  fx_server.py  <-- TCP 127.0.0.1:47802, JSON lines -->  FXEditorZH.exe
+```
+
+The C++ side lives in `GeneralsMD/Code/Tools/FXEditor/`. The editor has its own `WinMain` and
+`CreateGameEngine()`; it adds `-win -quickstart -noshellmap -ignoreAsserts`, starts the preview map
+as a single player game (`-file`, no skirmish setup and no starting units; the local player is the
+map's human player) and opens the game MCP bridge (`-mcpport:47802`), so every `game.*`, `view.*`
+and `objects.*` command works there too, next to the editor's `fx.*` commands. Its ImGui renderer is `Core/Libraries/Source/ImGuiDX8` (the D3D8 interface, which the
+Direct3D 12 renderer implements as well); the engine draws it through `W3DDisplay::m_overlayDraw`.
+It needs `RTS_BUILD_OPTION_GAME_MCP` and fetches ImGui (`cmake/imgui.cmake`).
+
+## Starting the editor
+
+Copy `FXEditorZH.exe` into the mod folder. `fx_launch` starts it from `GAME_DIR` (`FX_EXE` for another
+name) and installs the preview map from `GeneralsMD/Code/Tools/FXEditor/Data/Maps/FXEditorPreview`
+into `Documents\Command and Conquer Generals Zero Hour Data\Maps` when it is missing or older. By hand:
+
+```
+FXEditorZH.exe [-dx12] [-map "<map name or .map path>"] [-xres 1600 -yres 900] [-mcpport:N]
+```
+
+`-map` takes a name, looked up as `Maps\<name>\<name>.map` in the mod folder, then in the user data
+folder, then in the game's archives, or a path to a `.map` file in a folder of the same name. Any map
+works, scenario or multiplayer; on a map without a human player (multiplayer maps) the local player
+is an observer.
+
+Another map is loaded while the editor runs with **Map > Load map...** (or `fx_load_map`): a list of
+all maps of the map cache with a filter, and a faction. Multiplayer maps (two or more start
+positions) run as a sandbox skirmish with a local player of that faction, whose starting units are
+removed; other maps run as a single player game with the map's own player and ignore the faction.
+Edits are kept and what played plays again on the new map. **Map > Empty preview map** goes back to
+the default map, **Reload map** starts the current one again.
+
+The editor does not take the game's single-instance lock, so it runs next to the game and
+WorldBuilder. Its window layout is kept in `FXEditorLayout.ini` in the user data folder.
+
+## How editing works
+
+- Every `ParticleSystem` and `FXList` block of the files the game reads (`Data\INI\ParticleSystem.ini`
+  and `ParticleSystem\*.ini`, `Data\INI\Default\FXList.ini`, `Data\INI\FXList.ini` and `FXList\*.ini`,
+  loose or in `.big` archives) is kept as its text. Edits change lines of that text (other lines and
+  comments stay), and the block is parsed by the game's INI code into the live template at once; a
+  particle template is reset to its defaults first (`ParticleSystemTemplate::resetToDefaults`), so
+  removed fields go back to their defaults. What plays restarts.
+- A text that does not parse is refused (the game keeps the last good one); the editor's text tab
+  can keep such a text to fix it, but it cannot be saved.
+- Saving puts only the changed blocks back into their files and keeps `<file>.fxeditor.bak` of the
+  first save of each file in a session. A block from an archive is written into a loose copy of its
+  whole file. New blocks (copies) are added at the end of the file.
+- The inspector shows typed controls: particle fields come from the game's parse table
+  (`ParticleSystemTemplate::getFieldParse`), FXList nugget fields from `FieldSchema.cpp`. Fields of
+  other velocity, volume and wind types are hidden unless asked.
+
+## Direct3D 12: post-processing, materials, shadow map
+
+With `-dx12` the editor has a **Direct3D 12** window (a tab next to the inspector) for the blocks of
+`Data\INI\Default\PostProcess`, `PostProcess`, `Default\Material` and `Material` (`.ini` and folders):
+`PostProcessPass`, `PostProcess`, `PostProcessChain`, `ShadowMap` and `Material`. Tabs:
+
+- **Post-processing**: turn the chain on or off (not saved), whether it runs and its error; the passes
+  (`*` = in `Passes` of `PostProcess`, dimmed = not), chains and the `PostProcess` block. A pass can
+  be put into or taken out of the chain; new passes (copies) get a name.
+- **Materials**: turn materials on or off (not saved); each material with its `Use` and how many base
+  textures got it so far.
+- **Shadows**: the `ShadowMap` block.
+
+Each block has typed fields (dimmed: not set, the default shown) and its `Param` lines as sliders, plus
+a text tab. Edits work like the particle ones: the block is parsed into the game at once
+(`PostProcessPass`, `PostProcessChain` and `Material` are replaced as a whole; `ShadowMap` and
+`PostProcess` are reset first), the renderer builds the chain again (`PostProcessControl::settingsReloaded`)
+or the materials (`W3DMaterials::settingsChanged`), a text that does not parse is refused, undo, redo,
+revert and **Save** (with `.fxeditor.bak`) are per block. A `Param` slider sets the running pass or
+material directly while it is dragged and writes the text when it is let go. **Reload shaders** reads
+the HLSL and INI files again (after editing a shader) and puts the changes not saved back on top.
+Time-of-day parameters (`ParamNight` ...) are edited in the text.
+
+## Tools
+
+- **Editor:** `fx_launch` (`dx12`, `map`), `fx_status`, `fx_quit`, `fx_log`.
+- **Looking up:** `fx_list` (particle, fxlist, sound), `fx_get` (text, file, fields or nuggets), `fx_schema` (field types, allowed values, help), `fx_validate` (unknown fields, missing textures, systems, FXLists, sounds, objects).
+- **Editing:** `fx_set_fields` (null removes a field; `nugget` for FXList nuggets), `fx_set_text`, `fx_nugget` (add, remove, move, duplicate), `fx_create` (copy under a new name), `fx_undo` (undo, redo, revert), `fx_save` (needs `overwrite=true`), `fx_reload`.
+- **Map:** `fx_maps` (maps and factions), `fx_load_map(map, faction)` (waits until the new map is ready).
+- **Direct3D 12:** `fx_render_status` (on/off, what runs, errors, the blocks), `fx_render_get`, `fx_render_set` (`fields`, `params` by name, `text`), `fx_render_create` (pass, chain, material), `fx_render_undo`, `fx_render_save` (needs `overwrite=true`), `fx_render_reload` (shaders).
+- **Playing:** `fx_play` (repeat, height, moving in a circle, on a spawned object with `attach_to`), `fx_select` (as a click in the library: while an effect plays, the selected one plays instead, in the editor as well), `fx_stop` (stop, restart, clear), `fx_time` (pause, step frames, speed for slow motion), `fx_stats` (particle counts, live systems), `fx_center` (preview point and camera; each start of an effect (play, restart, repeat) happens where the camera looks if the camera moved since, unless `fx_play(follow_camera=false)`; what already runs stays), `fx_capture` (game view without the interface), `fx_capture_sequence` (contact sheet of the effect over time).
+- `fx_command` runs any bridge command of the editor.
+
+## Checking the editor without MCP
+
+```
+python fx_smoke_test.py [--dx12] [--save]
+```
+
+It starts the editor, lists, plays, edits, undoes, captures and plays a sound, then closes it.
+`--save` also saves a copy of a particle system and puts the INI file back afterwards.
+
 ## Why cliff mapping shows black gaps
 
 WorldBuilder's cliff tool maps one connected region of steep cells of one texture, at 32 texels per cell and the same per 10 world units of height. It centres V once for the whole region and never limits it, while U is wrapped per cell. All terrain textures share one atlas, so a region whose height range exceeds its texture samples outside that texture's rectangle: another texture (stripes) or empty atlas (black). A 256 px texture is exhausted after 80 world units of height range, 384 px after 120. What counts is the range of the whole connected region, not the height of one wall, so it also happens to low walls on rising ground.

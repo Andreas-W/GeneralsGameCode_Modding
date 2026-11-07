@@ -1242,6 +1242,13 @@ const FXList *FXListStore::findFXList(const char* name) const
 }
 
 //-------------------------------------------------------------------------------------------------
+void FXListStore::getNames(std::vector<AsciiString> &names) const
+{
+	for (FXListMap::const_iterator it = m_fxmap.begin(); it != m_fxmap.end(); ++it)
+		names.push_back(TheNameKeyGenerator->keyToName(it->first));
+}
+
+//-------------------------------------------------------------------------------------------------
 /*static */ void FXListStore::parseFXListDefinition(INI *ini)
 {
 	// read the FXList name

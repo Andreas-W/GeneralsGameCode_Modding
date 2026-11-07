@@ -51,6 +51,9 @@ public:
 	Bool isAvailable();									///< the renderer has materials
 	Bool isRunning();									///< materials are built and turned on
 	void setEnabled(Bool enabled) { m_enabled = enabled; }
+	Bool isEnabled() const { return m_enabled; }
+	/// TheMaterialSettings were changed in memory (by an editor): the materials are built again on next use.
+	void settingsChanged() { release(); }
 	Bool setParameter(const AsciiString& material, const AsciiString& name, const Real* values, Int count);
 	const AsciiString& getError() const { return m_error; }
 	void getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures, std::vector<AsciiString>& uses);	///< how many textures each got, what it is for

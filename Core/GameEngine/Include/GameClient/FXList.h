@@ -228,6 +228,9 @@ public:
 
 	static void parseFXListDefinition(INI* ini);
 
+	/// The names of all FXLists, for editors that list them.
+	void getNames(std::vector<AsciiString> &names) const;
+
 private:
 
 	// use the hashing function for Ints.

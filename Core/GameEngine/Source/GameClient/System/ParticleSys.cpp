@@ -3129,6 +3129,15 @@ ParticleSystemTemplate::~ParticleSystemTemplate()
 }
 
 // ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+void ParticleSystemTemplate::resetToDefaults()
+{
+	static_cast<ParticleSystemInfo &>(*this) = ParticleSystemInfo();
+	// The slave is looked up again by name when it is next needed.
+	m_slaveTemplate = nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
 void ParticleSystemTemplate::validate()
 {
 	ParticleSystemInfo::validate();
