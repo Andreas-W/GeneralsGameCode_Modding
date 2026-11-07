@@ -1399,6 +1399,9 @@ void FXEditorPanels::drawPreview()
 		ImGui::DragFloat("Height above ground", &s.height, 0.5f, -50.0f, 500.0f, "%.0f");
 		ImGui::SetNextItemWidth(150.0f);
 		ImGui::DragFloat("Direction", &s.angle, 1.0f, -360.0f, 360.0f, "%.0f deg");
+		ImGui::Checkbox("Follow the camera", (bool *)&s.followCamera);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("While something plays, moving the camera takes the preview point and its emitters along");
 		ImGui::Checkbox("Move in a circle", (bool *)&s.move);
 		if (s.move)
 		{

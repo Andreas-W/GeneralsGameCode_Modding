@@ -50,6 +50,7 @@ struct PreviewSettings
 	Real moveSpeed;			///< world units per second
 	AsciiString attachTo;	///< thing template to play on (doFXObj / attached particle system); empty: on the point
 	Real angle;					///< direction the emitter faces, degrees
+	Bool followCamera;		///< the preview point, and what plays there, moves along when the camera moves
 
 	PreviewSettings();
 };
@@ -120,9 +121,12 @@ private:
 	void markFirstSystem();
 	Object *ensureAttachObject();
 	void removeAttachObject();
+	void followCamera();
+	void moveTo(const Coord3D &center);
 
 	Bool m_ready;
 	Coord3D m_center;
+	Coord3D m_cameraTarget;			///< where the camera looked when followCamera last checked
 	PreviewSettings m_settings;
 	Real m_speed;
 

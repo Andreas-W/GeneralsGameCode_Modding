@@ -569,6 +569,7 @@ McpJson cmdPlay(const McpJson &args)
 	s.moveRadius = (Real)gameMcpArgNumber(args, "move_radius", s.moveRadius);
 	s.moveSpeed = (Real)gameMcpArgNumber(args, "move_speed", s.moveSpeed);
 	s.angle = (Real)gameMcpArgNumber(args, "angle", s.angle);
+	s.followCamera = gameMcpArgBool(args, "follow_camera", s.followCamera);
 	if (args.has("attach_to"))
 	{
 		const std::string attach = gameMcpArgString(args, "attach_to");

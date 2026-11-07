@@ -88,7 +88,8 @@ PreviewSettings::PreviewSettings() :
 	move(FALSE),
 	moveRadius(60.0f),
 	moveSpeed(60.0f),
-	angle(0.0f)
+	angle(0.0f),
+	followCamera(TRUE)
 {
 }
 
@@ -109,6 +110,7 @@ PreviewScene::PreviewScene() :
 	m_resumeKind(PREVIEW_PARTICLE_SYSTEM)
 {
 	m_center.zero();
+	m_cameraTarget.zero();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -129,6 +131,7 @@ void PreviewScene::prepareScene()
 	center.z = TheTerrainLogic->getGroundHeight(center.x, center.y);
 	m_center = center;
 	TheTacticalView->lookAt(&m_center);
+	m_cameraTarget = TheTacticalView->getPosition();
 
 	// Nothing hides the effects: no shroud, no starting units (of a skirmish), no control bar.
 	ThePartitionManager->revealMapForPlayerPermanently(local->getPlayerIndex());
@@ -187,6 +190,8 @@ void PreviewScene::update()
 	if (!m_playing)
 		return;
 
+	followCamera();
+
 	const UnsignedInt now = TheGameLogic->getFrame();
 
 	// Moving emitters follow a circle around the center, in logic time.
@@ -238,6 +243,64 @@ void PreviewScene::setCenter(const Coord3D &pos)
 	m_center = pos;
 	if (TheTerrainLogic)
 		m_center.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+	// Only camera moves from now on take the point along.
+	if (TheTacticalView)
+		m_cameraTarget = TheTacticalView->getPosition();
+}
+
+//-------------------------------------------------------------------------------------------------
+/** While something plays, a camera that moves takes the preview point with it. Only a moving camera
+	does: a point set elsewhere (by MCP) stays until the camera moves again. */
+//-------------------------------------------------------------------------------------------------
+void PreviewScene::followCamera()
+{
+	if (TheTacticalView == nullptr)
+		return;
+	const Coord3D target = TheTacticalView->getPosition();
+	const Real dx = target.x - m_cameraTarget.x;
+	const Real dy = target.y - m_cameraTarget.y;
+	if (dx * dx + dy * dy < 0.25f)
+		return;
+	m_cameraTarget = target;
+	if (m_settings.followCamera)
+		moveTo(target);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Moves the preview point, and the emitters still running there, by the same distance.
+	Particles already emitted stay where they are. */
+//-------------------------------------------------------------------------------------------------
+void PreviewScene::moveTo(const Coord3D &center)
+{
+	const Coord3D oldCenter = m_center;
+	setCenter(center);
+	Coord3D delta;
+	delta.x = m_center.x - oldCenter.x;
+	delta.y = m_center.y - oldCenter.y;
+	delta.z = m_center.z - oldCenter.z;
+
+	if (TheParticleSystemManager)
+	{
+		ParticleSystemManager::ParticleSystemList &list = TheParticleSystemManager->getAllParticleSystems();
+		for (ParticleSystemManager::ParticleSystemListIt it = list.begin(); it != list.end(); ++it)
+		{
+			ParticleSystem *sys = *it;
+			if ((UnsignedInt)sys->getSystemID() < m_firstSystemID || sys->getAttachedObject() != INVALID_ID)
+				continue;
+			Coord3D pos;
+			sys->getPosition(&pos);
+			pos.x += delta.x;
+			pos.y += delta.y;
+			pos.z += delta.z;
+			sys->setPosition(&pos);
+		}
+	}
+	if (Object *obj = TheGameLogic->findObjectByID(m_attachObjectID))
+	{
+		Coord3D pos = getEmitterPosition();
+		pos.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+		obj->setPosition(&pos);
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -285,6 +348,7 @@ Bool PreviewScene::play(PreviewKind kind, const AsciiString &name, AsciiString &
 	m_startFrame = TheGameLogic->getFrame();
 	m_lastMoveFrame = m_startFrame;
 	markFirstSystem();
+	followCamera();
 	fire();
 	return TRUE;
 }
@@ -299,6 +363,7 @@ void PreviewScene::restart()
 	m_playCount = 0;
 	m_startFrame = TheGameLogic->getFrame();
 	markFirstSystem();
+	followCamera();
 	fire();
 }
 
@@ -551,7 +616,10 @@ void PreviewScene::setSpeed(Real speed)
 void PreviewScene::lookAtCenter()
 {
 	if (TheTacticalView)
+	{
 		TheTacticalView->lookAt(&m_center);
+		m_cameraTarget = TheTacticalView->getPosition();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------

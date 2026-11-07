@@ -143,6 +143,17 @@ def main() -> int:
         stats = bridge.call("fx.stats")
         check(stats["preview_systems"] >= 1, f"{stats['preview_systems']} preview systems, {stats['preview_particles']} particles")
 
+        print("follow the camera")
+        center = bridge.call("fx.center", look=True)["center"]
+        bridge.call("view.camera", x=center["x"] + 80, y=center["y"] + 40)
+        step(bridge, 2)
+        moved = bridge.call("fx.center", look=False)["center"]
+        check(abs(moved["x"] - center["x"] - 80) < 2 and abs(moved["y"] - center["y"] - 40) < 2,
+              f"preview point followed the camera ({center['x']:.0f},{center['y']:.0f} -> {moved['x']:.0f},{moved['y']:.0f})")
+        step(bridge, 15)
+        check(bridge.call("fx.stats", systems=False)["preview_particles"] > 0, "still emitting after the move")
+        bridge.call("fx.center", x=center["x"], y=center["y"], look=True)
+
         print("edit, undo")
         before = bridge.call("fx.get", kind="particle", name=name)
         edited = bridge.call("fx.set_fields", kind="particle", name=name, fields={"BurstCount": "40 40", "Lifetime": "60 60"})
