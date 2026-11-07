@@ -61,6 +61,14 @@ namespace IniText
 	/// added at the end of the block or nugget.
 	std::string setField(const std::string &text, Int nugget, const char *key, const std::string &value);
 	std::string removeField(const std::string &text, Int nugget, const char *key);
+	/// A new field line at the end of the block, even when the key is there already.
+	std::string appendField(const std::string &text, const char *key, const std::string &value);
+
+	/// Fields that repeat with a name as their first word (Param = Gloss 24): each name and the rest.
+	void getKeyedFields(const std::string &text, const char *key, std::vector<std::string> &names, std::vector<std::string> &values);
+	/// Sets the line of that name (its comment stays), or adds one after the last line of the key.
+	std::string setKeyedField(const std::string &text, const char *key, const char *name, const std::string &value);
+	std::string removeKeyedField(const std::string &text, const char *key, const char *name);
 
 	std::string addNugget(const std::string &text, const char *type, Int insertAt = -1);
 	std::string removeNugget(const std::string &text, Int nugget);
@@ -82,10 +90,18 @@ struct IniSourceFile
 	Bool backedUp;				///< a .fxeditor.bak was written this session
 };
 
+/// Which INI blocks a database holds.
+enum IniDomain
+{
+	INI_DOMAIN_FX,			///< ParticleSystem and FXList
+	INI_DOMAIN_RENDER,	///< PostProcessPass, PostProcess, PostProcessChain, ShadowMap and Material (Direct3D 12)
+};
+
 struct IniBlock
 {
-	PreviewKind kind;
-	AsciiString name;
+	PreviewKind kind;			///< INI_DOMAIN_FX only
+	std::string type;			///< the header word, e.g. ParticleSystem or PostProcessPass
+	AsciiString name;			///< the name in the header; the type for blocks without one (PostProcess, ShadowMap)
 	Int file;						///< index into the files, -1 for a block made in the editor and not saved yet
 	size_t offset;				///< where the block starts in its file
 	size_t length;
@@ -101,10 +117,15 @@ struct IniBlock
 class IniDatabase
 {
 public:
-	IniDatabase();
+	explicit IniDatabase(IniDomain domain = INI_DOMAIN_FX);
 
-	/// Reads all ParticleSystem and FXList files the game reads. Edits not saved are lost.
+	/// Reads all files of the domain the game reads. Edits not saved are lost.
 	void load();
+	IniDomain getDomain() const { return m_domain; }
+	/// The last block of a type and name (name is ignored for the types without one).
+	Int findTypedBlock(const char *type, const AsciiString &name) const;
+	/// INI_DOMAIN_RENDER: a new PostProcessPass, PostProcessChain or Material, as createBlock.
+	Int createTypedBlock(const char *type, const AsciiString &name, Int copyFrom, AsciiString &error);
 	Bool isLoaded() const { return m_loaded; }
 
 	Int getBlockCount() const { return (Int)m_blocks.size(); }
@@ -123,6 +144,8 @@ public:
 	Bool redo(Int block, AsciiString &error);
 	/// Back to the text on disk.
 	Bool revert(Int block, AsciiString &error);
+	/// Parses the changed blocks into the game again (after the game read the files from disk).
+	void reapplyChanged();
 
 	/// A new block (a copy of another one, or a minimal one) that is added to the end of the file
 	/// of the source block, or of the main file of its kind, on save. Returns its index or -1.
@@ -142,6 +165,9 @@ private:
 	Bool parseIntoGame(const IniBlock &block, const std::string &text, AsciiString &error);
 	Bool commitText(Int block, const std::string &text, AsciiString &error, Bool keepOnError, Bool recordUndo);
 
+	Bool isBlockType(const std::string &word) const;
+
+	IniDomain m_domain;
 	std::vector<IniSourceFile> m_files;
 	std::vector<IniBlock> m_blocks;
 	Bool m_loaded;

@@ -327,6 +327,68 @@ def fx_play(name: str, kind: Kind = "particle", repeat: bool | None = None, repe
                    move=move, move_radius=move_radius, move_speed=move_speed, angle=angle, attach_to=attach_to, x=x, y=y)
 
 
+# --------------------------------------------------------------------------------------------------
+# Direct3D 12: post-processing, materials, shadow map (PostProcess and Material INI)
+# --------------------------------------------------------------------------------------------------
+
+RenderType = Literal["PostProcessPass", "PostProcess", "PostProcessChain", "ShadowMap", "Material"]
+
+
+@mcp.tool()
+def fx_render_status(postprocess: bool | None = None, materials: bool | None = None) -> dict:
+    """Direct3D 12 renderer (editor started with dx12=true): whether post-processing and materials are
+    on and running, the passes that run, the materials built (with how many textures got each), errors,
+    and the render blocks of the PostProcess / Material INI. postprocess / materials turn them on or
+    off for the comparison (not saved)."""
+    return fx.call("fx.render_status", postprocess=postprocess, materials=materials)
+
+
+@mcp.tool()
+def fx_render_get(type: RenderType, name: str | None = None, text: bool = True) -> dict:
+    """A render block: its fields, its params (Param lines by name) and its text. name is not needed
+    for PostProcess and ShadowMap."""
+    return fx.call("fx.render_get", type=type, name=name, text=text)
+
+
+@mcp.tool()
+def fx_render_set(type: RenderType, name: str | None = None, fields: dict | None = None, params: dict | None = None,
+                  text: str | None = None) -> dict:
+    """Changes a render block and applies it at once (the renderer builds the chain or materials again).
+    - fields: e.g. {"Inputs": "Scene Depth", "HDR": true, "Scale": 2}; null removes one.
+    - params: Param lines by name, e.g. {"Saturation": 0.2, "Color": [0.5, 0.6, 0.7]}; null removes one.
+    - text: the whole block instead.
+    Fails with the game's parse error and keeps the last good text. Nothing is saved (fx_render_save)."""
+    return fx.call("fx.render_set", type=type, name=name, fields=fields, params=params, text=text)
+
+
+@mcp.tool()
+def fx_render_create(type: Literal["PostProcessPass", "PostProcessChain", "Material"], name: str,
+                     copy_from: str | None = None) -> dict:
+    """A new pass, chain or material (a copy of copy_from, or a minimal one); goes into the mod's
+    PostProcess.ini / Material.ini on save. A pass runs only once it is in Passes of PostProcess."""
+    return fx.call("fx.render_create", type=type, name=name, copy_from=copy_from)
+
+
+@mcp.tool()
+def fx_render_undo(type: RenderType, name: str | None = None, action: Literal["undo", "redo", "revert"] = "undo") -> dict:
+    """Undo, redo, or back to the text on disk, of a render block."""
+    return fx.call("fx.render_undo", type=type, name=name, action=action)
+
+
+@mcp.tool()
+def fx_render_save(overwrite: bool = False) -> dict:
+    """Writes the changed render blocks into the mod's PostProcess / Material INI files (keeps
+    <file>.fxeditor.bak). Needs overwrite=true; ask the user first."""
+    return fx.call("fx.render_save", overwrite=overwrite)
+
+
+@mcp.tool()
+def fx_render_reload() -> dict:
+    """Reads the HLSL shader files and the render INI files again (after editing a shader); changes
+    not saved stay on top."""
+    return fx.call("fx.render_reload")
+
+
 @mcp.tool()
 def fx_select(name: str, kind: EditKind = "particle") -> dict:
     """Selects a particle system or FXList as a click in the editor's library does: the inspector

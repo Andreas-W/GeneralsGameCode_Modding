@@ -17,6 +17,7 @@ target_sources(z_fxeditor PRIVATE
     FXEditorMcp.h
     FXEditorPanels.cpp
     FXEditorPanels.h
+    FXEditorRenderPanel.cpp
     IniDatabase.cpp
     IniDatabase.h
     PreviewScene.cpp

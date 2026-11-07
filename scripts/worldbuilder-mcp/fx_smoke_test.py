@@ -200,6 +200,42 @@ def main() -> int:
         check(created["dirty"] and created["name"] == copy_name, "copy created")
         bridge.call("fx.play", kind="particle", name=copy_name)
 
+        print("render blocks")
+        render = bridge.call("fx.render_status")
+        check(len(render["blocks"]) > 0 or not args.dx12, f"{len(render['blocks'])} render blocks")
+        if args.dx12 and render.get("postprocess", {}).get("running"):
+            check(render["postprocess"]["error"] == "", f"post-processing runs: {' '.join(render['postprocess']['passes'])}")
+            grade = next((b for b in render["blocks"] if b["type"] == "PostProcessPass" and b["name"] in render["postprocess"]["passes"]), None)
+            before_shot = os.path.join(tempfile.gettempdir(), "fx_smoke_pp1.png")
+            after_shot = os.path.join(tempfile.gettempdir(), "fx_smoke_pp2.png")
+            bridge.call("fx.capture", path=before_shot)
+            changed = bridge.call("fx.render_set", type="PostProcessPass", name=grade["name"], params={"FXEditorSmokeTest": [1, 2]})
+            check(changed["params"].get("FXEditorSmokeTest") == "1 2" and changed["dirty"], f"param added to {grade['name']}")
+            try:
+                bridge.call("fx.render_set", type="PostProcessPass", name=grade["name"], fields={"Scale": "notanumber"})
+                check(False, "a bad value is refused")
+            except WorldBuilderError as exc:
+                check(True, f"a bad value is refused: {str(exc)[:70]}")
+            bridge.call("fx.render_undo", type="PostProcessPass", name=grade["name"], action="revert")
+            check(not bridge.call("fx.render_get", type="PostProcessPass", name=grade["name"], text=False)["dirty"], "reverted")
+            # Turning post-processing off changes the picture.
+            bridge.call("fx.render_status", postprocess=False)
+            step(bridge, 2)
+            bridge.call("fx.capture", path=after_shot)
+            bridge.call("fx.render_status", postprocess=True)
+            check(open(before_shot, "rb").read() != open(after_shot, "rb").read(), "post-processing off changes the picture")
+            check(bridge.call("fx.render_status")["postprocess"]["running"], "post-processing runs again")
+        if args.dx12 and any(b["type"] == "ShadowMap" for b in render["blocks"]):
+            shadow = bridge.call("fx.render_set", type="ShadowMap", fields={"Darkness": 0.5})
+            check(shadow["fields"].get("Darkness") == "0.5", "ShadowMap Darkness set")
+            bridge.call("fx.render_undo", type="ShadowMap", action="revert")
+        material = next((b for b in render["blocks"] if b["type"] == "Material"), None)
+        if args.dx12 and material:
+            mat = bridge.call("fx.render_set", type="Material", name=material["name"], params={"FXEditorSmokeTest": 0.5})
+            check(mat["params"].get("FXEditorSmokeTest") == "0.5", f"material {material['name']} param set")
+            bridge.call("fx.render_undo", type="Material", name=material["name"], action="revert")
+            check(bridge.call("fx.render_status")["unsaved"] == 0, "nothing left to save")
+
         print("maps")
         maps = bridge.call("fx.maps")
         check(len(maps["factions"]) > 0, f"{len(maps['maps'])} maps, factions {', '.join(maps['factions'][:4])} ...")

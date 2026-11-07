@@ -265,12 +265,36 @@ WorldBuilder. Its window layout is kept in `FXEditorLayout.ini` in the user data
   (`ParticleSystemTemplate::getFieldParse`), FXList nugget fields from `FieldSchema.cpp`. Fields of
   other velocity, volume and wind types are hidden unless asked.
 
+## Direct3D 12: post-processing, materials, shadow map
+
+With `-dx12` the editor has a **Direct3D 12** window (a tab next to the inspector) for the blocks of
+`Data\INI\Default\PostProcess`, `PostProcess`, `Default\Material` and `Material` (`.ini` and folders):
+`PostProcessPass`, `PostProcess`, `PostProcessChain`, `ShadowMap` and `Material`. Tabs:
+
+- **Post-processing**: turn the chain on or off (not saved), whether it runs and its error; the passes
+  (`*` = in `Passes` of `PostProcess`, dimmed = not), chains and the `PostProcess` block. A pass can
+  be put into or taken out of the chain; new passes (copies) get a name.
+- **Materials**: turn materials on or off (not saved); each material with its `Use` and how many base
+  textures got it so far.
+- **Shadows**: the `ShadowMap` block.
+
+Each block has typed fields (dimmed: not set, the default shown) and its `Param` lines as sliders, plus
+a text tab. Edits work like the particle ones: the block is parsed into the game at once
+(`PostProcessPass`, `PostProcessChain` and `Material` are replaced as a whole; `ShadowMap` and
+`PostProcess` are reset first), the renderer builds the chain again (`PostProcessControl::settingsReloaded`)
+or the materials (`W3DMaterials::settingsChanged`), a text that does not parse is refused, undo, redo,
+revert and **Save** (with `.fxeditor.bak`) are per block. A `Param` slider sets the running pass or
+material directly while it is dragged and writes the text when it is let go. **Reload shaders** reads
+the HLSL and INI files again (after editing a shader) and puts the changes not saved back on top.
+Time-of-day parameters (`ParamNight` ...) are edited in the text.
+
 ## Tools
 
 - **Editor:** `fx_launch` (`dx12`, `map`), `fx_status`, `fx_quit`, `fx_log`.
 - **Looking up:** `fx_list` (particle, fxlist, sound), `fx_get` (text, file, fields or nuggets), `fx_schema` (field types, allowed values, help), `fx_validate` (unknown fields, missing textures, systems, FXLists, sounds, objects).
 - **Editing:** `fx_set_fields` (null removes a field; `nugget` for FXList nuggets), `fx_set_text`, `fx_nugget` (add, remove, move, duplicate), `fx_create` (copy under a new name), `fx_undo` (undo, redo, revert), `fx_save` (needs `overwrite=true`), `fx_reload`.
 - **Map:** `fx_maps` (maps and factions), `fx_load_map(map, faction)` (waits until the new map is ready).
+- **Direct3D 12:** `fx_render_status` (on/off, what runs, errors, the blocks), `fx_render_get`, `fx_render_set` (`fields`, `params` by name, `text`), `fx_render_create` (pass, chain, material), `fx_render_undo`, `fx_render_save` (needs `overwrite=true`), `fx_render_reload` (shaders).
 - **Playing:** `fx_play` (repeat, height, moving in a circle, on a spawned object with `attach_to`), `fx_select` (as a click in the library: while an effect plays, the selected one plays instead, in the editor as well), `fx_stop` (stop, restart, clear), `fx_time` (pause, step frames, speed for slow motion), `fx_stats` (particle counts, live systems), `fx_center` (preview point and camera), `fx_capture` (game view without the interface), `fx_capture_sequence` (contact sheet of the effect over time).
 - `fx_command` runs any bridge command of the editor.
 

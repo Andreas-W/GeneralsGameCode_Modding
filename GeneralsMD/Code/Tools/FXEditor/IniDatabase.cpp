@@ -28,6 +28,8 @@
 #include "Common/LocalFileSystem.h"
 #include "GameClient/FXList.h"
 #include "GameClient/ParticleSys.h"
+#include "GameClient/PostProcess.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
 
 #include <algorithm>
 #include <stdio.h>
@@ -287,42 +289,70 @@ Bool IniText::getField(const std::string &text, Int nugget, const char *key, std
 	return TRUE;
 }
 
+namespace
+{
+
+/// The text with the value of one field line replaced; the key, its alignment and the comment stay.
+std::string rewriteValue(const std::string &text, const IniLine &l, const std::string &value)
+{
+	std::string raw = text.substr(l.start, l.end - l.start);
+	std::string lineBreak;
+	while (!raw.empty() && (raw[raw.size() - 1] == '\n' || raw[raw.size() - 1] == '\r'))
+	{
+		lineBreak.insert(lineBreak.begin(), raw[raw.size() - 1]);
+		raw.erase(raw.size() - 1);
+	}
+	size_t eq = raw.find('=');
+	size_t valueStart = eq + 1;
+	while (valueStart < raw.size() && isSpace(raw[valueStart]))
+		++valueStart;
+	const size_t c = commentStart(raw);
+	std::string tail;
+	if (c != std::string::npos)
+	{
+		// the spacing in front of the comment stays
+		size_t valueEnd = c;
+		while (valueEnd > valueStart && isSpace(raw[valueEnd - 1]))
+			--valueEnd;
+		tail = raw.substr(valueEnd);
+	}
+	std::string prefix = raw.substr(0, valueStart);
+	if (valueStart == eq + 1)
+		prefix += " ";
+	return text.substr(0, l.start) + prefix + value + tail + lineBreak + text.substr(l.end);
+}
+
+std::string firstWord(const std::string &value, std::string *rest = nullptr)
+{
+	size_t sp = 0;
+	while (sp < value.size() && !isSpace(value[sp]))
+		++sp;
+	if (rest)
+		*rest = trim(value.substr(sp));
+	return value.substr(0, sp);
+}
+
+/// Line of a repeating field (Param = <name> ...) of the block, or -1.
+Int findKeyedLine(const std::vector<IniLine> &lines, const char *key, const char *name)
+{
+	for (size_t i = 0; i < lines.size(); ++i)
+	{
+		const IniLine &l = lines[i];
+		if (l.type == IniLine::FIELD && l.depth == 1 && l.nugget < 0 && sameNoCase(l.key, key) && sameNoCase(firstWord(l.value), name))
+			return (Int)i;
+	}
+	return -1;
+}
+
+} // namespace
+
 std::string IniText::setField(const std::string &text, Int nugget, const char *key, const std::string &value)
 {
 	std::vector<IniLine> lines;
 	parseLines(text, lines);
 	const Int i = findFieldLine(lines, nugget, key);
 	if (i >= 0)
-	{
-		// Keep everything up to the value (key, alignment, "= ") and the comment after it.
-		const IniLine &l = lines[i];
-		std::string raw = text.substr(l.start, l.end - l.start);
-		std::string lineBreak;
-		while (!raw.empty() && (raw[raw.size() - 1] == '\n' || raw[raw.size() - 1] == '\r'))
-		{
-			lineBreak.insert(lineBreak.begin(), raw[raw.size() - 1]);
-			raw.erase(raw.size() - 1);
-		}
-		size_t eq = raw.find('=');
-		size_t valueStart = eq + 1;
-		while (valueStart < raw.size() && isSpace(raw[valueStart]))
-			++valueStart;
-		const size_t c = commentStart(raw);
-		std::string tail;
-		if (c != std::string::npos)
-		{
-			// the spacing in front of the comment stays
-			size_t valueEnd = c;
-			while (valueEnd > valueStart && isSpace(raw[valueEnd - 1]))
-				--valueEnd;
-			tail = raw.substr(valueEnd);
-		}
-		std::string prefix = raw.substr(0, valueStart);
-		if (valueStart == eq + 1)
-			prefix += " ";
-		const std::string newLine = prefix + value + tail + lineBreak;
-		return text.substr(0, l.start) + newLine + text.substr(l.end);
-	}
+		return rewriteValue(text, lines[i], value);
 
 	// A new line at the end of the scope, indented like the other fields there.
 	const Int endLine = scopeEnd(lines, nugget);
@@ -339,6 +369,76 @@ std::string IniText::setField(const std::string &text, Int nugget, const char *k
 		if (lines[j].type == IniLine::HEADER && lines[j].nugget == nugget)
 		{
 			indent = lines[j].indent + "  ";
+			break;
+		}
+	}
+	const size_t at = lines[endLine].start;
+	return text.substr(0, at) + indent + key + " = " + value + "\n" + text.substr(at);
+}
+
+void IniText::getKeyedFields(const std::string &text, const char *key, std::vector<std::string> &names, std::vector<std::string> &values)
+{
+	names.clear();
+	values.clear();
+	std::vector<IniLine> lines;
+	parseLines(text, lines);
+	for (size_t i = 0; i < lines.size(); ++i)
+	{
+		const IniLine &l = lines[i];
+		if (l.type == IniLine::FIELD && l.depth == 1 && l.nugget < 0 && sameNoCase(l.key, key))
+		{
+			std::string rest;
+			names.push_back(firstWord(l.value, &rest));
+			values.push_back(rest);
+		}
+	}
+}
+
+std::string IniText::setKeyedField(const std::string &text, const char *key, const char *name, const std::string &value)
+{
+	std::vector<IniLine> lines;
+	parseLines(text, lines);
+	const Int i = findKeyedLine(lines, key, name);
+	if (i >= 0)
+		return rewriteValue(text, lines[i], std::string(name) + " " + value);
+
+	// After the last line of the same key, else at the end of the block.
+	Int after = -1;
+	for (size_t j = 0; j < lines.size(); ++j)
+	{
+		if (lines[j].type == IniLine::FIELD && lines[j].depth == 1 && lines[j].nugget < 0 && sameNoCase(lines[j].key, key))
+			after = (Int)j;
+	}
+	if (after < 0)
+		return appendField(text, key, std::string(name) + " " + value);
+	// A field line is never the last line of a block (End follows), so it ends with a line break.
+	const IniLine &l = lines[after];
+	return text.substr(0, l.end) + l.indent + l.key + " = " + name + " " + value + "\n" + text.substr(l.end);
+}
+
+std::string IniText::removeKeyedField(const std::string &text, const char *key, const char *name)
+{
+	std::vector<IniLine> lines;
+	parseLines(text, lines);
+	const Int i = findKeyedLine(lines, key, name);
+	if (i < 0)
+		return text;
+	return text.substr(0, lines[i].start) + text.substr(lines[i].end);
+}
+
+std::string IniText::appendField(const std::string &text, const char *key, const std::string &value)
+{
+	std::vector<IniLine> lines;
+	parseLines(text, lines);
+	const Int endLine = scopeEnd(lines, -1);
+	if (endLine < 0)
+		return text;
+	std::string indent = "  ";
+	for (Int j = endLine - 1; j >= 0; --j)
+	{
+		if (lines[j].type == IniLine::FIELD && lines[j].depth == 1)
+		{
+			indent = lines[j].indent;
 			break;
 		}
 	}
@@ -463,7 +563,8 @@ std::string IniText::renameBlock(const std::string &text, const char *newName)
 // IniDatabase
 //=================================================================================================
 
-IniDatabase::IniDatabase() :
+IniDatabase::IniDatabase(IniDomain domain) :
+	m_domain(domain),
 	m_loaded(FALSE)
 {
 }
@@ -473,11 +574,45 @@ void IniDatabase::load()
 {
 	m_files.clear();
 	m_blocks.clear();
-	// The same files the game reads, in the same order (ParticleSystemManager::init, GameEngine::init).
-	addFilesOf("Data\\INI\\ParticleSystem");
-	addFilesOf("Data\\INI\\Default\\FXList");
-	addFilesOf("Data\\INI\\FXList");
+	if (m_domain == INI_DOMAIN_RENDER)
+	{
+		// As W3DPostProcess::loadSettings and W3DMaterials::loadSettings read them.
+		addFilesOf("Data\\INI\\Default\\PostProcess");
+		addFilesOf("Data\\INI\\PostProcess");
+		addFilesOf("Data\\INI\\Default\\Material");
+		addFilesOf("Data\\INI\\Material");
+	}
+	else
+	{
+		// The same files the game reads, in the same order (ParticleSystemManager::init, GameEngine::init).
+		addFilesOf("Data\\INI\\ParticleSystem");
+		addFilesOf("Data\\INI\\Default\\FXList");
+		addFilesOf("Data\\INI\\FXList");
+	}
 	m_loaded = TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool IniDatabase::isBlockType(const std::string &word) const
+{
+	if (m_domain == INI_DOMAIN_RENDER)
+	{
+		return sameNoCase(word, "PostProcessPass") || sameNoCase(word, "PostProcess") || sameNoCase(word, "PostProcessChain")
+			|| sameNoCase(word, "ShadowMap") || sameNoCase(word, "Material");
+	}
+	return sameNoCase(word, "ParticleSystem") || sameNoCase(word, "FXList");
+}
+
+//-------------------------------------------------------------------------------------------------
+Int IniDatabase::findTypedBlock(const char *type, const AsciiString &name) const
+{
+	const Bool unnamed = _stricmp(type, "PostProcess") == 0 || _stricmp(type, "ShadowMap") == 0;
+	for (Int i = (Int)m_blocks.size() - 1; i >= 0; --i)
+	{
+		if (sameNoCase(m_blocks[i].type, type) && (unnamed || m_blocks[i].name.compareNoCase(name) == 0))
+			return i;
+	}
+	return -1;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -522,6 +657,7 @@ void IniDatabase::scanFile(const AsciiString &path)
 	size_t blockStart = 0;
 	Bool inBlock = FALSE;
 	PreviewKind kind = PREVIEW_PARTICLE_SYSTEM;
+	std::string type;
 	std::string name;
 	size_t pos = 0;
 	while (pos < text.size())
@@ -535,15 +671,18 @@ void IniDatabase::scanFile(const AsciiString &path)
 			if (depth == 0)
 			{
 				inBlock = FALSE;
-				if (sameNoCase(line.key, "ParticleSystem") || sameNoCase(line.key, "FXList"))
+				if (isBlockType(line.key))
 				{
 					inBlock = TRUE;
 					kind = sameNoCase(line.key, "FXList") ? PREVIEW_FXLIST : PREVIEW_PARTICLE_SYSTEM;
+					type = line.key;
 					blockStart = pos;
 					name = line.value;
 					const size_t sp = name.find_first_of(" \t");
 					if (sp != std::string::npos)
 						name.erase(sp);
+					if (name.empty())
+						name = type;
 				}
 			}
 			++depth;
@@ -555,6 +694,7 @@ void IniDatabase::scanFile(const AsciiString &path)
 			{
 				IniBlock block;
 				block.kind = kind;
+				block.type = type;
 				block.name = name.c_str();
 				block.file = fileIndex;
 				block.offset = blockStart;
@@ -591,8 +731,31 @@ Bool IniDatabase::parseIntoGame(const IniBlock &block, const std::string &text, 
 		error = "the block is empty";
 		return FALSE;
 	}
-	const std::string name = IniText::blockName(text);
-	if (name.empty())
+	const Bool render = m_domain == INI_DOMAIN_RENDER;
+	std::string name = IniText::blockName(text);
+	if (render)
+	{
+		// The header must stay of the block's type; PostProcess and ShadowMap have no name.
+		std::vector<IniLine> lines;
+		IniText::parseLines(text, lines);
+		Bool headerOk = FALSE;
+		for (size_t i = 0; i < lines.size(); ++i)
+		{
+			if (lines[i].type == IniLine::HEADER && lines[i].depth == 0)
+			{
+				headerOk = sameNoCase(lines[i].key, block.type.c_str());
+				break;
+			}
+		}
+		if (!headerOk)
+		{
+			error.format("the first line must be the block header '%s ...'", block.type.c_str());
+			return FALSE;
+		}
+		if (name.empty())
+			name = block.type;
+	}
+	else if (name.empty())
 	{
 		error = "the first line must be the block header, e.g. 'ParticleSystem Name'";
 		return FALSE;
@@ -610,7 +773,19 @@ Bool IniDatabase::parseIntoGame(const IniBlock &block, const std::string &text, 
 	fwrite("\n", 1, 1, fp);
 	fclose(fp);
 
-	if (block.kind == PREVIEW_PARTICLE_SYSTEM)
+	if (render)
+	{
+		// Passes, chains and materials are replaced as a whole when they are parsed again; these two
+		// blocks are parsed into what is there, so fields the block no longer has go back first.
+		if (sameNoCase(block.type, "ShadowMap") && TheShadowMapSettings)
+			*TheShadowMapSettings = ShadowMapSettings();
+		if (sameNoCase(block.type, "PostProcess") && ThePostProcessSettings)
+		{
+			ThePostProcessSettings->m_chain.clear();
+			ThePostProcessSettings->m_hdrScene = FALSE;
+		}
+	}
+	else if (block.kind == PREVIEW_PARTICLE_SYSTEM)
 	{
 		// Fields the block no longer has go back to their defaults.
 		if (ParticleSystemTemplate *tmpl = TheParticleSystemManager->findTemplate(AsciiString(name.c_str())))
@@ -635,11 +810,20 @@ Bool IniDatabase::parseIntoGame(const IniBlock &block, const std::string &text, 
 	}
 	DeleteFileA(tempPath.str());
 
+	if (render)
+	{
+		// The renderer builds the chain again when the generation changes, and the materials on next
+		// use. The changed settings are the mod's now, so ending the game keeps them.
+		ThePostProcessControl.settingsReloaded();
+		if (TheW3DMaterials && sameNoCase(block.type, "Material"))
+			TheW3DMaterials->settingsChanged();
+	}
+
 	// The message names the temporary file; name the block instead.
 	if (!ok)
 	{
 		AsciiString msg;
-		msg.format("%s %s: %s", block.kind == PREVIEW_FXLIST ? "FXList" : "ParticleSystem", name.c_str(), error.str());
+		msg.format("%s %s: %s", block.type.c_str(), name.c_str(), error.str());
 		error = msg;
 	}
 	return ok;
@@ -824,6 +1008,7 @@ Int IniDatabase::createBlock(PreviewKind kind, const AsciiString &name, Int copy
 
 	IniBlock block;
 	block.kind = kind;
+	block.type = kind == PREVIEW_FXLIST ? "FXList" : "ParticleSystem";
 	block.name = name;
 	block.file = -1;
 	block.offset = 0;
@@ -840,6 +1025,81 @@ Int IniDatabase::createBlock(PreviewKind kind, const AsciiString &name, Int copy
 		for (size_t i = 0; i < m_files.size(); ++i)
 		{
 			const char *main = kind == PREVIEW_FXLIST ? "Data\\INI\\FXList.ini" : "Data\\INI\\ParticleSystem.ini";
+			if (m_files[i].path.compareNoCase(main) == 0)
+				block.offset = i;
+		}
+	}
+	if (!parseIntoGame(block, text, error))
+		return -1;
+	m_blocks.push_back(block);
+	return (Int)m_blocks.size() - 1;
+}
+
+//-------------------------------------------------------------------------------------------------
+void IniDatabase::reapplyChanged()
+{
+	for (size_t i = 0; i < m_blocks.size(); ++i)
+	{
+		const IniBlock &b = m_blocks[i];
+		if (b.isDirty() && b.error.empty())
+		{
+			AsciiString ignored;
+			parseIntoGame(b, b.text, ignored);
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+Int IniDatabase::createTypedBlock(const char *type, const AsciiString &name, Int copyFrom, AsciiString &error)
+{
+	const Bool pass = _stricmp(type, "PostProcessPass") == 0;
+	const Bool chain = _stricmp(type, "PostProcessChain") == 0;
+	const Bool material = _stricmp(type, "Material") == 0;
+	if (m_domain != INI_DOMAIN_RENDER || !(pass || chain || material))
+	{
+		error = "only PostProcessPass, PostProcessChain and Material blocks can be made";
+		return -1;
+	}
+	if (name.isEmpty() || name.find(' ') || name.find('\t'))
+	{
+		error = "the name must not be empty or contain spaces";
+		return -1;
+	}
+	if (findTypedBlock(type, name) >= 0)
+	{
+		error.format("%s %s exists already", type, name.str());
+		return -1;
+	}
+
+	std::string text;
+	const IniBlock *source = getBlock(copyFrom);
+	if (source && sameNoCase(source->type, type))
+		text = IniText::renameBlock(source->text, name.str());
+	else if (pass)
+		text = std::string("PostProcessPass ") + name.str() + "\n  Shader = PP_Copy\n  Inputs = Scene\nEnd\n";
+	else if (chain)
+		text = std::string("PostProcessChain ") + name.str() + "\n  Passes =\nEnd\n";
+	else
+		text = std::string("Material ") + name.str() + "\n  Textures =\nEnd\n";
+
+	IniBlock block;
+	block.kind = PREVIEW_PARTICLE_SYSTEM;
+	block.type = pass ? "PostProcessPass" : (chain ? "PostProcessChain" : "Material");
+	block.name = name;
+	block.file = -1;
+	block.length = 0;
+	block.text = text;
+	// The file it goes to on save: that of the copied block, else the mod's main file of its kind.
+	block.offset = (size_t)-1;
+	if (source && source->file >= 0)
+	{
+		block.offset = source->file;
+	}
+	else
+	{
+		const char *main = material ? "Data\\INI\\Material.ini" : "Data\\INI\\PostProcess.ini";
+		for (size_t i = 0; i < m_files.size(); ++i)
+		{
 			if (m_files[i].path.compareNoCase(main) == 0)
 				block.offset = i;
 		}

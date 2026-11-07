@@ -75,6 +75,10 @@ public:
 	// What the panels and the MCP commands share.
 	static PreviewScene &scene();
 	static IniDatabase &ini();
+	/// PostProcess and Material blocks, edited in the Direct3D 12 window.
+	static IniDatabase &renderIni();
+	/// The renderer reads its INI and shader files again; changes not saved are applied on top.
+	static void reloadRenderFiles();
 	static Bool isDX12();
 
 	static void log(Bool error, const char *format, ...);

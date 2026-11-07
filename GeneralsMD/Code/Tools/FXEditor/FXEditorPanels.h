@@ -27,6 +27,7 @@ namespace FXEditorPanels
 	extern const char *const PREVIEW;
 	extern const char *const AUDIO;
 	extern const char *const LOG;
+	extern const char *const RENDER;
 
 	void drawMainMenu();
 	void drawLibrary();
@@ -34,6 +35,8 @@ namespace FXEditorPanels
 	void drawPreview();
 	void drawAudio();
 	void drawLog();
+	/// Post-processing, materials and shadow maps of the Direct3D 12 renderer.
+	void drawRender();
 	/// Status over the game view while the preview game loads or when it could not start.
 	void drawOverlayInfo();
 

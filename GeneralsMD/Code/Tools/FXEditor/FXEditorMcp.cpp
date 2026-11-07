@@ -33,6 +33,8 @@
 #include "GameClient/ParticleSys.h"
 #include "GameClient/View.h"
 #include "GameLogic/GameLogic.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DPostProcess.h"
 
 #include "GameMcpCommands.h"
 
@@ -588,6 +590,226 @@ McpJson cmdPlay(const McpJson &args)
 		.set("position", coord(scene.getEmitterPosition())).set("frame", (unsigned int)TheGameLogic->getFrame());
 }
 
+//-------------------------------------------------------------------------------------------------
+// Direct3D 12: PostProcess and Material blocks
+//-------------------------------------------------------------------------------------------------
+
+/// Numbers of render blocks keep their precision (small biases, coverage fractions).
+std::string renderNumber(float v)
+{
+	char buf[32];
+	snprintf(buf, sizeof(buf), "%.6g", v);
+	return buf;
+}
+
+Int renderBlockArg(const McpJson &args)
+{
+	requireReady();
+	const std::string type = gameMcpArgString(args, "type");
+	const std::string name = gameMcpArgString(args, "name", type.c_str());
+	const Int block = FXEditorApp::renderIni().findTypedBlock(type.c_str(), AsciiString(name.c_str()));
+	if (block < 0)
+		gameMcpFail("no %s block '%s' (see fx.render_status)", type.c_str(), name.c_str());
+	return block;
+}
+
+McpJson describeRenderBlock(Int index, Bool withText)
+{
+	IniDatabase &ini = FXEditorApp::renderIni();
+	const IniBlock *b = ini.getBlock(index);
+	std::vector<IniLine> lines;
+	IniText::parseLines(b->text, lines);
+	McpJson fields = McpJson::makeObject();
+	McpJson params = McpJson::makeObject();
+	for (size_t i = 0; i < lines.size(); ++i)
+	{
+		const IniLine &l = lines[i];
+		if (l.type != IniLine::FIELD || l.depth != 1)
+			continue;
+		if (_stricmp(l.key.c_str(), "Param") == 0)
+			continue;
+		if (!fields.has(l.key.c_str()))
+			fields.set(l.key.c_str(), l.value);
+	}
+	std::vector<std::string> names;
+	std::vector<std::string> values;
+	IniText::getKeyedFields(b->text, "Param", names, values);
+	for (size_t i = 0; i < names.size(); ++i)
+		params.set(names[i].c_str(), values[i]);
+	const IniSourceFile *file = ini.getFile(b->file);
+	McpJson j = McpJson::makeObject().set("type", b->type).set("name", b->name.str())
+		.set("file", file ? file->path.str() : "").set("dirty", b->isDirty()).set("error", b->error)
+		.set("fields", fields).set("params", params);
+	if (withText)
+		j.set("text", b->text);
+	return j;
+}
+
+McpJson cmdRenderStatus(const McpJson &args)
+{
+	requireReady();
+	if (args.has("postprocess"))
+		TheWritableGlobalData->m_postProcessing = gameMcpArgBool(args, "postprocess", true);
+	if (args.has("materials") && TheW3DMaterials)
+		TheW3DMaterials->setEnabled(gameMcpArgBool(args, "materials", true));
+
+	McpJson j = McpJson::makeObject().set("dx12", FXEditorApp::isDX12());
+	if (TheW3DPostProcess)
+	{
+		McpJson passes = McpJson::makeArray();
+		for (size_t i = 0; i < TheW3DPostProcess->getPasses().size(); ++i)
+			passes.push(TheW3DPostProcess->getPasses()[i].str());
+		j.set("postprocess", McpJson::makeObject().set("enabled", TheGlobalData->m_postProcessing != 0)
+			.set("running", TheW3DPostProcess->isRunning()).set("passes", passes).set("error", TheW3DPostProcess->getError().str()));
+	}
+	if (TheW3DMaterials)
+	{
+		std::vector<AsciiString> names;
+		std::vector<Int> textures;
+		std::vector<AsciiString> uses;
+		TheW3DMaterials->getMaterials(names, textures, uses);
+		McpJson materials = McpJson::makeArray();
+		for (size_t i = 0; i < names.size(); ++i)
+			materials.push(McpJson::makeObject().set("name", names[i].str()).set("use", uses[i].str()).set("textures", textures[i]));
+		j.set("materials", McpJson::makeObject().set("enabled", TheW3DMaterials->isEnabled()).set("running", TheW3DMaterials->isRunning())
+			.set("built", materials).set("error", TheW3DMaterials->getError().str()));
+	}
+	IniDatabase &ini = FXEditorApp::renderIni();
+	McpJson blocks = McpJson::makeArray();
+	for (Int i = 0; i < ini.getBlockCount(); ++i)
+	{
+		const IniBlock *b = ini.getBlock(i);
+		if (ini.findTypedBlock(b->type.c_str(), b->name) != i)
+			continue;	// overridden by a later definition
+		blocks.push(McpJson::makeObject().set("type", b->type).set("name", b->name.str()).set("dirty", b->isDirty()).set("error", b->error));
+	}
+	j.set("blocks", blocks).set("unsaved", ini.getDirtyCount());
+	return j;
+}
+
+McpJson cmdRenderGet(const McpJson &args)
+{
+	return describeRenderBlock(renderBlockArg(args), gameMcpArgBool(args, "text", true));
+}
+
+McpJson cmdRenderSet(const McpJson &args)
+{
+	const Int block = renderBlockArg(args);
+	IniDatabase &ini = FXEditorApp::renderIni();
+	std::string text = ini.getBlock(block)->text;
+	if (args.has("text"))
+		text = gameMcpArgString(args, "text");
+	const McpJson &fields = args.get("fields");
+	for (size_t i = 0; fields.isObject() && i < fields.numKeys(); ++i)
+	{
+		const std::string &key = fields.keyAt(i);
+		const McpJson &value = fields.valueAt(i);
+		if (value.isNull())
+			text = IniText::removeField(text, -1, key.c_str());
+		else if (value.isBool())
+			text = IniText::setField(text, -1, key.c_str(), value.asBool() ? "Yes" : "No");
+		else if (value.isNumber())
+			text = IniText::setField(text, -1, key.c_str(), renderNumber((float)value.asNumber()));
+		else
+			text = IniText::setField(text, -1, key.c_str(), value.asString());
+	}
+	const McpJson &params = args.get("params");
+	for (size_t i = 0; params.isObject() && i < params.numKeys(); ++i)
+	{
+		const std::string &name = params.keyAt(i);
+		const McpJson &value = params.valueAt(i);
+		if (value.isNull())
+		{
+			text = IniText::removeKeyedField(text, "Param", name.c_str());
+			continue;
+		}
+		std::string v;
+		if (value.isArray())
+		{
+			for (size_t k = 0; k < value.size(); ++k)
+				v += (k ? " " : "") + renderNumber((float)value.at(k).asNumber());
+		}
+		else if (value.isNumber())
+		{
+			v = renderNumber((float)value.asNumber());
+		}
+		else
+		{
+			v = value.asString();
+		}
+		text = IniText::setKeyedField(text, "Param", name.c_str(), v);
+	}
+	AsciiString error;
+	if (!ini.setText(block, text, error, FALSE, TRUE))
+		gameMcpFail("%s", error.str());
+	return describeRenderBlock(block, FALSE);
+}
+
+McpJson cmdRenderCreate(const McpJson &args)
+{
+	requireReady();
+	const std::string type = gameMcpArgString(args, "type");
+	const std::string name = gameMcpArgString(args, "name");
+	IniDatabase &ini = FXEditorApp::renderIni();
+	Int copyFrom = -1;
+	if (args.has("copy_from"))
+	{
+		copyFrom = ini.findTypedBlock(type.c_str(), AsciiString(gameMcpArgString(args, "copy_from").c_str()));
+		if (copyFrom < 0)
+			gameMcpFail("no %s '%s' to copy", type.c_str(), gameMcpArgString(args, "copy_from").c_str());
+	}
+	AsciiString error;
+	const Int block = ini.createTypedBlock(type.c_str(), AsciiString(name.c_str()), copyFrom, error);
+	if (block < 0)
+		gameMcpFail("%s", error.str());
+	return describeRenderBlock(block, TRUE);
+}
+
+McpJson cmdRenderUndo(const McpJson &args)
+{
+	const Int block = renderBlockArg(args);
+	IniDatabase &ini = FXEditorApp::renderIni();
+	const std::string action = gameMcpArgString(args, "action", "undo");
+	AsciiString error;
+	Bool ok = FALSE;
+	if (action == "undo")
+		ok = ini.undo(block, error);
+	else if (action == "redo")
+		ok = ini.redo(block, error);
+	else if (action == "revert")
+		ok = ini.revert(block, error);
+	else
+		gameMcpFail("action must be undo, redo or revert");
+	if (!ok)
+		gameMcpFail("%s", error.str());
+	return describeRenderBlock(block, FALSE);
+}
+
+McpJson cmdRenderSave(const McpJson &args)
+{
+	requireReady();
+	if (!gameMcpArgBool(args, "overwrite", false))
+		gameMcpFail("saving writes into the mod's PostProcess / Material INI files: pass overwrite=true (a .fxeditor.bak copy is kept)");
+	AsciiString error;
+	std::vector<AsciiString> written;
+	if (!FXEditorApp::renderIni().save(-1, error, &written))
+		gameMcpFail("%s", error.str());
+	McpJson files = McpJson::makeArray();
+	for (size_t i = 0; i < written.size(); ++i)
+	{
+		files.push(written[i].str());
+		FXEditorApp::log(FALSE, "Saved %s (MCP)", written[i].str());
+	}
+	return McpJson::makeObject().set("written", files);
+}
+
+McpJson cmdRenderReload(const McpJson &)
+{
+	requireReady();
+	FXEditorApp::reloadRenderFiles();
+	return cmdRenderStatus(McpJson::makeObject());
+}
+
 McpJson cmdMaps(const McpJson &args)
 {
 	const std::string contains = gameMcpArgString(args, "contains", "");
@@ -809,6 +1031,18 @@ void FXEditorMcp::registerCommands()
 	gameMcpRegisterCommand("fx.play", cmdPlay,
 		"{kind=particle|fxlist|sound, name, height?, repeat?, repeat_seconds?, move?, move_radius?, move_speed?, angle?, attach_to?, x?, y?} "
 		"Plays at the preview point (or on a spawned object).");
+	gameMcpRegisterCommand("fx.render_status", cmdRenderStatus,
+		"{postprocess?, materials?} Direct3D 12: post-processing and materials on/off (not saved), what runs, errors, and the "
+		"PostProcessPass / PostProcess / PostProcessChain / ShadowMap / Material blocks.");
+	gameMcpRegisterCommand("fx.render_get", cmdRenderGet, "{type, name?, text=true} A render block: fields, params (Param lines by name), text.");
+	gameMcpRegisterCommand("fx.render_set", cmdRenderSet,
+		"{type, name?, fields?, params?, text?} Changes a render block (fields: value or null; params: number, list or null) and "
+		"applies it at once; fails with the parse error.");
+	gameMcpRegisterCommand("fx.render_create", cmdRenderCreate, "{type=PostProcessPass|PostProcessChain|Material, name, copy_from?} A new render block.");
+	gameMcpRegisterCommand("fx.render_undo", cmdRenderUndo, "{type, name?, action=undo|redo|revert} Undo, redo, or back to the text on disk.");
+	gameMcpRegisterCommand("fx.render_save", cmdRenderSave,
+		"{overwrite=true} Writes the changed render blocks into the mod's PostProcess / Material INI files; keeps <file>.fxeditor.bak.");
+	gameMcpRegisterCommand("fx.render_reload", cmdRenderReload, "Reads the shader and render INI files again; changes not saved stay.");
 	gameMcpRegisterCommand("fx.maps", cmdMaps, "{contains?} Maps of the map cache (key, name, start positions) and the playable factions.");
 	gameMcpRegisterCommand("fx.load_map", cmdLoadMap,
 		"{map, faction=FactionAmerica} Loads a map (key, name or part of the path) at the next frame: a multiplayer map as a "

@@ -41,6 +41,8 @@
 #include "GameClient/Shell.h"
 #include "GameLogic/GameLogic.h"
 #include "W3DDevice/GameClient/W3DDisplay.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DPostProcess.h"
 #include "WW3D2/dx8wrapper.h"
 
 #include "imgui.h"
@@ -76,6 +78,7 @@ DWORD s_pendingSince = 0;
 
 PreviewScene *s_scene = nullptr;
 IniDatabase *s_ini = nullptr;
+IniDatabase *s_renderIni = nullptr;	///< PostProcess and Material blocks (Direct3D 12)
 
 std::deque<FXEditorLogEntry> s_log;
 std::vector<FXEditorLogEntry> s_logCopy;
@@ -152,6 +155,7 @@ void buildDefaultLayout(ImGuiID dockspace)
 
 	ImGui::DockBuilderDockWindow(FXEditorPanels::LIBRARY, left);
 	ImGui::DockBuilderDockWindow(FXEditorPanels::AUDIO, leftBottom);
+	ImGui::DockBuilderDockWindow(FXEditorPanels::RENDER, right);
 	ImGui::DockBuilderDockWindow(FXEditorPanels::INSPECTOR, right);
 	ImGui::DockBuilderDockWindow(FXEditorPanels::LOG, bottom);
 	ImGui::DockBuilderDockWindow(FXEditorPanels::PREVIEW, bottom);
@@ -168,11 +172,11 @@ void drawQuitDialog()
 	}
 	if (ImGui::BeginPopupModal("Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("%d block(s) have changes that are not saved.", s_ini->getDirtyCount());
+		ImGui::Text("%d block(s) have changes that are not saved.", s_ini->getDirtyCount() + s_renderIni->getDirtyCount());
 		if (ImGui::Button("Save all and quit"))
 		{
 			AsciiString error;
-			if (s_ini->save(-1, error))
+			if (s_ini->save(-1, error) && s_renderIni->save(-1, error))
 				TheGameEngine->setQuitting(TRUE);
 			else
 				FXEditorApp::log(TRUE, "Save failed: %s", error.str());
@@ -211,6 +215,8 @@ void drawInterface()
 	FXEditorPanels::drawPreview();
 	FXEditorPanels::drawAudio();
 	FXEditorPanels::drawLog();
+	if (FXEditorApp::isDX12())
+		FXEditorPanels::drawRender();
 	FXEditorPanels::drawOverlayInfo();
 	drawQuitDialog();
 }
@@ -271,6 +277,7 @@ void FXEditorApp::init()
 {
 	s_scene = new PreviewScene;
 	s_ini = new IniDatabase;
+	s_renderIni = new IniDatabase(INI_DOMAIN_RENDER);
 
 	// A missing map would start an empty world without terrain.
 	const AsciiString &mapFile = TheGlobalData->m_initialFile;
@@ -325,6 +332,8 @@ void FXEditorApp::shutdown()
 	s_scene = nullptr;
 	delete s_ini;
 	s_ini = nullptr;
+	delete s_renderIni;
+	s_renderIni = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -497,6 +506,9 @@ void FXEditorApp::update()
 	{
 		s_ini->load();
 		log(FALSE, "Read %d ParticleSystem and FXList blocks from %d files", s_ini->getBlockCount(), s_ini->getFileCount());
+		s_renderIni->load();
+		if (isDX12())
+			log(FALSE, "Read %d PostProcess and Material blocks from %d files", s_renderIni->getBlockCount(), s_renderIni->getFileCount());
 	}
 
 	if (!s_imguiReady)
@@ -527,6 +539,22 @@ PreviewScene &FXEditorApp::scene()
 IniDatabase &FXEditorApp::ini()
 {
 	return *s_ini;
+}
+
+IniDatabase &FXEditorApp::renderIni()
+{
+	return *s_renderIni;
+}
+
+void FXEditorApp::reloadRenderFiles()
+{
+	// The renderer reads the INI and shader files from disk; the edits not saved go on top again.
+	if (TheW3DPostProcess)
+		TheW3DPostProcess->reload();
+	if (TheW3DMaterials)
+		TheW3DMaterials->reload();
+	s_renderIni->reapplyChanged();
+	log(FALSE, "Shaders and post-processing / material settings read again");
 }
 
 Bool FXEditorApp::isDX12()
@@ -648,7 +676,7 @@ Bool FXEditorApp::captureScreenshot(const char *path, Bool withInterface, AsciiS
 //-------------------------------------------------------------------------------------------------
 void FXEditorApp::requestQuit()
 {
-	if (s_ini && s_imguiReady && s_ini->getDirtyCount() > 0)
+	if (s_ini && s_imguiReady && s_ini->getDirtyCount() + s_renderIni->getDirtyCount() > 0)
 		s_quitRequested = TRUE;
 	else if (TheGameEngine)
 		TheGameEngine->setQuitting(TRUE);
