@@ -183,6 +183,11 @@ public:
 	static RTS3DInterfaceScene *m_3DInterfaceScene;	///< our 3d interface scene that draws last (for 3d mouse cursor, etc)
 	static W3DAssetManager *m_assetManager;		///< W3D asset manager
 
+	/// Drawn last in every frame, after the user interface and before the frame is presented.
+	/// Lets a tool that hosts the engine draw its own interface (the FX Editor); unset in the game.
+	typedef void (*OverlayDrawFunc)();
+	static OverlayDrawFunc m_overlayDraw;
+
 	void drawFPSStats();								///< draw the fps on the screen
 	virtual Real getAverageFPS() override;						///< return the average FPS.
 	virtual Real getLow1PercentFPS() override;					///< return the 1% low FPS.

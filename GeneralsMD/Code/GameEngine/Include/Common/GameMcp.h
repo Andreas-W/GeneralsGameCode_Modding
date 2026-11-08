@@ -72,6 +72,8 @@ public:
 	void scriptMessage(const AsciiString &text);
 
 	Bool isSandbox() const { return m_sandbox; }
+	/// Tools that start their own games say whether nobody wins or loses in them.
+	void setSandbox(Bool sandbox) { m_sandbox = sandbox; }
 	Int getPort() const { return m_port; }
 	const AsciiString &getStartedMap() const { return m_map; }
 

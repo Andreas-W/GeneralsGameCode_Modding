@@ -214,3 +214,18 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.
 - C++: `GeneralsMD/Code/GameEngine/Source/Common/Mcp/` (`GameMcp.cpp` command line and main-thread side, `GameMcpServer.cpp` socket thread, `GameMcpCmd*.cpp` commands registered with `gameMcpRegisterCommand`, failing with `gameMcpFail`). Every hook in other files is inside `#ifdef RTS_GAME_MCP`. Handlers run on the main thread between logic frames (polled in `GameEngine::update`, or in `GameMcp::runHeadless`).
 - Skirmish setup without the menu is shared with AI matches: `GameLogic/SkirmishLaunch.h`.
 - After a change: build `z_generals`, copy `generalszh.exe` to the mod folder under another name and run `python scripts/worldbuilder-mcp/game_smoke_test.py --exe <name>` (add `--windowed` for the view commands); extend it for new commands.
+
+## FX Editor
+
+`FXEditorZH.exe` (target `z_fxeditor`, `GeneralsMD/Code/Tools/FXEditor/`) previews and edits `ParticleSystem` and `FXList` INI with the real engine: it runs the whole game with a flat preview map started as a single player game (`-file`) and draws an ImGui interface on top (Direct3D 8, or 12 with `-dx12`; Miles audio). A third MCP server drives it (`mcp__fx__*`); full reference: the FX Editor section of `scripts/worldbuilder-mcp/README.md`.
+
+```
+Claude  <-- stdio -->  scripts/worldbuilder-mcp/fx_server.py  <-- TCP 127.0.0.1:47802 -->  FXEditorZH.exe
+```
+
+- Build `z_fxeditor` (needs `RTS_BUILD_OPTION_GAME_MCP`; ImGui is fetched by `cmake/imgui.cmake`) and copy `FXEditorZH.exe` into the mod folder. `fx_launch` starts it and installs the preview map (`Data/Maps/FXEditorPreview` in the tool folder) into the user's Maps folder when missing.
+- With `-dx12` (`fx_launch(dx12=true)`) a Direct3D 12 tab edits the `PostProcess` and `Material` INI (passes, chain, `Param`s, materials, `ShadowMap`) live: `fx_render_status` / `fx_render_get` / `fx_render_set`; `fx_render_save(overwrite=true)` writes the user's files: ask first.
+- Another backdrop: `fx_maps` / `fx_load_map(map, faction)` (multiplayer maps run as a sandbox skirmish of that faction, others as single player games).
+- Look names up with `fx_list` / `fx_schema`, play with `fx_play`, measure with `fx_stats`, look with `fx_capture` / `fx_capture_sequence`, step time with `fx_time`.
+- Edits (`fx_set_fields`, `fx_nugget`, `fx_set_text`) are parsed by the game at once; nothing is written until `fx_save(overwrite=true)`, which changes the user's INI files: ask first. It keeps `<file>.fxeditor.bak`.
+- Engine hooks it uses, all inert in the game: `W3DDisplay::m_overlayDraw`, `ParticleSystemTemplate::resetToDefaults`, `FXListStore::getNames`. Its fx.* commands are registered on the game MCP bridge (`gameMcpRegisterCommand`); after a change run `python scripts/worldbuilder-mcp/fx_smoke_test.py` and extend it.

@@ -379,12 +379,19 @@ def derive(raw: dict[str, Any], overlay: dict[str, Any], ai_data: dict[str, Any]
             obj["amphibious"] = True
 
     # Armor a weapon is most likely to meet, per kind of target: the commonest default armor.
+    # Objects that cannot be hurt (AI dummies, markers) are no targets; counting them can make
+    # an invulnerable armor the reference and zero every damage number against that kind.
+    def can_be_hurt(armor: str) -> bool:
+        return any(f > 0 for f in armors.get(armor, {}).get("damage_taken", {"": 1}).values())
+
     reference: dict[str, str] = {}
     for cat in CATEGORIES:
         counts = Counter()
         for obj in objects.values():
+            if "UNATTACKABLE" in obj["kind_of"]:
+                continue
             chosen = _default_set(obj.get("armor_sets", []))
-            if chosen and target_kind(obj) == cat:
+            if chosen and target_kind(obj) == cat and can_be_hurt(chosen["armor"]):
                 counts[chosen["armor"]] += 1
         if counts:
             reference[cat] = counts.most_common(1)[0][0]

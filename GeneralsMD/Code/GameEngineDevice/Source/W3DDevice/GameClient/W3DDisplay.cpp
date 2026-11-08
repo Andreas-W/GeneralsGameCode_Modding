@@ -371,6 +371,7 @@ RTS3DScene *W3DDisplay::m_3DScene = nullptr;
 RTS2DScene *W3DDisplay::m_2DScene = nullptr;
 RTS3DInterfaceScene *W3DDisplay::m_3DInterfaceScene = nullptr;
 W3DAssetManager *W3DDisplay::m_assetManager = nullptr;
+W3DDisplay::OverlayDrawFunc W3DDisplay::m_overlayDraw = nullptr;
 
 //=============================================================================
 	// note, can't use the ones from PerfTimer.h 'cuz they are currently
@@ -2311,6 +2312,9 @@ AGAIN:
 					m_profilerFrameCapture->Capture(getWidth(), getHeight());
 				}
 #endif
+				if (m_overlayDraw)
+					m_overlayDraw();
+
 				// render is all done!
 				WW3D::End_Render();
 			}
