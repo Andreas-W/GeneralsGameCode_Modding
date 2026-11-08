@@ -45,7 +45,7 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `examples/snowy_mountains_stage_c.py` | C | The sixth map's trees by ground after Bitter Winter, mountain flanks included; other maps set `MAPGEN_NAME` (nothing below the water) |
 | `examples/snowy_mountains_hamlets.py` | D | The sixth map's rural hamlets: farm, chalets, cottage, windmill along one dirt lane with a fence, turned for the other player |
 | `examples/northern_island_build.py` | A2 | The seventh map: Tech, docks and expansions on flat spots by distance from each start, relief, new map at HeightMapScale 1.2 with ships, water, civilian player, snowfall |
-| `examples/northern_island_sea.py` | B | The seventh and eighth maps' seabed: blue bands with noise by distance from land, grey shingle beaches (plan `beach_texture` for another; the ninth map uses it too) |
+| `examples/northern_island_sea.py` | B | The seventh and eighth maps' seabed: blue bands with noise by distance from land, grey shingle beaches (plan `beach_texture` for another; the ninth map uses it too; plan `beach_exclude` keeps cells such as rocky stretches out of the beach; the shallows within 2 of the surface take the beach texture) |
 | `examples/northern_island_forests.py` | C | Dense woods on top of the scatter: spread out (700 apart), irregular blobs of Bitter Winter's conifers, forest floor under the trees only; plan `woods` sets the count and the town site kept free |
 | `examples/northern_island_roads.py` | D | Gravel roads from each base to the nearest town street end (plan `roads.join: any`: any street point not yet joined that a route reaches), dirt tracks to each base's nearest oil derrick, plants on them removed |
 | `examples/winter_isle_plan.py` | plan | The eighth map's plan: five player lobes at uneven angles around a round main body, a different feature between each pair of neighbours, a shared derrick per pair |
@@ -57,6 +57,10 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `examples/gold_coast_build.py` | A2 | The tenth map: docks (player 2's mirrored from player 1's offsets), relief kept above the river, new map with two water areas |
 | `examples/gold_coast_paint.py` | B | The tenth map's land textures by role (dry grass patches, beach, coastal and ridge cliffs, river bed and banks) with the user's hints where painted |
 | `examples/gold_coast_farms.py` | D | Farms (farmhouse, barn, shed, haystacks, tractor, fence, dirt yard, crop field, windbreaks), country roads to the town, farm tracks, river-bank trees and thin scatter |
+| `examples/snake_islands_stage_a.py` | A | The eleventh map's terrain from a template: island outlines warped by noise (calm at bridge ends, channels kept), plateau or lowland by the nearer wide template core, islets between the islands, ramps as road hints, drawbridge quays and channels after stage A, lowland coasts rebuilt as wide sand beaches with a shallow shelf and a few rocky stretches |
+| `examples/snake_islands_build.py` | A2 | The eleventh map: gentle relief (lowland kept above the water), new map with one sea, starts, the user's drawbridges with their z set to meet the quays, wooden bridges from cliff edge to cliff edge |
+| `examples/snake_islands_paint.py` | B | The eleventh map's land textures by role in the user's tropical palette (grasses, grassy sand toward the beaches, rocky plateau rims, cliffs, sandy ramps, dirt under starts, cobblestone quays) |
+| `examples/snake_islands_trees.py` | C | Tropical plants by ground: jungle groves, bamboo at cliff feet, beach palms, islet palms, thin scatter |
 | `examples/northern_island_ai_markers.py` | E | AI paths, then per player three shipyards off its own shore, a naval perimeter in front of them and naval paths along both coasts, for a map without symmetry |
 | `map_lighting.py <map> [--blend FROM TO T [--dir D] [--brighter]]` | any | Reads a map's global lighting, or blends one time of day toward another (no bridge command sets lighting); writes the map uncompressed, WorldBuilder compresses it on its next save |
 
@@ -200,6 +204,30 @@ The user's template `Templates/2PGoldCoast.map` (279 x 299 cells), generated int
 
 **Not done**: AI and naval markers (left out on request), no test in the game. Backups `stage_a`, `stage_b`, `stage_c` in the map's folder.
 
+## Eleventh map: SnakeIslandsGen
+
+The user's template `Templates/4PSnakeIslands.map` (399 x 499 cells), read from the open WorldBuilder since its bridges were not saved yet, generated into `SnakeIslandsGen\SnakeIslandsGen.map`. Prompt: four players, naval, the TempBuildingSize markers as starts, irregular asymmetric islands joined by bridges, cliff and beach shores, tropical; heightmap, terrain, water and trees only. The template: five smooth brush blobs on a sea at 1.25 (water 60). The south and north islands each have a lowland in the west (62.5) and a plateau in the east (125), with one start on each. There is a low west island in the middle and a high east island with a low foot. Three `IndustrialDrawBridge_New_Large` join the low ground with their decks about 3 above the water; two wooden bridges run from plateau to plateau.
+
+1. **A** (`examples/snake_islands_stage_a.py`): lowlands 68, plateaus 120 (`HeightMapScale = 1.2`), so lowland shores become beaches and plateau shores cliffs. Each island's outline is warped by noise at two scales (85 and 28), calm within 220 of every bridge end and never closer than 70 to another island's side. Thresholding the template's plateau left a thin lowland ring along the plateau coasts, cut off below the cliffs (stage A added ramps to them). The brush blur leaves heights between the levels at every edge, so each cell now takes the level of the nearer wide core (the lowland core opened by 6 cells). Ramps are road hints: two on each big island, one from the east island's drawbridge foot. The islets first went to the map corners (the farthest water); now they are kept 700 from the edge, and two found room. After stage A each drawbridge gets quays (flat at the deck height from 120 out along its axis, a short wall) and a channel at least 18 deep.
+2. **A2** (`examples/snake_islands_build.py`): gentle relief (spread 6, pits 2 to 5), lowland kept 3 above the water. The drawbridges stay as the user placed them, with z = deck - seabed under the pivot (object z is above the ground). The wooden bridges go from the first point on the user's line where the plateau reaches its top, 20 further in (390 and 485 long).
+3. **B** (`examples/snake_islands_paint.py`, then `northern_island_sea.py` with `SandMediumType6Light`): the user's tropical palette from the TropicTrefoil template. Grassy sand 210 into the land made the narrow lowlands look like sand islands; 120 with a wandering edge.
+4. **C** (`examples/snake_islands_trees.py`): 1846 plants. Bamboo meant for cliff feet stood along the beaches: the drop from a beach into the sea counted as steep; only dry steep ground counts now.
+5. **F**: players 1 and 2 on the south island, 3 and 4 on the north island, all five islands joined by bridges. Flat buildable cells within 600 of the start: 10,328 / 8,273 / 9,535 / 10,170 (player 2's plateau has more cliff and sea around it). Cut off: a 203-cell lowland pocket under the north plateau's cliff and the two islets. Cliff report: none unmapped or outside.
+
+6. **Second version** (user: smoother lowland shores, sandy beaches, a few rocky or cliff patches; the first is kept as `v1`). Stage A's beach profile puts the waterline at 0.65 of `beach_width`. With the lowland 8 above the water, that left about 50 of dry beach and a steep drop under the surface. Now the lowland coasts are rebuilt after stage A (plan `beaches`):
+   - **Beaches**: a smoothed outline (4 cells), sand rising to the lowland over 170, a shelf 10 deep out to 150, then the seabed.
+   - **Shore type**: taken from the nearest shore cell, smoothed more in the water; at 4 cells it drew wedges into the seabed.
+   - **Rocky stretches**: four (spread at least 700 apart, none on the islets). Each has a ragged crest 12 above the lowland (5 read as a flat dark strip), a steep face and rock on top.
+   - **Kept out**: the drawbridge quays, starts and ramp feet. Lowering a ramp's foot cut a lowland strip off below the north plateau.
+
+   Two things then showed through the thin water:
+   - **Unpainted cells**: the cells next to land, which the sea script leaves to the land painter, still had the new map's `AsphaltType1`. Water cells now take the nearest land texture.
+   - **Flicker**: rows of vertices exactly at the water height flickered as dashed lines. No ground stays at the water height now.
+
+   Flat buildable cells within 600: 10,273 / 8,209 / 9,530 / 10,464; only the islets are cut off.
+
+**Not done**: AI and naval markers, Tech, supplies and towns (not asked), no test in the game. The south island has fewer trees than the others (lower grove noise there). Backups `v1` (first version), `stage_a`, `stage_b` (both of the first version) in the map's folder.
+
 ## Learned (rules now in the scripts)
 
 ### Terrain shape
@@ -228,6 +256,12 @@ The user's template `Templates/2PGoldCoast.map` (279 x 299 cells), generated int
 - **Ridges, not frames**: stage A's mountain frame has a flat crest. A ridge needs a profile from the edge to the local middle that is concave (`t ** 1.3`), plus gullies.
 - **A second water level** (a river or lake above the sea) is outside stage A: fill it for stage A, carve it after, and keep relief from lowering land beside it below its surface.
 - **Pick base textures by looking**: some tile into visible stripes or rows over large areas (GrassMediumType32, CliffMediumType19); use them as patches.
+- **Brush templates blur every edge**: heights between two levels lie along every border of the higher one, coasts included. Thresholding them leaves thin rings of the lower level; give each cell the level of the nearer wide core instead.
+- **Drawbridges are fixed models**: their deck is flat, so both ends need quays at the deck height, and the object's z counts from the seabed under its pivot.
+- **The shore under water is steep**: rules that look for cliffs (plants at a cliff foot, distance from cliffs) must count only steep dry ground.
+- **Low land wants its own beach profile**: stage A's beach suits land well above the water. For lowland a few units above it, rebuild the shore: a long gentle sand rise, a shallow shelf, then the seabed.
+- **Thin water shows everything**: under gentle beaches, paint the cells next to land (the nearest land texture), and keep vertices off the exact water height, or they flicker as dashed lines.
+- **The farthest water is a map corner**: islets and other things placed by distance from land need a margin from the map edge.
 - **A template's gentle terraces stay slopes** in stage A; to get cliffs, snap them to a hard step first and give the ramps as road hints (`road_point` pairs crossing the step, not built as roads).
 
 ### Cliff mapping

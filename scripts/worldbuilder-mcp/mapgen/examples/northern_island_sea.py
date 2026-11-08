@@ -32,6 +32,12 @@ near_water = ndimage.distance_transform_edt(~sea) <= 12
 beach_land = ~sea & (zc < WATER + 14) & near_water & (ndimage.maximum_filter(slope, 3) < 0.3)
 beach = beach_land | (sea & (d <= 3) & ndimage.binary_dilation(beach_land, iterations=3))
 beach = ndimage.binary_opening(beach, iterations=1)
+# Ground within 2 under the surface next to a beach: the water there is too thin to show, and seabed blue drew dashed lines along very
+# gentle beaches (SnakeIslandsGen v2).
+beach |= sea & (zc > WATER - 2) & ndimage.binary_dilation(beach_land, iterations=8)
+# Plan "beach_exclude": cells (npy in the work dir) that keep the painter's texture, e.g. rocky stretches of a low shore (SnakeIslandsGen).
+if plan.get("beach_exclude"):
+    beach &= ~ndimage.binary_dilation(np.load(os.path.join(work, plan["beach_exclude"])), iterations=3)
 layers = [("SandMediumType9blue4", sea & (dn >= 2)), ("SandMediumType9blue3", sea & (dn >= 14)),
           ("SandMediumType9blue2", sea & (dn >= 28)), ("SandMediumType9blue", sea & (dn >= 45)),
           # Grey shingle: SandMediumType9Snow looked orange on NorthernIslandGen and was swapped for this one afterwards. Plan
