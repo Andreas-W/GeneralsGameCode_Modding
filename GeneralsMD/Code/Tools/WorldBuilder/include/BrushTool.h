@@ -37,7 +37,7 @@ protected:
 
 	static Int m_brushWidth;
 	static Int m_brushFeather;
-	static Bool m_brushSquare;
+	static Int m_brushShape; ///< BrushShape.
 	static Int m_brushHeight;
 
 public:
@@ -48,9 +48,11 @@ public:
 	static Int getWidth() {return m_brushWidth;};  ///<Returns width.
 	static Int getFeather() {return m_brushFeather;}; ///<Returns feather.
 	static Int getHeight() {return m_brushHeight;}; ///<Returns height.
+	static Int getShape() {return m_brushShape;}; ///<Returns BrushShape.
 	static void setWidth(Int width);
 	static void setFeather(Int feather);
 	static void setHeight(Int height);
+	static void setShape(Int shape);
 
 public:
 	virtual void mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) override;

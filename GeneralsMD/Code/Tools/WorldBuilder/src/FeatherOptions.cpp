@@ -27,6 +27,7 @@
 #include "FeatherTool.h"
 
 FeatherOptions *FeatherOptions::m_staticThis = nullptr;
+Int FeatherOptions::m_currentShape = BRUSH_SHAPE_CIRCLE;
 Int FeatherOptions::m_currentFeather = 0;
 Int FeatherOptions::m_currentRate = 3;
 Int FeatherOptions::m_currentRadius = 1;
@@ -93,6 +94,23 @@ void FeatherOptions::setRadius(Int radius)
 
 
 
+/// Sets the brush shape in the dialog.
+/** Checks the radio button of the BrushShape. */
+void FeatherOptions::setShape(Int shape)
+{
+	m_currentShape = shape;
+	if (m_staticThis) {
+		m_staticThis->CheckRadioButton(IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, IDC_SHAPE_CIRCLE + shape);
+	}
+}
+
+/// Handles the shape radio buttons.
+void FeatherOptions::OnShape(UINT nID)
+{
+	m_currentShape = nID - IDC_SHAPE_CIRCLE;
+	FeatherTool::setShape(m_currentShape);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // FeatherOptions message handlers
 
@@ -114,6 +132,7 @@ BOOL FeatherOptions::OnInitDialog()
 	setFeather(m_currentFeather);
 	setRate(m_currentRate);
 	setRadius(m_currentRadius);
+	setShape(m_currentShape);
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -230,6 +249,7 @@ BEGIN_MESSAGE_MAP(FeatherOptions, COptionsPanel)
 	//{{AFX_MSG_MAP(FeatherOptions)
 	ON_EN_CHANGE(IDC_SIZE_EDIT, OnChangeSizeEdit)
 	ON_WM_HSCROLL()
+	ON_CONTROL_RANGE(BN_CLICKED, IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, OnShape)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 

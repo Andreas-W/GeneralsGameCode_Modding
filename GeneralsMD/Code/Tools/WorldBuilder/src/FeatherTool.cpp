@@ -37,6 +37,7 @@
 Int FeatherTool::m_feather = 0;
 Int FeatherTool::m_rate = 0;
 Int FeatherTool::m_radius = 0;
+Int FeatherTool::m_shape = BRUSH_SHAPE_CIRCLE;
 
 //
 /// Constructor
@@ -63,7 +64,7 @@ void FeatherTool::activate()
 {
 	CMainFrame::GetMainFrame()->showOptionsDialog(IDD_FEATHER_OPTIONS);
 	DrawObject::setDoBrushFeedback(true);
-	DrawObject::setBrushFeedbackParms(false, m_feather, 0);
+	DrawObject::setBrushFeedbackParms(m_shape, m_feather, 0);
 }
 
 /// Set the brush feather and notify the height options panel of the change.
@@ -73,7 +74,7 @@ void FeatherTool::setFeather(Int feather)
 		m_feather = feather;
 		// notify feather palette options panel
 		FeatherOptions::setFeather(m_feather);
-		DrawObject::setBrushFeedbackParms(false, m_feather, 0);
+		DrawObject::setBrushFeedbackParms(m_shape, m_feather, 0);
 	}
 };
 
@@ -94,6 +95,16 @@ void FeatherTool::setRadius(Int radius)
 		m_radius = radius;
 		// notify feather palette options panel
 		FeatherOptions::setRadius(radius);
+	}
+};
+
+/// Set the brush shape and notify the feather options panel of the change.
+void FeatherTool::setShape(Int shape)
+{
+	if (m_shape != shape) {
+		m_shape = shape;
+		FeatherOptions::setShape(shape);
+		DrawObject::setBrushFeedbackParms(m_shape, m_feather, 0);
 	}
 };
 
@@ -172,7 +183,7 @@ void FeatherTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWor
 				continue;
 			}
 			Real blendFactor;
-			blendFactor = calcRoundBlendFactor(ndx, i, j, m_feather, 0);
+			blendFactor = calcBlendFactor(m_shape, ndx, i, j, m_feather, 0);
 			// m_htMapEditCopy is the output.
 			// m_htMapFeatherCopy is the original input.
 			// m_htMapRateCopy is how much we use of the feathered data.

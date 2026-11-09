@@ -123,6 +123,47 @@ Real Tool::calcSquareBlendFactor(CPoint center, Int x, Int y, Int brushWidth, In
 	return(0);
 }
 
+/// Calculate the diamond blend factor.
+/** Like the square, turned by 45 degrees: the brush width is the distance between opposite tips. */
+Real Tool::calcDiamondBlendFactor(CPoint center, Int x, Int y, Int brushWidth, Int featherWidth)
+{
+	Real offset = 0;
+	if (brushWidth&1) offset = 0.5;
+	const Real CLOSE_ENOUGH = 0.05f;	 // We are working on an integer grid.
+
+	Real dx = abs(center.x+offset-x);
+	Real dy = abs(center.y+offset-y);
+
+	Real dist = dx+dy;
+
+	if (dist <= (brushWidth/2.0f)+CLOSE_ENOUGH) return (1.0f);
+
+	dist -= (brushWidth/2.0f);
+
+	if (featherWidth < 1) {
+		return(0);
+	}
+
+	if (dist <= featherWidth) {
+		return (featherWidth-dist)/featherWidth;
+	}
+
+	return(0);
+}
+
+/// Calculate the blend factor of a brush of the given BrushShape.
+Real Tool::calcBlendFactor(Int shape, CPoint center, Int x, Int y, Int brushWidth, Int featherWidth)
+{
+	switch (shape) {
+		case BRUSH_SHAPE_SQUARE:
+			return calcSquareBlendFactor(center, x, y, brushWidth, featherWidth);
+		case BRUSH_SHAPE_DIAMOND:
+			return calcDiamondBlendFactor(center, x, y, brushWidth, featherWidth);
+		default:
+			return calcRoundBlendFactor(center, x, y, brushWidth, featherWidth);
+	}
+}
+
 /// Gets the cell index for the center of the brush.
 /** Converts from document coordinates to cell index coordinates. */
 void Tool::getCenterIndex(Coord3D *docLocP, Int brushWidth, CPoint *center, CWorldBuilderDoc *pDoc)

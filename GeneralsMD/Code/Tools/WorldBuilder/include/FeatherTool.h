@@ -39,6 +39,7 @@ protected:
 	static Int m_feather;
 	static Int m_rate;
 	static Int m_radius;
+	static Int m_shape; ///< BrushShape.
 public:
 	FeatherTool();
 	virtual ~FeatherTool() override;
@@ -46,9 +47,11 @@ public:
 	static void setFeather(Int feather);
 	static void setRate(Int rate);
 	static void setRadius(Int Radius);
+	static void setShape(Int shape);
 	static Int getFeather() {return m_feather;};
 	static Int getRate() {return m_rate;};
 	static Int getRadius() {return m_radius;};
+	static Int getShape() {return m_shape;};
 public:
 	virtual void mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) override;
 	virtual void mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) override;

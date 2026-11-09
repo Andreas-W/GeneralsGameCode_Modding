@@ -31,11 +31,11 @@ class BrushOptions : public COptionsPanel	, public PopupSliderOwner
 // Construction
 public:
 	enum {MIN_BRUSH_SIZE=1,
-				MAX_BRUSH_SIZE=51,
+				MAX_BRUSH_SIZE=100,
 				FREQ_BRUSH_TICKS=10,
 				MIN_FEATHER=0,
 				FREQ_FEATHER_TICKS=4,
-				MAX_FEATHER=20};
+				MAX_FEATHER=100};
 
 	BrushOptions(CWnd* pParent = nullptr);   // standard constructor
 
@@ -61,6 +61,7 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(BrushOptions)
 	virtual BOOL OnInitDialog() override;
+	afx_msg void OnShape(UINT nID);
 	afx_msg void OnChangeFeatherEdit();
 	afx_msg void OnChangeSizeEdit();
 	afx_msg void OnChangeHeightEdit();
@@ -73,12 +74,15 @@ protected:
 	static Int m_currentFeather;				///< current feather width in the ui.
 	static Int m_currentHeight;
 
+	static Int m_currentShape;					///< current BrushShape in the ui.
+
 	Bool		m_updating; ///<true if the ui is updating itself.
 	WBPopupSliderButton m_brushWidthPopup;
 	WBPopupSliderButton m_brushFeatherPopup;
 	WBPopupSliderButton m_brushHeightPopup;
 
 public:
+	static void setShape(Int shape);
 	static void setWidth(Int width);
 	static void setFeather(Int feather);
 	static void setHeight(Int height);

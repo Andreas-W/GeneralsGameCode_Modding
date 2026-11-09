@@ -104,6 +104,7 @@ BEGIN
     BUTTON      ID_POINTER_TOOL
     BUTTON      ID_LOCK_HORIZONTAL
     BUTTON      ID_BRUSH_TOOL
+    BUTTON      ID_HEIGHT_PICKER_TOOL
     BUTTON      ID_BRUSH_ADD_TOOL
     BUTTON      ID_BRUSH_SUBTRACT_TOOL
     BUTTON      ID_FEATHERTOOL
@@ -500,7 +501,7 @@ BEGIN
     CONTROL         "",ID_SLIDER,"Static",SS_BLACKFRAME,0,1,19,62
 END
 
-IDD_BRUSH_OPTIONS DIALOG DISCARDABLE  0, 0, 118, 138
+IDD_BRUSH_OPTIONS DIALOG DISCARDABLE  0, 0, 118, 168
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Height Brush Options"
 FONT 8, "MS Sans Serif"
@@ -520,6 +521,10 @@ BEGIN
     RTEXT           "Size in 1/8 cells:",IDC_STATIC,0,107,63,10
     PUSHBUTTON      "1",IDC_HEIGHT_POPUP,93,106,8,12,BS_BITMAP
     LTEXT           "35 FT.",IDC_FEATHER_LABEL,71,68,41,8
+    GROUPBOX        "Brush Shape:",IDC_STATIC,1,139,113,26
+    CONTROL         "Circle",IDC_SHAPE_CIRCLE,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,8,150,32,10
+    CONTROL         "Square",IDC_SHAPE_SQUARE,"Button",BS_AUTORADIOBUTTON,42,150,34,10
+    CONTROL         "Diamond",IDC_SHAPE_DIAMOND,"Button",BS_AUTORADIOBUTTON,78,150,38,10
 END
 
 IDD_TERRAIN_MATERIAL DIALOG DISCARDABLE  0, 0, 200, 286
@@ -546,7 +551,7 @@ BEGIN
                     27,270,98,10
 END
 
-IDD_MOUND_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 146
+IDD_MOUND_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 176
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Terrain Brush Options"
 FONT 8, "MS Sans Serif"
@@ -566,6 +571,10 @@ BEGIN
     EDITTEXT        IDC_HEIGHT_EDIT,82,106,17,12,ES_AUTOHSCROLL
     PUSHBUTTON      "1",IDC_HEIGHT_POPUP,104,106,8,12,BS_BITMAP
     LTEXT           "35 FT.",IDC_FEATHER_LABEL,55,68,41,8
+    GROUPBOX        "Brush Shape:",IDC_STATIC,1,139,195,26
+    CONTROL         "Circle",IDC_SHAPE_CIRCLE,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,8,150,32,10
+    CONTROL         "Square",IDC_SHAPE_SQUARE,"Button",BS_AUTORADIOBUTTON,42,150,34,10
+    CONTROL         "Diamond",IDC_SHAPE_DIAMOND,"Button",BS_AUTORADIOBUTTON,78,150,38,10
 END
 
 IDD_OBJECT_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 245
@@ -649,7 +658,7 @@ BEGIN
     LTEXT           "This tool has no options.",IDC_STATIC,15,34,89,43
 END
 
-IDD_FEATHER_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 186
+IDD_FEATHER_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 216
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION
 CAPTION "Feather Brush Options"
 FONT 8, "MS Sans Serif"
@@ -671,6 +680,10 @@ BEGIN
     GROUPBOX        "Feather Rate:",IDC_STATIC,0,107,197,76
     LTEXT           "A high value flattens terrain quickly. A low value requires you to ""scrub"" with the cursor to achieve the same effect.",
                     IDC_WIDTH_LABEL3,5,138,187,34
+    GROUPBOX        "Brush Shape:",IDC_STATIC,1,187,196,26
+    CONTROL         "Circle",IDC_SHAPE_CIRCLE,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,8,198,32,10
+    CONTROL         "Square",IDC_SHAPE_SQUARE,"Button",BS_AUTORADIOBUTTON,42,198,34,10
+    CONTROL         "Diamond",IDC_SHAPE_DIAMOND,"Button",BS_AUTORADIOBUTTON,78,198,38,10
 END
 
 IDD_MESHMOLD_OPTIONS DIALOG DISCARDABLE  0, 0, 200, 245
@@ -1943,7 +1956,7 @@ BEGIN
         LEFTMARGIN, 1
         RIGHTMARGIN, 114
         TOPMARGIN, 1
-        BOTTOMMARGIN, 135
+        BOTTOMMARGIN, 165
     END
 
     IDD_TERRAIN_MATERIAL, DIALOG
@@ -1959,7 +1972,7 @@ BEGIN
         LEFTMARGIN, 1
         RIGHTMARGIN, 196
         TOPMARGIN, 1
-        BOTTOMMARGIN, 143
+        BOTTOMMARGIN, 173
     END
 
     IDD_OBJECT_OPTIONS, DIALOG
@@ -2004,7 +2017,7 @@ BEGIN
         LEFTMARGIN, 1
         RIGHTMARGIN, 196
         TOPMARGIN, 1
-        BOTTOMMARGIN, 183
+        BOTTOMMARGIN, 213
     END
 
     IDD_MESHMOLD_OPTIONS, DIALOG
@@ -2813,6 +2826,7 @@ END
 STRINGTABLE DISCARDABLE 
 BEGIN
     ID_EYEDROPPER_TOOL      "Hot key ALT. Selects the foreground texture by picking on the texture in the edit windows.\nEyedropper"
+    ID_HEIGHT_PICKER_TOOL   "Hot key ALT while using the Height Brush. Selects the brush height by picking on the terrain in the edit windows.\nHeight Picker"
     ID_PLACE_OBJECT_TOOL    "Places the current object in Object Selection panel. Drag to orient.\nPlace Object"
     ID_POINTER_TOOL         "Hot key CTRL. Selects and moves or rotates. Shift or drag select multiple objects.\nSelect and Move"
     ID_BLEND_EDGE_TOOL      "Blends a single tile edge.  Right mouse uses foreground texture.\nBlend Single Edge"

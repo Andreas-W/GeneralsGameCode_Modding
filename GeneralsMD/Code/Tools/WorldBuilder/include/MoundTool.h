@@ -39,6 +39,7 @@ protected:
 	static Int m_moundHeight;
 	static Int m_brushWidth;
 	static Int m_brushFeather;
+	static Int m_brushShape; ///< BrushShape.
 
 public:
 	MoundTool();
@@ -51,6 +52,8 @@ public:
 	static Int getFeather() {return m_brushFeather;}; ///<Returns feather.
 	static void setWidth(Int width);
 	static void setFeather(Int feather);
+	static Int getShape() {return m_brushShape;}; ///<Returns BrushShape.
+	static void setShape(Int shape);
 
 public:
 	virtual void mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc) override;

@@ -259,6 +259,7 @@ CWorldBuilderApp::CWorldBuilderApp() :
 	m_tools[22] = &m_scorchTool;
 	m_tools[23] = &m_borderTool;
 	m_tools[24] = &m_rulerTool;
+	m_tools[25] = &m_heightPickerTool;
 
 	// set up initial values.
 	m_brushTool.setHeight(16);
@@ -613,8 +614,12 @@ void CWorldBuilderApp::updateCurTool(Bool forceHand)
 			// Space bar gives scroll hand.
 			m_curTool = &m_handScrollTool;
 		} else if (0x8000 & ::GetAsyncKeyState(VK_MENU)) {
-			// Alt key gives eyedropper.
-			m_curTool = &m_eyedropperTool;
+			// Alt key gives eyedropper, or the height picker while using the height brush.
+			if (m_selTool == &m_brushTool || m_selTool == &m_heightPickerTool) {
+				m_curTool = &m_heightPickerTool;
+			} else {
+				m_curTool = &m_eyedropperTool;
+			}
 		} else if (0x8000 & ::GetAsyncKeyState(VK_CONTROL)) {
 			// Control key gives pointer.
 			m_curTool = &m_pointerTool;

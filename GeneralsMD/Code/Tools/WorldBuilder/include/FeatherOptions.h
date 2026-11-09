@@ -31,7 +31,7 @@ class FeatherOptions : public COptionsPanel	, public PopupSliderOwner
 // Construction
 public:
 	enum {MIN_FEATHER_SIZE=2,
-				MAX_FEATHER_SIZE=51,
+				MAX_FEATHER_SIZE=100,
 				MIN_RATE=1,
 				MAX_RATE=10,
 				MIN_RADIUS=1,
@@ -61,6 +61,7 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(FeatherOptions)
 	virtual BOOL OnInitDialog() override;
+	afx_msg void OnShape(UINT nID);
 	afx_msg void OnChangeSizeEdit();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
@@ -71,12 +72,15 @@ protected:
 	static Int m_currentRadius;					///< current smoothing radius value.
 	static Int m_currentRate;					///< current smoothing rate.
 
+	static Int m_currentShape;					///< current BrushShape in the ui.
+
 	Bool		m_updating; ///<true if the ui is updating itself.
 	WBPopupSliderButton m_featherPopup;
 	WBPopupSliderButton m_radiusPopup;
 	WBPopupSliderButton m_ratePopup;
 
 public:
+	static void setShape(Int shape);
 	static void setFeather(Int feather);
 	static void setRate(Int rate);
 	static void setRadius(Int radius);

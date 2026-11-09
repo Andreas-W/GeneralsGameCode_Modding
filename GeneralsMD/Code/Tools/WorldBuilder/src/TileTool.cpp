@@ -55,7 +55,7 @@ void TileTool::activate()
 	CMainFrame::GetMainFrame()->showOptionsDialog(IDD_TERRAIN_MATERIAL);
 	TerrainMaterial::setToolOptions(true);
 	DrawObject::setDoBrushFeedback(true);
-	DrawObject::setBrushFeedbackParms(true, 1, 0);
+	DrawObject::setBrushFeedbackParms(BRUSH_SHAPE_SQUARE, 1, 0);
 }
 
 
@@ -193,7 +193,7 @@ BigTileTool::BigTileTool()
 void BigTileTool::setWidth(Int width)
 {
 	m_currentWidth = width;
-	DrawObject::setBrushFeedbackParms(true, m_currentWidth, 0);
+	DrawObject::setBrushFeedbackParms(BRUSH_SHAPE_SQUARE, m_currentWidth, 0);
 }
 
 /// Shows the terrain materials options panel.
@@ -203,5 +203,5 @@ void BigTileTool::activate()
 	TerrainMaterial::setToolOptions(false);
 	TerrainMaterial::setWidth(m_currentWidth);
 	DrawObject::setDoBrushFeedback(true);
-	DrawObject::setBrushFeedbackParms(true, m_currentWidth, 0);
+	DrawObject::setBrushFeedbackParms(BRUSH_SHAPE_SQUARE, m_currentWidth, 0);
 }

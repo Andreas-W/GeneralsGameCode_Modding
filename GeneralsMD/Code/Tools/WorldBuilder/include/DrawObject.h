@@ -89,8 +89,9 @@ public:
 
 	static void setDoAmbientSoundFeedback(Bool val) { m_ambientSoundFeedback = val; }
 
-	static void setBrushFeedbackParms(Bool square, Int width, Int featherWidth)
-														{ m_squareFeedback = square; m_brushWidth=width;
+	/// shape is a BrushShape (Tool.h).
+	static void setBrushFeedbackParms(Int shape, Int width, Int featherWidth)
+														{ m_feedbackShape = shape; m_brushWidth=width;
 															m_meshFeedback = false; m_brushFeatherWidth = featherWidth;}
 	static void disableFeedback() {m_disableFeedback = true;};
 	static void enableFeedback() {m_disableFeedback = false;};
@@ -146,7 +147,7 @@ protected:
 	CPoint										m_winSize;				//< Holds the size of the window.
 
 protected: // static state vars.
-	static Bool								m_squareFeedback;	///< True for square brush feedback, false for round.
+	static Int								m_feedbackShape;	///< BrushShape of the brush feedback.
 	static Int								m_brushWidth;	///< Width of brush feedback.
 	static Int								m_brushFeatherWidth;	///< Width of brush feathered feedback.
 	static Bool								m_toolWantsFeedback; ///< True to display brush feedback.

@@ -39,6 +39,7 @@
 Int MoundTool::m_moundHeight=0;
 Int MoundTool::m_brushWidth;
 Int MoundTool::m_brushFeather;
+Int MoundTool::m_brushShape = BRUSH_SHAPE_CIRCLE;
 
 
 
@@ -65,7 +66,7 @@ void MoundTool::setMoundHeight(Int height)
 		m_moundHeight = height;
 		// notify mound options panel
 		MoundOptions::setHeight(height);
-		DrawObject::setBrushFeedbackParms(false, m_brushWidth, m_brushFeather);
+		DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
 	}
 };
 /// Set the brush width and notify the height options panel of the change.
@@ -75,7 +76,7 @@ void MoundTool::setWidth(Int width)
 		m_brushWidth = width;
 		// notify brush palette options panel
 		MoundOptions::setWidth(width);
-		DrawObject::setBrushFeedbackParms(false, m_brushWidth, m_brushFeather);
+		DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
 	}
 };
 
@@ -86,17 +87,26 @@ void MoundTool::setFeather(Int feather)
 		m_brushFeather = feather;
 		// notify height palette options panel
 		MoundOptions::setFeather(feather);
-		DrawObject::setBrushFeedbackParms(false, m_brushWidth, m_brushFeather);
+		DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
 	}
 };
 
+/// Set the brush shape and notify the options panel of the change.
+void MoundTool::setShape(Int shape)
+{
+	if (m_brushShape != shape) {
+		m_brushShape = shape;
+		MoundOptions::setShape(shape);
+		DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
+	}
+};
 
 /// Shows the brush options panel.
 void MoundTool::activate()
 {
 	CMainFrame::GetMainFrame()->showOptionsDialog(IDD_MOUND_OPTIONS);
 	DrawObject::setDoBrushFeedback(true);
-	DrawObject::setBrushFeedbackParms(false, m_brushWidth, m_brushFeather);
+	DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
 }
 
 void MoundTool::mouseDown(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc)
@@ -175,7 +185,7 @@ void MoundTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorld
 #if 1
 			// New floating point based blending calculation.  jba.
 			Real blendFactor;
-			blendFactor = calcRoundBlendFactor(ndx, i, j, m_brushWidth, m_brushFeather);
+			blendFactor = calcBlendFactor(m_brushShape, ndx, i, j, m_brushWidth, m_brushFeather);
 			Int curHeight = m_htMapEditCopy->getHeight(i,j);
 			float fNewHeight = (blendFactor*(htDelta+curHeight))+((1.0f-blendFactor)*curHeight);
 			Int newHeight = floor(fNewHeight+0.5f);

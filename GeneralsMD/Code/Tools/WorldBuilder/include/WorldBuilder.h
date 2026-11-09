@@ -36,6 +36,7 @@
 #include "FloodFillTool.h"
 #include "MoundTool.h"
 #include "EyedropperTool.h"
+#include "HeightPickerTool.h"
 #include "ObjectTool.h"
 #include "FenceTool.h"
 #include "PointerTool.h"
@@ -94,7 +95,7 @@ public:
 
 protected:
 
-	enum {NUM_VIEW_TOOLS=25};
+	enum {NUM_VIEW_TOOLS=26};
 
 	Tool							*m_tools[NUM_VIEW_TOOLS]; ///< array of tool pointers.
 	Tool							*m_curTool;   ///< Currently active tool.
@@ -108,6 +109,7 @@ protected:
 	MoundTool					m_moundTool;				///< Add height to height values tool.
 	DigTool						m_digTool;					///< Remove height from height values tool.
 	EyedropperTool		m_eyedropperTool;	  ///< Eyedropper tool.
+	HeightPickerTool	m_heightPickerTool;	///< Height picker tool.
 	ObjectTool				m_objectTool;				///< Add and orient object tool.
 	PointerTool				m_pointerTool;			///< Select and move/rotate tool.
 	BlendEdgeTool			m_blendEdgeTool;		///< Blend a single edge tool.

@@ -38,7 +38,7 @@
 
 Int BrushTool::m_brushWidth;
 Int BrushTool::m_brushFeather;
-Bool BrushTool::m_brushSquare;
+Int BrushTool::m_brushShape = BRUSH_SHAPE_CIRCLE;
 Int BrushTool::m_brushHeight;
 
 
@@ -53,7 +53,6 @@ BrushTool::BrushTool() :
 	m_brushWidth = 0;
 	m_brushFeather = 0;
 	m_brushHeight = 0;
-	m_brushSquare = false;
 }
 
 /// Destructor
@@ -80,7 +79,7 @@ void BrushTool::setWidth(Int width)
 		m_brushWidth = width;
 		// notify brush palette options panel
 		BrushOptions::setWidth(width);
-		DrawObject::setBrushFeedbackParms(m_brushSquare, m_brushWidth, m_brushFeather);
+		DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
 	}
 };
 
@@ -91,7 +90,17 @@ void BrushTool::setFeather(Int feather)
 		m_brushFeather = feather;
 		// notify height palette options panel
 		BrushOptions::setFeather(feather);
-		DrawObject::setBrushFeedbackParms(m_brushSquare, m_brushWidth, m_brushFeather);
+		DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
+	}
+};
+
+/// Set the brush shape and notify the height options panel of the change.
+void BrushTool::setShape(Int shape)
+{
+	if (m_brushShape != shape) {
+		m_brushShape = shape;
+		BrushOptions::setShape(shape);
+		DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
 	}
 };
 
@@ -100,7 +109,7 @@ void BrushTool::activate()
 {
 	CMainFrame::GetMainFrame()->showOptionsDialog(IDD_BRUSH_OPTIONS);
 	DrawObject::setDoBrushFeedback(true);
-	DrawObject::setBrushFeedbackParms(m_brushSquare, m_brushWidth, m_brushFeather);
+	DrawObject::setBrushFeedbackParms(m_brushShape, m_brushWidth, m_brushFeather);
 }
 
 /// Start tool.
@@ -174,12 +183,7 @@ void BrushTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorld
 			if (j<0 || j>=m_htMapEditCopy->getYExtent()) {
 				continue;
 			}
-			Real blendFactor;
-			if (m_brushSquare) {
-				blendFactor = calcSquareBlendFactor(ndx, i, j, m_brushWidth, m_brushFeather);
-			} else {
-				blendFactor = calcRoundBlendFactor(ndx, i, j, m_brushWidth, m_brushFeather);
-			}
+			Real blendFactor = calcBlendFactor(m_brushShape, ndx, i, j, m_brushWidth, m_brushFeather);
 			Int curHeight = m_htMapFeatherCopy->getHeight(i,j);
 			float fNewHeight = blendFactor*m_brushHeight+((1.0f-blendFactor)*curHeight) ;
 			Int newHeight = floor(fNewHeight+0.5);

@@ -28,6 +28,7 @@
 #include "WHeightMapEdit.h"
 
 BrushOptions *BrushOptions::m_staticThis = nullptr;
+Int BrushOptions::m_currentShape = BRUSH_SHAPE_CIRCLE;
 Int BrushOptions::m_currentWidth = 0;
 Int BrushOptions::m_currentHeight = 0;
 Int BrushOptions::m_currentFeather = 0;
@@ -90,6 +91,23 @@ void BrushOptions::setHeight(Int height)
 
 
 
+/// Sets the brush shape in the dialog.
+/** Checks the radio button of the BrushShape. */
+void BrushOptions::setShape(Int shape)
+{
+	m_currentShape = shape;
+	if (m_staticThis) {
+		m_staticThis->CheckRadioButton(IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, IDC_SHAPE_CIRCLE + shape);
+	}
+}
+
+/// Handles the shape radio buttons.
+void BrushOptions::OnShape(UINT nID)
+{
+	m_currentShape = nID - IDC_SHAPE_CIRCLE;
+	BrushTool::setShape(m_currentShape);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // BrushOptions message handlers
 
@@ -111,6 +129,7 @@ BOOL BrushOptions::OnInitDialog()
 	setFeather(m_currentFeather);
 	setWidth(m_currentWidth);
 	setHeight(m_currentHeight);
+	setShape(m_currentShape);
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -189,8 +208,8 @@ void BrushOptions::GetPopSliderInfo(const long sliderID, long *pMin, long *pMax,
 	switch (sliderID) {
 
 		case IDC_SIZE_POPUP:
-			*pMin = 1;
-			*pMax = 30;
+			*pMin = MIN_BRUSH_SIZE;
+			*pMax = MAX_BRUSH_SIZE;
 			*pInitial = m_currentWidth;
 			*pLineSize = 1;
 			break;
@@ -203,8 +222,8 @@ void BrushOptions::GetPopSliderInfo(const long sliderID, long *pMin, long *pMax,
 			break;
 
 		case IDC_FEATHER_POPUP:
-			*pMin = 0;
-			*pMax = 20;
+			*pMin = MIN_FEATHER;
+			*pMax = MAX_FEATHER;
 			*pInitial = m_currentFeather;
 			*pLineSize = 1;
 			break;
@@ -278,6 +297,7 @@ BEGIN_MESSAGE_MAP(BrushOptions, COptionsPanel)
 	ON_EN_CHANGE(IDC_SIZE_EDIT, OnChangeSizeEdit)
 	ON_EN_CHANGE(IDC_HEIGHT_EDIT, OnChangeHeightEdit)
 	ON_WM_HSCROLL()
+	ON_CONTROL_RANGE(BN_CLICKED, IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, OnShape)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 

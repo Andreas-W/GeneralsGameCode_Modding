@@ -575,6 +575,9 @@
 #define IDC_STATIC_MAPOBJECT_SOUND      1381
 #define IDC_STATIC_MAPOBJECT_VISUAL     1382
 #define IDC_MAPOBJECT_DISTANCE          1383
+#define IDC_SHAPE_CIRCLE                1384
+#define IDC_SHAPE_SQUARE                1385
+#define IDC_SHAPE_DIAMOND               1386
 #define ID_BRUSH_TOOL                   32771
 #define IDM_ShowGrid                    32772
 #define ID_FEATHERTOOL                  32791
@@ -721,6 +724,7 @@
 #define ID_VIEW_SHOWPOSTPROCESSING      33347
 #define ID_VIEW_RELOADRENDERING         33348
 #define ID_TOOLS_REBLENDALLTILES        33349
+#define ID_HEIGHT_PICKER_TOOL           33350
 #define IDS_NEW                         61446
 #define IDS_RESIZE                      61447
 #define IDS_REMOVING_INUSE_TEAM         61448
@@ -769,8 +773,8 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        242
-#define _APS_NEXT_COMMAND_VALUE         33350
-#define _APS_NEXT_CONTROL_VALUE         1354
+#define _APS_NEXT_COMMAND_VALUE         33351
+#define _APS_NEXT_CONTROL_VALUE         1387
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

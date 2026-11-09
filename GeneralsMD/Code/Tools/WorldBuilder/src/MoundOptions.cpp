@@ -27,6 +27,7 @@
 #include "MoundTool.h"
 
 MoundOptions *MoundOptions::m_staticThis = nullptr;
+Int MoundOptions::m_currentShape = BRUSH_SHAPE_CIRCLE;
 Int MoundOptions::m_currentWidth = 0;
 Int MoundOptions::m_currentHeight = 0;
 Int MoundOptions::m_currentFeather = 0;
@@ -89,6 +90,23 @@ void MoundOptions::setHeight(Int height)
 
 
 
+/// Sets the brush shape in the dialog.
+/** Checks the radio button of the BrushShape. */
+void MoundOptions::setShape(Int shape)
+{
+	m_currentShape = shape;
+	if (m_staticThis) {
+		m_staticThis->CheckRadioButton(IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, IDC_SHAPE_CIRCLE + shape);
+	}
+}
+
+/// Handles the shape radio buttons.
+void MoundOptions::OnShape(UINT nID)
+{
+	m_currentShape = nID - IDC_SHAPE_CIRCLE;
+	MoundTool::setShape(m_currentShape);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // MoundOptions message handlers
 
@@ -110,6 +128,7 @@ BOOL MoundOptions::OnInitDialog()
 	setFeather(m_currentFeather);
 	setWidth(m_currentWidth);
 	setHeight(m_currentHeight);
+	setShape(m_currentShape);
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -274,6 +293,7 @@ void MoundOptions::PopSliderFinished(const long sliderID, long theVal)
 BEGIN_MESSAGE_MAP(MoundOptions, COptionsPanel)
 	//{{AFX_MSG_MAP(MoundOptions)
 	ON_WM_HSCROLL()
+	ON_CONTROL_RANGE(BN_CLICKED, IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, OnShape)
 	ON_EN_CHANGE(IDC_FEATHER_EDIT, OnChangeFeatherEdit)
 	ON_EN_CHANGE(IDC_SIZE_EDIT, OnChangeSizeEdit)
 	ON_EN_CHANGE(IDC_HEIGHT_EDIT, OnChangeHeightEdit)

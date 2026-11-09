@@ -90,7 +90,7 @@ const Real HANDLE_SIZE = (2.0f) * LINE_THICKNESS;
 	ShaderClass::DETAILCOLOR_DISABLE, ShaderClass::DETAILALPHA_DISABLE) )
 
 
-Bool DrawObject::m_squareFeedback = false;
+Int DrawObject::m_feedbackShape = BRUSH_SHAPE_CIRCLE;
 Int	DrawObject::m_brushWidth = 3;
 Int	DrawObject::m_brushFeatherWidth = 3;
 Bool	DrawObject::m_toolWantsFeedback = true;
@@ -1202,8 +1202,10 @@ void DrawObject::updateFeedbackVB()
 	Int diffuse=shadeB | (shadeG << 8) | (shadeR << 16) | (theAlpha << 24);
 	Int featherDiffuse = (shadeG << 8) ;
 	Real radius = m_brushWidth/2.0 + m_brushFeatherWidth;
+	// The tile tools show a plain square; the height brushes show their shape and feather.
+	Bool solidSquare = (m_feedbackShape == BRUSH_SHAPE_SQUARE && m_brushFeatherWidth == 0);
 
-	if (!m_squareFeedback) {
+	if (!solidSquare) {
 		if (radius < MAX_RADIUS/2) {
 			brushWidth = brushWidth*2;
 			featherWidth = featherWidth*2;
@@ -1217,24 +1219,24 @@ void DrawObject::updateFeedbackVB()
 	WorldHeightMapEdit *pMap = pDoc->GetHeightMap();
 #define ADJUST_FROM_INDEX_TO_REAL(k) ((k-pMap->getBorderSize())*MAP_XY_FACTOR)
 
-	if (radius > MAX_RADIUS) radius = MAX_RADIUS;
+	// Big brushes sample every step-th vertex so the grid still fits the buffers.
+	Int step = 1;
+	if (radius > MAX_RADIUS) step = (Int)ceil(radius/MAX_RADIUS);
 	Real offset = 0;
 	if (m_brushWidth&1) offset = 0.5f;
 	Int minX = floor(m_cellCenter.x-radius+offset);
 	Int minY = floor(m_cellCenter.y-radius+offset);
-	Int maxX = minX+2*radius;
-	Int maxY = minY+2*radius;
-	maxX++; maxY++;
-	Int i, j;
-//	int sub = m_brushWidth/2;
-//	int add = m_brushWidth-sub;
-	for (j=minY; j<maxY; j++) {
-		for (i=minX; i<maxX; i++) {
+	Int numSamples = (Int)(2*radius/step) + 1;
+	Int gi, gj;
+	for (gj=0; gj<numSamples; gj++) {
+		Int j = minY + gj*step;
+		for (gi=0; gi<numSamples; gi++) {
+			Int i = minX + gi*step;
 			if (m_feedbackVertexCount >= NUM_FEEDBACK_VERTEX) return;
-			if (m_squareFeedback) {
+			if (solidSquare) {
 				curVb->diffuse = diffuse;
 			} else {
-				Real blendFactor = Tool::calcRoundBlendFactor(m_cellCenter, i, j, brushWidth, featherWidth);
+				Real blendFactor = Tool::calcBlendFactor(m_feedbackShape, m_cellCenter, i, j, brushWidth, featherWidth);
 				if (blendFactor > 0.99) {
 					curVb->diffuse = diffuse;
 				} else if (blendFactor > 0.05) {
@@ -1262,10 +1264,11 @@ void DrawObject::updateFeedbackVB()
 			m_feedbackVertexCount++;
 		}
 	}
-	Int yOffset = maxX-minX;
+	Int yOffset = numSamples;
 	Int halfWidth = yOffset/2;
-	for (j=0; j<maxY-minY-1; j++) {
-		for (i=0; i<maxX-minX-1; i++) {
+	Int i, j;
+	for (j=0; j<numSamples-1; j++) {
+		for (i=0; i<numSamples-1; i++) {
 			if (m_feedbackIndexCount+6 > NUM_FEEDBACK_INDEX) return;
 			{
 				Bool flipForBlend = false;

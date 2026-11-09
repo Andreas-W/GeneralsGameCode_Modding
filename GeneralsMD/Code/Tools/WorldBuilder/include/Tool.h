@@ -47,6 +47,13 @@ class CWorldBuilderView;
 class WorldHeightMapEdit;
 class WbView;
 
+/// Shapes of the height brushes.  Width is the diameter, the side length or the diagonal.
+enum BrushShape {
+	BRUSH_SHAPE_CIRCLE,
+	BRUSH_SHAPE_SQUARE,
+	BRUSH_SHAPE_DIAMOND
+};
+
 /*************************************************************************
 **                             Tool
 ***************************************************************************/
@@ -79,6 +86,8 @@ public:
 
 	static Real calcRoundBlendFactor(CPoint center, Int x, Int y, Int brushWidth, Int featherWidth);
 	static Real calcSquareBlendFactor(CPoint center, Int x, Int y, Int brushWidth, Int featherWidth);
+	static Real calcDiamondBlendFactor(CPoint center, Int x, Int y, Int brushWidth, Int featherWidth);
+	static Real calcBlendFactor(Int shape, CPoint center, Int x, Int y, Int brushWidth, Int featherWidth);
 	static void getCenterIndex(Coord3D *docLocP, Int brushWidth, CPoint *center, CWorldBuilderDoc *pDoc);
 	/// Cells to refresh after changing the heights of vertices [minX,maxX) x [minY,maxY).
 	static IRegion2D calcHeightEditRange(Int minX, Int maxX, Int minY, Int maxY);
