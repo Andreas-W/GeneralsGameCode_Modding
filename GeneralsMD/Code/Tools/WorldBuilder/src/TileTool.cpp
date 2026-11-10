@@ -95,6 +95,23 @@ void TileTool::mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuil
 	REF_PTR_RELEASE(m_htMapEditCopy);
 }
 
+/// True if the cell lies inside a tile brush of the given BrushShape.
+/** Works on cell centers, so a brush of any width covers whole cells like the square does. */
+static Bool isCellInBrush(Int shape, CPoint center, Int x, Int y, Int width)
+{
+	if (shape == BRUSH_SHAPE_SQUARE) return true;
+	const Real CLOSE_ENOUGH = 0.05f;
+	Real offset = 0;
+	if (width&1) offset = 0.5f;
+	Real dx = fabs(center.x+offset - (x+0.5f));
+	Real dy = fabs(center.y+offset - (y+0.5f));
+	Real radius = width/2.0f + CLOSE_ENOUGH;
+	if (shape == BRUSH_SHAPE_DIAMOND) {
+		return dx+dy <= radius;
+	}
+	return dx*dx+dy*dy <= radius*radius;
+}
+
 /// Common mouse moved code for left and right clicks.
 void TileTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBuilderDoc *pDoc)
 {
@@ -140,12 +157,14 @@ void TileTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldB
 		m_prevYIndex = ndx.y;
 
 		Int i, j;
+		Int shape = getShape();
 		Int minX = ndx.x - (width)/2;
 		Int minY = ndx.y - (width)/2;
 		for (i=minX; i<minX+width; i++) {
 			if (i<0 || i>=m_htMapEditCopy->getXExtent()) continue;
 			for (j=minY; j<minY+width; j++) {
 				if (j<0 || j>=m_htMapEditCopy->getYExtent()) continue;
+				if (!isCellInBrush(shape, ndx, i, j, width)) continue;
 				if (TerrainMaterial::isPaintingPathingInfo()) {
 					m_htMapEditCopy->setCliff(i, j, !TerrainMaterial::isPaintingPassable());
 				} else {
@@ -182,6 +201,7 @@ void TileTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldB
 **                             BigTileTool
 ***************************************************************************/
 Int BigTileTool::m_currentWidth = 0;
+Int BigTileTool::m_currentShape = BRUSH_SHAPE_SQUARE;
 
 /// Constructor
 BigTileTool::BigTileTool()
@@ -193,7 +213,15 @@ BigTileTool::BigTileTool()
 void BigTileTool::setWidth(Int width)
 {
 	m_currentWidth = width;
-	DrawObject::setBrushFeedbackParms(BRUSH_SHAPE_SQUARE, m_currentWidth, 0);
+	DrawObject::setBrushFeedbackParms(m_currentShape, m_currentWidth, 0);
+}
+
+/// Sets the brush shape and shows it in the terrain materials options panel.
+void BigTileTool::setShape(Int shape)
+{
+	m_currentShape = shape;
+	TerrainMaterial::setShape(shape);
+	DrawObject::setBrushFeedbackParms(m_currentShape, m_currentWidth, 0);
 }
 
 /// Shows the terrain materials options panel.
@@ -202,6 +230,7 @@ void BigTileTool::activate()
 	CMainFrame::GetMainFrame()->showOptionsDialog(IDD_TERRAIN_MATERIAL);
 	TerrainMaterial::setToolOptions(false);
 	TerrainMaterial::setWidth(m_currentWidth);
+	TerrainMaterial::setShape(m_currentShape);
 	DrawObject::setDoBrushFeedback(true);
-	DrawObject::setBrushFeedbackParms(BRUSH_SHAPE_SQUARE, m_currentWidth, 0);
+	DrawObject::setBrushFeedbackParms(m_currentShape, m_currentWidth, 0);
 }

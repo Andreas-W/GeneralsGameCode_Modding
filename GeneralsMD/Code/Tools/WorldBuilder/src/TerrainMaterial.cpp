@@ -72,6 +72,7 @@ BEGIN_MESSAGE_MAP(TerrainMaterial, COptionsPanel)
 	ON_BN_CLICKED(IDC_IMPASSABLE, OnImpassable)
 	ON_BN_CLICKED(IDC_PASSABLE_CHECK, OnPassableCheck)
 	ON_BN_CLICKED(IDC_PASSABLE, OnPassable)
+	ON_CONTROL_RANGE(BN_CLICKED, IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, OnShape)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -111,6 +112,20 @@ void TerrainMaterial::setWidth(Int width)
 	}
 }
 
+/// Checks the radio button of the large tile BrushShape.
+void TerrainMaterial::setShape(Int shape)
+{
+	if (m_staticThis) {
+		m_staticThis->CheckRadioButton(IDC_SHAPE_CIRCLE, IDC_SHAPE_DIAMOND, IDC_SHAPE_CIRCLE + shape);
+	}
+}
+
+/// Handles the shape radio buttons.
+void TerrainMaterial::OnShape(UINT nID)
+{
+	BigTileTool::setShape(nID - IDC_SHAPE_CIRCLE);
+}
+
 /// Sets the tool option - single & multi tile use this panel,
 // and only multi tile uses the width.
 /** Update the ui for the tool. */
@@ -129,6 +144,10 @@ void TerrainMaterial::setToolOptions(Bool singleCell)
 		pEdit = m_staticThis->GetDlgItem(IDC_SIZE_POPUP);
 		if (pEdit) {
 			pEdit->EnableWindow(!singleCell);
+		}
+		for (Int id = IDC_SHAPE_CIRCLE; id <= IDC_SHAPE_DIAMOND; id++) {
+			pEdit = m_staticThis->GetDlgItem(id);
+			if (pEdit) pEdit->EnableWindow(!singleCell);
 		}
 		m_staticThis->m_updating = false;
 	}
@@ -235,6 +254,7 @@ BOOL TerrainMaterial::OnInitDialog()
 	m_staticThis = this;
 	m_updating = false;
 	setWidth(m_currentWidth);
+	setShape(BigTileTool::getCurrentShape());
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }

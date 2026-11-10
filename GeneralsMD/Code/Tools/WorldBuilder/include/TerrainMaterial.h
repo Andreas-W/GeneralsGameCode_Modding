@@ -62,6 +62,7 @@ protected:
 	afx_msg void OnImpassable();
 	afx_msg void OnPassableCheck();
 	afx_msg void OnPassable();
+	afx_msg void OnShape(UINT nID);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 
@@ -94,6 +95,7 @@ public:
 	static void updateTextureSelection();
 	static void setToolOptions(Bool singleCell);
 	static void setWidth(Int width);
+	static void setShape(Int shape);
 
 	static Bool isPaintingPathingInfo() {return m_paintingPathingInfo;}
 	static Bool isPaintingPassable() {return m_paintingPassable;}

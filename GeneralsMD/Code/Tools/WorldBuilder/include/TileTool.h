@@ -45,6 +45,7 @@ public:
 	virtual WorldHeightMapEdit *getHeightMap() override {return m_htMapEditCopy;};
 	virtual void activate() override; ///< Become the current tool.
 	virtual Int getWidth() {return 1;};
+	virtual Int getShape() {return BRUSH_SHAPE_SQUARE;}; ///< BrushShape.
 };
 
 /*************************************************************************
@@ -55,6 +56,7 @@ class BigTileTool : public TileTool
 
 protected:
 	static Int m_currentWidth;
+	static Int m_currentShape; ///< BrushShape.
 
 public:
 	virtual void activate() override; ///< Become the current tool.
@@ -64,5 +66,8 @@ public:
 
 	static void setWidth(Int width) ;
 	virtual Int getWidth() override {return m_currentWidth;};
+	static void setShape(Int shape);
+	static Int getCurrentShape() {return m_currentShape;};
+	virtual Int getShape() override {return m_currentShape;};
 
 };
