@@ -3931,6 +3931,11 @@ Bool PartitionManager::tryPosition( const Coord3D *center,
 			if( them == options->ignoreObject )
 				continue;  // continue in the object iterator for loop
 
+			// objects nothing collides with don't block the spot
+			if( BitIsSet( options->flags, FPF_IGNORE_NO_COLLIDE_OBJECTS ) == TRUE &&
+					( them->isKindOf( KINDOF_NO_COLLIDE ) || them->testStatus( OBJECT_STATUS_NO_COLLISIONS ) ) )
+				continue;
+
 			// relationship checks
 			if( options->relationshipObject )
 			{

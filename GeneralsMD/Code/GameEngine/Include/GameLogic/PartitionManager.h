@@ -115,6 +115,7 @@ enum FindPositionFlags CPP_11(: Int)
 	FPF_IGNORE_ENEMY_STRUCTURES						= 0x00000040,		// ignore enemy structures (requires relationshipObject)
 	FPF_USE_HIGHEST_LAYER									= 0x00000080,		// examine pos on highest layer at given xy (rather than on ground layer)
 	FPF_CLEAR_CELLS_ONLY									= 0x00000100,		// Reject anything that is not PathFindCell::Clear
+	FPF_IGNORE_NO_COLLIDE_OBJECTS					= 0x00000200,		// objects that nothing collides with (KINDOF_NO_COLLIDE, OBJECT_STATUS_NO_COLLISIONS) are no obstacle
 };
 // ----------------------------------------------------------------------------------------------
 

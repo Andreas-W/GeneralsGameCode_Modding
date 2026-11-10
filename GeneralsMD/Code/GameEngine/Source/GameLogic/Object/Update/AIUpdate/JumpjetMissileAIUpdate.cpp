@@ -162,7 +162,8 @@ Bool JumpjetMissileAIUpdate::findOffsetPosition(const Coord3D* targetPos, Coord3
 	FindPositionOptions fpOptions;
 	fpOptions.minRadius = GameLogicRandomValueReal(0, minRadius);
 	fpOptions.maxRadius = maxRadius;
-	fpOptions.flags = FPF_USE_HIGHEST_LAYER;
+	// Only real obstacles should push the landing spot away, not objects nothing collides with.
+	fpOptions.flags = static_cast<FindPositionFlags>(FPF_USE_HIGHEST_LAYER | FPF_IGNORE_NO_COLLIDE_OBJECTS);
 
 
 	// const JumpjetMissileAIUpdateModuleData* d = getJumpjetMissileAIUpdateModuleData();
