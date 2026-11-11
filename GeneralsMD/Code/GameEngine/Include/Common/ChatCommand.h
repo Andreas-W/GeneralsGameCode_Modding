@@ -58,6 +58,7 @@ public:
 	Int getAddVeterancyLevel() const { return m_addVeterancyLevel; }
 	Int getAddSalvageTier() const { return m_addSalvageTier; }
 	Real getProductionSpeedMultiplier() const { return m_productionSpeedMultiplier; }
+	Bool getRevealMap() const { return m_revealMap; }
 
 	/** Run this command's effects. Inspects the parsed members and acts accordingly. */
 	void execute() const;
@@ -74,6 +75,7 @@ private:
 	Int m_addVeterancyLevel = 0;			///< "AddVeterancyLevel" attribute; promote selected units by this many veterancy levels (negative demotes), capped to the valid range.
 	Int m_addSalvageTier = 0;				///< "AddSalvageTier" attribute; change selected salvagers' crate-upgrade tier by this much (negative removes), capped 0..2.
 	Real m_productionSpeedMultiplier = 0.0f;	///< "ProductionSpeedMultiplier" attribute; build-speed multiplier for the local player (>1 builds faster). 0 means the field was absent (no change).
+	Bool m_revealMap = FALSE;				///< "RevealMap" attribute; when TRUE, permanently reveals the whole map for the local player (no shroud or fog for the rest of the game).
 
 	static const FieldParse s_fieldParseTable[];
 };
