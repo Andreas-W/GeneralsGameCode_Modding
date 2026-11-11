@@ -345,10 +345,18 @@ End
 | `ScrollSpeed` | Texture scroll |
 | `Distortion`, `DistortionSpeed` | Heat haze: bends the scene behind the particle (0.02 is strong) |
 
-#### Water (`Use = Water`, one per mod)
+#### Water (`Use = Water`)
 
 Draws standing water and rivers. The maps are file names in `Art\Textures`: `NormalMap` = waves,
-`SpecularMap` = foam, `EmissiveMap` = sky.
+`SpecularMap` = foam, `EmissiveMap` = sky. Without a `WaterRendering` block (see below) all water uses the
+last water material.
+
+There are two built-in water shaders:
+- `MAT_Water`: flat water, as before, with shader waves, glints, sky and shore foam.
+- `MAT_Ocean`: water that moves. Its surface rises and falls in real waves, and you see through it to the
+  ground and to units below. The water darkens what is below it by its depth, and caustics play on the
+  ground. Ripples, sky and screen reflections, sun glints, shore foam, and waves running up the beach come
+  on top.
 
 ```ini
 Material Water
@@ -356,6 +364,8 @@ Material Water
   Shader = MAT_Water
 End
 ```
+
+`MAT_Water` parameters:
 
 | Parameter | Effect |
 |---|---|
@@ -365,6 +375,107 @@ End
 | `DeepColor`, `DepthScale` | Colour of deep water and the depth until it is reached (40) |
 | `ShoreDistance` | Soft fade at the shore (3) |
 | `FoamDistance`, `FoamStrength` | Foam along the shore (4, 0.5; `FoamDistance -1` = no foam) |
+
+`MAT_Ocean` parameters. A value of 0 means the default in brackets; −1 turns off what is marked:
+
+| Parameter | Effect |
+|---|---|
+| `WaveAmplitude` | Height of the largest wave in world units (1.5; −1 = flat) |
+| `WaveLength`, `WaveSpeed`, `WaveDirection` | Longest wave (140), speed factor (1), direction x y (1 0.35); three shorter waves run beside it |
+| `WaveChoppiness` | 0..1, how sharp the crests are (0.6) |
+| `WaveFadeDistance` | Camera distance at which the waves are flat (1400) |
+| `ShoreFadeDistance`, `DepthFade` | Distance from the shore (60) and water depth (10) over which the waves grow |
+| `NormalStrength`, `NormalScale`, `NormalSpeed` | Ripples: strength (0.35), size (90), speed (6) |
+| `SkyColor`, `HorizonColor`, `Reflection` | Reflected sky (or a latitude-longitude `EmissiveMap`) and its strength at flat angles (0.8) |
+| `SSRStrength`, `SSRMaxDistance` | Reflection of what is on screen (0.8; −1 = none) and how far it is searched (400) |
+| `Gloss`, `GlintStrength` | Sun glints (300, 3) |
+| `RefractionStrength` | How much the waves bend what is below (1) |
+| `Absorption` | How fast red, green and blue fade per world unit of water (0.035 0.012 0.008) |
+| `ScatterColor`, `UnderwaterAmbient` | The water's own colour (0.06 0.32 0.36) and how much light it gets (1) |
+| `CausticStrength`, `CausticScale`, `CausticSpeed` | Light lines on the ground below (0.5; −1 = none), cell size (35), speed (1) |
+| `TextureTint` | How much the map's water texture and colour tint the water (0.25; −1 = none) |
+| `ShoreDistance` | Water depth over which the edge fades in (1) |
+| `ShoreHardness` | 0 = a soft foamy edge, 1 = a hard foam line |
+| `ShoreWaveLength`, `ShoreWaveSpeed`, `ShoreWaveRange` | Waves running up the beach: spacing (28), speed (7), how far out they form (45) |
+| `ShoreWaveHeight` | How much they lift the surface (0.5; −1 = none) |
+| `FoamDistance`, `FoamStrength`, `FoamColor` | Shore foam (3; −1 = none), strength (0.85), colour |
+| `CrestFoam` | Foam on high wave crests (0.4; −1 = none) |
+| `DeepColor`, `DeepOpacity`, `DepthScale` | Only with `Refraction = No`: like `MAT_Water` |
+
+Example presets for three kinds of water:
+
+```ini
+Material Ocean
+  Use = Water
+  Shader = MAT_Ocean
+  Param = WaveAmplitude 2
+  ParamNight = ScatterColor 0.01 0.05 0.08
+End
+Material Lake
+  Use = Water
+  Shader = MAT_Ocean
+  Param = WaveAmplitude 0.4
+  Param = WaveLength 60
+  Param = ShoreWaveHeight -1
+  Param = ScatterColor 0.05 0.22 0.18
+End
+Material River
+  Use = Water
+  Shader = MAT_Ocean
+  Param = WaveAmplitude 0.3
+  Param = ShoreWaveHeight -1
+  Param = Absorption 0.08 0.05 0.04
+  Param = ScatterColor 0.12 0.16 0.08
+End
+```
+
+All Material blocks take `ParamMorning`, `ParamAfternoon`, `ParamEvening` and `ParamNight`, like passes.
+
+#### Which water gets which material (`WaterRendering`)
+
+A `WaterRendering` block, usually in `Water.ini`, picks the water material for each body of water and sets
+what the engine prepares for it:
+
+```ini
+WaterRendering
+  OceanMaterial = Ocean        ; standing water that reaches the edge of the playable area
+  LakeMaterial = Lake          ; any other standing water
+  RiverMaterial = River        ; rivers
+  PolygonMaterial = Lake Harbour Basin   ; <material> <water area name>: before the kinds
+  GridSpacing = 10             ; world units between the vertices of water whose material moves them
+  RiverSubdivisions = 4        ; such rivers get each quad cut into 4 x 4 pieces
+  LodDistance = 600            ; beyond it water has half as many vertices, beyond twice that a quarter
+  Refraction = Yes             ; copy the scene before the water, for MAT_Ocean's view into the water
+  DrawWaterTracks = No         ; the map's .wak waves too (MAT_Ocean makes its own)
+  ShoreFieldResolution = 2     ; texels per terrain cell of the water field
+  ShoreFieldRange = 100        ; largest distance to the shore it holds
+  ReplaceHeightAmbientLight = Yes   ; leave MapData TerrainHeightAmbientLight to MAT_Ocean
+End
+```
+
+An empty or unknown material name gives the last water material. The **water field** is a texture over the
+map that `MAT_Ocean` reads. It holds the terrain height, the distance to the shore and the direction away from
+it. The engine builds it when the map loads, and again when the water level or the terrain changes.
+
+### Per map, time of day and scripts
+
+**Materials per map**: a map's `map.ini` may contain `Material` and `WaterRendering` blocks too, and
+WorldBuilder shows them.
+- A `Material` block replaces the whole material of that name, so list all its parameters, not only the
+  changed ones.
+- A `WaterRendering` block changes only the fields it lists.
+- Both come back to the mod's settings when the game ends.
+
+Example: murky water for one map:
+
+```ini
+Material Ocean
+  Use = Water
+  Shader = MAT_Ocean
+  Param = ScatterColor 0.12 0.15 0.06
+  Param = Absorption 0.1 0.08 0.07
+End
+```
 
 #### Terrain (`Use = Terrain`, one per mod)
 
@@ -381,9 +492,7 @@ brightness. Highlights come from `_spec.tga`. Clouds, the light map and the shro
 Parameters: `HeightFromColor` (1; −1 = no brightness bumps), `NormalStrength`, `Specular`, `Gloss` (32),
 `FlipGreen`. At the lowest terrain detail only brightness bumps are used.
 
-### Per map, time of day and scripts
-
-**Per map**: a map's `map.ini` can contain `PostProcessPass`, `PostProcess`, `PostProcessChain` and
+**Post-processing per map**: a map's `map.ini` can contain `PostProcessPass`, `PostProcess`, `PostProcessChain` and
 `ShadowMap` blocks. They change the mod's settings for that map only. A block with the name of an existing
 pass changes only the fields it lists (a `Param` replaces the parameter of the same name), and the mod's
 settings come back when the game ends. Example: a sepia look and
@@ -477,7 +586,27 @@ float4 main(MaterialInput input) : SV_Target
 - `TangentFrame(viewPosition, normal, uv)`, for normal maps without tangents in the model;
 - `Finish(color, glow, input)`, which applies fog and the alpha test;
 - `MaterialTime` (seconds), and for particles and water the scene behind: `SceneDepth`, `SceneColor`,
-  `ScreenUV`, `DepthBehind` and `WorldPosition`.
+  `ScreenUV`, `DepthBehind`, `WorldPosition`, `SceneViewPosition(uv)` and `SceneWorldPosition(uv)`;
+- for water, the water field and the shroud: `WaterField` (terrain height, distance to the shore, direction
+  away from it) and `ShroudTexture`, with `HasWaterField()` / `HasShroud()`. The game passes their world to
+  texture transforms as the parameters `WaterFieldTransform` and `ShroudTransform`. The samplers
+  `LinearClampSampler`, `LinearWrapSampler` and `PointClampSampler` go with them.
+
+**Moving vertices**: a material can also define a vertex function, which moves each vertex in world space
+before it is drawn:
+
+```hlsl
+void MaterialVertex(inout MaterialVertexData v)
+{
+    v.worldPosition.z += sin(v.worldPosition.x * 0.05 + Time) * 2;   // also v.worldNormal, v.tex0 (read only)
+    v.data = float4(1, 0, 0, 0);                                     // arrives as input.materialData
+}
+```
+
+The same file is compiled a second time for it, with `MATERIAL_VERTEX_STAGE` defined. There it may read the
+constants, the parameters and `WaterField` (with `SampleLevel`), but not the other textures. Water whose
+material has a vertex function is drawn as a finer grid (`WaterRendering GridSpacing`). Compile errors in it
+are reported like those of the pixel shader.
 
 The full interface is documented in `Core/Libraries/Source/D3D8on12/d3d8on12_ext.h`. The built-in shaders
 in `Core/GameEngineDevice/Source/W3DDevice/GameClient/W3DPostProcess.cpp` and `W3DMaterials.cpp` are good
