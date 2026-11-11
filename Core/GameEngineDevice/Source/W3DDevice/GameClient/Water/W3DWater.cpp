@@ -67,6 +67,8 @@
 #include "W3DDevice/GameClient/W3DScene.h"
 #include "W3DDevice/GameClient/W3DCustomScene.h"
 #include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DWaterField.h"
+#include "GameClient/PostProcess.h"
 
 
 
@@ -329,6 +331,7 @@ WaterRenderObjClass::~WaterRenderObjClass()
 	ReleaseResources();
 
 	delete m_waterTrackSystem;
+	delete m_waterField;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -386,6 +389,10 @@ WaterRenderObjClass::WaterRenderObjClass()
 	m_waterSparklesTexture=nullptr;
 	m_riverXOffset=0;
 	m_riverYOffset=0;
+	m_waterField = new W3DWaterField;
+	m_waterFieldReady = FALSE;
+	m_renderCamera = nullptr;
+	m_vertexMaterialDrawn = FALSE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -806,6 +813,8 @@ void WaterRenderObjClass::ReleaseResources()
 
 	if (m_waterTrackSystem)
 		m_waterTrackSystem->ReleaseResources();
+	if (m_waterField)
+		m_waterField->release();
 
 	if (m_dwWavePixelShader)
 		DX8Wrapper::Delete_Pixel_Shader(m_dwWavePixelShader);
@@ -964,6 +973,7 @@ void WaterRenderObjClass::load()
 {
 	if (m_waterTrackSystem)
 		m_waterTrackSystem->loadTracks();
+	m_waterField->invalidate();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1527,6 +1537,7 @@ void WaterRenderObjClass::Render(RenderInfoClass & rinfo)
 		return;
 	}
 
+	m_renderCamera = &rinfo.Camera;
 	switch(m_waterType)
 	{
 		case WATER_TYPE_0_TRANSLUCENT:
@@ -1980,13 +1991,21 @@ void WaterRenderObjClass::drawSea(RenderInfoClass & rinfo)
 //-------------------------------------------------------------------------------------------------
 void WaterRenderObjClass::renderWater()
 {
+	// The Direct3D 12 water materials get the water field and the shroud for this frame's water.
+	const Bool materials = TheW3DMaterials != nullptr && TheW3DMaterials->hasWater();
+	m_waterFieldReady = materials && m_waterField->update();
+	m_vertexMaterialDrawn = FALSE;
+
 	for (PolygonTrigger *pTrig=PolygonTrigger::getFirstPolygonTrigger(); pTrig; pTrig = pTrig->getNext()) {
 		if (pTrig->isWaterArea()) {
 			if (pTrig->getNumPoints()>2) {
+				const Int material = materials ? getWaterMaterial(pTrig) : -1;
 				if (pTrig->isRiver()) {
-					drawRiverWater(pTrig);
+					drawRiverWater(pTrig, material);
 					continue;
 				}
+				// Water whose material moves the vertices is drawn as one grid, not in feathered layers.
+				const Bool grid = material >= 0 && TheW3DMaterials->waterHasVertexFunction(material);
 				Int k;
 				for (k=1; k<pTrig->getNumPoints()-1; k=k+2) {
 					ICoord3D pt3 = *pTrig->getPoint(0);
@@ -2002,17 +2021,17 @@ void WaterRenderObjClass::renderWater()
 					points[2].Set(pt2.x, pt2.y, pt2.z);
 					points[3].Set(pt3.x, pt3.y, pt3.z);
 
-					if ( TheGlobalData->m_featherWater )
+					if ( TheGlobalData->m_featherWater && !grid )
 					{
 						for (int r = 0; r < TheGlobalData->m_featherWater; ++r)
 						{
-							drawTrapezoidWater(points);
+							drawTrapezoidWater(points, material);
 							points[0].Z += (FEATHER_THICKNESS/TheGlobalData->m_featherWater);
 						}
 					}
 
 					else
-						drawTrapezoidWater(points);
+						drawTrapezoidWater(points, material);
 
 
 				}
@@ -2020,6 +2039,63 @@ void WaterRenderObjClass::renderWater()
 		}
 	}
 
+	// The shared textures are only for the water; the shroud texture may go away before the next frame.
+	if (materials)
+	{
+		IDirect3DBaseTexture8 *const none[2] = { nullptr, nullptr };
+		TheW3DMaterials->setSharedTextures(0, 2, none);
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The water material of a water area (WaterRendering): by its name, else by its kind; a river is a river,
+	* standing water reaching the edge of the playable area an ocean, any other a lake. */
+//-------------------------------------------------------------------------------------------------
+Int WaterRenderObjClass::getWaterMaterial(PolygonTrigger *pTrig)
+{
+	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
+	if (settings == nullptr)
+		return TheW3DMaterials->findWaterMaterial(AsciiString::TheEmptyString);
+
+	WaterRenderingSettings::Kind kind = WaterRenderingSettings::KIND_LAKE;
+	if (pTrig->isRiver())
+	{
+		kind = WaterRenderingSettings::KIND_RIVER;
+	}
+	else if (TheTerrainRenderObject != nullptr && TheTerrainRenderObject->getMap() != nullptr)
+	{
+		WorldHeightMap *map = TheTerrainRenderObject->getMap();
+		const Int border = map->getBorderSizeInline();
+		const Real maxX = (Real)(map->getXExtent() - 1 - 2 * border) * MAP_XY_FACTOR - MAP_XY_FACTOR;
+		const Real maxY = (Real)(map->getYExtent() - 1 - 2 * border) * MAP_XY_FACTOR - MAP_XY_FACTOR;
+		for (Int i = 0; i < pTrig->getNumPoints(); ++i)
+		{
+			const ICoord3D *point = pTrig->getPoint(i);
+			if (point->x <= MAP_XY_FACTOR || point->y <= MAP_XY_FACTOR || point->x >= maxX || point->y >= maxY)
+			{
+				kind = WaterRenderingSettings::KIND_OCEAN;
+				break;
+			}
+		}
+	}
+	return TheW3DMaterials->findWaterMaterial(settings->getMaterialName(kind, pTrig->getTriggerName()));
+}
+
+//-------------------------------------------------------------------------------------------------
+/** What the game tells a water material before it draws: river or not, and for the water field, the
+	* shroud and the camera distance of the grid's level of detail. */
+//-------------------------------------------------------------------------------------------------
+void WaterRenderObjClass::setWaterMaterialParameters(Int material, Bool river)
+{
+	const Real riverValue = river ? 1.0f : 0.0f;
+	TheW3DMaterials->setWaterParameter(material, "River", &riverValue, 1);
+	if (m_waterFieldReady)
+		TheW3DMaterials->setWaterParameter(material, "WaterFieldTransform", m_waterField->getTransform(), 4);
+	// Materials that move the vertices apply the shroud themselves (a second flat pass would not fit them);
+	// the others get it as before, so for them it stays off.
+	const Real noShroud[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	const Bool shaderShroud = m_waterField->hasShroud() && TheW3DMaterials->waterHasVertexFunction(material);
+	TheW3DMaterials->setWaterParameter(material, "ShroudTransform", shaderShroud ? m_waterField->getShroudTransform() : noShroud, 4);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2688,7 +2764,7 @@ Real WaterRenderObjClass::getWaterHeight(Real x, Real y)
 //-------------------------------------------------------------------------------------------------
 //Draw a many sided river polygon.
 //-------------------------------------------------------------------------------------------------
-void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
+void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig, Int material)
 {
 	DX8Wrapper::Invalidate_Cached_Render_States();	///@todo: Figure out why rivers don't draw without reset of all states.
 
@@ -2708,25 +2784,45 @@ void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
 		return;
 
 	m_drawingRiver = true;
-	m_materialActive = TheW3DMaterials != nullptr && TheW3DMaterials->hasWater();
+	m_materialActive = material >= 0;
 
-	DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8,indexCount);
+	// A material that moves the vertices gets each quad cut into pieces, as far as the buffers allow.
+	const Bool vertexMaterial = m_materialActive && TheW3DMaterials->waterHasVertexFunction(material);
+	Int pieces = 1;
+	if (vertexMaterial)
+	{
+		pieces = TheWaterRenderingSettings != nullptr ? max(1, min(TheWaterRenderingSettings->m_riverSubdivisions, 16)) : 4;
+		while (pieces > 1 && (rectangleCount < 1 || rectangleCount * pieces * pieces * 6 > DynamicIBAccessClass::MAX_INDEX_COUNT
+			|| (rectangleCount * pieces + 1) * (pieces + 1) > 65535))
+			--pieces;
+	}
+	const Int rows = rectangleCount * pieces + 1;	// cross sections
+	const Int columns = pieces + 1;					// vertices across
+	const Int vertexCount = rows * columns;
+	const Int triangleCount = (rows - 1) * pieces * 2;
+
+	DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8,triangleCount*3);
 	{
 		DynamicIBAccessClass::WriteLockClass lockib(&ib_access);
  		UnsignedShort *curIb = lockib.Get_Index_Array();
-		for (Int i=0; i<rectangleCount; i++)
+		for (Int i=0; i<rows-1; i++)
 		{
-			//triangle 1
-			curIb[0] = i*2;
-			curIb[1] = i*2+1;
-			curIb[2] = i*2+3;
+			for (Int c=0; c<pieces; c++)
+			{
+				// With one piece: inner i*2, outer i*2+1, then the next cross section.
+				const Int inner = i*columns+c;
+				//triangle 1
+				curIb[0] = inner;
+				curIb[1] = inner+1;
+				curIb[2] = inner+columns+1;
 
-			//triangle 2
-			curIb[3] = i*2;
-			curIb[4] = i*2+3;
-			curIb[5] = i*2+2;
+				//triangle 2
+				curIb[3] = inner;
+				curIb[4] = inner+columns+1;
+				curIb[5] = inner+columns;
 
-			curIb += 6;	//skip the 6 indices we just added.
+				curIb += 6;	//skip the 6 indices we just added.
+			}
 		}
 	}
 
@@ -2807,16 +2903,21 @@ void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
 #define HEIGHT_TO_USE (0.5f)
 	if (innerNdx >= pTrig->getNumPoints()-1) return;
 	//allocate 2 vertices per side
-	DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8,dynamic_fvf_type,(rectangleCount+1)*2);
+	DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8,dynamic_fvf_type,vertexCount);
 	{
 		DynamicVBAccessClass::WriteLockClass lock(&vb_access);
-		VertexFormatXYZNDUV2* vb=lock.Get_Formatted_Vertex_Array();
+		// The 2 vertices per side go straight into the buffer, or first here to be cut into pieces.
+		std::vector<VertexFormatXYZNDUV2> sides;
+		if (pieces > 1)
+			sides.resize((rectangleCount+1)*2);
+		VertexFormatXYZNDUV2* vb = pieces > 1 ? &sides[0] : lock.Get_Formatted_Vertex_Array();
 
 		Real constA=3*m_riverVOrigin;
 
 		// TheSuperHackers @bugfix afc-afc0 14/04/2026 Apply shroud per-vertex to avoid double-darkening
 		// at river borders.
-		W3DShroud *shroud = TheTerrainRenderObject ? TheTerrainRenderObject->getShroud() : nullptr;
+		// (A material that moves the vertices applies the shroud itself.)
+		W3DShroud *shroud = TheTerrainRenderObject && !vertexMaterial ? TheTerrainRenderObject->getShroud() : nullptr;
 
 		for (i=0; i<(pTrig->getNumPoints()/2); i++)
 		{
@@ -2877,6 +2978,45 @@ void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
 			vb++;
 
 		}
+
+		if (pieces > 1)
+		{
+			// Each quad between two cross sections, cut bilinearly into pieces x pieces.
+			VertexFormatXYZNDUV2* out = lock.Get_Formatted_Vertex_Array();
+			for (Int row = 0; row < rows; row++)
+			{
+				const Int section = min(row / pieces, rectangleCount - 1);
+				const Real t = (Real)(row - section * pieces) / (Real)pieces;
+				const VertexFormatXYZNDUV2& in0 = sides[section*2];
+				const VertexFormatXYZNDUV2& out0 = sides[section*2+1];
+				const VertexFormatXYZNDUV2& in1 = sides[section*2+2];
+				const VertexFormatXYZNDUV2& out1 = sides[section*2+3];
+				for (Int c = 0; c < columns; c++)
+				{
+					const Real s = (Real)c / (Real)pieces;
+					const Real w00 = (1-t)*(1-s), w01 = (1-t)*s, w10 = t*(1-s), w11 = t*s;
+					out->x = w00*in0.x + w01*out0.x + w10*in1.x + w11*out1.x;
+					out->y = w00*in0.y + w01*out0.y + w10*in1.y + w11*out1.y;
+					out->z = w00*in0.z + w01*out0.z + w10*in1.z + w11*out1.z;
+					out->u1 = w00*in0.u1 + w01*out0.u1 + w10*in1.u1 + w11*out1.u1;
+					out->v1 = w00*in0.v1 + w01*out0.v1 + w10*in1.v1 + w11*out1.v1;
+					out->u2 = w00*in0.u2 + w01*out0.u2 + w10*in1.u2 + w11*out1.u2;
+					out->v2 = w00*in0.v2 + w01*out0.v2 + w10*in1.v2 + w11*out1.v2;
+					UnsignedInt diffuse = 0;
+					for (Int shift = 0; shift < 32; shift += 8)
+					{
+						const Real channel = w00*((in0.diffuse >> shift) & 0xff) + w01*((out0.diffuse >> shift) & 0xff)
+							+ w10*((in1.diffuse >> shift) & 0xff) + w11*((out1.diffuse >> shift) & 0xff);
+						diffuse |= (UnsignedInt)min(255, REAL_TO_INT(channel)) << shift;
+					}
+					out->diffuse = diffuse;
+					out->nx = 0;
+					out->ny = 0;
+					out->nz = 1.0f;
+					out++;
+				}
+			}
+		}
 	}
 
 	Matrix3D tm(1);
@@ -2890,7 +3030,10 @@ void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
 
 	//In additive blending we need to use the alpha at the edges of river to darken
 	//rgb instead.
-	if (TheWaterTransparency->m_additiveBlend)
+	//(A material that moves the vertices blends itself, it draws what is under the water too.)
+	if (vertexMaterial)
+		DX8Wrapper::Set_Shader(ShaderClass::_PresetAlphaShader);
+	else if (TheWaterTransparency->m_additiveBlend)
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA );
 
 	if ((m_riverWaterPixelShader && !m_materialActive)) DX8Wrapper::Set_Pixel_Shader(m_riverWaterPixelShader);
@@ -2904,15 +3047,15 @@ void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
 		if (!m_riverAlphaEdge->Is_Initialized())
 			m_riverAlphaEdge->Init();
 		DX8Wrapper::Set_DX8_Texture_Stage_State(1, D3DTSS_TEXCOORDINDEX, 1);
-		const Real river = 1.0f;
-		TheW3DMaterials->setWaterParameter("River", &river, 1);
-		m_materialActive = TheW3DMaterials->bindWater(m_riverAlphaEdge->Peek_D3D_Base_Texture());
+		setWaterMaterialParameters(material, TRUE);
+		m_materialActive = TheW3DMaterials->bindWater(material, m_riverAlphaEdge->Peek_D3D_Base_Texture());
+		m_vertexMaterialDrawn |= m_materialActive && vertexMaterial;
 	}
 
 	if (wireframeForDebug) {
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_FILLMODE,D3DFILL_WIREFRAME);
 	}
-	DX8Wrapper::Draw_Triangles(	0,rectangleCount*2, 0,	(rectangleCount+1)*2);
+	DX8Wrapper::Draw_Triangles(	0,triangleCount, 0,	vertexCount);
 	if (wireframeForDebug) {
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_FILLMODE,D3DFILL_SOLID);
 	}
@@ -2926,7 +3069,7 @@ void WaterRenderObjClass::drawRiverWater(PolygonTrigger *pTrig)
 	if ((m_riverWaterPixelShader && !m_materialActive)) DX8Wrapper::Set_Pixel_Shader(0);
 
 	//restore blend mode to what W3D expects.
-	if (TheWaterTransparency->m_additiveBlend)
+	if (TheWaterTransparency->m_additiveBlend && !vertexMaterial)
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_SRCBLEND, D3DBLEND_ONE );
 
 	DX8Wrapper::Set_DX8_Render_State(D3DRS_CULLMODE, cull);
@@ -3035,7 +3178,7 @@ void WaterRenderObjClass::setupFlatWaterShader()
 //-------------------------------------------------------------------------------------------------
 //Draw a 4 sided flat water area.
 //-------------------------------------------------------------------------------------------------
-void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
+void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4], Int material)
 {
 	Vector3 origin(points[0]);
 	Vector3 uVec1(points[1]);
@@ -3134,6 +3277,13 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 
 	//Keep diffuse from lighting calculations but substitute custom alpha
 	diffuse |= m_settings[m_tod].waterDiffuse & 0xff000000;	//copy alpha/opacity from ini setting
+
+	// A material that moves the vertices needs a finer grid, drawn in pieces the camera sees.
+	if (material >= 0 && TheW3DMaterials->waterHasVertexFunction(material))
+	{
+		drawTrapezoidWaterGrid(points, material, diffuse);
+		return;
+	}
 
 	DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8,dynamic_fvf_type,(rectangleCount+1)*2);
 
@@ -3262,7 +3412,7 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 	DX8Wrapper::Set_Index_Buffer(ib_access,0);
 	DX8Wrapper::Set_Vertex_Buffer(vb_access);
 
-	m_materialActive = TheW3DMaterials != nullptr && TheW3DMaterials->hasWater();
+	m_materialActive = material >= 0;
 	setupFlatWaterShader();// lorenzen sez use the alpha shader
 
 	//If video card supports it and it's enabled, feather the water edge using destination alpha
@@ -3300,9 +3450,8 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 //#endif //WAVY_WATER
 		if (m_materialActive)
 		{
-			const Real river = 0.0f;
-			TheW3DMaterials->setWaterParameter("River", &river, 1);
-			m_materialActive = TheW3DMaterials->bindWater(nullptr);
+			setWaterMaterialParameters(material, FALSE);
+			m_materialActive = TheW3DMaterials->bindWater(material, nullptr);
 		}
 		DX8Wrapper::Draw_Triangles(	0,rectangleCount*2, 0,	(rectangleCount+1)*2);//lorenzen thinks this is where to itereate the soft shoreline effect
 		if (m_materialActive)
@@ -3354,6 +3503,148 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4])
 		}
 	}
 	DX8Wrapper::Set_DX8_Render_State(D3DRS_CULLMODE, cull);
+	m_materialActive = FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A 4 sided water area for a Direct3D 12 material that moves the vertices: a grid of GridSpacing,
+	* in chunks that are left out when the camera does not see them and get fewer vertices far away
+	* (the material flattens its waves there, so the chunks still meet). The material applies the shroud
+	* and blends by itself. */
+//-------------------------------------------------------------------------------------------------
+void WaterRenderObjClass::drawTrapezoidWaterGrid(Vector3 points[4], Int material, Int diffuse)
+{
+	const Int CHUNK_QUADS = 32;
+	const Real WAVE_MARGIN = 40.0f;	// how far the material may move a vertex, for culling
+	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
+	const Real spacing = settings != nullptr ? max(settings->m_gridSpacing, 2.0f) : 10.0f;
+	const Real lodDistance = settings != nullptr ? max(settings->m_lodDistance, 1.0f) : 600.0f;
+
+	// P(u, v) = p0 + u (p1 - p0) + v (p3 - p0) + u v (p2 - p1 - p3 + p0), as drawTrapezoidWater does.
+	const Vector3 origin(points[0]);
+	const Vector3 uAxis(points[1] - points[0]);
+	const Vector3 vAxis(points[3] - points[0]);
+	const Vector3 twist(points[2] - points[1] - points[3] + points[0]);
+	const Real uLength = ((points[1] - points[0]).Length() + (points[2] - points[3]).Length()) * 0.5f;
+	const Real vLength = ((points[3] - points[0]).Length() + (points[2] - points[1]).Length()) * 0.5f;
+	const Int uQuads = max(1, min(4096, (Int)ceilf(uLength / spacing)));
+	const Int vQuads = max(1, min(4096, (Int)ceilf(vLength / spacing)));
+	const Real waterFactor = 150.0f;
+
+	Matrix3D tm(1);
+	DX8Wrapper::Set_Transform(D3DTS_WORLD,tm);
+	m_materialActive = TRUE;
+	setupFlatWaterShader();
+	DX8Wrapper::Set_Shader(ShaderClass::_PresetAlphaShader);
+	DWORD cull = DX8Wrapper::Get_Device_Render_State(D3DRS_CULLMODE);
+	setWaterMaterialParameters(material, FALSE);
+	if (!TheW3DMaterials->bindWater(material, nullptr))
+	{
+		m_materialActive = FALSE;
+		return;
+	}
+	m_vertexMaterialDrawn = TRUE;
+
+	Int uIndex[CHUNK_QUADS + 1];
+	Int vIndex[CHUNK_QUADS + 1];
+	const Vector3 cameraPosition = m_renderCamera != nullptr ? m_renderCamera->Get_Position() : Vector3(0, 0, 0);
+	for (Int v0 = 0; v0 < vQuads; v0 += CHUNK_QUADS)
+	{
+		for (Int u0 = 0; u0 < uQuads; u0 += CHUNK_QUADS)
+		{
+			const Int uEnd = min(u0 + CHUNK_QUADS, uQuads);
+			const Int vEnd = min(v0 + CHUNK_QUADS, vQuads);
+
+			// The chunk lies within the box of its corners (a bilinear patch is inside their hull).
+			Vector3 corners[4];
+			const Real us[2] = { (Real)u0 / uQuads, (Real)uEnd / uQuads };
+			const Real vs[2] = { (Real)v0 / vQuads, (Real)vEnd / vQuads };
+			for (Int c = 0; c < 4; c++)
+			{
+				const Real u = us[c & 1];
+				const Real v = vs[c >> 1];
+				corners[c] = origin + uAxis * u + vAxis * v + twist * (u * v);
+			}
+			Vector3 boxMin(corners[0]), boxMax(corners[0]);
+			for (Int c = 1; c < 4; c++)
+			{
+				boxMin.Update_Min(corners[c]);
+				boxMax.Update_Max(corners[c]);
+			}
+			const Vector3 margin(WAVE_MARGIN, WAVE_MARGIN, WAVE_MARGIN);
+			AABoxClass box;
+			box.Init_Min_Max(boxMin - margin, boxMax + margin);
+			if (m_renderCamera != nullptr && m_renderCamera->Cull_Box(box))
+				continue;
+
+			// Every vertex near the camera, every second or fourth farther away; the chunk's edges are kept.
+			const Real distance = (box.Center - cameraPosition).Length();
+			const Int stride = distance < lodDistance ? 1 : (distance < 2.0f * lodDistance ? 2 : 4);
+			Int uCount = 0, vCount = 0;
+			for (Int u = u0; u < uEnd; u += stride)
+				uIndex[uCount++] = u;
+			uIndex[uCount++] = uEnd;
+			for (Int v = v0; v < vEnd; v += stride)
+				vIndex[vCount++] = v;
+			vIndex[vCount++] = vEnd;
+
+			const Int vertexCount = uCount * vCount;
+			const Int triangleCount = (uCount - 1) * (vCount - 1) * 2;
+			DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8, triangleCount * 3);
+			{
+				DynamicIBAccessClass::WriteLockClass lockib(&ib_access);
+				UnsignedShort *curIb = lockib.Get_Index_Array();
+				for (Int j = 0; j < vCount - 1; j++)
+				{
+					for (Int i = 0; i < uCount - 1; i++)
+					{
+						curIb[0] = (j)*uCount + i;
+						curIb[1] = (j+1)*uCount + i+1;
+						curIb[2] = (j+1)*uCount + i;
+						curIb[3] = (j)*uCount + i;
+						curIb[4] = (j)*uCount + i+1;
+						curIb[5] = (j+1)*uCount + i+1;
+						curIb += 6;
+					}
+				}
+			}
+			DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8, dynamic_fvf_type, vertexCount);
+			{
+				DynamicVBAccessClass::WriteLockClass lock(&vb_access);
+				VertexFormatXYZNDUV2* vb = lock.Get_Formatted_Vertex_Array();
+				for (Int j = 0; j < vCount; j++)
+				{
+					const Real v = (Real)vIndex[j] / vQuads;
+					for (Int i = 0; i < uCount; i++)
+					{
+						const Real u = (Real)uIndex[i] / uQuads;
+						const Vector3 vertex = origin + uAxis * u + vAxis * v + twist * (u * v);
+						vb->x = vertex.X;
+						vb->y = vertex.Y;
+						vb->z = vertex.Z;
+						vb->diffuse = diffuse;
+						vb->u1 = vertex.X / waterFactor;
+						vb->v1 = vertex.Y / waterFactor;
+						vb->u2 = vertex.X / BUMP_SIZE;
+						vb->v2 = (vertex.Y + 0.3f * vertex.X) / BUMP_SIZE;
+						vb->nx = 0;
+						vb->ny = 0;
+						vb->nz = 1.0f;
+						vb++;
+					}
+				}
+			}
+			DX8Wrapper::Set_Index_Buffer(ib_access, 0);
+			DX8Wrapper::Set_Vertex_Buffer(vb_access);
+			DX8Wrapper::Set_DX8_Render_State(D3DRS_CULLMODE, D3DCULL_NONE);
+			DX8Wrapper::Draw_Triangles(0, triangleCount, 0, vertexCount);
+		}
+	}
+
+	TheW3DMaterials->End();
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_CULLMODE, cull);
+	if (TheWaterTransparency->m_additiveBlend)
+		DX8Wrapper::Set_Shader(ShaderClass::_PresetAdditiveShader);
 	m_materialActive = FALSE;
 }
 

@@ -50,6 +50,7 @@
 
 class PolygonTrigger;
 class WaterTracksRenderSystem;
+class W3DWaterField;
 class Xfer;
 /// Custom render object that draws mirrors, water, and skies.
 /**
@@ -236,8 +237,17 @@ protected:
 	};
 
 	Setting m_settings[ TIME_OF_DAY_COUNT ];	///< settings for each time of day
-	void drawRiverWater(PolygonTrigger *pTrig);
-	void drawTrapezoidWater(Vector3 points[4]);
+	void drawRiverWater(PolygonTrigger *pTrig, Int material);
+	void drawTrapezoidWater(Vector3 points[4], Int material);
+
+	// Direct3D 12 water materials (WaterRendering): material is a W3DMaterials water index, -1 for none.
+	W3DWaterField *m_waterField;			///< water field and shroud for the materials
+	Bool m_waterFieldReady;					///< set for this frame's water
+	CameraClass *m_renderCamera;			///< the camera of the water being drawn
+	Bool m_vertexMaterialDrawn;				///< a material that moves the vertices drew water this frame
+	Int getWaterMaterial(PolygonTrigger *pTrig);
+	void setWaterMaterialParameters(Int material, Bool river);
+	void drawTrapezoidWaterGrid(Vector3 points[4], Int material, Int diffuse);
 	void loadSetting ( Setting *skySetting, TimeOfDay timeOfDay );	///<init sky/water settings from GDF
 	void renderSky();	///<draw the sky layer (clouds, stars, etc.)
 	void testCurvedWater();	///<draw the sky layer (clouds, stars, etc.)
