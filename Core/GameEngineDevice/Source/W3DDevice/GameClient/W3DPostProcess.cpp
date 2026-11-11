@@ -322,6 +322,7 @@ cbuffer Params : register(b1)
 	float Tonemap;			// tone curve: 0 = none, 1 = ACES, 2 = filmic (Hable), 3 = Reinhard
 	float WhitePoint;		// linear brightness that becomes white with 2 and 3, 0 = 4
 	float HighlightExpand;	// 0..0.95, stretches the highlights of an 8 bit scene before the curve (0 with HDRScene)
+	float TonemapStrength;	// 0..1, blends from the image without the curve (clipped at white) to the curve, 0 = 1
 };
 float3 ApplyLut(float3 color)
 {
@@ -359,9 +360,12 @@ float4 main(PostProcessInput input) : SV_Target
 	{
 		// The scene is stored gamma encoded; the curves expect linear light.
 		color = pow(max(color, 0), 2.2) * ao + pow(max(bloom, 0), 2.2);
+		float3 plain = pow(saturate(color * exp2(exposure)), 1 / 2.2);
 		float expand = clamp(HighlightExpand, 0, 0.95);
 		color /= max(1 - expand * saturate(Luminance(color)), 0.05);
 		color = pow(ToneCurve(color * exp2(exposure)), 1 / 2.2);
+		// Blended after encoding, so the strength feels even across the range.
+		color = lerp(plain, color, TonemapStrength > 0 ? saturate(TonemapStrength) : 1);
 	}
 	else
 	{
@@ -598,6 +602,19 @@ static const BuiltInShader s_builtInShaders[] =
 };
 
 //-------------------------------------------------------------------------------------------------
+/** A pass runs when it is in the chain and not switched off. */
+//-------------------------------------------------------------------------------------------------
+static Bool isPassOn(const std::vector<AsciiString>& chain, const AsciiString& name)
+{
+	if (!ThePostProcessControl.isPassEnabled(name))
+		return FALSE;
+	for (size_t i = 0; i < chain.size(); ++i)
+		if (chain[i].compareNoCase(name) == 0)
+			return TRUE;
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Reads a file through the game's file system (so BIG archives work); the caller deletes the
 	* buffer with delete[]. */
 //-------------------------------------------------------------------------------------------------
@@ -814,7 +831,14 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 	std::vector<AsciiString> names;
 	ShaderIncludes includes;
 
-	for (size_t index = 0; index < chain.size() && m_error.isEmpty(); ++index)
+	// What runs and what each input reads, before anything is compiled. A pass that is switched off (or not
+	// in the chain at all) hands its first input on as Input0, so the image goes through. Input1..5 are optional (bloom, lookup table,
+	// occlusion, exposure): one that comes from a switched off pass, or from a pass whose image came through
+	// one (the blur of an occlusion pass that is off), is None. A pass nobody reads any more is left out.
+	std::vector<const PostProcessPassTemplate*> planned;
+	std::vector<std::vector<AsciiString> > plannedInputs;
+	std::vector<Bool> broken;		///< the pass's image came through a switched off pass
+	for (size_t index = 0; index < chain.size(); ++index)
 	{
 		if (!ThePostProcessControl.isPassEnabled(chain[index]))
 			continue;
@@ -824,6 +848,54 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 			m_error.format("PostProcess: no PostProcessPass named %s", chain[index].str());
 			break;
 		}
+		std::vector<AsciiString> inputs;
+		Bool imageBroken = FALSE;
+		for (size_t input = 0; input < pass->m_inputs.size() && input < D3D8ON12_PP_INPUTS; ++input)
+		{
+			AsciiString name = pass->m_inputs[input];
+			Bool crossed = FALSE;
+			for (Int depth = 0; depth < 16; ++depth)
+			{
+				const PostProcessPassTemplate *skipped = ThePostProcessSettings->findPass(name);
+				if (skipped == nullptr || isPassOn(chain, name))
+					break;
+				crossed = TRUE;
+				name = input > 0 || skipped->m_inputs.empty() ? AsciiString("None") : skipped->m_inputs[0];
+			}
+			for (size_t earlier = 0; earlier < planned.size(); ++earlier)
+				if (broken[earlier] && planned[earlier]->m_name.compareNoCase(name) == 0)
+					crossed = TRUE;
+			if (input == 0)
+				imageBroken = crossed;
+			else if (crossed)
+				name = "None";
+			inputs.push_back(name);
+		}
+		planned.push_back(pass);
+		plannedInputs.push_back(inputs);
+		broken.push_back(imageBroken);
+	}
+
+	// From the last pass back: a pass runs when the last pass needs its output.
+	std::vector<Bool> needed(planned.size(), FALSE);
+	for (Int index = (Int)planned.size() - 1; index >= 0 && m_error.isEmpty(); --index)
+	{
+		needed[index] = index == (Int)planned.size() - 1;
+		for (size_t later = index + 1; later < planned.size() && !needed[index]; ++later)
+		{
+			if (!needed[later])
+				continue;
+			for (size_t input = 0; input < plannedInputs[later].size(); ++input)
+				if (plannedInputs[later][input].compareNoCase(planned[index]->m_name) == 0)
+					needed[index] = TRUE;
+		}
+	}
+
+	for (size_t index = 0; index < planned.size() && m_error.isEmpty(); ++index)
+	{
+		if (!needed[index])
+			continue;
+		const PostProcessPassTemplate *pass = planned[index];
 
 		// The shader, compiled once per name: a file of the mod, else a built-in one.
 		AsciiString path;
@@ -877,17 +949,9 @@ void W3DPostProcess::build(ID3D8On12PostProcess *postProcess)
 		desc.shader = shader;
 		desc.scale = pass->m_scale > 0 ? pass->m_scale : pass->m_scale == 0 ? D3D8ON12_PP_SCALE_PIXEL : 1;
 		desc.hdr = pass->m_hdr;
-		for (size_t input = 0; input < pass->m_inputs.size() && input < D3D8ON12_PP_INPUTS; ++input)
+		for (size_t input = 0; input < plannedInputs[index].size(); ++input)
 		{
-			// A pass that is switched off hands its first input on.
-			AsciiString name = pass->m_inputs[input];
-			for (Int depth = 0; depth < 16; ++depth)
-			{
-				const PostProcessPassTemplate *skipped = ThePostProcessSettings->findPass(name);
-				if (skipped == nullptr || ThePostProcessControl.isPassEnabled(name))
-					break;
-				name = skipped->m_inputs.empty() ? AsciiString("None") : skipped->m_inputs[0];
-			}
+			const AsciiString& name = plannedInputs[index][input];
 			if (name.compareNoCase("Scene") == 0)
 			{
 				desc.inputs[input] = D3D8ON12_PP_INPUT_SCENE;

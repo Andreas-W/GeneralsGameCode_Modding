@@ -42,6 +42,15 @@ static void parseInputs( INI *ini, void *instance, void *store, const void *user
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Passes of the PostProcess block: a new list of passes, so the Disabled of the old one goes too. */
+//-------------------------------------------------------------------------------------------------
+static void parseChainPasses( INI *ini, void *instance, void *store, const void *userData )
+{
+	((PostProcessSettings *)instance)->m_disabled.clear();
+	parseInputs(ini, instance, store, userData);
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Param = <name> <value> [<value> ...]; a later Param of the same name replaces the earlier one. */
 //-------------------------------------------------------------------------------------------------
 static void parseParameter( INI *ini, void *instance, void *store, const void *userData )
@@ -110,13 +119,15 @@ void PostProcessPassTemplate::getParameters(TimeOfDay time, std::vector<PostProc
 const FieldParse PostProcessChainTemplate::s_fieldParseTable[] =
 {
 	{ "Passes",		parseInputs,			nullptr,	offsetof( PostProcessChainTemplate, m_passes ) },
+	{ "Disabled",	parseInputs,			nullptr,	offsetof( PostProcessChainTemplate, m_disabled ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };
 
 //-------------------------------------------------------------------------------------------------
 const FieldParse PostProcessSettings::s_fieldParseTable[] =
 {
-	{ "Passes",		parseInputs,			nullptr,	offsetof( PostProcessSettings, m_chain ) },
+	{ "Passes",		parseChainPasses,		nullptr,	offsetof( PostProcessSettings, m_chain ) },
+	{ "Disabled",	parseInputs,			nullptr,	offsetof( PostProcessSettings, m_disabled ) },
 	{ "HDRScene",	INI::parseBool,			nullptr,	offsetof( PostProcessSettings, m_hdrScene ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };
@@ -141,6 +152,7 @@ PostProcessSettings* PostProcessSettings::clone() const
 {
 	PostProcessSettings *copy = new PostProcessSettings;
 	copy->m_chain = m_chain;
+	copy->m_disabled = m_disabled;
 	copy->m_hdrScene = m_hdrScene;
 	for (size_t i = 0; i < m_passes.size(); ++i)
 		copy->m_passes.push_back(new PostProcessPassTemplate(*m_passes[i]));
@@ -169,6 +181,17 @@ const std::vector<AsciiString>* PostProcessSettings::findChain(const AsciiString
 	for (size_t i = 0; i < m_namedChains.size(); ++i)
 		if (m_namedChains[i]->m_name.compareNoCase(name) == 0)
 			return &m_namedChains[i]->m_passes;
+	return nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+const std::vector<AsciiString>* PostProcessSettings::findChainDisabled(const AsciiString& name) const
+{
+	if (name.isEmpty() || name.compareNoCase("Default") == 0)
+		return &m_disabled;
+	for (size_t i = 0; i < m_namedChains.size(); ++i)
+		if (m_namedChains[i]->m_name.compareNoCase(name) == 0)
+			return &m_namedChains[i]->m_disabled;
 	return nullptr;
 }
 
@@ -331,6 +354,7 @@ void INI::parsePostProcessChainDefinition( INI *ini )
 	AsciiString name = ini->getNextToken();
 	PostProcessChainTemplate *chain = ThePostProcessSettings->findOrCreateChain(name);
 	chain->m_passes.clear();
+	chain->m_disabled.clear();
 	ini->initFromINI( chain, PostProcessChainTemplate::s_fieldParseTable );
 }
 
@@ -399,6 +423,7 @@ void PostProcessControl::clearScriptChanges()
 {
 	m_chainName.clear();
 	m_disabledPasses.clear();
+	m_enabledPasses.clear();
 	m_overrides.clear();
 	m_darknessFaded = FALSE;
 }
@@ -466,25 +491,38 @@ void PostProcessControl::setParameter(const AsciiString& pass, const AsciiString
 }
 
 //-------------------------------------------------------------------------------------------------
-void PostProcessControl::enablePass(const AsciiString& pass, Bool enable)
+static Bool containsPass(const std::vector<AsciiString>& passes, const AsciiString& pass)
 {
-	for (size_t i = 0; i < m_disabledPasses.size(); ++i)
+	for (size_t i = 0; i < passes.size(); ++i)
+		if (passes[i].compareNoCase(pass) == 0)
+			return TRUE;
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+static void removePass(std::vector<AsciiString>& passes, const AsciiString& pass)
+{
+	for (size_t i = 0; i < passes.size(); ++i)
 	{
-		if (m_disabledPasses[i].compareNoCase(pass) == 0)
+		if (passes[i].compareNoCase(pass) == 0)
 		{
-			if (enable)
-			{
-				m_disabledPasses.erase(m_disabledPasses.begin() + i);
-				++m_generation;
-			}
+			passes.erase(passes.begin() + i);
 			return;
 		}
 	}
-	if (!enable)
-	{
-		m_disabledPasses.push_back(pass);
-		++m_generation;
-	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A script's switch wins over Disabled of the chain, so it can also switch on a pass that is off there. */
+//-------------------------------------------------------------------------------------------------
+void PostProcessControl::enablePass(const AsciiString& pass, Bool enable)
+{
+	std::vector<AsciiString>& add = enable ? m_enabledPasses : m_disabledPasses;
+	if (containsPass(add, pass))
+		return;
+	removePass(enable ? m_disabledPasses : m_enabledPasses, pass);
+	add.push_back(pass);
+	++m_generation;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -521,10 +559,15 @@ const std::vector<AsciiString>* PostProcessControl::getChain() const
 //-------------------------------------------------------------------------------------------------
 Bool PostProcessControl::isPassEnabled(const AsciiString& pass) const
 {
-	for (size_t i = 0; i < m_disabledPasses.size(); ++i)
-		if (m_disabledPasses[i].compareNoCase(pass) == 0)
-			return FALSE;
-	return TRUE;
+	if (containsPass(m_disabledPasses, pass))
+		return FALSE;
+	if (containsPass(m_enabledPasses, pass) || ThePostProcessSettings == nullptr)
+		return TRUE;
+	const std::vector<AsciiString> *disabled = ThePostProcessSettings->findChainDisabled(m_chainName);
+	// An unknown chain name keeps the default chain.
+	if (disabled == nullptr)
+		disabled = &ThePostProcessSettings->m_disabled;
+	return !containsPass(*disabled, pass);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -556,7 +599,7 @@ void PostProcessControl::xferFade(Xfer *xfer, Fade& fade)
 //-------------------------------------------------------------------------------------------------
 void PostProcessControl::xfer( Xfer *xfer )
 {
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -582,6 +625,21 @@ void PostProcessControl::xfer( Xfer *xfer )
 
 	xfer->xferBool(&m_darknessFaded);
 	xferFade(xfer, m_darkness);
+
+	// Version 2: passes switched on by scripts.
+	if (version >= 2)
+	{
+		count = (Int)m_enabledPasses.size();
+		xfer->xferInt(&count);
+		if (xfer->getXferMode() == XFER_LOAD)
+			m_enabledPasses.resize(count);
+		for (Int i = 0; i < count; ++i)
+			xfer->xferAsciiString(&m_enabledPasses[i]);
+	}
+	else if (xfer->getXferMode() == XFER_LOAD)
+	{
+		m_enabledPasses.clear();
+	}
 }
 
 //-------------------------------------------------------------------------------------------------

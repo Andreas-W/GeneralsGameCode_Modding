@@ -31,19 +31,27 @@
 //	End
 //
 //	PostProcess
-//	  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade
+//	  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade DepthOfField
+//	  Disabled = DepthOfField		; passes of Passes that are switched off; they keep their place in the order.
+//									; Passes clears it, so it comes after Passes
 //	  HDRScene = Yes				; draw the scene in 16 bit float, so additive effects keep brightness above 1
 //	End
 //
 //	PostProcessChain Dream			; another list of passes, for the POSTPROCESS_USE_CHAIN script action
 //	  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade DreamBlur
+//	  Disabled = ...				; as above
 //	End
+//
+// A pass that is switched off is left out of the chain; so is a pass the chain does not name in Passes.
+// A pass that reads it gets, as Input0, the first input of the switched off pass instead (the image goes
+// through). Input1..5 are optional (bloom, lookup table, occlusion, exposure): one that comes from a
+// switched off pass, or from a pass whose image came through one (the blurs after an occlusion pass that
+// is off), is None. Passes whose output nothing reads any more do not run.
 //
 // A map's map.ini can hold PostProcessPass, PostProcess, PostProcessChain and ShadowMap blocks too; they
 // change the mod's settings for that map only. Script actions (Map/Post-processing) change parameters
-// (also fading over time), switch passes off (a pass that is off hands its first input on), switch to a
-// PostProcessChain ("Default" = the PostProcess block) and fade the shadow map's Darkness; save games
-// keep them.
+// (also fading over time), switch passes off or on (also ones of Disabled), switch to a PostProcessChain
+// ("Default" = the PostProcess block) and fade the shadow map's Darkness; save games keep them.
 //
 //	ShadowMap						; soft shadows from a depth map instead of the stencil shadow volumes
 //	  Enabled = Yes
@@ -131,6 +139,7 @@ class PostProcessChainTemplate
 public:
 	AsciiString m_name;
 	std::vector<AsciiString> m_passes;
+	std::vector<AsciiString> m_disabled;	///< passes of m_passes that are switched off
 
 	static const FieldParse s_fieldParseTable[];
 };
@@ -145,10 +154,12 @@ public:
 	PostProcessPassTemplate* findOrCreatePass(const AsciiString& name);
 	PostProcessChainTemplate* findOrCreateChain(const AsciiString& name);
 	const std::vector<AsciiString>* findChain(const AsciiString& name) const;	///< "Default" or empty: m_chain
+	const std::vector<AsciiString>* findChainDisabled(const AsciiString& name) const;	///< "Default" or empty: m_disabled
 	PostProcessSettings* clone() const;
 
 	std::vector<PostProcessPassTemplate*> m_passes;
 	std::vector<AsciiString> m_chain;	///< names of the passes that run, in order
+	std::vector<AsciiString> m_disabled;	///< passes of m_chain that are switched off
 	Bool m_hdrScene;					///< the scene is drawn in 16 bit float while the chain runs
 	std::vector<PostProcessChainTemplate*> m_namedChains;	///< PostProcessChain blocks
 
@@ -202,7 +213,8 @@ public:
 
 	UnsignedInt getGeneration() const { return m_generation; }	///< changes when the chain must be built again
 	const std::vector<AsciiString>* getChain() const;			///< the passes that should run, before switched off ones are left out
-	Bool isPassEnabled(const AsciiString& pass) const;
+	const AsciiString& getChainName() const { return m_chainName; }	///< empty for the PostProcess block
+	Bool isPassEnabled(const AsciiString& pass) const;			///< not switched off by a script or by Disabled of the chain
 	Int getParameterOverrideCount() const { return (Int)m_overrides.size(); }
 	/// The pass, name and current values of a parameter set by a script.
 	void getParameterOverride(Int index, AsciiString& pass, AsciiString& name, Real* values, Int& count) const;
@@ -238,7 +250,8 @@ private:
 	Bool m_saved;
 	UnsignedInt m_generation;
 	AsciiString m_chainName;
-	std::vector<AsciiString> m_disabledPasses;
+	std::vector<AsciiString> m_disabledPasses;	///< switched off by scripts
+	std::vector<AsciiString> m_enabledPasses;	///< switched on by scripts, also when the chain's Disabled has them
 	std::vector<Override> m_overrides;
 	Bool m_darknessFaded;
 	Fade m_darkness;

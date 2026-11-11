@@ -98,7 +98,8 @@ PostProcessPass BloomExtract
 End
 
 PostProcess
-  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade
+  Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade DepthOfField
+  Disabled = DepthOfField       ; passes of Passes that are switched off; they keep their place (after Passes)
   HDRScene = Yes                ; draw the scene in 16 bit float so bright light survives into bloom and tone mapping
 End
 
@@ -106,6 +107,19 @@ PostProcessChain Dream          ; an alternative list, for the "Run another chai
   Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade DreamBlur
 End
 ```
+
+**Switched off passes** (`Disabled`, a script, or not in `Passes`): the pass is left out of the chain. A pass that reads it
+gets the switched off pass's first input as its Input0, so the image goes through. Input1..5 are optional
+(bloom, lookup table, occlusion, exposure): one that comes from a switched off pass, or from a pass whose
+image came through one, is `None`. Switching off `SSAO` therefore removes the occlusion, although
+`AOBlurH` and `AOBlurV` are still on, and passes whose output nothing reads any more do not run. A pass
+can stay in `Passes` and in the `Inputs` of other passes while it is off. `Passes` clears `Disabled`, so
+write `Disabled` after it.
+
+So connect every pass as if all were on: each image pass reads the image pass before it, and the end of
+every branch sits in its slot of `PP_ColorGrade`. A pass that is on but that nothing reads on the way to
+the screen does not run (for example `AutoExposure` while `PP_ColorGrade` has no fifth input). The FX
+Editor's **Auto inputs** sets the `Inputs` this way from the shaders and the order of the passes.
 
 **Inputs**:
 
@@ -124,7 +138,7 @@ End
 |---|---|---|
 | `PP_BloomExtract` | scene | `Threshold` (0.75), `Knee` (0.1) |
 | `PP_Blur` | image | `Direction` (`1 0` or `0 1`), `Radius` (1) |
-| `PP_ColorGrade` | scene, bloom, lookup table (256×16), ambient occlusion, auto exposure, all but the scene optional | `BloomIntensity`, `Exposure` (stops), `Contrast`, `Saturation`, `Tint` + `TintStrength`, `Lift`, `Gamma`, `Gain`, `LutStrength`, `AOStrength` (1), `Tonemap` (0 none, 1 ACES, 2 filmic, 3 Reinhard), `WhitePoint` (4), `HighlightExpand` |
+| `PP_ColorGrade` | scene, bloom, lookup table (256×16), ambient occlusion, auto exposure, all but the scene optional | `BloomIntensity`, `Exposure` (stops), `Contrast`, `Saturation`, `Tint` + `TintStrength`, `Lift`, `Gamma`, `Gain`, `LutStrength`, `AOStrength` (1), `Tonemap` (picks a curve, a whole number: 0 none, 1 ACES, 2 filmic, 3 Reinhard), `TonemapStrength` (1; less blends toward the image without the curve, clipped at white), `WhitePoint` (4; filmic and Reinhard only), `HighlightExpand` |
 | `PP_Luminance` | scene | none; use `Scale = 8`, `HDR = Yes` |
 | `PP_AutoExposure` | `PP_Luminance` output, `Previous` | `Key` (0.18), `Speed` (1.5), `MinExposure` / `MaxExposure` (−2 / 2), `Strength` (1); use `Scale = 0`, `HDR = Yes`, feed into `PP_ColorGrade`'s fifth input |
 | `PP_SSAO` | `Depth` | `Radius` (20 world units), `Intensity` (1), `Bias` (2), `Power` (1.5) |
@@ -394,7 +408,7 @@ when the map runs at that time. For example, use stronger bloom at night.
 | Action | What it does |
 |---|---|
 | Set or fade a pass parameter | Pass, parameter, 1 to 4 numbers, seconds to fade over (0 = at once) |
-| Switch a pass on or off | A pass that is off hands its first input on, so the chain keeps working |
+| Switch a pass on or off | Also passes the chain's `Disabled` has; the chain keeps working (see switched off passes) |
 | Run another chain | Switches to a `PostProcessChain`, or back with `Default` |
 | Set or fade the shadow darkness | Fades the shadow map's `Darkness` |
 

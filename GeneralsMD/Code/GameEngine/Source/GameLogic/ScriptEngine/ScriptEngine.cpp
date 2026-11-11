@@ -4127,7 +4127,7 @@ void ScriptEngine::init()
 	curTemplate->m_numUiStrings = 3;
 	curTemplate->m_uiStrings[0] = "Post-processing pass ";
 	curTemplate->m_uiStrings[1] = " on: ";
-	curTemplate->m_uiStrings[2] = " (a pass that is off hands its first input on).";
+	curTemplate->m_uiStrings[2] = " (also one of the chain's Disabled; a pass that is off hands its image on).";
 
 	curTemplate = &m_actionTemplates[ScriptAction::POSTPROCESS_USE_CHAIN];
 	curTemplate->m_internalName = "POSTPROCESS_USE_CHAIN";
