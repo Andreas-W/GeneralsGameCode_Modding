@@ -304,6 +304,352 @@ float4 main(MaterialInput input) : SV_Target
 }
 )";
 
+// Ocean: water that moves. The vertex function lifts the surface into waves (a sum of sharp-crested Gerstner
+// waves) that calm down near the shore, in shallow water and far from the camera. The pixel shader sees the
+// scene through the waves (refraction), dims it by the water's depth (absorption, red first) and fills it with
+// the water's own colour lit by the sun and the ambient light; caustics play on the ground below. On top: ripples
+// from normal maps (or built-in noise), the sky and the screen (screen space reflection) reflected by the
+// Fresnel term, sun glints, and at the shore foam and waves that run up to the beach, found in the water field.
+// Without the scene colour (WaterRendering Refraction = No) it blends like MAT_Water. A value of 0 means the
+// default given in the comment; -1 turns off what says so.
+static const char s_oceanShader[] = R"(
+#include "Material.hlsli"
+cbuffer Params : register(b2)
+{
+	float WaveAmplitude;		// world units of the largest wave, 0 = 1.5; -1 = flat
+	float WaveLength;			// world units of the longest wave, 0 = 140
+	float WaveSpeed;			// speed factor, 0 = 1
+	float WaveChoppiness;		// 0..1, how sharp the crests are, 0 = 0.6
+	float2 WaveDirection;		// world xy the waves run to, 0 0 = 1 0.35
+	float WaveFadeDistance;		// camera distance at which the waves are flat, 0 = 1400
+	float ShoreFadeDistance;	// distance from the shore over which the waves grow, 0 = 60
+	float DepthFade;			// water depth over which the waves grow, 0 = 10
+	float NormalStrength;		// strength of the ripples, 0 = 0.35
+	float NormalScale;			// world units one ripple pattern covers, 0 = 90
+	float NormalSpeed;			// world units per second the ripples move, 0 = 6
+	float3 SkyColor;			// reflected sky overhead, 0 0 0 = 0.30 0.45 0.65
+	float Gloss;				// sharpness of the sun glints, 0 = 300
+	float3 HorizonColor;		// reflected sky at the horizon, 0 0 0 = 0.70 0.80 0.90
+	float GlintStrength;		// brightness of the glints, 0 = 3; above 1 feeds bloom
+	float3 Absorption;			// how fast red, green, blue fade per world unit of water, 0 0 0 = 0.07 0.028 0.016
+	float Reflection;			// how much is reflected at flat angles, 0 = 0.8
+	float3 ScatterColor;		// the water's own colour, 0 0 0 = 0.03 0.20 0.24
+	float RefractionStrength;	// how much the waves bend what is below, 0 = 1
+	float3 FoamColor;			// 0 0 0 = 0.92 0.95 1.0
+	float UnderwaterAmbient;	// light inside the water, 0 = 1
+	float3 DeepColor;			// without the scene colour: deep water, 0 0 0 = 0.02 0.08 0.12
+	float CausticStrength;		// light lines on the ground below, 0 = 0.5; -1 = none
+	float CausticScale;			// world units of one caustic cell, 0 = 35
+	float CausticSpeed;			// 0 = 1
+	float SSRStrength;			// screen space reflection, 0 = 0.8; -1 = none
+	float SSRMaxDistance;		// world units the reflection is searched, 0 = 400
+	float ShoreDistance;		// water depth over which the edge fades in, 0 = 1
+	float ShoreHardness;		// 0 = a soft foamy edge, 1 = a hard foam line
+	float ShoreWaveLength;		// world units between waves running up the beach, 0 = 28
+	float ShoreWaveSpeed;		// world units per second they run, 0 = 7
+	float ShoreWaveHeight;		// world units they lift the surface, 0 = 0.5; -1 = none
+	float ShoreWaveRange;		// distance from the shore where they form, 0 = 45
+	float FoamDistance;			// water depth with foam along the shore, 0 = 3; -1 = no foam
+	float FoamStrength;			// 0 = 0.85
+	float CrestFoam;			// foam on high wave crests, 0 = 0.4; -1 = none
+	float TextureTint;			// how much the map's water texture tints the water, 0 = 0.25; -1 = none
+	float DeepOpacity;			// without the scene colour: how opaque deep water gets, 0 = 0.75
+	float DepthScale;			// without the scene colour: depth until the water is deep, 0 = 40
+	float3 SunDirection;		// set by the game
+	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
+	float3 SunColor;			// set by the game
+	float OceanPad0;
+	float3 AmbientColor;		// set by the game
+	float OceanPad1;
+	float4 WaterFieldTransform;	// set by the game: world xy to WaterField uv
+	float4 ShroudTransform;		// set by the game: world xy to ShroudTexture uv; 0 = no shroud here
+};
+static const float PI2 = 6.2831853;
+float Or(float value, float fallback) { return value != 0 ? value : fallback; }
+float2 Or(float2 value, float2 fallback) { return dot(value, value) > 0 ? value : fallback; }
+float3 Or(float3 value, float3 fallback) { return dot(value, value) > 0 ? value : fallback; }
+
+float3 CameraWorld() { return mul((float3x3)View, -View[3].xyz); }
+// Terrain height, distance to the shore (positive in the water), direction away from the shore.
+float4 Field(float2 world)
+{
+	if (!HasWaterField())
+		return float4(-1e5, 1e4, 0, 0);
+	return WaterField.SampleLevel(LinearClampSampler, world * WaterFieldTransform.xy + WaterFieldTransform.zw, 0);
+}
+
+// One sharp-crested wave: horizontal and vertical offset, and the slope for the normal.
+void Gerstner(float2 p, float2 direction, float wavelength, float amplitude, float steep, float t,
+	inout float3 offset, inout float3 slope)
+{
+	float k = PI2 / wavelength;
+	float speed = sqrt(wavelength) * 1.15 * Or(WaveSpeed, 1);
+	float phase = k * (dot(direction, p) - speed * t);
+	float s, c;
+	sincos(phase, s, c);
+	float q = steep / max(k * amplitude * 4, 1e-4);
+	offset += float3(q * amplitude * direction * c, amplitude * s);
+	slope += float3(direction * k * amplitude * c, q * k * amplitude * s);
+}
+float2 Rotate(float2 v, float angle) { float s, c; sincos(angle, s, c); return float2(v.x * c - v.y * s, v.x * s + v.y * c); }
+
+// The waves at a point, scaled by fade.
+void Waves(float2 p, float fade, float t, out float3 offset, out float3 slope)
+{
+	offset = float3(0, 0, 0);
+	slope = float3(0, 0, 0);
+	float amplitude = WaveAmplitude < 0 ? 0 : Or(WaveAmplitude, 1.5) * fade;
+	if (amplitude <= 0)
+		return;
+	float2 d = normalize(Or(WaveDirection, float2(1, 0.35)));
+	float wavelength = Or(WaveLength, 140);
+	float steep = saturate(Or(WaveChoppiness, 0.6));
+	Gerstner(p, d, wavelength, amplitude, steep, t, offset, slope);
+	Gerstner(p, Rotate(d, 0.45), wavelength * 0.61, amplitude * 0.55, steep, t, offset, slope);
+	Gerstner(p, Rotate(d, -0.6), wavelength * 0.37, amplitude * 0.33, steep, t, offset, slope);
+	Gerstner(p, Rotate(d, 1.1), wavelength * 0.23, amplitude * 0.2, steep, t, offset, slope);
+}
+// Waves running up the beach: a band every ShoreWaveLength that moves towards the shore.
+float ShoreWave(float shore, float2 p, float t)
+{
+	float range = Or(ShoreWaveRange, 45);
+	if (shore <= 0 || shore >= range)
+		return 0;
+	float spacing = Or(ShoreWaveLength, 28);
+	float phase = (shore + Or(ShoreWaveSpeed, 7) * t) / spacing + 0.15 * sin(p.x * 0.031 + p.y * 0.027);
+	float crest = pow(saturate(0.5 + 0.5 * sin(PI2 * phase)), 4);
+	return crest * saturate(1 - shore / range) * saturate(shore / 3);
+}
+
+void MaterialVertex(inout MaterialVertexData v)
+{
+	float3 world = v.worldPosition;
+	float4 field = Field(world.xy);
+	float depth = world.z - field.x;
+	float fade = saturate(field.y / Or(ShoreFadeDistance, 60)) * saturate(depth / Or(DepthFade, 10));
+	float camera = length(CameraWorld() - world);
+	fade *= 1 - smoothstep(0.6, 1.0, camera / Or(WaveFadeDistance, 1400));
+	float3 offset, slope;
+	Waves(world.xy, fade, Time, offset, slope);
+	float shoreLift = ShoreWaveHeight < 0 ? 0 : ShoreWave(field.y, world.xy, Time) * Or(ShoreWaveHeight, 0.5) * saturate(depth / 2);
+	v.worldPosition = world + offset + float3(0, 0, shoreLift);
+	v.worldNormal = normalize(float3(-slope.xy, 1 - slope.z));
+	v.data = float4(fade, offset.z + shoreLift, offset.z / max(Or(WaveAmplitude, 1.5), 1e-3), 0);
+}
+)" R"(
+// Ripples: two scrolling normal maps, or three octaves of value noise.
+float Hash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+float ValueNoise(float2 p)
+{
+	float2 i = floor(p);
+	float2 f = frac(p);
+	float2 u = f * f * (3 - 2 * f);
+	return lerp(lerp(Hash(i), Hash(i + float2(1, 0)), u.x), lerp(Hash(i + float2(0, 1)), Hash(i + float2(1, 1)), u.x), u.y);
+}
+float RippleHeight(float2 p, float t)
+{
+	return ValueNoise(p * 2.0 + float2(t, 0.6 * t)) * 0.55
+		+ ValueNoise(p * 4.3 + float2(-0.7 * t, 1.1 * t)) * 0.3
+		+ ValueNoise(p * 9.1 + float2(1.3 * t, -0.4 * t)) * 0.15;
+}
+float2 Ripples(float2 p, float t)
+{
+	float2 slope;
+	if (HasMap(MAP_NORMAL))
+	{
+		float2 a = NormalMap.Sample(NormalSampler, p + float2(1, 0.6) * t).xy * 2 - 1;
+		float2 b = NormalMap.Sample(NormalSampler, p * 1.7 - float2(0.8, 0.5) * t).xy * 2 - 1;
+		slope = (a + b) * 0.5;
+	}
+	else
+	{
+		const float e = 0.02;
+		float h = RippleHeight(p, t);
+		slope = float2(RippleHeight(p + float2(e, 0), t) - h, RippleHeight(p + float2(0, e), t) - h) / e * 0.08;
+	}
+	return slope;
+}
+// Bright moving light lines.
+float Caustic(float2 p, float t)
+{
+	float c = 0;
+	float2 q = p;
+	[unroll] for (int i = 0; i < 3; ++i)
+	{
+		q += float2(sin(q.y * 1.7 + t * 0.9 + i), sin(q.x * 1.3 - t * 0.7 + i * 2.1));
+		c += 1 / (1 + 18 * abs(sin(q.x) * sin(q.y)));
+	}
+	return saturate(c / 3 - 0.15);
+}
+// Sky in a direction: a latitude-longitude picture in the emissive map, else a gradient.
+float3 Sky(float3 direction)
+{
+	float3 sky = lerp(Or(SkyColor, float3(0.30, 0.45, 0.65)), Or(HorizonColor, float3(0.70, 0.80, 0.90)), pow(1 - saturate(direction.z), 3));
+	if (HasMap(MAP_EMISSIVE))
+	{
+		float2 uv = float2(atan2(direction.y, direction.x) / PI2 + 0.5, acos(clamp(direction.z, -1, 1)) / 3.14159265);
+		sky = EmissiveMap.SampleLevel(EmissiveSampler, uv, 0).rgb;
+	}
+	return sky;
+}
+// What the scene shows in a view space direction from a point: a few steps through the depth copy.
+bool ScreenReflection(float3 viewPosition, float3 viewDirection, out float3 color, out float weight)
+{
+	color = float3(0, 0, 0);
+	weight = 0;
+	float range = Or(SSRMaxDistance, 400);
+	float stride = range / 16;
+	[loop] for (int i = 1; i <= 16; ++i)
+	{
+		float3 p = viewPosition + viewDirection * stride * i;
+		float4 clip = mul(float4(p, 1), Projection);
+		if (clip.w <= 0)
+			return false;
+		float2 uv = float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
+		if (any(uv < 0) || any(uv > 1))
+			return false;
+		float sceneDistance = SceneViewDepth(uv);
+		float pointDistance = ViewDistance(p.z);
+		if (pointDistance > sceneDistance && pointDistance - sceneDistance < stride * 2)
+		{
+			color = SceneColorAt(uv);
+			float2 edge = saturate(min(uv, 1 - uv) * 8);
+			weight = edge.x * edge.y * (1 - (float)i / 17);
+			return true;
+		}
+	}
+	return false;
+}
+
+float4 main(MaterialInput input) : SV_Target
+{
+	float t = Time;
+	float3 world = WorldPosition(input);
+	float fade = input.materialData.x;
+	float lift = input.materialData.y;
+	float crest = input.materialData.z;
+	float4 field = Field(world.xy);
+	float surface = world.z - lift;				// the still water level
+	float depth = surface - field.x;			// to the terrain, straight down
+	float shore = field.y;
+	bool hasField = HasWaterField();
+
+	// The wave normal and the ripples on it, in world space.
+	float3 waveNormal = normalize(mul((float3x3)WorldView, input.viewNormal));
+	float scale = Or(NormalScale, 90);
+	float2 p = River > 0 ? input.tex0.xy * 3 : world.xy / scale;
+	float2 ripple = Ripples(p, River > 0 ? 0 : t * Or(NormalSpeed, 6) / scale) * Or(NormalStrength, 0.35);
+	ripple *= saturate(depth / 0.5 + 0.3);
+	float3 n = normalize(waveNormal + float3(-ripple, 0));
+	float3 camera = CameraWorld();
+	float3 toEye = normalize(camera - world);
+	float3 toSun = normalize(Or(SunDirection, float3(0.3, 0.3, 0.9)));
+	float3 sunColor = Or(SunColor, float3(0.8, 0.8, 0.8));
+	float3 ambient = Or(AmbientColor, float3(0.4, 0.4, 0.4));
+	float3 daylight = ambient + sunColor * saturate(toSun.z);
+
+	// The shroud: only what the water adds; the scene below was drawn with it already.
+	float3 shroud = float3(1, 1, 1);
+	if (ShroudTransform.x > 0 && HasShroud())
+		shroud = ShroudTexture.Sample(LinearClampSampler, world.xy * ShroudTransform.xy + ShroudTransform.zw).rgb;
+
+	// The map's water texture and colour, as a tint.
+	float4 base = BaseTexture.Sample(BaseSampler, input.tex0.xy + ripple * 0.02);
+	float3 tint = lerp(float3(1, 1, 1), saturate(base.rgb * input.diffuse.rgb * 1.6), TextureTint < 0 ? 0 : Or(TextureTint, 0.25));
+
+	float2 uv = ScreenUV(input);
+	float waterDistance = ViewDistance(input.viewPosition.z);
+	float3 viewNormal = ViewDirection(n);
+	float3 under;					// the water body: what is below, dimmed, and the water's colour
+	float3 throughScene = float3(0, 0, 0);	// the part of it that is the scene, fogged and shrouded already
+	float3 transmit = float3(0, 0, 0);
+	float alpha;
+	if (HasSceneColor() && HasSceneDepth())
+	{
+		// Refraction: bent by the surface, less where the water is shallow; nothing in front of the water.
+		float behind = max(SceneViewDepth(uv) - waterDistance, 0);
+		float2 bend = viewNormal.xy * float2(1, -1) * 0.03 * Or(RefractionStrength, 1) * saturate(behind / 8);
+		float2 refractedUV = uv + bend;
+		if (SceneViewDepth(refractedUV) < waterDistance)
+			refractedUV = uv;
+		float3 below = SceneColorAt(refractedUV);
+		float3 belowWorld = SceneWorldPosition(refractedUV);
+		float belowDepth = max(surface - belowWorld.z, 0);
+		float path = max(SceneViewDepth(refractedUV) - waterDistance, 0) + belowDepth;
+		transmit = exp(-Or(Absorption, float3(0.07, 0.028, 0.016)) * path);
+		if (CausticStrength >= 0)
+		{
+			float caustic = Caustic(belowWorld.xy / Or(CausticScale, 35), t * Or(CausticSpeed, 1));
+			below *= 1 + caustic * Or(CausticStrength, 0.5) * sunColor * saturate(toSun.z) * exp(-belowDepth * 0.06) * saturate(belowDepth);
+		}
+		float3 scatter = Or(ScatterColor, float3(0.03, 0.20, 0.24)) * tint * (ambient + sunColor * saturate(toSun.z) * 0.6) * Or(UnderwaterAmbient, 1);
+		throughScene = below * transmit;
+		under = throughScene + scatter * (1 - transmit) * shroud;
+		alpha = 1;
+	}
+	else
+	{
+		// Without the scene colour: the map's water blended over the scene, darker and more opaque deep down.
+		float3 up = ViewDirection(float3(0, 0, 1));
+		float sceneDepth = DepthBehind(input) * abs(dot(normalize(input.viewPosition), up));
+		float d = hasField ? depth : sceneDepth;
+		float deep = saturate(d / Or(DepthScale, 40));
+		under = lerp(base.rgb * input.diffuse.rgb, Or(DeepColor, float3(0.02, 0.08, 0.12)) * daylight, deep * 0.7);
+		alpha = River > 0 ? base.a : input.diffuse.a;
+		alpha = lerp(alpha, max(alpha, Or(DeepOpacity, 0.75)), deep);
+		depth = d;
+	}
+	if (River > 0 && HasMap(MAP_EXTRA))
+		alpha *= ExtraMap.Sample(ExtraSampler, input.tex1.xy).a;
+
+	// Reflection: the scene where the screen has it, else the sky; strong at flat angles (Fresnel).
+	float3 reflected = reflect(-toEye, n);
+	float3 reflection = Sky(reflected) * daylight;
+	if (SSRStrength >= 0 && HasSceneColor() && HasSceneDepth())
+	{
+		float3 hit;
+		float weight;
+		if (ScreenReflection(input.viewPosition, normalize(ViewDirection(reflected)), hit, weight))
+			reflection = lerp(reflection, hit, weight * Or(SSRStrength, 0.8));
+	}
+	float facing = saturate(dot(n, toEye));
+	float fresnel = (0.02 + 0.98 * pow(1 - facing, 5)) * Or(Reflection, 0.8);
+
+	// Foam: along the shore (soft, or a hard line), on the shore waves and on high crests.
+	float foam = 0;
+	if (FoamDistance >= 0)
+	{
+		float pattern = HasMap(MAP_SPECULAR) ? SpecularMap.Sample(SpecularSampler, world.xy / 40 + float2(0.3, 0.2) * t / 40).r
+			: saturate(RippleHeight(world.xy / 9, t * 0.4) * 1.6 - 0.3);
+		float edge = 1 - saturate(depth / Or(FoamDistance, 3));
+		float soft = edge * edge * pattern;
+		float hard = smoothstep(0.75, 0.85, edge) * (0.6 + 0.4 * pattern);
+		foam = lerp(soft, hard, saturate(ShoreHardness));
+		if (hasField)
+			foam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / 6);
+		if (CrestFoam >= 0)
+			foam += smoothstep(0.65, 1.0, crest) * pattern * Or(CrestFoam, 0.4) * fade;
+		foam = saturate(foam * Or(FoamStrength, 0.85));
+	}
+
+	float3 color = lerp(under, reflection * shroud, fresnel);
+	color = lerp(color, Or(FoamColor, float3(0.92, 0.95, 1.0)) * daylight * shroud, foam);
+	float3 halfway = normalize(toSun + toEye);
+	float3 glint = pow(saturate(dot(n, halfway)), Or(Gloss, 300)) * Or(GlintStrength, 3) * sunColor * shroud * (1 - foam);
+
+	// The edge fades in over ShoreDistance of depth.
+	float edgeFade = saturate(depth / Or(ShoreDistance, 1));
+	alpha = saturate(max(alpha, foam)) * edgeFade;
+
+	// Fog: what came through the water is fogged already; only the rest is fogged here.
+	float3 seen = throughScene * (1 - fresnel) * (1 - foam);
+	float3 added = color - seen + glint;
+	float through = dot(transmit, float3(0.333, 0.333, 0.334)) * (1 - fresnel) * (1 - foam);
+	added = lerp(FogColor.rgb * (1 - through), added, saturate(input.fog));
+	return float4(seen + added, alpha);
+}
+)";
+
 // Terrain: the two blended tiles of the terrain texture lit as the game baked it, with bumps from the
 // terrain textures' normal maps (or their brightness), highlights from their specular maps, and the
 // clouds and light map as the game draws them. The low detail terrain (Flat) has one pre-drawn texture
@@ -455,6 +801,7 @@ static const BuiltInMaterialShader s_builtInShaders[] =
 	{ "MAT_Standard", s_standardShader, sizeof(s_standardShader) - 1 },
 	{ "MAT_Particle", s_particleShader, sizeof(s_particleShader) - 1 },
 	{ "MAT_Water", s_waterShader, sizeof(s_waterShader) - 1 },
+	{ "MAT_Ocean", s_oceanShader, sizeof(s_oceanShader) - 1 },
 	{ "MAT_Terrain", s_terrainShader, sizeof(s_terrainShader) - 1 },
 };
 
