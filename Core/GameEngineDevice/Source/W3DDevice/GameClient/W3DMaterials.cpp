@@ -331,9 +331,9 @@ cbuffer Params : register(b2)
 	float Gloss;				// sharpness of the sun glints, 0 = 300
 	float3 HorizonColor;		// reflected sky at the horizon, 0 0 0 = 0.70 0.80 0.90
 	float GlintStrength;		// brightness of the glints, 0 = 3; above 1 feeds bloom
-	float3 Absorption;			// how fast red, green, blue fade per world unit of water, 0 0 0 = 0.07 0.028 0.016
+	float3 Absorption;			// how fast red, green, blue fade per world unit of water, 0 0 0 = 0.035 0.012 0.008
 	float Reflection;			// how much is reflected at flat angles, 0 = 0.8
-	float3 ScatterColor;		// the water's own colour, 0 0 0 = 0.03 0.20 0.24
+	float3 ScatterColor;		// the water's own colour, 0 0 0 = 0.06 0.32 0.36
 	float RefractionStrength;	// how much the waves bend what is below, 0 = 1
 	float3 FoamColor;			// 0 0 0 = 0.92 0.95 1.0
 	float UnderwaterAmbient;	// light inside the water, 0 = 1
@@ -576,13 +576,13 @@ float4 main(MaterialInput input) : SV_Target
 		float3 belowWorld = SceneWorldPosition(refractedUV);
 		float belowDepth = max(surface - belowWorld.z, 0);
 		float path = max(SceneViewDepth(refractedUV) - waterDistance, 0) + belowDepth;
-		transmit = exp(-Or(Absorption, float3(0.07, 0.028, 0.016)) * path);
+		transmit = exp(-Or(Absorption, float3(0.035, 0.012, 0.008)) * path);
 		if (CausticStrength >= 0)
 		{
 			float caustic = Caustic(belowWorld.xy / Or(CausticScale, 35), t * Or(CausticSpeed, 1));
 			below *= 1 + caustic * Or(CausticStrength, 0.5) * sunColor * saturate(toSun.z) * exp(-belowDepth * 0.06) * saturate(belowDepth);
 		}
-		float3 scatter = Or(ScatterColor, float3(0.03, 0.20, 0.24)) * tint * (ambient + sunColor * saturate(toSun.z) * 0.6) * Or(UnderwaterAmbient, 1);
+		float3 scatter = Or(ScatterColor, float3(0.06, 0.32, 0.36)) * tint * (ambient + sunColor * saturate(toSun.z) * 0.6) * Or(UnderwaterAmbient, 1);
 		throughScene = below * transmit;
 		under = throughScene + scatter * (1 - transmit) * shroud;
 		alpha = 1;
