@@ -29,37 +29,10 @@ namespace D3D8On12
 
 // What every material shader includes. It describes what Draw_Geometry gives a draw with a material:
 // the generated vertex shader's outputs with the view position and normal (VertexShaderKey::materialOutputs),
-// the fixed function constants and the textures of stages 0..5.
+// the fixed function constants and the textures of stages 0..5. It starts with the vertex constants (b0) of
+// the generated vertex shaders, Get_Vertex_Constants_Hlsl (Light: view space; Position.w = 1 point, 2 spot,
+// 3 directional; Direction towards the light, w = range).
 static const char s_header[] = R"(
-struct Light
-{
-	float4 Diffuse;
-	float4 Specular;
-	float4 Ambient;
-	float4 Position;		// view space, w = 1 point, 2 spot, 3 directional
-	float4 Direction;		// view space, towards the light; w = range
-	float4 Attenuation;
-	float4 Spot;
-};
-cbuffer VertexConstants : register(b0)
-{
-	row_major float4x4 World;
-	row_major float4x4 WorldView;
-	row_major float4x4 Projection;
-	row_major float4x4 TexTransform[8];
-	float4 Viewport;
-	float4 GlobalAmbient;
-	float4 MaterialDiffuse;
-	float4 MaterialAmbient;
-	float4 MaterialSpecular;
-	float4 MaterialEmissive;
-	float4 MaterialPower;
-	float4 Fog;
-	int4 LightCount;
-	Light Lights[8];
-	float4 PointSize;
-	float4 PointScale;
-};
 cbuffer PixelConstants : register(b1)
 {
 	float4 TextureFactor;
@@ -252,6 +225,8 @@ MaterialSystem::MaterialSystem(Device* device)
 		m_linearSampler(0)
 {
 	memset(m_maps, 0, sizeof(m_maps));
+	m_header = Get_Vertex_Constants_Hlsl();
+	m_header += s_header;
 	QueryPerformanceFrequency(&m_frequency);
 	QueryPerformanceCounter(&m_startTime);
 }
@@ -288,7 +263,7 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Create_Shader(const char* source, UINT
 	Shader compiled;
 	compiled.used = true;
 	compiled.paramsSize = 0;
-	const HRESULT hr = Compile_Pixel_Shader(source, length, name, "Material.hlsli", s_header, include, compiled.code, errors);
+	const HRESULT hr = Compile_Pixel_Shader(source, length, name, "Material.hlsli", m_header.c_str(), include, compiled.code, errors);
 	if (FAILED(hr))
 		return hr;
 	Reflect_Constant_Buffer(compiled.code.Get(), "Params", compiled.paramsSize, compiled.variables);

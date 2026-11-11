@@ -611,6 +611,7 @@ void Device::Fill_Vertex_Constants(FFVertexConstants& c, bool lighting, UINT sta
 	memcpy(c.world, &world, sizeof(c.world));
 	memcpy(c.worldView, &world_view, sizeof(c.worldView));
 	memcpy(c.projection, &projection, sizeof(c.projection));
+	memcpy(c.view, &view, sizeof(c.view));
 	// Only what the shader reads: the texture transforms of its stages, the lights when it is lit.
 	for (UINT stage = 0; stage < stages && stage < FF_STAGES; ++stage)
 		memcpy(c.texTransform[stage], &m_state.transforms[2 + stage], sizeof(c.texTransform[stage]));

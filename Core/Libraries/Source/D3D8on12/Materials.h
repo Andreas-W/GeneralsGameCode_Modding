@@ -92,6 +92,7 @@ private:
 	};
 
 	Device* m_device;
+	std::string m_header;				// Material.hlsli
 	std::vector<Shader> m_shaders;		// handle = index + 1
 	std::vector<Material> m_materials;	// handle = index + 1
 	UINT m_current;

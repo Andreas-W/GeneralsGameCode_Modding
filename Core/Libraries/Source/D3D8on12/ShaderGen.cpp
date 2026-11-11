@@ -204,6 +204,8 @@ void Get_Input_Layout(DWORD fvf, std::vector<D3D12_INPUT_ELEMENT_DESC>& elements
 // Vertex shader
 // ----------------------------------------------------------------------------
 
+// The constants of the generated vertex shaders (FFVertexConstants). Material shaders include the same
+// declaration (Materials.cpp), so that a material's vertex function fits into a generated vertex shader.
 static const char* s_vertexShaderHeader =
 	"struct Light\n"
 	"{\n"
@@ -233,7 +235,13 @@ static const char* s_vertexShaderHeader =
 	"	Light Lights[8];\n"
 	"	float4 PointSize;\n"
 	"	float4 PointScale;\n"
+	"	row_major float4x4 View;\n"
 	"};\n";
+
+const char* Get_Vertex_Constants_Hlsl()
+{
+	return s_vertexShaderHeader;
+}
 
 // The outputs of the vertex shader, which are also the inputs of the geometry shader.
 static void Append_Vertex_Output(std::string& text, const VertexShaderKey& key)

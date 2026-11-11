@@ -151,6 +151,7 @@ struct FFVertexConstants
 	FFLight lights[FF_LIGHTS];
 	float pointSize[4];			// size, minimum, maximum
 	float pointScale[4];		// A, B, C
+	float view[16];				// for material vertex functions, which work in world space
 };
 
 struct FFPixelConstants
@@ -199,6 +200,8 @@ UINT64 Hash_Bytes(const void* data, size_t size);
 
 // HLSL of the shaders that emulate the fixed function pipeline for a key.
 std::string Generate_Vertex_Shader(const VertexShaderKey& key);
+// The declaration of the Light struct and the VertexConstants cbuffer (b0), shared with material shaders.
+const char* Get_Vertex_Constants_Hlsl();
 std::string Generate_Geometry_Shader(const VertexShaderKey& key);	// for point sprites
 std::string Generate_Pixel_Shader(const PixelShaderKey& key);
 

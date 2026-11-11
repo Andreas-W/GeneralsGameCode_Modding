@@ -75,7 +75,7 @@ HRESULT Device::Init_Gpu_Objects()
 	params[ROOT_VERTEX_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	// also read by the point sprite geometry shader
 	params[ROOT_PIXEL_CONSTANTS].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[ROOT_PIXEL_CONSTANTS].Descriptor.ShaderRegister = 1;
-	params[ROOT_PIXEL_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[ROOT_PIXEL_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	// MaterialTime for material vertex functions
 
 	for (UINT stage = 0; stage < FF_STAGES; ++stage)
 	{
@@ -102,7 +102,7 @@ HRESULT Device::Init_Gpu_Objects()
 
 	params[ROOT_MATERIAL_CONSTANTS].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[ROOT_MATERIAL_CONSTANTS].Descriptor.ShaderRegister = 2;
-	params[ROOT_MATERIAL_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	params[ROOT_MATERIAL_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	// also read by material vertex functions
 
 	D3D12_ROOT_SIGNATURE_DESC root_desc = {};
 	root_desc.NumParameters = ROOT_MATERIAL_CONSTANTS + 1;
