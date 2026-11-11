@@ -41,6 +41,7 @@ static const UINT ROOT_PIXEL_CONSTANTS = 1;
 static const UINT ROOT_TEXTURES = 2;
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;
 static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;
+static const UINT ROOT_EXTRA_TEXTURES = ROOT_MATERIAL_CONSTANTS + 1;
 // Stages a material shader reads: base, detail, normal, specular, emissive and one more map.
 static const UINT MATERIAL_STAGES = 6;
 
@@ -853,6 +854,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	// A material replaces the fixed function pixel shader of ordinary 3D draws, not in the shadow map.
 	const bool point_sprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
 	MaterialSystem::Binding material = {};
+	UINT extra_srvs[MATERIAL_EXTRA_TEXTURES] = {};
 	const bool use_material = m_materialSystem != nullptr && !shader_vs && !shader_ps && !rhw && !point_sprite && !shadow_pass
 		&& m_materialSystem->Current(material);
 	UINT material_maps = 0;
@@ -875,6 +877,15 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 			material_maps |= 1u << 6;
 		if (srvs[7] != 0)
 			material_maps |= 1u << 7;
+		for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
+		{
+			TextureType type_of_texture = TEXTURE_NONE;
+			extra_srvs[extra] = Prepare_Texture(m_materialSystem->Extra_Texture(extra), type_of_texture);
+			if (type_of_texture == TEXTURE_2D)
+				material_maps |= 1u << (FF_STAGES + extra);
+			else
+				extra_srvs[extra] = 0;
+		}
 	}
 
 	// Vertex shader key.
@@ -1112,6 +1123,17 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		{
 			list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + stage, sampler_handle);
 			bound.tables[FF_STAGES + stage] = sampler_handle.ptr;
+			++m_timingSums.tableChanges;
+		}
+	}
+	for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
+	{
+		// Only material draws read them; the null view otherwise.
+		const D3D12_GPU_DESCRIPTOR_HANDLE srv_handle = Srv_Gpu_Handle(extra_srvs[extra]);
+		if (bound.tables[2 * FF_STAGES + extra] != srv_handle.ptr)
+		{
+			list->SetGraphicsRootDescriptorTable(ROOT_EXTRA_TEXTURES + extra, srv_handle);
+			bound.tables[2 * FF_STAGES + extra] = srv_handle.ptr;
 			++m_timingSums.tableChanges;
 		}
 	}

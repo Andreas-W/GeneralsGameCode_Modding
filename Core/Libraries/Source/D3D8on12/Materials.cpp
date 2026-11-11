@@ -62,6 +62,16 @@ Texture2D<float> SceneDepth : register(t6);	// depth drawn before Capture_Scene,
 Texture2D SceneColor : register(t7);		// the scene drawn before Capture_Scene(TRUE)
 SamplerState SceneDepthSampler : register(s6);
 SamplerState SceneColorSampler : register(s7);
+// Set_Material_Textures: textures the engine sets for all materials, readable by vertex functions too (with
+// SampleLevel there). The engine's water sets the first, the water field, and the shroud.
+Texture2D WaterField : register(t8);
+Texture2D ShroudTexture : register(t9);
+Texture2D ShadowTexture : register(t10);
+Texture2D WaterDisturbance : register(t11);
+SamplerState LinearClampSampler : register(s8);
+SamplerState LinearWrapSampler : register(s9);
+SamplerState PointClampSampler : register(s10);
+SamplerComparisonState ComparisonSampler : register(s11);
 struct MaterialInput
 {
 	float4 position : SV_Position;
@@ -95,11 +105,18 @@ static const uint MAP_EMISSIVE = 4;
 static const uint MAP_EXTRA = 5;
 static const uint MAP_SCENE_DEPTH = 6;
 static const uint MAP_SCENE_COLOR = 7;
+static const uint MAP_WATER_FIELD = 8;
+static const uint MAP_SHROUD = 9;
+static const uint MAP_SHADOW = 10;
+static const uint MAP_WATER_DISTURBANCE = 11;
 #define Time (MaterialTime.x)
 bool HasMap(uint slot) { return ((uint)MaterialFlags.x >> slot) & 1; }
 bool IsLit() { return MaterialFlags.y != 0; }
 bool HasSceneDepth() { return HasMap(MAP_SCENE_DEPTH); }
 bool HasSceneColor() { return HasMap(MAP_SCENE_COLOR); }
+bool HasWaterField() { return HasMap(MAP_WATER_FIELD); }
+bool HasShroud() { return HasMap(MAP_SHROUD); }
+bool HasWaterDisturbance() { return HasMap(MAP_WATER_DISTURBANCE); }
 // Where the pixel is on the screen, 0..1, for SceneDepth and SceneColor.
 float2 ScreenUV(MaterialInput input)
 {
@@ -133,6 +150,20 @@ float3 WorldPosition(MaterialInput input)
 }
 // A world direction in view space, for draws whose world transform is the identity.
 float3 ViewDirection(float3 worldDirection) { return mul(worldDirection, (float3x3)WorldView); }
+// The view space position of what was drawn at a screen point before the capture.
+float3 SceneViewPosition(float2 uv)
+{
+	float depth = SceneDepth.SampleLevel(SceneDepthSampler, uv, 0);
+	float viewZ = (Projection._43 - depth * Projection._44) / (depth * Projection._34 - Projection._33);
+	float w = ViewDistance(viewZ);
+	float2 ndc = float2(uv.x * 2 - 1, 1 - uv.y * 2);
+	return float3((ndc.x * w - viewZ * Projection._31) / Projection._11, (ndc.y * w - viewZ * Projection._32) / Projection._22, viewZ);
+}
+// Its world position.
+float3 SceneWorldPosition(float2 uv)
+{
+	return mul((float3x3)View, SceneViewPosition(uv) - View[3].xyz);
+}
 
 struct LightSum
 {
@@ -241,6 +272,7 @@ MaterialSystem::MaterialSystem(Device* device)
 		m_linearSampler(0)
 {
 	memset(m_maps, 0, sizeof(m_maps));
+	memset(m_extra, 0, sizeof(m_extra));
 	m_header = Get_Vertex_Constants_Hlsl();
 	m_header += s_header;
 	QueryPerformanceFrequency(&m_frequency);
@@ -440,6 +472,15 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Capture_Scene(BOOL color)
 		return E_FAIL;
 	m_sceneDepth = depth;
 	m_sceneColor = scene;
+	return D3D_OK;
+}
+
+HRESULT STDMETHODCALLTYPE MaterialSystem::Set_Material_Textures(UINT first, UINT count, IDirect3DBaseTexture8* const* textures)
+{
+	if (first + count > D3D8ON12_MATERIAL_EXTRA_TEXTURES)
+		return D3DERR_INVALIDCALL;
+	for (UINT i = 0; i < count; ++i)
+		m_extra[first + i] = textures != nullptr ? textures[i] : nullptr;
 	return D3D_OK;
 }
 

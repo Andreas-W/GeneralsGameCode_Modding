@@ -44,6 +44,8 @@ static const UINT ROOT_PIXEL_CONSTANTS = 1;
 static const UINT ROOT_TEXTURES = 2;							// one table per stage
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;	// one table per stage
 static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;	// b2, the Params of material shaders
+static const UINT ROOT_EXTRA_TEXTURES = ROOT_MATERIAL_CONSTANTS + 1;		// t8.. of material shaders, one table each
+static const UINT ROOT_PARAMETER_COUNT = ROOT_EXTRA_TEXTURES + MATERIAL_EXTRA_TEXTURES;
 
 static ComPtr<ID3D12Resource> Create_Buffer(ID3D12Device* device, D3D12_HEAP_TYPE heap_type, UINT64 size, D3D12_RESOURCE_STATES state)
 {
@@ -67,8 +69,8 @@ HRESULT Device::Init_Gpu_Objects()
 {
 	// Root signature: vertex and pixel constants, then a texture table and a sampler table per stage,
 	// then the material parameters.
-	D3D12_DESCRIPTOR_RANGE ranges[2 * FF_STAGES] = {};
-	D3D12_ROOT_PARAMETER params[ROOT_MATERIAL_CONSTANTS + 1] = {};
+	D3D12_DESCRIPTOR_RANGE ranges[2 * FF_STAGES + MATERIAL_EXTRA_TEXTURES] = {};
+	D3D12_ROOT_PARAMETER params[ROOT_PARAMETER_COUNT] = {};
 
 	params[ROOT_VERTEX_CONSTANTS].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	params[ROOT_VERTEX_CONSTANTS].Descriptor.ShaderRegister = 0;
@@ -104,9 +106,39 @@ HRESULT Device::Init_Gpu_Objects()
 	params[ROOT_MATERIAL_CONSTANTS].Descriptor.ShaderRegister = 2;
 	params[ROOT_MATERIAL_CONSTANTS].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;	// also read by material vertex functions
 
+	for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
+	{
+		D3D12_DESCRIPTOR_RANGE& texture_range = ranges[2 * FF_STAGES + extra];
+		texture_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		texture_range.NumDescriptors = 1;
+		texture_range.BaseShaderRegister = FF_STAGES + extra;
+		D3D12_ROOT_PARAMETER& texture_param = params[ROOT_EXTRA_TEXTURES + extra];
+		texture_param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		texture_param.DescriptorTable.NumDescriptorRanges = 1;
+		texture_param.DescriptorTable.pDescriptorRanges = &texture_range;
+		texture_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	}
+
+	// Samplers of the extra textures: linear clamped, linear wrapped, point clamped, and a comparison.
+	D3D12_STATIC_SAMPLER_DESC static_samplers[MATERIAL_EXTRA_TEXTURES] = {};
+	for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
+	{
+		D3D12_STATIC_SAMPLER_DESC& sampler = static_samplers[extra];
+		const bool wrap = extra == 1;
+		sampler.Filter = extra == 2 ? D3D12_FILTER_MIN_MAG_MIP_POINT
+			: extra == 3 ? D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT : D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		sampler.AddressU = sampler.AddressV = sampler.AddressW = wrap ? D3D12_TEXTURE_ADDRESS_MODE_WRAP : D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		sampler.ComparisonFunc = extra == 3 ? D3D12_COMPARISON_FUNC_LESS_EQUAL : D3D12_COMPARISON_FUNC_NEVER;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ShaderRegister = FF_STAGES + extra;
+		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	}
+
 	D3D12_ROOT_SIGNATURE_DESC root_desc = {};
-	root_desc.NumParameters = ROOT_MATERIAL_CONSTANTS + 1;
+	root_desc.NumParameters = ROOT_PARAMETER_COUNT;
 	root_desc.pParameters = params;
+	root_desc.NumStaticSamplers = MATERIAL_EXTRA_TEXTURES;
+	root_desc.pStaticSamplers = static_samplers;
 	root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	ComPtr<ID3DBlob> blob;

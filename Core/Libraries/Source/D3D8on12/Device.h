@@ -347,7 +347,7 @@ private:
 		D3D_PRIMITIVE_TOPOLOGY topology;
 		D3D12_VERTEX_BUFFER_VIEW vertices;
 		D3D12_INDEX_BUFFER_VIEW indices;
-		UINT64 tables[2 * FF_STAGES];	// texture tables, then sampler tables
+		UINT64 tables[2 * FF_STAGES + MATERIAL_EXTRA_TEXTURES];	// texture tables, sampler tables, extra material textures
 		bool materialConstants;			// b2 has been set
 		D3D12_GPU_VIRTUAL_ADDRESS pixelConstants;	// b1, holding m_lastPixelConstants
 	};

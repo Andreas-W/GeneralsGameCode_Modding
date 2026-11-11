@@ -35,6 +35,7 @@ static const UINT ROOT_PIXEL_CONSTANTS = 1;
 static const UINT ROOT_TEXTURES = 2;
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;
 static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;
+static const UINT ROOT_EXTRA_TEXTURES = ROOT_MATERIAL_CONSTANTS + 1;
 static const UINT NULL_SRV_2D = 0;
 static const UINT INPUT_COUNT = D3D8ON12_PP_INPUTS;
 
@@ -388,6 +389,8 @@ bool PostProcessor::Bind_Root()
 		list->SetGraphicsRootDescriptorTable(ROOT_TEXTURES + slot, device.Srv_Gpu_Handle(NULL_SRV_2D));
 		list->SetGraphicsRootDescriptorTable(ROOT_SAMPLERS + slot, device.m_samplerHeap->GetGPUDescriptorHandleForHeapStart());
 	}
+	for (UINT slot = 0; slot < MATERIAL_EXTRA_TEXTURES; ++slot)
+		list->SetGraphicsRootDescriptorTable(ROOT_EXTRA_TEXTURES + slot, device.Srv_Gpu_Handle(NULL_SRV_2D));
 	return true;
 }
 

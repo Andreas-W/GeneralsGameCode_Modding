@@ -20,6 +20,7 @@
 // D3D8 surface formats and how they are stored in Direct3D 12.
 
 #include "Formats.h"
+#include "d3d8on12_ext.h"
 
 #include <string.h>
 
@@ -64,6 +65,8 @@ static const FormatInfo s_formats[] =
 	{ D3DFMT_D16_LOCKABLE,	DXGI_FORMAT_D16_UNORM,					2,		false,	false,	DS,					DEFAULT },
 	{ D3DFMT_D24S8,			DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	DS,					DEFAULT },
 	{ D3DFMT_D24X8,			DXGI_FORMAT_D24_UNORM_S8_UINT,		4,		false,	false,	DS,					DEFAULT },
+	// Not a D3D8 format (D3D9's value): data textures of materials, d3d8on12_ext.h.
+	{ D3DFMT_A16B16G16R16F_D3D8ON12, DXGI_FORMAT_R16G16B16A16_FLOAT, 8,	false,	false,	TEX,				DEFAULT },
 
 	// Known so that locks and copies work, but refused by CheckDeviceFormat.
 	{ D3DFMT_R8G8B8,			DXGI_FORMAT_B8G8R8A8_UNORM,			3,		false,	true,		0,					DEFAULT },

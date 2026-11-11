@@ -53,6 +53,10 @@ public:
 	HRESULT STDMETHODCALLTYPE Set_Material_Parameter(UINT material, const char* name, const float* values, UINT count) override;
 	void STDMETHODCALLTYPE Set_Material(UINT material, IDirect3DBaseTexture8* const* maps) override;
 	HRESULT STDMETHODCALLTYPE Capture_Scene(BOOL color) override;
+	HRESULT STDMETHODCALLTYPE Set_Material_Textures(UINT first, UINT count, IDirect3DBaseTexture8* const* textures) override;
+
+	// The textures of Set_Material_Textures, entries may be null.
+	IDirect3DBaseTexture8* Extra_Texture(UINT slot) const { return m_extra[slot]; }
 
 	// What the current material draws with; false for the fixed function pipeline.
 	struct Binding
@@ -104,6 +108,7 @@ private:
 	std::vector<Material> m_materials;	// handle = index + 1
 	UINT m_current;
 	IDirect3DBaseTexture8* m_maps[4];
+	IDirect3DBaseTexture8* m_extra[D3D8ON12_MATERIAL_EXTRA_TEXTURES];
 	UINT m_sceneDepth;
 	UINT m_sceneColor;
 	UINT m_pointSampler;
