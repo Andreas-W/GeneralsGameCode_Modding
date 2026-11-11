@@ -107,6 +107,7 @@
 #include <vector>
 
 class INI;
+class MaterialSettings;
 struct FieldParse;
 
 struct PostProcessParameter
@@ -205,6 +206,7 @@ public:
 	void beginMap();				///< before the map.ini is read: keeps the mod's settings
 	void endGame();					///< the mod's settings back, script changes undone
 	void settingsReloaded();		///< the INI files were read again: they are the mod's settings now
+	void materialsReloaded();		///< the same for the Material INI files
 
 	void setParameter(const AsciiString& pass, const AsciiString& name, const Real* values, Int count, Real seconds);
 	void enablePass(const AsciiString& pass, Bool enable);
@@ -247,6 +249,8 @@ private:
 
 	PostProcessSettings* m_savedPostProcess;	///< the mod's settings while a map runs
 	ShadowMapSettings* m_savedShadowMap;
+	MaterialSettings* m_savedMaterials;
+	UnsignedInt m_savedMaterialGeneration;		///< MaterialSettings::getGeneration() at beginMap
 	Bool m_saved;
 	UnsignedInt m_generation;
 	AsciiString m_chainName;
@@ -272,6 +276,9 @@ public:
 	AsciiString m_shader;
 	AsciiString m_maps[4];				///< normal, specular, emissive, extra
 	std::vector<PostProcessParameter> m_parameters;
+	std::vector<PostProcessParameter> m_timeOfDayParameters[TIME_OF_DAY_COUNT];	///< ParamMorning ...: replace Param then
+
+	void getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const;	///< Param with the time's replacements
 
 	static const FieldParse s_fieldParseTable[];
 };
@@ -282,8 +289,18 @@ public:
 	~MaterialSettings();
 
 	MaterialTemplate* findOrCreateMaterial(const AsciiString& name);
+	const MaterialTemplate* findMaterial(const AsciiString& name) const;
+	MaterialSettings* clone() const;
 
 	std::vector<MaterialTemplate*> m_materials;
+
+	/// Changes whenever TheMaterialSettings change: a Material block was read (also from a map.ini), or the
+	/// mod's materials came back after a map. The renderer builds its materials again then.
+	static UnsignedInt getGeneration() { return s_generation; }
+	static void changed() { ++s_generation; }
+
+private:
+	static UnsignedInt s_generation;
 };
 
 extern MaterialSettings* TheMaterialSettings;	///< null without Material blocks

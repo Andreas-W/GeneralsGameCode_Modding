@@ -116,7 +116,9 @@ private:
 	ID3D8On12Materials *prepare();			///< the device's materials, built for it; null when they do not run
 	void setSunParameters(UINT material);
 	void build(ID3D8On12Materials *materials);
+	void applyParameters(const Built& built, Bool logUnknown);
 	void release();
+	void releaseIfOutdated();
 	void clearEntries();
 	const Entry& lookup(TextureClass *baseTexture, const std::map<std::string, Int>& table, std::map<TextureClass *, Entry>& entries);
 	bool bindEntry(const Entry& entry);
@@ -134,6 +136,8 @@ private:
 	Bool m_meshOverride;					///< Bind_Mesh bound an object's material instead
 	Int m_boundMaterial;					///< m_builtMaterials index bound now, -1 for none
 	Bool m_built;
+	UnsignedInt m_builtGeneration;			///< MaterialSettings::getGeneration() they were built from
+	Int m_builtTimeOfDay;					///< the time of day their parameters are for
 	Bool m_enabled;
 	Bool m_bound;
 	Bool m_collecting;

@@ -518,6 +518,8 @@ static std::string baseTextureName(const char *name)
 W3DMaterials::W3DMaterials() :
 	m_materials(nullptr),
 	m_built(FALSE),
+	m_builtGeneration(0),
+	m_builtTimeOfDay(-1),
 	m_enabled(TRUE),
 	m_bound(FALSE),
 	m_collecting(FALSE),
@@ -569,6 +571,7 @@ void W3DMaterials::reload()
 {
 	release();
 	loadSettings();
+	ThePostProcessControl.materialsReloaded();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -580,6 +583,7 @@ Bool W3DMaterials::isAvailable()
 //-------------------------------------------------------------------------------------------------
 Bool W3DMaterials::isRunning()
 {
+	releaseIfOutdated();
 	return m_built && m_enabled && !m_builtMaterials.empty() && m_materials == DX8Wrapper::Get_Materials();
 }
 
@@ -638,6 +642,8 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 #ifdef RTS_RENDERER_DX12
 	m_materials = materials;
 	m_built = TRUE;
+	m_builtGeneration = MaterialSettings::getGeneration();
+	m_builtTimeOfDay = TheGlobalData->m_timeOfDay;
 	if (TheMaterialSettings == nullptr)
 		return;
 
@@ -709,12 +715,7 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 			continue;
 		const Real noColor[3] = { 0.0f, 0.0f, 0.0f };
 		built.houseColor = SUCCEEDED(materials->Set_Material_Parameter(built.id, "HouseColor", noColor, 3));
-		for (size_t i = 0; i < settings->m_parameters.size(); ++i)
-		{
-			const PostProcessParameter& parameter = settings->m_parameters[i];
-			if (FAILED(materials->Set_Material_Parameter(built.id, parameter.m_name.str(), parameter.m_values, parameter.m_count)))
-				DEBUG_LOG(("Material %s: the shader has no parameter %s", settings->m_name.str(), parameter.m_name.str()));
-		}
+		applyParameters(built, TRUE);
 		m_builtMaterials.push_back(built);
 		const Int builtIndex = (Int)m_builtMaterials.size() - 1;
 		switch (settings->m_use)
@@ -746,6 +747,32 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 		}
 	}
 #endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The Param values of a material for the current time of day (ParamNight ...). */
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::applyParameters(const Built& built, Bool logUnknown)
+{
+#ifdef RTS_RENDERER_DX12
+	std::vector<PostProcessParameter> parameters;
+	built.settings->getParameters(TheGlobalData->m_timeOfDay, parameters);
+	for (size_t i = 0; i < parameters.size(); ++i)
+	{
+		const PostProcessParameter& parameter = parameters[i];
+		if (FAILED(m_materials->Set_Material_Parameter(built.id, parameter.m_name.str(), parameter.m_values, parameter.m_count)) && logUnknown)
+			DEBUG_LOG(("Material %s: the shader has no parameter %s", built.settings->m_name.str(), parameter.m_name.str()));
+	}
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The materials were built from settings that are gone (a map's Material blocks came or went). */
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::releaseIfOutdated()
+{
+	if (m_built && m_builtGeneration != MaterialSettings::getGeneration())
+		release();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -807,6 +834,7 @@ const W3DMaterials::Entry& W3DMaterials::lookup(TextureClass *baseTexture, const
 ID3D8On12Materials *W3DMaterials::prepare()
 {
 #ifdef RTS_RENDERER_DX12
+	releaseIfOutdated();
 	if (!m_enabled || TheMaterialSettings == nullptr)
 		return nullptr;
 	ID3D8On12Materials *materials = DX8Wrapper::Get_Materials();
@@ -814,9 +842,15 @@ ID3D8On12Materials *W3DMaterials::prepare()
 		return nullptr;
 	if (materials != m_materials || !m_built)
 	{
-		// First use, or the device was created again.
+		// First use, or the device was created again, or the settings changed.
 		release();
 		build(materials);
+	}
+	else if (m_builtTimeOfDay != TheGlobalData->m_timeOfDay)
+	{
+		m_builtTimeOfDay = TheGlobalData->m_timeOfDay;
+		for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+			applyParameters(m_builtMaterials[i], FALSE);
 	}
 	return materials;
 #else
@@ -1157,6 +1191,7 @@ Bool W3DMaterials::setParameter(const AsciiString& material, const AsciiString& 
 void W3DMaterials::getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures, std::vector<AsciiString>& uses)
 {
 	static const char *const useNames[] = { "meshes", "particles", "terrain", "water" };
+	releaseIfOutdated();
 	names.clear();
 	meshTextures.clear();
 	uses.clear();

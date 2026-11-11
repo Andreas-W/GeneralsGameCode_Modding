@@ -97,12 +97,15 @@ const FieldParse PostProcessPassTemplate::s_fieldParseTable[] =
 };
 
 //-------------------------------------------------------------------------------------------------
-void PostProcessPassTemplate::getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const
+/** The parameters with the replacements of a time of day (ParamMorning ...). */
+//-------------------------------------------------------------------------------------------------
+static void getTimeOfDayParameters(const std::vector<PostProcessParameter>& base,
+	const std::vector<PostProcessParameter>* timeOfDay, TimeOfDay time, std::vector<PostProcessParameter>& parameters)
 {
-	parameters = m_parameters;
+	parameters = base;
 	if (time < 0 || time >= TIME_OF_DAY_COUNT)
 		return;
-	const std::vector<PostProcessParameter>& replacements = m_timeOfDayParameters[time];
+	const std::vector<PostProcessParameter>& replacements = timeOfDay[time];
 	for (size_t i = 0; i < replacements.size(); ++i)
 	{
 		size_t j = 0;
@@ -113,6 +116,12 @@ void PostProcessPassTemplate::getParameters(TimeOfDay time, std::vector<PostProc
 		else
 			parameters.push_back(replacements[i]);
 	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void PostProcessPassTemplate::getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const
+{
+	getTimeOfDayParameters(m_parameters, m_timeOfDayParameters, time, parameters);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -301,14 +310,44 @@ const FieldParse MaterialTemplate::s_fieldParseTable[] =
 	{ "EmissiveMap",	INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[2] ) },
 	{ "ExtraMap",		INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[3] ) },
 	{ "Param",			parseParameter,			nullptr,	offsetof( MaterialTemplate, m_parameters ) },
+	{ "ParamMorning",	parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_MORNING] ) },
+	{ "ParamAfternoon",	parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_AFTERNOON] ) },
+	{ "ParamEvening",	parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_EVENING] ) },
+	{ "ParamNight",		parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_NIGHT] ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };
 
 //-------------------------------------------------------------------------------------------------
+void MaterialTemplate::getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const
+{
+	getTimeOfDayParameters(m_parameters, m_timeOfDayParameters, time, parameters);
+}
+
+//-------------------------------------------------------------------------------------------------
+UnsignedInt MaterialSettings::s_generation = 1;
+
 MaterialSettings::~MaterialSettings()
 {
 	for (size_t i = 0; i < m_materials.size(); ++i)
 		delete m_materials[i];
+}
+
+//-------------------------------------------------------------------------------------------------
+const MaterialTemplate* MaterialSettings::findMaterial(const AsciiString& name) const
+{
+	for (size_t i = 0; i < m_materials.size(); ++i)
+		if (m_materials[i]->m_name.compareNoCase(name) == 0)
+			return m_materials[i];
+	return nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+MaterialSettings* MaterialSettings::clone() const
+{
+	MaterialSettings *copy = new MaterialSettings;
+	for (size_t i = 0; i < m_materials.size(); ++i)
+		copy->m_materials.push_back(new MaterialTemplate(*m_materials[i]));
+	return copy;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -336,6 +375,7 @@ void INI::parseMaterialDefinition( INI *ini )
 	*material = MaterialTemplate();
 	material->m_name = name;
 	ini->initFromINI( material, MaterialTemplate::s_fieldParseTable );
+	MaterialSettings::changed();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -364,6 +404,8 @@ PostProcessControl ThePostProcessControl;
 PostProcessControl::PostProcessControl() :
 	m_savedPostProcess(nullptr),
 	m_savedShadowMap(nullptr),
+	m_savedMaterials(nullptr),
+	m_savedMaterialGeneration(0),
 	m_saved(FALSE),
 	m_generation(1),
 	m_darknessFaded(FALSE)
@@ -375,6 +417,7 @@ PostProcessControl::~PostProcessControl()
 {
 	delete m_savedPostProcess;
 	delete m_savedShadowMap;
+	delete m_savedMaterials;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -385,6 +428,8 @@ void PostProcessControl::beginMap()
 		endGame();
 	m_savedPostProcess = ThePostProcessSettings != nullptr ? ThePostProcessSettings->clone() : nullptr;
 	m_savedShadowMap = TheShadowMapSettings != nullptr ? new ShadowMapSettings(*TheShadowMapSettings) : nullptr;
+	m_savedMaterials = TheMaterialSettings != nullptr ? TheMaterialSettings->clone() : nullptr;
+	m_savedMaterialGeneration = MaterialSettings::getGeneration();
 	m_saved = TRUE;
 	clearScriptChanges();
 	++m_generation;
@@ -399,8 +444,20 @@ void PostProcessControl::endGame()
 		ThePostProcessSettings = m_savedPostProcess;
 		delete TheShadowMapSettings;
 		TheShadowMapSettings = m_savedShadowMap;
+		// The materials only come back when the map changed them, as building them again compiles shaders.
+		if (MaterialSettings::getGeneration() != m_savedMaterialGeneration)
+		{
+			delete TheMaterialSettings;
+			TheMaterialSettings = m_savedMaterials;
+			MaterialSettings::changed();
+		}
+		else
+		{
+			delete m_savedMaterials;
+		}
 		m_savedPostProcess = nullptr;
 		m_savedShadowMap = nullptr;
+		m_savedMaterials = nullptr;
 		m_saved = FALSE;
 	}
 	clearScriptChanges();
@@ -412,10 +469,20 @@ void PostProcessControl::settingsReloaded()
 {
 	delete m_savedPostProcess;
 	delete m_savedShadowMap;
+	delete m_savedMaterials;
 	m_savedPostProcess = nullptr;
 	m_savedShadowMap = nullptr;
+	m_savedMaterials = nullptr;
 	m_saved = FALSE;
 	++m_generation;
+}
+
+//-------------------------------------------------------------------------------------------------
+void PostProcessControl::materialsReloaded()
+{
+	delete m_savedMaterials;
+	m_savedMaterials = nullptr;
+	m_savedMaterialGeneration = MaterialSettings::getGeneration();
 }
 
 //-------------------------------------------------------------------------------------------------
