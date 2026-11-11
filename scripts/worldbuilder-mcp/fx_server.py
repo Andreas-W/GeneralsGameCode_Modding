@@ -347,6 +347,32 @@ def fx_render_status(postprocess: bool | None = None, materials: bool | None = N
 
 
 @mcp.tool()
+def fx_render_chain(chain: str = "Default", enable: dict | None = None, order: list[str] | None = None,
+                    move: dict | None = None, reset: bool = False, run: bool = False,
+                    auto_inputs: bool = False, connect: bool = False) -> dict:
+    """The passes of a chain (Default = the PostProcess block, or a PostProcessChain name) in the order they
+    run, as the Direct3D 12 window lists them: every pass the INI defines, the ones that are off at their
+    place (Disabled, or not in Passes yet), each with its place in the recommended default order and
+    whether it is moved from it; debug views (PP_DepthView, PP_Copy) apart.
+    - enable: {"DepthOfField": true, "SSAO": false}: switches passes on or off; they keep their place.
+    - order: pass names in the order to run (the others follow); move: {"pass": "Fog", "after": "DepthOfField"}
+      (or "before"). Refused when a pass would run before a pass it reads.
+    - reset: back to the default order (on/off stays); image passes that read each other in another order
+      are rewired. run: preview this chain.
+    - Each row has its role (the image chain, the occlusion / bloom / auto exposure branch, or no part), its
+      Inputs as written and, when auto-connect would change them, auto_inputs; connect_count counts those.
+    - auto_inputs: the changes also give every pass the inputs of its place (as the window's Auto inputs):
+      the image chain reads the image pass before it (Scene first), branches start from Scene or Depth,
+      ColorGrade reads the bloom, occlusion and auto exposure results before it. Moves of image passes are
+      then free; a branch must stay together and before the ColorGrade that reads it.
+    - connect: only set those Inputs now (refused when another chain uses the passes in an order they
+      would break). Each pass block is its own undo step.
+    Changes write Passes and Disabled of the chain block as one undo step (fx_render_undo); nothing is saved."""
+    return fx.call("fx.render_chain", chain=chain, enable=enable, order=order, move=move, reset=reset, run=run,
+                   auto_inputs=auto_inputs, connect=connect)
+
+
+@mcp.tool()
 def fx_render_get(type: RenderType, name: str | None = None, text: bool = True) -> dict:
     """A render block: its fields, its params (Param lines by name) and its text. name is not needed
     for PostProcess and ShadowMap."""
@@ -368,7 +394,7 @@ def fx_render_set(type: RenderType, name: str | None = None, fields: dict | None
 def fx_render_create(type: Literal["PostProcessPass", "PostProcessChain", "Material"], name: str,
                      copy_from: str | None = None) -> dict:
     """A new pass, chain or material (a copy of copy_from, or a minimal one); goes into the mod's
-    PostProcess.ini / Material.ini on save. A pass runs only once it is in Passes of PostProcess."""
+    PostProcess.ini / Material.ini on save. A pass runs only once it is on in a chain (fx_render_chain)."""
     return fx.call("fx.render_create", type=type, name=name, copy_from=copy_from)
 
 

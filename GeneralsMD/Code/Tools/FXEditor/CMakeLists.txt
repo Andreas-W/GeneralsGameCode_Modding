@@ -20,6 +20,8 @@ target_sources(z_fxeditor PRIVATE
     FXEditorRenderPanel.cpp
     IniDatabase.cpp
     IniDatabase.h
+    PassOrder.cpp
+    PassOrder.h
     PreviewScene.cpp
     PreviewScene.h
 )

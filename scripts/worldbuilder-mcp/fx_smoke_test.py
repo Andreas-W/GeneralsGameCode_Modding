@@ -240,6 +240,80 @@ def main() -> int:
             bridge.call("fx.render_status", postprocess=True)
             check(open(before_shot, "rb").read() != open(after_shot, "rb").read(), "post-processing off changes the picture")
             check(bridge.call("fx.render_status")["postprocess"]["running"], "post-processing runs again")
+
+            print("pass chain")
+            chain = bridge.call("fx.render_chain")
+            rows = chain["rows"]
+            names = [r["name"] for r in rows]
+            check(len(rows) > 0 and chain["order_error"] == "", f"{len(rows)} passes, custom order {chain['custom_order']}")
+            # A pass another pass reads: switched off, the chain still runs and the pass keeps its place.
+            read = next((r for r in rows if r["enabled"] and any(r["name"] in o["reads"] for o in rows if o["enabled"])), None)
+            if read:
+                place = names.index(read["name"])
+                chain = bridge.call("fx.render_chain", enable={read["name"]: False})
+                step(bridge, 2)
+                status = bridge.call("fx.render_status")["postprocess"]
+                check(status["running"] and status["error"] == "" and read["name"] not in status["passes"],
+                      f"{read['name']} off, the chain runs: {status['error'] or 'ok'}")
+                check([r["name"] for r in chain["rows"]].index(read["name"]) == place, f"{read['name']} keeps its place when off")
+                # What only fed the switched off pass's branch (the blurs of the occlusion) does not run.
+                unused = [r["name"] for r in bridge.call("fx.render_chain")["rows"] if r["enabled"] and r.get("runs") is False]
+                check(all(n not in status["passes"] for n in unused), f"unused while {read['name']} is off: {' '.join(unused) or 'none'}")
+                chain = bridge.call("fx.render_chain", enable={read["name"]: True})
+                row = chain["rows"][place]
+                check(row["name"] == read["name"] and row["enabled"], f"{read['name']} on again at its place")
+            # Moving a pass before a pass it reads is refused.
+            reader = next((r for r in rows if r["reads"]), None)
+            if reader:
+                try:
+                    bridge.call("fx.render_chain", move={"pass": reader["reads"][0], "after": reader["name"]})
+                    check(False, "a move before a pass it reads is refused")
+                except WorldBuilderError as exc:
+                    check(True, f"a move before a pass it reads is refused: {str(exc)[:70]}")
+            # A valid swap of two neighbours makes a custom order; reset brings the default back.
+            rows = bridge.call("fx.render_chain")["rows"]
+            pair = next((i for i in range(len(rows) - 1) if rows[i]["name"] not in rows[i + 1]["reads"]
+                         and rows[i]["default_index"] >= 0 and rows[i + 1]["default_index"] >= 0), None)
+            if pair is not None:
+                chain = bridge.call("fx.render_chain", move={"pass": rows[pair + 1]["name"], "before": rows[pair]["name"]})
+                check(chain["custom_order"] and chain["moved_count"] == 1, f"swapped {rows[pair]['name']} / {rows[pair + 1]['name']}: custom order")
+                chain = bridge.call("fx.render_chain", reset=True)
+                check(not chain["custom_order"], "reset to the default order")
+            # Auto inputs: every pass gets the inputs of its place.
+            rewired = [r["name"] for r in bridge.call("fx.render_chain")["rows"] if "auto_inputs" in r]
+            chain = bridge.call("fx.render_chain", connect=True)
+            check(chain["connect_count"] == 0, f"connect inputs: {' '.join(rewired) or 'nothing to change'}")
+            rows = chain["rows"]
+            image = next((i for i in range(len(rows) - 1) if all(r["role"] == "the image chain" and r["shader"] != "PP_ColorGrade"
+                          and r["default_index"] >= 0 for r in (rows[i], rows[i + 1]))), None)
+            if image is not None:
+                a, b = rows[image], rows[image + 1]
+                try:
+                    bridge.call("fx.render_chain", move={"pass": b["name"], "before": a["name"]})
+                    check(False, f"without auto inputs {b['name']} cannot run before {a['name']}")
+                except WorldBuilderError:
+                    check(True, f"without auto inputs {b['name']} cannot run before {a['name']}")
+                chain = bridge.call("fx.render_chain", move={"pass": b["name"], "before": a["name"]}, auto_inputs=True)
+                moved = {r["name"]: r for r in chain["rows"]}
+                check(moved[b["name"]]["inputs"][0] == a["inputs"][0] and moved[a["name"]]["inputs"][0] == b["name"]
+                      and chain["connect_count"] == 0 and chain["custom_order"],
+                      f"auto inputs: {b['name']} before {a['name']}, the image chain follows")
+                chain = bridge.call("fx.render_chain", reset=True)
+                moved = {r["name"]: r for r in chain["rows"]}
+                check(not chain["custom_order"] and moved[b["name"]]["inputs"][0] == a["name"], "reset rewires the image chain")
+            grade = next((i for i, r in enumerate(rows) if r["shader"] == "PP_ColorGrade"), None)
+            branch = next((r for r in rows if r["role"] in ("the bloom branch", "the occlusion branch")), None)
+            if grade is not None and branch:
+                try:
+                    bridge.call("fx.render_chain", move={"pass": branch["name"], "after": rows[grade]["name"]}, auto_inputs=True)
+                    check(False, f"{branch['name']} cannot move behind {rows[grade]['name']}")
+                except WorldBuilderError as exc:
+                    check(True, f"{branch['name']} cannot move behind {rows[grade]['name']}: {str(exc)[:70]}")
+            for r in bridge.call("fx.render_chain")["rows"]:
+                if r["shader"] and bridge.call("fx.render_get", type="PostProcessPass", name=r["name"], text=False)["dirty"]:
+                    bridge.call("fx.render_undo", type="PostProcessPass", name=r["name"], action="revert")
+            bridge.call("fx.render_undo", type="PostProcess", action="revert")
+            check(not bridge.call("fx.render_get", type="PostProcess", text=False)["dirty"], "chain reverted")
         if args.dx12 and any(b["type"] == "ShadowMap" for b in render["blocks"]):
             shadow = bridge.call("fx.render_set", type="ShadowMap", fields={"Darkness": 0.5})
             check(shadow["fields"].get("Darkness") == "0.5", "ShadowMap Darkness set")

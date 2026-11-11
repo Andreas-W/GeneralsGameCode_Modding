@@ -22,12 +22,14 @@
 #include "FXEditorApp.h"
 #include "FieldSchema.h"
 #include "IniDatabase.h"
+#include "PassOrder.h"
 
 #include "Common/FileSystem.h"
 #include "Common/GameAudio.h"
 #include "Common/GlobalData.h"
 #include "Common/McpJson.h"
 #include "Common/ThingFactory.h"
+#include "GameClient/PostProcess.h"
 #include "GameClient/FXList.h"
 #include "GameClient/MapUtil.h"
 #include "GameClient/ParticleSys.h"
@@ -804,6 +806,181 @@ McpJson cmdRenderSave(const McpJson &args)
 	return McpJson::makeObject().set("written", files);
 }
 
+Int renderChainArg(const McpJson &args)
+{
+	requireReady();
+	IniDatabase &ini = FXEditorApp::renderIni();
+	const std::string name = gameMcpArgString(args, "chain", "Default");
+	const Int block = _stricmp(name.c_str(), "Default") == 0 ? ini.findTypedBlock("PostProcess", AsciiString("PostProcess"))
+		: ini.findTypedBlock("PostProcessChain", AsciiString(name.c_str()));
+	if (block < 0)
+		gameMcpFail("no chain '%s' (Default = the PostProcess block, or a PostProcessChain name)", name.c_str());
+	return block;
+}
+
+McpJson describeChain(const PassChain &chain)
+{
+	const std::vector<AsciiString> *runningPasses = PassOrder::getRunningPasses(FXEditorApp::renderIni(), chain);
+	McpJson rows = McpJson::makeArray();
+	Int position = 0;
+	for (size_t i = 0; i < chain.rows.size(); ++i)
+	{
+		const PassRow &row = chain.rows[i];
+		McpJson inputs = McpJson::makeArray();
+		for (size_t k = 0; k < row.inputs.size(); ++k)
+			inputs.push(row.inputs[k].str());
+		McpJson words = McpJson::makeArray();
+		for (size_t k = 0; k < row.words.size(); ++k)
+			words.push(row.words[k].str());
+		McpJson j = McpJson::makeObject().set("name", row.name.str()).set("shader", row.shader.str()).set("reads", inputs)
+			.set("inputs", words).set("role", PassOrder::getRoleName(row.role))
+			.set("enabled", row.enabled != FALSE).set("listed", row.listed != FALSE).set("default_index", (int)row.defaultIndex)
+			.set("moved", row.moved != FALSE);
+		if (row.needsConnect())
+		{
+			McpJson wanted = McpJson::makeArray();
+			for (size_t k = 0; k < row.wanted.size(); ++k)
+				wanted.push(row.wanted[k].str());
+			j.set("auto_inputs", wanted);
+		}
+		if (row.enabled)
+			j.set("position", (int)++position);
+		if (runningPasses != nullptr)
+			j.set("runs", PassOrder::isRunning(runningPasses, row.name) != FALSE);
+		if (row.block < 0)
+			j.set("error", "no PostProcessPass of this name");
+		rows.push(j);
+	}
+	McpJson debug = McpJson::makeArray();
+	for (size_t i = 0; i < chain.debugRows.size(); ++i)
+		debug.push(McpJson::makeObject().set("name", chain.debugRows[i].name.str()).set("enabled", chain.debugRows[i].enabled != FALSE));
+	McpJson order = McpJson::makeArray();
+	for (size_t i = 0; i < chain.defaultOrder.size(); ++i)
+		order.push(chain.defaultOrder[i].str());
+	McpJson running = McpJson::makeArray();
+	if (TheW3DPostProcess)
+		for (size_t i = 0; i < TheW3DPostProcess->getPasses().size(); ++i)
+			running.push(TheW3DPostProcess->getPasses()[i].str());
+	const IniBlock *block = FXEditorApp::renderIni().getBlock(chain.block);
+	AsciiString orderError;
+	PassOrder::checkOrder(chain.rows, orderError);
+	return McpJson::makeObject().set("chain", block != nullptr && _stricmp(block->type.c_str(), "PostProcess") == 0 ? "Default" : block->name.str())
+		.set("rows", rows).set("debug_views", debug).set("default_order", order).set("custom_order", chain.isCustomOrder() != FALSE)
+		.set("moved_count", (int)chain.movedCount).set("order_error", orderError.str())
+		.set("connect_count", (int)chain.countNeedsConnect()).set("running", running)
+		.set("error", TheW3DPostProcess ? TheW3DPostProcess->getError().str() : "");
+}
+
+/** The passes of a chain as the Direct3D 12 window lists them, and the same changes: on/off, order, reset. */
+McpJson cmdRenderChain(const McpJson &args)
+{
+	const Int block = renderChainArg(args);
+	IniDatabase &ini = FXEditorApp::renderIni();
+	PassChain chain;
+	PassOrder::build(ini, block, chain);
+	Bool changed = FALSE;
+	const Bool connect = gameMcpArgBool(args, "connect", false);
+	Bool autoInputs = gameMcpArgBool(args, "auto_inputs", false) || connect;
+
+	if (gameMcpArgBool(args, "reset", false))
+	{
+		PassOrder::resetOrder(chain);
+		// The default order goes by the stages; image passes that read each other in another order are rewired.
+		AsciiString reason;
+		if (!PassOrder::checkOrder(chain.rows, reason))
+			autoInputs = TRUE;
+		changed = TRUE;
+	}
+	const McpJson &order = args.get("order");
+	if (order.isArray())
+	{
+		// The rows named, in that order; rows not named follow in their order.
+		std::vector<PassRow> rows;
+		for (size_t i = 0; i < order.size(); ++i)
+		{
+			const Int row = chain.findRow(AsciiString(order.at(i).asString().c_str()));
+			if (row < 0)
+				gameMcpFail("'%s' is no pass of the list (see rows)", order.at(i).asString().c_str());
+			for (size_t k = 0; k < rows.size(); ++k)
+				if (rows[k].name.compareNoCase(chain.rows[row].name) == 0)
+					gameMcpFail("'%s' is named twice", order.at(i).asString().c_str());
+			rows.push_back(chain.rows[row]);
+		}
+		for (size_t i = 0; i < chain.rows.size(); ++i)
+		{
+			Bool named = FALSE;
+			for (size_t k = 0; k < rows.size(); ++k)
+				named = named || rows[k].name.compareNoCase(chain.rows[i].name) == 0;
+			if (!named)
+				rows.push_back(chain.rows[i]);
+		}
+		AsciiString reason;
+		if (!PassOrder::checkReorder(chain, rows, autoInputs, reason))
+			gameMcpFail("%s", reason.str());
+		chain.rows = rows;
+		changed = TRUE;
+	}
+	const McpJson &move = args.get("move");
+	if (move.isObject())
+	{
+		const std::string pass = gameMcpArgString(move, "pass");
+		const Int from = chain.findRow(AsciiString(pass.c_str()));
+		if (from < 0)
+			gameMcpFail("'%s' is no pass of the list", pass.c_str());
+		const Bool before = move.has("before");
+		if (!before && !move.has("after"))
+			gameMcpFail("move needs before or after");
+		const std::string other = gameMcpArgString(move, before ? "before" : "after");
+		const Int target = chain.findRow(AsciiString(other.c_str()));
+		if (target < 0 || target == from)
+			gameMcpFail("'%s' is no other pass of the list", other.c_str());
+		// The index after the pass was taken out.
+		Int to = before ? target : target + 1;
+		if (from < to)
+			--to;
+		AsciiString reason;
+		if (!PassOrder::canMove(chain, from, to, reason, autoInputs))
+			gameMcpFail("%s", reason.str());
+		PassOrder::move(chain, from, to);
+		changed = TRUE;
+	}
+	const McpJson &enable = args.get("enable");
+	for (size_t i = 0; enable.isObject() && i < enable.numKeys(); ++i)
+	{
+		const AsciiString name(enable.keyAt(i).c_str());
+		const Bool on = enable.valueAt(i).asBool();
+		Int row = chain.findRow(name);
+		PassRow *target = row >= 0 ? &chain.rows[row] : nullptr;
+		if (target == nullptr && (row = chain.findDebugRow(name)) >= 0)
+			target = &chain.debugRows[row];
+		if (target == nullptr || target->block < 0)
+			gameMcpFail("'%s' is no pass of the list", name.str());
+		target->enabled = on;
+		target->listed = TRUE;
+		changed = TRUE;
+	}
+
+	if (changed)
+	{
+		AsciiString error;
+		if (!PassOrder::apply(ini, chain, autoInputs, error))
+			gameMcpFail("%s", error.str());
+	}
+	else if (connect)
+	{
+		AsciiString error;
+		if (!PassOrder::writeInputs(ini, chain, error))
+			gameMcpFail("%s", error.str());
+	}
+	if (gameMcpArgBool(args, "run", false))
+	{
+		const IniBlock *b = ini.getBlock(block);
+		ThePostProcessControl.useChain(_stricmp(b->type.c_str(), "PostProcess") == 0 ? AsciiString("Default") : b->name);
+	}
+	PassOrder::build(ini, block, chain);
+	return describeChain(chain);
+}
+
 McpJson cmdRenderReload(const McpJson &)
 {
 	requireReady();
@@ -1035,6 +1212,11 @@ void FXEditorMcp::registerCommands()
 	gameMcpRegisterCommand("fx.render_status", cmdRenderStatus,
 		"{postprocess?, materials?} Direct3D 12: post-processing and materials on/off (not saved), what runs, errors, and the "
 		"PostProcessPass / PostProcess / PostProcessChain / ShadowMap / Material blocks.");
+	gameMcpRegisterCommand("fx.render_chain", cmdRenderChain,
+		"{chain=Default, enable?={pass: bool}, order?=[pass, ...], move?={pass, before|after}, reset?, run?, auto_inputs?, connect?} The passes of a chain "
+		"in the order they run, with the ones that are off at their place, the default order and what is moved from it; "
+		"switches passes on or off (Disabled), reorders, or resets to the default order, as one undo step. run=true previews that chain. "
+		"auto_inputs=true also gives the passes the Inputs of their place; connect=true only does that.");
 	gameMcpRegisterCommand("fx.render_get", cmdRenderGet, "{type, name?, text=true} A render block: fields, params (Param lines by name), text.");
 	gameMcpRegisterCommand("fx.render_set", cmdRenderSet,
 		"{type, name?, fields?, params?, text?} Changes a render block (fields: value or null; params: number, list or null) and "
