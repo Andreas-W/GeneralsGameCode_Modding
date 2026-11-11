@@ -22,6 +22,8 @@
 #include "Device.h"
 #include "PostProcess.h"
 
+#include <ctype.h>
+#include <d3dcompiler.h>
 #include <string.h>
 
 namespace D3D8On12
@@ -70,7 +72,21 @@ struct MaterialInput
 	float4 tex1 : TEXCOORD1;
 	float3 viewPosition : VIEWPOS;
 	float3 viewNormal : VIEWNORMAL;	// zero for meshes without normals
+	float4 materialData : MATERIALDATA;	// what the material's vertex function wrote, else 0
 };
+// A material may also have a vertex function, void MaterialVertex(inout MaterialVertexData v), which moves
+// the vertex in world space before it is transformed. The same source is compiled once more as part of the
+// generated vertex shaders, with MATERIAL_VERTEX_STAGE defined; main is then not the entry point.
+struct MaterialVertexData
+{
+	float3 worldPosition;	// the vertex in world space; where it is drawn
+	float3 worldNormal;		// its normal in world space (0 0 1 without normals), for lighting and viewNormal
+	float2 tex0;			// its texture coordinates of set 0, read only
+	float4 data;			// passed to the pixel shader as materialData, 0 by default
+};
+#ifdef MATERIAL_VERTEX_STAGE
+#define main MaterialPixelMain
+#endif
 static const uint MAP_BASE = 0;
 static const uint MAP_DETAIL = 1;
 static const uint MAP_NORMAL = 2;
@@ -269,6 +285,10 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Create_Shader(const char* source, UINT
 	Reflect_Constant_Buffer(compiled.code.Get(), "Params", compiled.paramsSize, compiled.variables);
 	// Its own range of hashes, apart from the generated and translated pixel shaders.
 	compiled.hash = Hash_Bytes(compiled.code->GetBufferPointer(), compiled.code->GetBufferSize()) ^ 0x2545f4914f6cdd1dull;
+	compiled.vertexHash = 0;
+	const HRESULT vertex_hr = Prepare_Vertex_Function(compiled, source, length, name, include, errors);
+	if (FAILED(vertex_hr))
+		return vertex_hr;
 
 	for (size_t i = 0; i < m_shaders.size(); ++i)
 	{
@@ -284,6 +304,48 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Create_Shader(const char* source, UINT
 	return D3D_OK;
 }
 
+// A vertex function is found in the preprocessed source, which is kept for the generated vertex shaders; they
+// are compiled when a draw first needs them, so the source is compiled once here for the water's vertex
+// format to report errors now, instead of drawing nothing later.
+HRESULT MaterialSystem::Prepare_Vertex_Function(Shader& shader, const char* source, UINT length, const char* name,
+	ID3DInclude* include, ID3DBlob** errors)
+{
+	// The function may also be in an include, so the source is always preprocessed.
+	const D3D_SHADER_MACRO defines[] = { { "MATERIAL_VERTEX_STAGE", "1" }, { nullptr, nullptr } };
+	std::string text;
+	HRESULT hr = Preprocess_Shader(source, length, name, "Material.hlsli", m_header.c_str(), include, defines, text, errors);
+	if (FAILED(hr))
+		return hr;
+	// The function itself, not only the struct MaterialVertexData of the header.
+	bool found = false;
+	for (size_t at = text.find("MaterialVertex"); at != std::string::npos && !found; at = text.find("MaterialVertex", at + 1))
+	{
+		const char next = at + 14 < text.size() ? text[at + 14] : ' ';
+		found = !(isalnum((unsigned char)next) || next == '_');
+	}
+	if (!found)
+		return D3D_OK;
+
+	shader.vertexSource = text;
+	shader.vertexHash = Hash_Bytes(text.data(), text.size()) | 1;
+
+	VertexShaderKey key;
+	memset(&key, 0, sizeof(key));
+	key.fvf = D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX2;
+	key.stageCount = 2;
+	key.materialOutputs = 1;
+	key.stages[1].coordIndex = 1;
+	key.vertexHook = shader.vertexHash;
+	const std::string hlsl = Generate_Vertex_Shader(key, &shader.vertexSource);
+	ComPtr<ID3DBlob> code;
+	ComPtr<ID3DBlob> messages;
+	hr = D3DCompile(hlsl.data(), hlsl.size(), name, nullptr, nullptr, "main", "vs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0,
+		&code, &messages);
+	if (FAILED(hr) && errors != nullptr)
+		*errors = messages.Detach();
+	return hr;
+}
+
 // Pipelines made with the shader stay in the device's cache; they are keyed by the code's hash.
 void STDMETHODCALLTYPE MaterialSystem::Release_Shader(UINT shader)
 {
@@ -293,6 +355,7 @@ void STDMETHODCALLTYPE MaterialSystem::Release_Shader(UINT shader)
 	released.used = false;
 	released.hash = 0;
 	released.paramsSize = 0;
+	released.vertexHash = 0;
 	m_shaders[shader - 1] = released;
 }
 
@@ -364,6 +427,8 @@ bool MaterialSystem::Current(Binding& binding) const
 	binding.hash = shader.hash;
 	binding.params = &material.params;
 	binding.maps = m_maps;
+	binding.vertexSource = shader.vertexHash != 0 ? &shader.vertexSource : nullptr;
+	binding.vertexHash = shader.vertexHash;
 	return true;
 }
 

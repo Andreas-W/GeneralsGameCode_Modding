@@ -61,6 +61,8 @@ public:
 		UINT64 hash;							// of the code, as the pixel shader hash of pipelines
 		const std::vector<unsigned char>* params;	// contents of the Params cbuffer, empty without one
 		IDirect3DBaseTexture8* const* maps;		// textures of stages 2..5, entries may be null
+		const std::string* vertexSource;		// preprocessed source with MaterialVertex, or null
+		UINT64 vertexHash;						// of vertexSource, 0 without
 	};
 	bool Current(Binding& binding) const;
 
@@ -82,7 +84,12 @@ private:
 		UINT64 hash;
 		UINT paramsSize;
 		std::unordered_map<std::string, ShaderVariable> variables;
+		std::string vertexSource;	// for shaders with a vertex function: the source for Generate_Vertex_Shader
+		UINT64 vertexHash;			// 0 without a vertex function
 	};
+
+	HRESULT Prepare_Vertex_Function(Shader& shader, const char* source, UINT length, const char* name, ID3DInclude* include,
+		ID3DBlob** errors);
 
 	struct Material
 	{

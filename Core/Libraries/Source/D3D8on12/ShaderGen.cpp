@@ -252,7 +252,7 @@ static void Append_Vertex_Output(std::string& text, const VertexShaderKey& key)
 	if (key.pointSprite)
 		text += "	float pointSize : POINTSIZE;\n";
 	if (key.materialOutputs)
-		text += "	float3 viewPosition : VIEWPOS;\n	float3 viewNormal : VIEWNORMAL;\n";
+		text += "	float3 viewPosition : VIEWPOS;\n	float3 viewNormal : VIEWNORMAL;\n	float4 materialData : MATERIALDATA;\n";
 	text += "};\n";
 }
 
@@ -265,7 +265,7 @@ static const char* Get_Material_Source(BYTE source, const char* material, bool h
 	return material;
 }
 
-std::string Generate_Vertex_Shader(const VertexShaderKey& key)
+std::string Generate_Vertex_Shader(const VertexShaderKey& key, const std::string* hook)
 {
 	const DWORD fvf = key.fvf;
 	const bool rhw = (fvf & D3DFVF_POSITION_MASK) == D3DFVF_XYZRHW;
@@ -273,8 +273,10 @@ std::string Generate_Vertex_Shader(const VertexShaderKey& key)
 	const bool has_color0 = (fvf & D3DFVF_DIFFUSE) != 0;
 	const bool has_color1 = (fvf & D3DFVF_SPECULAR) != 0;
 	const UINT tex_count = Get_Tex_Coord_Count(fvf);
+	const bool has_hook = key.vertexHook != 0 && hook != nullptr && !rhw;
 
-	std::string text = s_vertexShaderHeader;
+	// The material's source declares the constants itself (Material.hlsli).
+	std::string text = has_hook ? *hook + "\n" : std::string(s_vertexShaderHeader);
 
 	text += "struct VSInput\n{\n";
 	text += "	float4 position : POSITION;\n";
@@ -308,6 +310,28 @@ std::string Generate_Vertex_Shader(const VertexShaderKey& key)
 			"	float w = input.position.w != 0 ? 1.0 / input.position.w : 1.0;\n"
 			"	float2 ndc = float2((input.position.x - Viewport.x) / Viewport.z * 2 - 1, 1 - (input.position.y - Viewport.y) / Viewport.w * 2);\n"
 			"	output.position = float4(ndc, input.position.z, 1) * w;\n";
+	}
+	else if (has_hook)
+	{
+		// The material moves the vertex in world space; then it is transformed by the view alone.
+		text +=
+			"	MaterialVertexData materialVertex;\n"
+			"	materialVertex.worldPosition = mul(float4(input.position.xyz, 1), World).xyz;\n";
+		text += has_normal ? "	materialVertex.worldNormal = normalize(mul(input.normal, (float3x3)World));\n"
+			: "	materialVertex.worldNormal = float3(0, 0, 1);\n";
+		if (tex_count == 0)
+			text += "	materialVertex.tex0 = float2(0, 0);\n";
+		else if (Get_Tex_Coord_Size(fvf, 0) == 1)
+			text += "	materialVertex.tex0 = float2(input.tex0, 0);\n";
+		else
+			text += "	materialVertex.tex0 = input.tex0.xy;\n";
+		text +=
+			"	materialVertex.data = float4(0, 0, 0, 0);\n"
+			"	MaterialVertex(materialVertex);\n"
+			"	float4 viewPosition4 = mul(float4(materialVertex.worldPosition, 1), View);\n"
+			"	viewPosition = viewPosition4.xyz;\n"
+			"	output.position = mul(viewPosition4, Projection);\n"
+			"	viewNormal = normalize(mul(materialVertex.worldNormal, (float3x3)View));\n";
 	}
 	else
 	{
@@ -374,7 +398,8 @@ std::string Generate_Vertex_Shader(const VertexShaderKey& key)
 	if (key.materialOutputs)
 	{
 		text += "	output.viewPosition = viewPosition;\n";
-		text += has_normal && !rhw ? "	output.viewNormal = viewNormal;\n" : "	output.viewNormal = float3(0, 0, 0);\n";
+		text += (has_normal || has_hook) && !rhw ? "	output.viewNormal = viewNormal;\n" : "	output.viewNormal = float3(0, 0, 0);\n";
+		text += has_hook ? "	output.materialData = materialVertex.data;\n" : "	output.materialData = float4(0, 0, 0, 0);\n";
 	}
 
 	if (key.fogMode == D3DFOG_NONE)

@@ -256,6 +256,7 @@ private:
 		const TranslatedShader* vertexShader;	// translated, or null
 		const TranslatedShader* pixelShader;
 		ID3DBlob* pixelCode;					// a material's compiled pixel shader, or null
+		const std::string* vertexHook;			// a material's source with a vertex function, or null
 		bool pointSprite;
 	};
 	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, const ShaderChoice& shaders, const TargetState& targets);

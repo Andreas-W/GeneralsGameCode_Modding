@@ -493,7 +493,7 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	if (m_shaders.find(key.vertexShader) != m_shaders.end())
 		vs = m_shaders[key.vertexShader].Get();
 	else
-		vs = Get_Shader(key.vertexShader, shaders.vertexKey != nullptr ? Generate_Vertex_Shader(*shaders.vertexKey) : shaders.vertexShader->hlsl, "vs_5_0");
+		vs = Get_Shader(key.vertexShader, shaders.vertexKey != nullptr ? Generate_Vertex_Shader(*shaders.vertexKey, shaders.vertexHook) : shaders.vertexShader->hlsl, "vs_5_0");
 	ID3DBlob* ps = nullptr;
 	if (shaders.pixelCode != nullptr)
 		ps = shaders.pixelCode;
@@ -898,6 +898,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		// The same outputs for every mesh, so that one compiled material shader fits all of them.
 		vs_key.stageCount = 2;
 		vs_key.materialOutputs = 1;
+		vs_key.vertexHook = material.vertexHash;
 	}
 	vs_key.pointSprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
 	vs_key.pointScale = vs_key.pointSprite && rs[D3DRS_POINTSCALEENABLE] != FALSE && !rhw;
@@ -923,6 +924,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	{
 		// Most draws use the same keys as the one before; comparing is cheaper than hashing.
 		shaders.vertexKey = &vs_key;
+		shaders.vertexHook = use_material ? material.vertexSource : nullptr;
 		if (!m_lastVertexKeyValid || memcmp(&vs_key, &m_lastVertexKey, sizeof(vs_key)) != 0)
 		{
 			m_lastVertexKey = vs_key;
