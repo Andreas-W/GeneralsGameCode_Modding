@@ -2910,6 +2910,10 @@ void WbView3d::OnSize(UINT nType, int cx, int cy)
 // ----------------------------------------------------------------------------
 BOOL WbView3d::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
+	// Shift + wheel turns the object tool's angle in 5 degree steps instead of zooming.
+	if ((nFlags & MK_SHIFT) && rotateObjectTool(5*(zDelta/WHEEL_DELTA), false)) {
+		return true;
+	}
 	if (m_trackingMode == TRACK_NONE) {
 
 		//WST 11/21/02 New Triple speed camera zoom request by designers

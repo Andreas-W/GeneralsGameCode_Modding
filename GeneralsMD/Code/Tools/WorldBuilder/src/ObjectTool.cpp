@@ -37,6 +37,9 @@
 // ObjectTool class.
 //
 	enum {HYSTERESIS = 3};
+
+Int ObjectTool::m_rotationOffset = 0;
+
 /// Constructor
 ObjectTool::ObjectTool() :
 	Tool(ID_PLACE_OBJECT_TOOL, IDC_PLACE_OBJECT)
@@ -80,9 +83,34 @@ Real ObjectTool::calcAngle(Coord3D downPt, Coord3D curPt, WbView* pView)
 
 
 
+/// Turns the default angle of clicked objects, and shows it in the status bar.
+void ObjectTool::rotateBy(Int degrees)
+{
+	m_rotationOffset = ((m_rotationOffset + degrees) % 360 + 360) % 360;
+	CString str;
+	str.Format("Object rotation: %d degrees", m_rotationOffset);
+	CMainFrame::GetMainFrame()->SetMessageText(str);
+}
+
+/// Places clicked objects at their default angle again.
+void ObjectTool::resetRotation()
+{
+	m_rotationOffset = 0;
+	rotateBy(0);
+}
+
+void ObjectTool::refreshPreview(WbView* pView, CWorldBuilderDoc *pDoc)
+{
+	CPoint viewPt;
+	::GetCursorPos(&viewPt);
+	pView->ScreenToClient(&viewPt);
+	mouseMoved(TRACK_NONE, viewPt, pView, pDoc);
+}
+
 /// Turn off object tracking.
 void ObjectTool::deactivate()
 {
+	m_rotationOffset = 0;
 	CWorldBuilderDoc *pDoc = CWorldBuilderDoc::GetActiveDoc();
 	if (pDoc==nullptr) return;
 	WbView3d *p3View = pDoc->GetActive3DView();
@@ -128,6 +156,9 @@ void ObjectTool::mouseMoved(TTrackingMode m, CPoint viewPt, WbView* pView, CWorl
 	if (justAClick && pCur && pCur->getThingTemplate()) {
 		angle = pCur->getThingTemplate()->getPlacementViewAngle();
 	}
+	if (justAClick) {
+		angle += m_rotationOffset*PI/180.0f;
+	}
 	WbView3d *p3View = pDoc->GetActive3DView();
 	p3View->setObjTracking(nullptr, m_downPt3d, 0, false);
 	loc.z = ObjectOptions::getCurObjectHeight();
@@ -157,8 +188,10 @@ void ObjectTool::mouseUp(TTrackingMode m, CPoint viewPt, WbView* pView, CWorldBu
 	Real angle = justAClick ? 0 : calcAngle(loc, cpt, pView);
 	MapObject *pNew = ObjectOptions::duplicateCurMapObjectForPlace(&loc, angle, true);
 	if (pNew) {
-		if (justAClick && pNew->getThingTemplate()) {
-			angle = pNew->getThingTemplate()->getPlacementViewAngle();
+		if (justAClick) {
+			angle = pNew->getThingTemplate() ? pNew->getThingTemplate()->getPlacementViewAngle() : 0;
+			angle += m_rotationOffset*PI/180.0f;
+			if (angle > PI) angle -= 2*PI;
 			pNew->setAngle(angle);
 		}
 		AddObjectUndoable *pUndo = new AddObjectUndoable(pDoc, pNew);

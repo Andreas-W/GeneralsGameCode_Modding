@@ -34,6 +34,7 @@ class ObjectTool : public Tool
 protected:
 	CPoint m_downPt2d;
 	Coord3D m_downPt3d;
+	static Int m_rotationOffset; ///< Degrees added to the default angle of clicked objects.
 
 public:
 	ObjectTool();
@@ -41,6 +42,12 @@ public:
 
 public:
 	static Real calcAngle(Coord3D downPt, Coord3D curPt, WbView* pView);
+	static void rotateBy(Int degrees);
+	static void resetRotation();
+	static Int getRotation() {return m_rotationOffset;}
+
+	/// Redraws the placement preview at the cursor after the rotation changed.
+	void refreshPreview(WbView* pView, CWorldBuilderDoc *pDoc);
 
 public:
 	/// Perform tool on mouse down.

@@ -373,7 +373,26 @@ void WbView::OnMButtonUp(UINT nFlags, CPoint point)
 
 void WbView::OnMButtonDown(UINT nFlags, CPoint point)
 {
+	// Shift + middle button puts the object tool back to the default angle instead of scrolling.
+	if ((nFlags & MK_SHIFT) && rotateObjectTool(0, true)) {
+		return;
+	}
 	mouseDown(TRACK_M, point);
+}
+
+Bool WbView::rotateObjectTool(Int degrees, Bool reset)
+{
+	Tool *pTool = WbApp()->getCurTool();
+	if (pTool == nullptr || pTool->getToolID() != ID_PLACE_OBJECT_TOOL || m_trackingMode != TRACK_NONE) {
+		return false;
+	}
+	if (reset) {
+		ObjectTool::resetRotation();
+	} else {
+		ObjectTool::rotateBy(degrees);
+	}
+	((ObjectTool *)pTool)->refreshPreview(this, WbDoc());
+	return true;
 }
 
 //=============================================================================
@@ -484,6 +503,9 @@ void WbView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	if (nChar == VK_DELETE || nChar == VK_BACK) {
 		OnEditDelete();
+	}
+	if (nChar == 'R') {
+		rotateObjectTool(90, false);
 	}
 	WbApp()->updateCurTool(false);
 	OnSetCursor(this,HTCLIENT,0);

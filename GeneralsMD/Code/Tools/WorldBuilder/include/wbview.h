@@ -55,6 +55,8 @@ protected:
 	void mouseDown(TTrackingMode m, CPoint viewPt);
 	void mouseMove(TTrackingMode m, CPoint viewPt);
 	void mouseUp(TTrackingMode m, CPoint viewPt);
+	/// Turns the angle of objects placed by the object tool; false if that tool is not in use.
+	Bool rotateObjectTool(Int degrees, Bool reset);
 
 
 	void constrainCenterPt();
