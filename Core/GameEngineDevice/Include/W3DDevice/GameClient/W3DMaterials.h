@@ -86,8 +86,19 @@ public:
 	void setTerrainParameter(const char *name, const Real *values, Int count);
 	void setWaterParameter(const char *name, const Real *values, Int count);
 
-	/// Copies of the scene for the materials: the depth before the water when a water material runs, the
-	/// depth and colour before the particles when particle materials run. Call at those points.
+	/// Water materials by name (Use = Water; WaterRendering picks them per body of water). The index is for
+	/// the calls below; -1 for none. An empty or unknown name gives the last water material.
+	Int findWaterMaterial(const AsciiString& name);
+	bool bindWater(Int material, IDirect3DBaseTexture8 *extraMap);
+	void setWaterParameter(Int material, const char *name, const Real *values, Int count);
+	Bool waterHasVertexFunction(Int material);	///< its shader moves the vertices (MaterialVertex)
+	Bool waterHasParameter(Int material, const char *name);
+	/// Textures t8.. of all materials (the water field, the shroud ...), Set_Material_Textures.
+	void setSharedTextures(UnsignedInt first, UnsignedInt count, IDirect3DBaseTexture8 *const *textures);
+
+	/// Copies of the scene for the materials: the depth (and with WaterRendering Refraction the colour, for
+	/// water materials with RefractionStrength) before the water when a water material runs, the depth and
+	/// colour before the particles when particle materials run. Call at those points.
 	void captureBeforeWater();
 	void captureBeforeParticles();
 
@@ -99,6 +110,8 @@ private:
 		Int textureCount;			///< base textures that got it so far
 		Bool houseColor;			///< the shader has a HouseColor parameter
 		UnsignedInt lastHouseColor;	///< what it was last set to
+		TextureClass *waterMaps[4];	///< water materials: their maps, file names in the INI
+		Bool sceneColor;			///< water materials: reads the scene colour (RefractionStrength)
 	};
 	struct ObjectInfo
 	{
@@ -148,8 +161,7 @@ private:
 	std::map<TextureClass *, Entry> m_entries;
 	std::map<TextureClass *, Entry> m_particleEntries;
 	Int m_terrainMaterial;								///< m_builtMaterials index, -1 for none
-	Int m_waterMaterial;
-	TextureClass *m_waterMaps[4];
+	Int m_waterMaterial;								///< the last water material, the default
 	Bool m_particleColor;								///< a particle material wants the scene colour (Distortion)
 	std::set<std::string> m_seenTextures;
 	AsciiString m_error;

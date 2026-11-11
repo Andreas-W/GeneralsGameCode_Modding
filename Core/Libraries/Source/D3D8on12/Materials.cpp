@@ -484,6 +484,21 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Set_Material_Textures(UINT first, UINT
 	return D3D_OK;
 }
 
+BOOL STDMETHODCALLTYPE MaterialSystem::Has_Material_Parameter(UINT material, const char* name)
+{
+	if (material == 0 || material > m_materials.size() || !m_materials[material - 1].used || name == nullptr)
+		return FALSE;
+	const Shader& shader = m_shaders[m_materials[material - 1].shader - 1];
+	return shader.variables.find(name) != shader.variables.end();
+}
+
+BOOL STDMETHODCALLTYPE MaterialSystem::Has_Vertex_Function(UINT material)
+{
+	if (material == 0 || material > m_materials.size() || !m_materials[material - 1].used)
+		return FALSE;
+	return m_shaders[m_materials[material - 1].shader - 1].vertexHash != 0;
+}
+
 // Point sampling for the depth (t6), linear for the colour (t7), both clamped.
 UINT MaterialSystem::Scene_Sampler(UINT stage)
 {

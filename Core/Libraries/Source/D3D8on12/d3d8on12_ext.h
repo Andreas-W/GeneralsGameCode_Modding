@@ -191,6 +191,10 @@ struct ID3D8On12Materials : public IUnknown
 	// until changed; null clears a slot. Like the maps of Set_Material they are not referenced: they must be
 	// cleared before they are released. first + count must be at most D3D8ON12_MATERIAL_EXTRA_TEXTURES.
 	virtual HRESULT STDMETHODCALLTYPE Set_Material_Textures(UINT first, UINT count, IDirect3DBaseTexture8* const* textures) = 0;
+
+	// What a material's shader has: a variable of its Params cbuffer, a vertex function (MaterialVertex).
+	virtual BOOL STDMETHODCALLTYPE Has_Material_Parameter(UINT material, const char* name) = 0;
+	virtual BOOL STDMETHODCALLTYPE Has_Vertex_Function(UINT material) = 0;
 };
 
 #define D3D8ON12_MATERIAL_EXTRA_TEXTURES 4

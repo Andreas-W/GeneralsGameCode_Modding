@@ -379,6 +379,85 @@ void INI::parseMaterialDefinition( INI *ini )
 }
 
 //-------------------------------------------------------------------------------------------------
+/** PolygonMaterial = <material> <polygon name>; the name may have spaces. */
+//-------------------------------------------------------------------------------------------------
+static void parsePolygonMaterial( INI *ini, void *instance, void *store, const void *userData )
+{
+	std::vector<WaterRenderingSettings::PolygonMaterial> *list = (std::vector<WaterRenderingSettings::PolygonMaterial> *)store;
+	WaterRenderingSettings::PolygonMaterial entry;
+	entry.m_material = ini->getNextToken();
+	for (const char *token = ini->getNextTokenOrNull(); token; token = ini->getNextTokenOrNull())
+	{
+		if (entry.m_polygon.isNotEmpty())
+			entry.m_polygon.concat(' ');
+		entry.m_polygon.concat(token);
+	}
+	if (entry.m_polygon.isEmpty())
+		throw INI_INVALID_DATA;
+	for (size_t i = 0; i < list->size(); ++i)
+	{
+		if ((*list)[i].m_polygon.compareNoCase(entry.m_polygon) == 0)
+		{
+			(*list)[i] = entry;
+			return;
+		}
+	}
+	list->push_back(entry);
+}
+
+WaterRenderingSettings* TheWaterRenderingSettings = nullptr;
+
+const char *const WaterRenderingSettings::s_kindNames[] = { "Ocean", "Lake", "River", nullptr };
+
+WaterRenderingSettings::WaterRenderingSettings() :
+	m_gridSpacing(10.0f),
+	m_riverSubdivisions(4),
+	m_lodDistance(600.0f),
+	m_refraction(TRUE),
+	m_drawWaterTracks(FALSE),
+	m_shoreFieldResolution(2),
+	m_shoreFieldRange(100.0f),
+	m_replaceHeightAmbientLight(TRUE)
+{
+}
+
+const FieldParse WaterRenderingSettings::s_fieldParseTable[] =
+{
+	{ "OceanMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_OCEAN] ) },
+	{ "LakeMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_LAKE] ) },
+	{ "RiverMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_RIVER] ) },
+	{ "PolygonMaterial",		parsePolygonMaterial,	nullptr,	offsetof( WaterRenderingSettings, m_polygonMaterials ) },
+	{ "GridSpacing",			INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_gridSpacing ) },
+	{ "RiverSubdivisions",		INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_riverSubdivisions ) },
+	{ "LodDistance",			INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_lodDistance ) },
+	{ "Refraction",				INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_refraction ) },
+	{ "DrawWaterTracks",		INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_drawWaterTracks ) },
+	{ "ShoreFieldResolution",	INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldResolution ) },
+	{ "ShoreFieldRange",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldRange ) },
+	{ "ReplaceHeightAmbientLight",	INI::parseBool,		nullptr,	offsetof( WaterRenderingSettings, m_replaceHeightAmbientLight ) },
+	{ nullptr, nullptr, nullptr, 0 },
+};
+
+//-------------------------------------------------------------------------------------------------
+const AsciiString& WaterRenderingSettings::getMaterialName(Kind kind, const AsciiString& polygon) const
+{
+	for (size_t i = 0; i < m_polygonMaterials.size(); ++i)
+		if (m_polygonMaterials[i].m_polygon.compareNoCase(polygon) == 0)
+			return m_polygonMaterials[i].m_material;
+	return m_kindMaterials[kind];
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A later block (a map.ini after Water.ini) changes only the fields it has. */
+//-------------------------------------------------------------------------------------------------
+void INI::parseWaterRenderingDefinition( INI *ini )
+{
+	if (TheWaterRenderingSettings == nullptr)
+		TheWaterRenderingSettings = new WaterRenderingSettings;
+	ini->initFromINI( TheWaterRenderingSettings, WaterRenderingSettings::s_fieldParseTable );
+}
+
+//-------------------------------------------------------------------------------------------------
 void INI::parsePostProcessDefinition( INI *ini )
 {
 	if (ThePostProcessSettings == nullptr)
@@ -406,6 +485,7 @@ PostProcessControl::PostProcessControl() :
 	m_savedShadowMap(nullptr),
 	m_savedMaterials(nullptr),
 	m_savedMaterialGeneration(0),
+	m_savedWaterRendering(nullptr),
 	m_saved(FALSE),
 	m_generation(1),
 	m_darknessFaded(FALSE)
@@ -418,6 +498,7 @@ PostProcessControl::~PostProcessControl()
 	delete m_savedPostProcess;
 	delete m_savedShadowMap;
 	delete m_savedMaterials;
+	delete m_savedWaterRendering;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -430,6 +511,7 @@ void PostProcessControl::beginMap()
 	m_savedShadowMap = TheShadowMapSettings != nullptr ? new ShadowMapSettings(*TheShadowMapSettings) : nullptr;
 	m_savedMaterials = TheMaterialSettings != nullptr ? TheMaterialSettings->clone() : nullptr;
 	m_savedMaterialGeneration = MaterialSettings::getGeneration();
+	m_savedWaterRendering = TheWaterRenderingSettings != nullptr ? new WaterRenderingSettings(*TheWaterRenderingSettings) : nullptr;
 	m_saved = TRUE;
 	clearScriptChanges();
 	++m_generation;
@@ -455,9 +537,12 @@ void PostProcessControl::endGame()
 		{
 			delete m_savedMaterials;
 		}
+		delete TheWaterRenderingSettings;
+		TheWaterRenderingSettings = m_savedWaterRendering;
 		m_savedPostProcess = nullptr;
 		m_savedShadowMap = nullptr;
 		m_savedMaterials = nullptr;
+		m_savedWaterRendering = nullptr;
 		m_saved = FALSE;
 	}
 	clearScriptChanges();
@@ -470,9 +555,11 @@ void PostProcessControl::settingsReloaded()
 	delete m_savedPostProcess;
 	delete m_savedShadowMap;
 	delete m_savedMaterials;
+	delete m_savedWaterRendering;
 	m_savedPostProcess = nullptr;
 	m_savedShadowMap = nullptr;
 	m_savedMaterials = nullptr;
+	m_savedWaterRendering = nullptr;
 	m_saved = FALSE;
 	++m_generation;
 }

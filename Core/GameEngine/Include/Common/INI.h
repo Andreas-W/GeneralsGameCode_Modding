@@ -214,6 +214,7 @@ public:
 	static void parsePostProcessChainDefinition( INI *ini );
 	static void parseShadowMapDefinition( INI *ini );
 	static void parseMaterialDefinition( INI *ini );
+	static void parseWaterRenderingDefinition( INI *ini );
 	static void parseMappedImageDefinition( INI *ini );
 	static void parseArmorDefinition( INI *ini );
 	static void parseArmorExtendDefinition( INI *ini );

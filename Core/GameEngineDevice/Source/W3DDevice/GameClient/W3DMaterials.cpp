@@ -532,8 +532,6 @@ W3DMaterials::W3DMaterials() :
 	m_boundMaterial(-1),
 	m_objectMaterials(0)
 {
-	for (Int i = 0; i < 4; ++i)
-		m_waterMaps[i] = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -602,8 +600,9 @@ void W3DMaterials::clearEntries()
 		for (Int i = 0; i < 4; ++i)
 			REF_PTR_RELEASE(it->second.maps[i]);
 	m_objectEntries.clear();
-	for (Int i = 0; i < 4; ++i)
-		REF_PTR_RELEASE(m_waterMaps[i]);
+	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+		for (Int j = 0; j < 4; ++j)
+			REF_PTR_RELEASE(m_builtMaterials[i].waterMaps[j]);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -711,11 +710,22 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 		built.id = 0;
 		built.textureCount = 0;
 		built.lastHouseColor = 0;
+		built.sceneColor = FALSE;
+		for (Int i = 0; i < 4; ++i)
+			built.waterMaps[i] = nullptr;
 		if (FAILED(materials->Create_Material(shader, &built.id)))
 			continue;
 		const Real noColor[3] = { 0.0f, 0.0f, 0.0f };
 		built.houseColor = SUCCEEDED(materials->Set_Material_Parameter(built.id, "HouseColor", noColor, 3));
 		applyParameters(built, TRUE);
+		if (settings->m_use == MaterialTemplate::USE_WATER)
+		{
+			// The maps are file names.
+			for (Int i = 0; i < 4; ++i)
+				if (settings->m_maps[i].isNotEmpty() && settings->m_maps[i].getCharAt(0) != '_')
+					built.waterMaps[i] = findMap(settings->m_name, settings->m_maps[i]);
+			built.sceneColor = materials->Has_Material_Parameter(built.id, "RefractionStrength");
+		}
 		m_builtMaterials.push_back(built);
 		const Int builtIndex = (Int)m_builtMaterials.size() - 1;
 		switch (settings->m_use)
@@ -731,14 +741,7 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 			m_terrainMaterial = builtIndex;
 			break;
 		case MaterialTemplate::USE_WATER:
-			// The maps are file names.
 			m_waterMaterial = builtIndex;
-			for (Int i = 0; i < 4; ++i)
-			{
-				REF_PTR_RELEASE(m_waterMaps[i]);
-				if (settings->m_maps[i].isNotEmpty() && settings->m_maps[i].getCharAt(0) != '_')
-					m_waterMaps[i] = findMap(settings->m_name, settings->m_maps[i]);
-			}
 			break;
 		default:
 			for (size_t i = 0; i < settings->m_textures.size(); ++i)
@@ -943,29 +946,91 @@ bool W3DMaterials::bindTerrain(IDirect3DBaseTexture8 *const *maps)
 //-------------------------------------------------------------------------------------------------
 bool W3DMaterials::bindWater(IDirect3DBaseTexture8 *extraMap)
 {
-#ifdef RTS_RENDERER_DX12
-	if (prepare() == nullptr || m_waterMaterial < 0)
+	if (prepare() == nullptr)
 		return false;
-	const UINT id = m_builtMaterials[m_waterMaterial].id;
-	setSunParameters(id);
+	return bindWater(m_waterMaterial, extraMap);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool W3DMaterials::bindWater(Int material, IDirect3DBaseTexture8 *extraMap)
+{
+#ifdef RTS_RENDERER_DX12
+	if (prepare() == nullptr || material < 0 || material >= (Int)m_builtMaterials.size())
+		return false;
+	Built& built = m_builtMaterials[material];
+	setSunParameters(built.id);
 	IDirect3DBaseTexture8 *maps[4];
 	for (Int i = 0; i < 4; ++i)
 	{
 		maps[i] = nullptr;
-		if (m_waterMaps[i] != nullptr)
+		if (built.waterMaps[i] != nullptr)
 		{
-			if (!m_waterMaps[i]->Is_Initialized())
-				m_waterMaps[i]->Init();
-			maps[i] = m_waterMaps[i]->Peek_D3D_Base_Texture();
+			if (!built.waterMaps[i]->Is_Initialized())
+				built.waterMaps[i]->Init();
+			maps[i] = built.waterMaps[i]->Peek_D3D_Base_Texture();
 		}
 	}
 	if (extraMap != nullptr)
 		maps[3] = extraMap;
-	m_materials->Set_Material(id, maps);
+	m_materials->Set_Material(built.id, maps);
 	m_bound = TRUE;
+	m_boundMaterial = material;
 	return true;
 #else
 	return false;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+Int W3DMaterials::findWaterMaterial(const AsciiString& name)
+{
+	if (prepare() == nullptr)
+		return -1;
+	if (name.isNotEmpty())
+	{
+		for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+			if (m_builtMaterials[i].settings->m_use == MaterialTemplate::USE_WATER && m_builtMaterials[i].settings->m_name.compareNoCase(name) == 0)
+				return (Int)i;
+	}
+	return m_waterMaterial;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setWaterParameter(Int material, const char *name, const Real *values, Int count)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && material >= 0 && material < (Int)m_builtMaterials.size())
+		m_materials->Set_Material_Parameter(m_builtMaterials[material].id, name, values, (UINT)count);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::waterHasVertexFunction(Int material)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && material >= 0 && material < (Int)m_builtMaterials.size())
+		return m_materials->Has_Vertex_Function(m_builtMaterials[material].id) != FALSE;
+#endif
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::waterHasParameter(Int material, const char *name)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && material >= 0 && material < (Int)m_builtMaterials.size())
+		return m_materials->Has_Material_Parameter(m_builtMaterials[material].id, name) != FALSE;
+#endif
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setSharedTextures(UnsignedInt first, UnsignedInt count, IDirect3DBaseTexture8 *const *textures)
+{
+#ifdef RTS_RENDERER_DX12
+	ID3D8On12Materials *materials = DX8Wrapper::Get_Materials();
+	if (materials != nullptr)
+		materials->Set_Material_Textures(first, count, textures);
 #endif
 }
 
@@ -1009,8 +1074,15 @@ void W3DMaterials::setWaterParameter(const char *name, const Real *values, Int c
 void W3DMaterials::captureBeforeWater()
 {
 #ifdef RTS_RENDERER_DX12
-	if (hasWater())
-		m_materials->Capture_Scene(FALSE);
+	if (!hasWater())
+		return;
+	Bool color = FALSE;
+	if (TheWaterRenderingSettings == nullptr || TheWaterRenderingSettings->m_refraction)
+	{
+		for (size_t i = 0; i < m_builtMaterials.size() && !color; ++i)
+			color = m_builtMaterials[i].sceneColor;
+	}
+	m_materials->Capture_Scene(color);
 #endif
 }
 

@@ -108,6 +108,7 @@
 
 class INI;
 class MaterialSettings;
+class WaterRenderingSettings;
 struct FieldParse;
 
 struct PostProcessParameter
@@ -251,6 +252,7 @@ private:
 	ShadowMapSettings* m_savedShadowMap;
 	MaterialSettings* m_savedMaterials;
 	UnsignedInt m_savedMaterialGeneration;		///< MaterialSettings::getGeneration() at beginMap
+	WaterRenderingSettings* m_savedWaterRendering;
 	Bool m_saved;
 	UnsignedInt m_generation;
 	AsciiString m_chainName;
@@ -304,3 +306,37 @@ private:
 };
 
 extern MaterialSettings* TheMaterialSettings;	///< null without Material blocks
+
+/// How the Direct3D 12 renderer draws water with materials (WaterRendering block, usually in Water.ini, also in
+/// a map.ini): which water material each body of water gets, and what the engine prepares for them.
+class WaterRenderingSettings
+{
+public:
+	WaterRenderingSettings();
+
+	enum Kind { KIND_OCEAN, KIND_LAKE, KIND_RIVER, KIND_COUNT };
+
+	struct PolygonMaterial
+	{
+		AsciiString m_polygon;			///< name of the water area
+		AsciiString m_material;
+	};
+
+	AsciiString m_kindMaterials[KIND_COUNT];	///< OceanMaterial, LakeMaterial, RiverMaterial; empty = the last water material
+	std::vector<PolygonMaterial> m_polygonMaterials;	///< PolygonMaterial = <material> <polygon name>, before the kinds
+	Real m_gridSpacing;					///< world units between the vertices of water whose material moves them
+	Int m_riverSubdivisions;			///< pieces each river quad is cut into across and along for such materials
+	Real m_lodDistance;					///< from this camera distance on, far water has half as many vertices (doubling)
+	Bool m_refraction;					///< the scene colour is copied before the water for materials that read it
+	Bool m_drawWaterTracks;				///< the map's .wak waves are drawn as well
+	Int m_shoreFieldResolution;			///< texels per terrain cell of the water field
+	Real m_shoreFieldRange;				///< largest distance to the shore the field holds, world units
+	Bool m_replaceHeightAmbientLight;	///< MapData TerrainHeightAmbientLight is left to the water material
+
+	const AsciiString& getMaterialName(Kind kind, const AsciiString& polygon) const;
+
+	static const FieldParse s_fieldParseTable[];
+	static const char *const s_kindNames[];
+};
+
+extern WaterRenderingSettings* TheWaterRenderingSettings;	///< null without a WaterRendering block
