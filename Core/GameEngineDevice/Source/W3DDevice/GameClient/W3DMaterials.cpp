@@ -872,6 +872,7 @@ W3DMaterials::W3DMaterials() :
 	m_collecting(FALSE),
 	m_terrainMaterial(-1),
 	m_waterMaterial(-1),
+	m_vertexWater(FALSE),
 	m_particleColor(FALSE),
 	m_categoryTexture(nullptr),
 	m_categoryBound(FALSE),
@@ -972,6 +973,7 @@ void W3DMaterials::release()
 	m_particleMaterial.clear();
 	m_terrainMaterial = -1;
 	m_waterMaterial = -1;
+	m_vertexWater = FALSE;
 	m_particleColor = FALSE;
 	m_materials = nullptr;
 	m_built = FALSE;
@@ -1072,6 +1074,8 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 				if (settings->m_maps[i].isNotEmpty() && settings->m_maps[i].getCharAt(0) != '_')
 					built.waterMaps[i] = findMap(settings->m_name, settings->m_maps[i]);
 			built.sceneColor = materials->Has_Material_Parameter(built.id, "RefractionStrength");
+			if (built.sceneColor && materials->Has_Vertex_Function(built.id))
+				m_vertexWater = TRUE;
 		}
 		m_builtMaterials.push_back(built);
 		const Int builtIndex = (Int)m_builtMaterials.size() - 1;
@@ -1369,6 +1373,15 @@ Bool W3DMaterials::waterHasParameter(Int material, const char *name)
 		return m_materials->Has_Material_Parameter(m_builtMaterials[material].id, name) != FALSE;
 #endif
 	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::replacesHeightAmbientLight()
+{
+	if (prepare() == nullptr || !m_vertexWater)
+		return FALSE;
+	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
+	return settings == nullptr || (settings->m_replaceHeightAmbientLight && settings->m_refraction);
 }
 
 //-------------------------------------------------------------------------------------------------

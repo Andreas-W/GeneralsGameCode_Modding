@@ -1724,7 +1724,9 @@ void WaterRenderObjClass::Render(RenderInfoClass & rinfo)
 	DX8Wrapper::Apply_Render_State_Changes();
 	DX8Wrapper::Invalidate_Cached_Render_States();
 
-	if (m_waterTrackSystem)
+	// Water drawn by a material that moves the vertices has its own waves at the shore; the map's .wak waves
+	// only on request (WaterRendering DrawWaterTracks).
+	if (m_waterTrackSystem && (!m_vertexMaterialDrawn || (TheWaterRenderingSettings != nullptr && TheWaterRenderingSettings->m_drawWaterTracks)))
 		m_waterTrackSystem->flush(rinfo);
 
 //	renderWaterMesh();

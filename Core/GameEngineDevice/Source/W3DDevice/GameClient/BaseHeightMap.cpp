@@ -96,6 +96,7 @@
 #include "W3DDevice/GameClient/FlatHeightMap.h"
 #include "W3DDevice/GameClient/W3DSmudge.h"
 #include "W3DDevice/GameClient/W3DSnow.h"
+#include "W3DDevice/GameClient/W3DMaterials.h"
 
 
 extern FlatHeightMapRenderObjClass *TheFlatHeightMap;
@@ -503,6 +504,21 @@ static float invLerp(float a, float b, float v)
 	return (v - a) / (b - a);
 }
 
+// The Direct3D 12 water material darkens what is under the water by itself; asked once per frame, as the
+// terrain lights many vertices at once.
+static Bool waterReplacesHeightAmbientLight()
+{
+	static UnsignedInt checkedFrame = 0xffffffff;
+	static Bool replaces = FALSE;
+	const UnsignedInt frame = WW3D::Get_Frame_Count();
+	if (frame != checkedFrame)
+	{
+		checkedFrame = frame;
+		replaces = TheW3DMaterials != nullptr && TheW3DMaterials->replacesHeightAmbientLight();
+	}
+	return replaces;
+}
+
 //=============================================================================
 // BaseHeightMapRenderObjClass::doTheLight
 //=============================================================================
@@ -608,7 +624,8 @@ void BaseHeightMapRenderObjClass::doTheLight(VERTEX_FORMAT *vb, const Vector3*li
 	if (TheMapData &&
 		TheMapData->m_terrainHeightAmbientLightHeightStart > 0 &&
 		(TheMapData->m_terrainHeightAmbientLightHeight1 >= 0 || TheMapData->m_terrainHeightAmbientLightHeight2 >= 0) &&
-		vb->z <= TheMapData->m_terrainHeightAmbientLightHeightStart
+		vb->z <= TheMapData->m_terrainHeightAmbientLightHeightStart &&
+		!waterReplacesHeightAmbientLight()
 		) {
 		Real col1R, col1G, col1B, col2R, col2G, col2B;
 		//Real factor1 = 0.0;

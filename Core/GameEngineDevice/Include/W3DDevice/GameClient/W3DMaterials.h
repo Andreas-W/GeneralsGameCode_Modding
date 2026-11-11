@@ -93,6 +93,9 @@ public:
 	void setWaterParameter(Int material, const char *name, const Real *values, Int count);
 	Bool waterHasVertexFunction(Int material);	///< its shader moves the vertices (MaterialVertex)
 	Bool waterHasParameter(Int material, const char *name);
+	/// A water material moves the vertices and sees through the water (refraction), so the terrain under the
+	/// water does not get MapData TerrainHeightAmbientLight baked in (WaterRendering ReplaceHeightAmbientLight).
+	Bool replacesHeightAmbientLight();
 	/// Textures t8.. of all materials (the water field, the shroud ...), Set_Material_Textures.
 	void setSharedTextures(UnsignedInt first, UnsignedInt count, IDirect3DBaseTexture8 *const *textures);
 
@@ -162,6 +165,7 @@ private:
 	std::map<TextureClass *, Entry> m_particleEntries;
 	Int m_terrainMaterial;								///< m_builtMaterials index, -1 for none
 	Int m_waterMaterial;								///< the last water material, the default
+	Bool m_vertexWater;									///< a water material has a vertex function
 	Bool m_particleColor;								///< a particle material wants the scene colour (Distortion)
 	std::set<std::string> m_seenTextures;
 	AsciiString m_error;
