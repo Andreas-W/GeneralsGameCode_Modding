@@ -77,6 +77,8 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_backBufferIndex(0),
 		m_recording(false),
 		m_deviceRemoved(false),
+		m_dred(false),
+		m_lastMarker(0),
 		m_backBufferSurface(nullptr),
 		m_autoDepthSurface(nullptr),
 		m_renderTarget(nullptr),
@@ -246,6 +248,10 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 		Log("D3D12CreateDevice failed");
 		return D3DERR_NOTAVAILABLE;
 	}
+
+	char dred[8];
+	const DWORD dred_length = GetEnvironmentVariableA("D3D8ON12_DRED", dred, sizeof(dred));
+	m_dred = dred_length > 0 && dred_length < sizeof(dred) && strcmp(dred, "0") != 0;
 
 	m_device.As(&m_infoQueue);
 	if (m_infoQueue != nullptr)
@@ -604,6 +610,7 @@ void Device::Begin_Frame()
 {
 	if (m_recording)
 		return;
+	m_lastMarker = 0;
 
 	// Post-processing asked for another back buffer format; between frames nothing is bound to it.
 	if (m_hdrRequested != m_hdrScene && m_backBuffers[0] != nullptr)
@@ -777,6 +784,50 @@ void Device::Log_Debug_Messages()
 			Log("debug layer: %s", message->pDescription);
 	}
 	m_infoQueue->ClearStoredMessages();
+}
+
+// Why the device was lost and, with D3D8ON12_DRED, where: per command list the operation that did not finish
+// and those before it (with the markers Draw_Geometry sets when the material changes), and a page fault.
+void Device::Log_Device_Removed()
+{
+	Log("device removed: 0x%08X", m_device->GetDeviceRemovedReason());
+	Log_Debug_Messages();
+
+	static const char* const op_names[] =
+	{
+		"SetMarker", "BeginEvent", "EndEvent", "DrawInstanced", "DrawIndexedInstanced", "ExecuteIndirect",
+		"Dispatch", "CopyBufferRegion", "CopyTextureRegion", "CopyResource", "CopyTiles", "ResolveSubresource",
+		"ClearRenderTargetView", "ClearUnorderedAccessView", "ClearDepthStencilView", "ResourceBarrier",
+		"ExecuteBundle", "Present", "ResolveQueryData", "BeginSubmission", "EndSubmission",
+	};
+	ComPtr<ID3D12DeviceRemovedExtendedData2> dred;
+	if (FAILED(m_device.As(&dred)))
+		return;
+	D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 breadcrumbs = {};
+	if (SUCCEEDED(dred->GetAutoBreadcrumbsOutput1(&breadcrumbs)))
+	{
+		for (const D3D12_AUTO_BREADCRUMB_NODE1* node = breadcrumbs.pHeadAutoBreadcrumbNode; node != nullptr; node = node->pNext)
+		{
+			const UINT done = node->pLastBreadcrumbValue != nullptr ? *node->pLastBreadcrumbValue : 0;
+			if (done >= node->BreadcrumbCount)
+				continue;
+			Log("command list %p: %u of %u operations done", node->pCommandList, done, node->BreadcrumbCount);
+			const UINT first = done > 12 ? done - 12 : 0;
+			for (UINT i = first; i <= done && i < node->BreadcrumbCount; ++i)
+			{
+				const UINT op = (UINT)node->pCommandHistory[i];
+				const wchar_t* context = nullptr;
+				for (UINT c = 0; c < node->BreadcrumbContextsCount; ++c)
+					if (node->pBreadcrumbContexts[c].BreadcrumbIndex == i)
+						context = node->pBreadcrumbContexts[c].pContextString;
+				Log("  %s %u: %s %ls", i == done ? "->" : "  ", i, op < ARRAYSIZE(op_names) ? op_names[op] : "?",
+					context != nullptr ? context : L"");
+			}
+		}
+	}
+	D3D12_DRED_PAGE_FAULT_OUTPUT2 fault = {};
+	if (SUCCEEDED(dred->GetPageFaultAllocationOutput2(&fault)) && fault.PageFaultVA != 0)
+		Log("page fault at GPU address 0x%llX", (unsigned long long)fault.PageFaultVA);
 }
 
 void Device::Wait_For_GPU()
@@ -1158,7 +1209,8 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 
 	if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 	{
-		Log("device removed: 0x%08X", m_device->GetDeviceRemovedReason());
+		if (!m_deviceRemoved)
+			Log_Device_Removed();
 		m_deviceRemoved = true;
 		return D3DERR_DEVICELOST;
 	}

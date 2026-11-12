@@ -284,6 +284,7 @@ private:
 	void Flush_Commands();
 	void Wait_For_GPU();
 	void Log_Debug_Messages();
+	void Log_Device_Removed();
 	HRESULT Read_Back_Buffer(Surface* dest);
 	void Replace_Surface(Surface*& slot, Surface* surface);
 
@@ -439,6 +440,8 @@ private:
 	UINT m_backBufferIndex;
 	bool m_recording;
 	bool m_deviceRemoved;
+	bool m_dred;			// D3D8ON12_DRED: breadcrumbs and material markers for Log_Device_Removed
+	UINT64 m_lastMarker;	// the material of the last marker in the command list
 
 	Surface* m_backBufferSurface;
 	Surface* m_autoDepthSurface;

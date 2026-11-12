@@ -1138,6 +1138,22 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		}
 	}
 
+	// With D3D8ON12_DRED: which material draws, for the log when the device is lost.
+	if (m_dred)
+	{
+		const UINT64 marker = use_material ? material.hash : 1;
+		if (marker != m_lastMarker)
+		{
+			wchar_t text[96];
+			if (use_material)
+				swprintf_s(text, L"material %016llX%s", (unsigned long long)material.hash, material.vertexHash != 0 ? L" with vertex function" : L"");
+			else
+				swprintf_s(text, L"no material");
+			list->SetMarker(0, text, (UINT)((wcslen(text) + 1) * sizeof(wchar_t)));
+			m_lastMarker = marker;
+		}
+	}
+
 	const D3D_PRIMITIVE_TOPOLOGY topology = Get_Topology(type);
 	if (bound.topology != topology)
 	{
