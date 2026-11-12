@@ -452,9 +452,11 @@ float RippleHeight(float2 p, float t)
 		+ ValueNoise(p * 4.3 + float2(-0.7 * t, 1.1 * t)) * 0.3
 		+ ValueNoise(p * 9.1 + float2(1.3 * t, -0.4 * t)) * 0.15;
 }
+// Built-in ripples: small waves in many directions with unrelated lengths, whose slopes are exact and smooth
+// (value noise creases along its lattice, which the sharp sun glints draw as a grid).
 float2 Ripples(float2 p, float t)
 {
-	float2 slope;
+	float2 slope = float2(0, 0);
 	if (HasMap(MAP_NORMAL))
 	{
 		float2 a = NormalMap.Sample(NormalSampler, p + float2(1, 0.6) * t).xy * 2 - 1;
@@ -463,9 +465,15 @@ float2 Ripples(float2 p, float t)
 	}
 	else
 	{
-		const float e = 0.02;
-		float h = RippleHeight(p, t);
-		slope = float2(RippleHeight(p + float2(e, 0), t) - h, RippleHeight(p + float2(0, e), t) - h) / e * 0.08;
+		const float angles[8] = { 0.3, 1.1, 1.9, 2.6, 3.5, 4.2, 5.0, 5.8 };
+		const float lengths[8] = { 1.0, 0.71, 0.53, 0.43, 0.31, 0.26, 0.19, 0.15 };
+		[unroll] for (int i = 0; i < 8; ++i)
+		{
+			float2 direction = float2(cos(angles[i]), sin(angles[i]));
+			float k = PI2 / lengths[i];
+			float phase = k * (dot(direction, p) - t * sqrt(lengths[i])) + i * 1.7;
+			slope += direction * cos(phase) * 0.16;
+		}
 	}
 	return slope;
 }
@@ -603,7 +611,7 @@ float4 main(MaterialInput input) : SV_Target
 		// Refraction: bent by the waves, the more the deeper the thing below is, so that hulls stay joined
 		// at the waterline; never to something in front of the water or much nearer to it.
 		float behind = max(SceneViewDepth(uv) - waterDistance, 0);
-		float2 bend = tilt.xy * float2(1, -1) * 0.02 * Or(RefractionStrength, 1) * saturate(behind / 25);
+		float2 bend = tilt.xy * float2(1, -1) * 0.1 * Or(RefractionStrength, 1) * saturate(behind / 20);
 		float2 refractedUV = uv + bend;
 		float refractedBehind = SceneViewDepth(refractedUV) - waterDistance;
 		if (refractedBehind < 0 || refractedBehind < behind * 0.5)
