@@ -285,6 +285,7 @@ private:
 	void Wait_For_GPU();
 	void Log_Debug_Messages();
 	void Log_Device_Removed();
+	template <class Node> void Log_Breadcrumbs(const Node* head);
 	HRESULT Read_Back_Buffer(Surface* dest);
 	void Replace_Surface(Surface*& slot, Surface* surface);
 
