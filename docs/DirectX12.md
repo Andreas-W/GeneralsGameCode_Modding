@@ -388,7 +388,7 @@ End
 | `NormalStrength`, `NormalScale`, `NormalSpeed` | Ripples: strength (0.35), size (90), speed (6) |
 | `SkyColor`, `HorizonColor`, `Reflection` | Reflected sky (or a latitude-longitude `EmissiveMap`) and its strength at flat angles (0.8) |
 | `SSRStrength`, `SSRMaxDistance` | Reflection of what is on screen (0.8; −1 = none) and how far it is searched (400) |
-| `Gloss`, `GlintStrength` | Sun glints (300, 3) |
+| `Gloss`, `GlintStrength` | Sun glints (800, 1.2) |
 | `RefractionStrength` | How much the waves bend what is below (1) |
 | `Absorption` | How fast red, green and blue fade per world unit of water (0.035 0.012 0.008) |
 | `ScatterColor`, `UnderwaterAmbient` | The water's own colour (0.06 0.32 0.36) and how much light it gets (1) |
@@ -444,7 +444,6 @@ WaterRendering
   PolygonMaterial = Lake Harbour Basin   ; <material> <water area name>: before the kinds
   GridSpacing = 10             ; world units between the vertices of water whose material moves them
   RiverSubdivisions = 4        ; such rivers get each quad cut into 4 x 4 pieces
-  LodDistance = 600            ; beyond it water has half as many vertices, beyond twice that a quarter
   Refraction = Yes             ; copy the scene before the water, for MAT_Ocean's view into the water
   DrawWaterTracks = No         ; the map's .wak waves too (MAT_Ocean makes its own)
   ShoreFieldResolution = 2     ; texels per terrain cell of the water field

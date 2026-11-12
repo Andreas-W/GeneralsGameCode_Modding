@@ -328,9 +328,9 @@ cbuffer Params : register(b2)
 	float NormalScale;			// world units one ripple pattern covers, 0 = 90
 	float NormalSpeed;			// world units per second the ripples move, 0 = 6
 	float3 SkyColor;			// reflected sky overhead, 0 0 0 = 0.30 0.45 0.65
-	float Gloss;				// sharpness of the sun glints, 0 = 300
+	float Gloss;				// sharpness of the sun glints, 0 = 800
 	float3 HorizonColor;		// reflected sky at the horizon, 0 0 0 = 0.70 0.80 0.90
-	float GlintStrength;		// brightness of the glints, 0 = 3; above 1 feeds bloom
+	float GlintStrength;		// brightness of the glints, 0 = 1.2; above 1 feeds bloom
 	float3 Absorption;			// how fast red, green, blue fade per world unit of water, 0 0 0 = 0.035 0.012 0.008
 	float Reflection;			// how much is reflected at flat angles, 0 = 0.8
 	float3 ScatterColor;		// the water's own colour, 0 0 0 = 0.06 0.32 0.36
@@ -492,31 +492,61 @@ float3 Sky(float3 direction)
 	}
 	return sky;
 }
-// What the scene shows in a view space direction from a point: a few steps through the depth copy.
-bool ScreenReflection(float3 viewPosition, float3 viewDirection, out float3 color, out float weight)
+float2 ProjectToScreen(float3 viewPoint, out bool inside)
+{
+	float4 clip = mul(float4(viewPoint, 1), Projection);
+	float2 uv = float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
+	inside = clip.w > 0 && all(uv >= 0) && all(uv <= 1);
+	return uv;
+}
+// What the scene shows in a view space direction from a point: steps that grow with the distance through the
+// depth copy, then a binary search between the last step in front and the first behind. Only what stands
+// above the water (surface: world z of the still water) is reflected.
+bool ScreenReflection(float3 viewPosition, float3 viewDirection, float surface, out float3 color, out float weight)
 {
 	color = float3(0, 0, 0);
 	weight = 0;
 	float range = Or(SSRMaxDistance, 400);
-	float stride = range / 16;
-	[loop] for (int i = 1; i <= 16; ++i)
+	float before = 0;
+	float distance = 0;
+	bool inside;
+	[loop] for (int i = 1; i <= 24; ++i)
 	{
-		float3 p = viewPosition + viewDirection * stride * i;
-		float4 clip = mul(float4(p, 1), Projection);
-		if (clip.w <= 0)
+		float t = (float)i / 24;
+		distance = range * t * t;
+		float3 p = viewPosition + viewDirection * distance;
+		float2 uv = ProjectToScreen(p, inside);
+		if (!inside)
 			return false;
-		float2 uv = float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
-		if (any(uv < 0) || any(uv > 1))
-			return false;
-		float sceneDistance = SceneViewDepth(uv);
-		float pointDistance = ViewDistance(p.z);
-		if (pointDistance > sceneDistance && pointDistance - sceneDistance < stride * 2)
+		float gap = ViewDistance(p.z) - SceneViewDepth(uv);
+		if (gap > 0)
 		{
-			color = SceneColorAt(uv);
-			float2 edge = saturate(min(uv, 1 - uv) * 8);
-			weight = edge.x * edge.y * (1 - (float)i / 17);
+			// Behind something: find where the ray enters it.
+			float low = before, high = distance;
+			[unroll] for (int j = 0; j < 5; ++j)
+			{
+				float middle = (low + high) * 0.5;
+				float3 q = viewPosition + viewDirection * middle;
+				float2 quv = ProjectToScreen(q, inside);
+				if (ViewDistance(q.z) - SceneViewDepth(quv) > 0)
+					high = middle;
+				else
+					low = middle;
+			}
+			float3 hitPoint = viewPosition + viewDirection * high;
+			float2 hitUV = ProjectToScreen(hitPoint, inside);
+			// Too far behind the surface found there: the ray passed behind an object, it did not hit it.
+			float thickness = max(range * 0.03, high - low + 2);
+			if (!inside || ViewDistance(hitPoint.z) - SceneViewDepth(hitUV) > thickness)
+				return false;
+			if (SceneWorldPosition(hitUV).z < surface - 0.5)
+				return false;
+			color = SceneColorAt(hitUV);
+			float2 edge = saturate(min(hitUV, 1 - hitUV) * 10);
+			weight = edge.x * edge.y * (1 - high / range);
 			return true;
 		}
+		before = distance;
 	}
 	return false;
 }
@@ -534,8 +564,11 @@ float4 main(MaterialInput input) : SV_Target
 	float shore = field.y;
 	bool hasField = HasWaterField();
 
-	// The wave normal and the ripples on it, in world space.
-	float3 waveNormal = normalize(mul((float3x3)WorldView, input.viewNormal));
+	// The wave normal, worked out again per pixel (interpolated vertex normals draw the grid into sharp glints),
+	// and the ripples on it, in world space.
+	float3 waveOffset, waveSlope;
+	Waves(world.xy, fade, t, waveOffset, waveSlope);
+	float3 waveNormal = normalize(float3(-waveSlope.xy, 1 - waveSlope.z));
 	float scale = Or(NormalScale, 90);
 	float2 p = River > 0 ? input.tex0.xy * 3 : world.xy / scale;
 	float2 ripple = Ripples(p, River > 0 ? 0 : t * Or(NormalSpeed, 6) / scale) * Or(NormalStrength, 0.35);
@@ -559,18 +592,21 @@ float4 main(MaterialInput input) : SV_Target
 
 	float2 uv = ScreenUV(input);
 	float waterDistance = ViewDistance(input.viewPosition.z);
-	float3 viewNormal = ViewDirection(n);
+	// How the surface leans away from flat, on the screen: only that bends what is below.
+	float3 tilt = ViewDirection(n - float3(0, 0, 1));
 	float3 under;					// the water body: what is below, dimmed, and the water's colour
 	float3 throughScene = float3(0, 0, 0);	// the part of it that is the scene, fogged and shrouded already
 	float3 transmit = float3(0, 0, 0);
 	float alpha;
 	if (HasSceneColor() && HasSceneDepth())
 	{
-		// Refraction: bent by the surface, less where the water is shallow; nothing in front of the water.
+		// Refraction: bent by the waves, the more the deeper the thing below is, so that hulls stay joined
+		// at the waterline; never to something in front of the water or much nearer to it.
 		float behind = max(SceneViewDepth(uv) - waterDistance, 0);
-		float2 bend = viewNormal.xy * float2(1, -1) * 0.03 * Or(RefractionStrength, 1) * saturate(behind / 8);
+		float2 bend = tilt.xy * float2(1, -1) * 0.02 * Or(RefractionStrength, 1) * saturate(behind / 25);
 		float2 refractedUV = uv + bend;
-		if (SceneViewDepth(refractedUV) < waterDistance)
+		float refractedBehind = SceneViewDepth(refractedUV) - waterDistance;
+		if (refractedBehind < 0 || refractedBehind < behind * 0.5)
 			refractedUV = uv;
 		float3 below = SceneColorAt(refractedUV);
 		float3 belowWorld = SceneWorldPosition(refractedUV);
@@ -609,7 +645,7 @@ float4 main(MaterialInput input) : SV_Target
 	{
 		float3 hit;
 		float weight;
-		if (ScreenReflection(input.viewPosition, normalize(ViewDirection(reflected)), hit, weight))
+		if (ScreenReflection(input.viewPosition, normalize(ViewDirection(reflected)), surface, hit, weight))
 			reflection = lerp(reflection, hit, weight * Or(SSRStrength, 0.8));
 	}
 	float facing = saturate(dot(n, toEye));
@@ -635,7 +671,7 @@ float4 main(MaterialInput input) : SV_Target
 	float3 color = lerp(under, reflection * shroud, fresnel);
 	color = lerp(color, Or(FoamColor, float3(0.92, 0.95, 1.0)) * daylight * shroud, foam);
 	float3 halfway = normalize(toSun + toEye);
-	float3 glint = pow(saturate(dot(n, halfway)), Or(Gloss, 300)) * Or(GlintStrength, 3) * sunColor * shroud * (1 - foam);
+	float3 glint = pow(saturate(dot(n, halfway)), Or(Gloss, 800)) * Or(GlintStrength, 1.2) * sunColor * shroud * (1 - foam);
 
 	// The edge fades in over ShoreDistance of depth.
 	float edgeFade = saturate(depth / Or(ShoreDistance, 1));
