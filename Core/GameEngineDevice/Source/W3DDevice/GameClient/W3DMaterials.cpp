@@ -354,6 +354,9 @@ cbuffer Params : register(b2)
 	float FoamScale;			// world units one repeat of the foam pattern (SpecularMap) covers, 0 = 40
 	float FoamSpeed;			// how fast the foam pattern drifts, factor, 0 = 1
 	float CrestFoam;			// foam on high wave crests, 0 = 0.4; -1 = none
+	float CrestFoamStart;		// wave height where crest foam begins, -1 (trough) .. 1 (highest crest), 0 = 0.45
+	float CrestFoamRange;		// height above the start until the whole foam pattern shows, 0 = 0.4
+	float CrestFoamSoftness;	// how soft the edges of the foam patches are, 0 = 0.15
 	float TextureTint;			// how much the map's water texture tints the water, 0 = 0.25; -1 = none
 	float DeepOpacity;			// without the scene colour: how opaque deep water gets, 0 = 0.75
 	float DepthScale;			// without the scene colour: depth until the water is deep, 0 = 40
@@ -567,7 +570,6 @@ float4 main(MaterialInput input) : SV_Target
 	float3 world = WorldPosition(input);
 	float fade = input.materialData.x;
 	float lift = input.materialData.y;
-	float crest = input.materialData.z;
 	float4 field = Field(world.xy);
 	float surface = world.z - lift;				// the still water level
 	float depth = surface - field.x;			// to the terrain, straight down
@@ -676,8 +678,15 @@ float4 main(MaterialInput input) : SV_Target
 		foam = lerp(soft, hard, saturate(ShoreHardness));
 		if (hasField)
 			foam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / 6);
-		if (CrestFoam >= 0)
-			foam += smoothstep(0.65, 1.0, crest) * pattern * Or(CrestFoam, 0.4) * fade;
+		if (CrestFoam >= 0 && fade > 0.01)
+		{
+			// The wave height at the pixel, -1 .. 1 of the sum of the four waves, decides how much of the foam
+			// pattern shows: low crests only its brightest spots, high crests all of it.
+			float height = waveOffset.z / max(Or(WaveAmplitude, 1.5) * fade * 2.08, 1e-3);
+			float amount = saturate((height - Or(CrestFoamStart, 0.45)) / Or(CrestFoamRange, 0.4));
+			float soft = Or(CrestFoamSoftness, 0.15);
+			foam += smoothstep(1 - amount, 1 - amount + soft, pattern) * amount * Or(CrestFoam, 0.4);
+		}
 		foam = saturate(foam * Or(FoamStrength, 0.85));
 	}
 

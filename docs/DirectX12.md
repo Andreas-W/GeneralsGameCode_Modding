@@ -401,6 +401,8 @@ End
 | `FoamDistance`, `FoamStrength`, `FoamColor` | Shore foam (3; −1 = none), strength (0.85), colour |
 | `FoamScale`, `FoamSpeed` | World units one repeat of the foam pattern covers (40; the red channel of `SpecularMap`, else built-in noise a quarter that size) and how fast it drifts (factor, 1) |
 | `CrestFoam` | Foam on high wave crests (0.4; −1 = none) |
+| `CrestFoamStart`, `CrestFoamRange` | Wave height where crest foam begins, −1 (trough) to 1 (highest crest) (0.45), and how much higher the whole foam pattern shows (0.4); in between only its brightest spots |
+| `CrestFoamSoftness` | How soft the edges of the crest foam patches are (0.15; larger = blurrier) |
 | `DeepColor`, `DeepOpacity`, `DepthScale` | Only with `Refraction = No`: like `MAT_Water` |
 
 Example presets for three kinds of water:
