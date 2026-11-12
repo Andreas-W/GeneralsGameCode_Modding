@@ -702,6 +702,7 @@ void Device::Flush_Commands()
 	m_commandList->Close();
 	ID3D12CommandList* lists[] = { m_commandList.Get() };
 	m_queue->ExecuteCommandLists(1, lists);
+	Submit_Draw_Names();
 	Wait_For_GPU();
 
 	ID3D12CommandAllocator* allocator = m_allocators[m_backBufferIndex].Get();
@@ -860,11 +861,53 @@ static const wchar_t* Breadcrumb_Context(const D3D12_AUTO_BREADCRUMB_NODE*, UINT
 	return nullptr;
 }
 
+void Device::Submit_Draw_Names()
+{
+	if (!m_dred)
+		return;
+	m_submittedDrawNames.push_back(std::vector<std::string>());
+	m_submittedDrawNames.back().swap(m_drawNames);
+	while (m_submittedDrawNames.size() > 8)
+		m_submittedDrawNames.pop_front();
+}
+
 // Each command list that did not finish: the operation it stopped at and those before it. When all have
 // finished, the GPU hung outside the recorded command lists; then every list is listed briefly.
 template <class Node>
 void Device::Log_Breadcrumbs(const Node* head)
 {
+	// Every draw follows its own marker, so the markers before the stop count the draws; the command list is
+	// the last one executed with as many draws as it has markers.
+	for (const Node* node = head; node != nullptr; node = node->pNext)
+	{
+		const UINT done = node->pLastBreadcrumbValue != nullptr ? *node->pLastBreadcrumbValue : 0;
+		if (done >= node->BreadcrumbCount)
+			continue;
+		UINT markers = 0;
+		UINT markersBefore = 0;
+		for (UINT i = 0; i < node->BreadcrumbCount; ++i)
+		{
+			if (node->pCommandHistory[i] == D3D12_AUTO_BREADCRUMB_OP_SETMARKER)
+			{
+				if (i < done)
+					++markersBefore;
+				++markers;
+			}
+		}
+		for (size_t list = m_submittedDrawNames.size(); list-- > 0;)
+		{
+			const std::vector<std::string>& names = m_submittedDrawNames[list];
+			if (names.size() != markers || markers == 0)
+				continue;
+			Log("draws of that command list around the stop (%u draws done or under way of %u):", markersBefore, markers);
+			const UINT current = markersBefore > 0 ? markersBefore - 1 : 0;
+			const UINT from = current > 4 ? current - 4 : 0;
+			for (UINT i = from; i <= current + 2 && i < names.size(); ++i)
+				Log("  %s draw %u: %s", i == current ? "->" : "  ", i, names[i].c_str());
+			break;
+		}
+	}
+
 	bool unfinished = false;
 	for (const Node* node = head; node != nullptr; node = node->pNext)
 	{
@@ -1261,6 +1304,7 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 
 	ID3D12CommandList* lists[] = { m_commandList.Get() };
 	m_queue->ExecuteCommandLists(1, lists);
+	Submit_Draw_Names();
 
 	// D3D8 presents windowed swap chains right away; fullscreen ones follow the presentation interval.
 	UINT sync_interval = 0;

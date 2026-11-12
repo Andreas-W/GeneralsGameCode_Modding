@@ -86,13 +86,21 @@ static void Enable_Debug_Layer()
 			Log("Direct3D 12 device removed extended data enabled%s", contexts ? ", with marker texts" : "");
 		}
 	}
-	if (!Is_Enabled_In_Environment("D3D8ON12_DEBUG"))
+	const bool gpu_validation = Is_Enabled_In_Environment("D3D8ON12_GBV");
+	if (!Is_Enabled_In_Environment("D3D8ON12_DEBUG") && !gpu_validation)
 		return;
 	ComPtr<ID3D12Debug> debug;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))
 	{
 		debug->EnableDebugLayer();
 		Log("Direct3D 12 debug layer enabled");
+		// D3D8ON12_GBV: the debug layer also checks on the GPU what shaders read and in which state; slow.
+		ComPtr<ID3D12Debug1> debug1;
+		if (gpu_validation && SUCCEEDED(debug.As(&debug1)))
+		{
+			debug1->SetEnableGPUBasedValidation(TRUE);
+			Log("GPU based validation enabled");
+		}
 	}
 }
 

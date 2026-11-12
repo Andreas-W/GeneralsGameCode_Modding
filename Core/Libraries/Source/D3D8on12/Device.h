@@ -24,6 +24,8 @@
 #include "Private.h"
 #include "Pipeline.h"
 
+#include <deque>
+#include <string>
 #include <unordered_map>
 
 namespace D3D8On12
@@ -216,6 +218,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE Srv_Cpu_Handle(UINT index) const;
 	D3D12_GPU_DESCRIPTOR_HANDLE Srv_Gpu_Handle(UINT index) const;
 	UINT Prepare_Texture(IDirect3DBaseTexture8* texture, TextureType& type);
+	void Make_Readable_By_All_Stages(IDirect3DBaseTexture8* texture);
 	D3D12_GPU_VIRTUAL_ADDRESS Prepare_Buffer(GpuBuffer& gpu, const unsigned char* data, UINT size, D3D12_RESOURCE_STATES read_state);
 	UINT Get_Sampler(DWORD stage);
 	UINT Find_Sampler(const D3D12_SAMPLER_DESC& desc);
@@ -441,8 +444,13 @@ private:
 	UINT m_backBufferIndex;
 	bool m_recording;
 	bool m_deviceRemoved;
-	bool m_dred;			// D3D8ON12_DRED: breadcrumbs and material markers for Log_Device_Removed
+	bool m_dred;			// D3D8ON12_DRED: breadcrumbs and draw markers for Log_Device_Removed
 	UINT64 m_lastMarker;	// the material of the last marker in the command list
+	// With m_dred: the description of each draw of the command list being recorded, and of the last command
+	// lists executed, to name the draw the GPU hung in by the count of markers before it.
+	std::vector<std::string> m_drawNames;
+	std::deque<std::vector<std::string>> m_submittedDrawNames;
+	void Submit_Draw_Names();
 
 	Surface* m_backBufferSurface;
 	Surface* m_autoDepthSurface;

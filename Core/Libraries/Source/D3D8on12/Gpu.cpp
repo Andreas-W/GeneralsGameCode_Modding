@@ -517,6 +517,22 @@ UINT Device::Prepare_Texture(IDirect3DBaseTexture8* base_texture, TextureType& t
 	return gpu->srv;
 }
 
+// Textures are kept readable by pixel shaders; the extra material textures are also read by vertex
+// functions, which in that state is undefined (and can hang the GPU), so they need both read states.
+void Device::Make_Readable_By_All_Stages(IDirect3DBaseTexture8* base_texture)
+{
+	if (base_texture == nullptr)
+		return;
+	GpuTexture* gpu = nullptr;
+	if (base_texture->GetType() == D3DRTYPE_TEXTURE)
+		gpu = &static_cast<Texture*>(static_cast<IDirect3DTexture8*>(base_texture))->Gpu();
+	else if (base_texture->GetType() == D3DRTYPE_CUBETEXTURE)
+		gpu = &static_cast<CubeTexture*>(static_cast<IDirect3DCubeTexture8*>(base_texture))->Gpu();
+	const D3D12_RESOURCE_STATES readable = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+	if (gpu != nullptr && (gpu->state == D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE || gpu->state == D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE))
+		Transition(*gpu, readable);
+}
+
 static D3D12_TEXTURE_ADDRESS_MODE Get_Address_Mode(DWORD mode)
 {
 	if (mode >= D3DTADDRESS_WRAP && mode <= D3DTADDRESS_MIRRORONCE)

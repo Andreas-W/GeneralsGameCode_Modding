@@ -880,11 +880,17 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
 		{
 			TextureType type_of_texture = TEXTURE_NONE;
-			extra_srvs[extra] = Prepare_Texture(m_materialSystem->Extra_Texture(extra), type_of_texture);
+			IDirect3DBaseTexture8* texture = m_materialSystem->Extra_Texture(extra);
+			extra_srvs[extra] = Prepare_Texture(texture, type_of_texture);
 			if (type_of_texture == TEXTURE_2D)
+			{
+				Make_Readable_By_All_Stages(texture);
 				material_maps |= 1u << (FF_STAGES + extra);
+			}
 			else
+			{
 				extra_srvs[extra] = 0;
+			}
 		}
 	}
 
@@ -1138,24 +1144,23 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		}
 	}
 
-	// With D3D8ON12_DRED: what each draw is, for the log when the device is lost.
+	// With D3D8ON12_DRED: what each draw is, for the log when the device is lost. Every draw gets one marker
+	// and the same text is kept on the CPU, as not every system keeps the markers' texts.
 	if (m_dred)
 	{
-		wchar_t text[192];
-		swprintf_s(text, L"%s %s fvf %X vs %s ps %s, %u %s from %u (base %d), vb %u bytes stride %u%s%s",
-			shadow_pass ? L"shadow" : L"scene", indices != nullptr ? L"indexed" : L"",
-			(unsigned)fvf, shader_vs ? L"d3d8" : L"generated", shader_ps ? L"d3d8" : use_material ? L"material" : L"generated",
-			count, indices != nullptr ? L"indices" : L"vertices", first, base_vertex, vertices.SizeInBytes, vertices.StrideInBytes,
-			indices != nullptr ? L", ib bytes " : L"", L"");
-		if (indices != nullptr)
-		{
-			wchar_t size[32];
-			swprintf_s(size, L"%u%s", indices->SizeInBytes, indices->Format == DXGI_FORMAT_R32_UINT ? L" (32 bit)" : L"");
-			wcscat_s(text, size);
-		}
-		if (use_material && material.vertexHash != 0)
-			wcscat_s(text, L", material vertex function");
-		list->SetMarker(0, text, (UINT)((wcslen(text) + 1) * sizeof(wchar_t)));
+		char text[256];
+		_snprintf_s(text, sizeof(text), _TRUNCATE,
+			"%s %s, fvf %X, vs %s, ps %s, %u %s from %u (base %d), vb %u bytes stride %u, ib %u bytes%s%s, viewport %ux%u, depth bias %u, cull %u",
+			shadow_pass ? "shadow map" : "scene", indices != nullptr ? "indexed" : "not indexed",
+			(unsigned)fvf, shader_vs ? "d3d8" : "generated", shader_ps ? "d3d8" : use_material ? "material" : "generated",
+			count, indices != nullptr ? "indices" : "vertices", first, base_vertex, vertices.SizeInBytes, vertices.StrideInBytes,
+			indices != nullptr ? indices->SizeInBytes : 0, indices != nullptr && indices->Format == DXGI_FORMAT_R32_UINT ? " (32 bit)" : "",
+			use_material && material.vertexHash != 0 ? ", material vertex function" : "",
+			(unsigned)vp.Width, (unsigned)vp.Height, (unsigned)rs[D3DRS_ZBIAS], (unsigned)rs[D3DRS_CULLMODE]);
+		wchar_t wide[256];
+		swprintf_s(wide, L"%hs", text);
+		list->SetMarker(0, wide, (UINT)((wcslen(wide) + 1) * sizeof(wchar_t)));
+		m_drawNames.push_back(text);
 		m_lastMarker = use_material ? material.hash : 1;
 	}
 
