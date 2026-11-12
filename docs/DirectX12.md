@@ -399,6 +399,7 @@ End
 | `ShoreWaveLength`, `ShoreWaveSpeed`, `ShoreWaveRange` | Waves running up the beach: spacing (28), speed (7), how far out they form (45) |
 | `ShoreWaveHeight` | How much they lift the surface (0.5; −1 = none) |
 | `FoamDistance`, `FoamStrength`, `FoamColor` | Shore foam (3; −1 = none), strength (0.85), colour |
+| `FoamScale`, `FoamSpeed` | World units one repeat of the foam pattern covers (40; the red channel of `SpecularMap`, else built-in noise a quarter that size) and how fast it drifts (factor, 1) |
 | `CrestFoam` | Foam on high wave crests (0.4; −1 = none) |
 | `DeepColor`, `DeepOpacity`, `DepthScale` | Only with `Refraction = No`: like `MAT_Water` |
 

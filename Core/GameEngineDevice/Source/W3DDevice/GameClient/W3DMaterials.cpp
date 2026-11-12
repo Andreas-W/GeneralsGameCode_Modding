@@ -351,6 +351,8 @@ cbuffer Params : register(b2)
 	float ShoreWaveRange;		// distance from the shore where they form, 0 = 45
 	float FoamDistance;			// water depth with foam along the shore, 0 = 3; -1 = no foam
 	float FoamStrength;			// 0 = 0.85
+	float FoamScale;			// world units one repeat of the foam pattern (SpecularMap) covers, 0 = 40
+	float FoamSpeed;			// how fast the foam pattern drifts, factor, 0 = 1
 	float CrestFoam;			// foam on high wave crests, 0 = 0.4; -1 = none
 	float TextureTint;			// how much the map's water texture tints the water, 0 = 0.25; -1 = none
 	float DeepOpacity;			// without the scene colour: how opaque deep water gets, 0 = 0.75
@@ -663,8 +665,11 @@ float4 main(MaterialInput input) : SV_Target
 	float foam = 0;
 	if (FoamDistance >= 0)
 	{
-		float pattern = HasMap(MAP_SPECULAR) ? SpecularMap.Sample(SpecularSampler, world.xy / 40 + float2(0.3, 0.2) * t / 40).r
-			: saturate(RippleHeight(world.xy / 9, t * 0.4) * 1.6 - 0.3);
+		// The built-in noise is a quarter of the size of a repeat of the map.
+		float foamScale = Or(FoamScale, 40);
+		float foamTime = t * Or(FoamSpeed, 1);
+		float pattern = HasMap(MAP_SPECULAR) ? SpecularMap.Sample(SpecularSampler, (world.xy + float2(0.3, 0.2) * foamTime) / foamScale).r
+			: saturate(RippleHeight(world.xy / (foamScale * 0.225), foamTime * 0.4) * 1.6 - 0.3);
 		float edge = 1 - saturate(depth / Or(FoamDistance, 3));
 		float soft = edge * edge * pattern;
 		float hard = smoothstep(0.75, 0.85, edge) * (0.6 + 0.4 * pattern);
