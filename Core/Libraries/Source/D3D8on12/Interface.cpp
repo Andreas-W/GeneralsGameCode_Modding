@@ -78,7 +78,12 @@ static void Enable_Debug_Layer()
 		{
 			dred->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
 			dred->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
-			Log("Direct3D 12 device removed extended data enabled");
+			// The texts of the markers Draw_Geometry sets are only kept with this.
+			ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> dred1;
+			const bool contexts = SUCCEEDED(dred.As(&dred1));
+			if (contexts)
+				dred1->SetBreadcrumbContextEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+			Log("Direct3D 12 device removed extended data enabled%s", contexts ? ", with marker texts" : "");
 		}
 	}
 	if (!Is_Enabled_In_Environment("D3D8ON12_DEBUG"))

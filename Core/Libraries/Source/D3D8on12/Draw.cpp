@@ -1138,20 +1138,25 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		}
 	}
 
-	// With D3D8ON12_DRED: which material draws, for the log when the device is lost.
+	// With D3D8ON12_DRED: what each draw is, for the log when the device is lost.
 	if (m_dred)
 	{
-		const UINT64 marker = use_material ? material.hash : 1;
-		if (marker != m_lastMarker)
+		wchar_t text[192];
+		swprintf_s(text, L"%s %s fvf %X vs %s ps %s, %u %s from %u (base %d), vb %u bytes stride %u%s%s",
+			shadow_pass ? L"shadow" : L"scene", indices != nullptr ? L"indexed" : L"",
+			(unsigned)fvf, shader_vs ? L"d3d8" : L"generated", shader_ps ? L"d3d8" : use_material ? L"material" : L"generated",
+			count, indices != nullptr ? L"indices" : L"vertices", first, base_vertex, vertices.SizeInBytes, vertices.StrideInBytes,
+			indices != nullptr ? L", ib bytes " : L"", L"");
+		if (indices != nullptr)
 		{
-			wchar_t text[96];
-			if (use_material)
-				swprintf_s(text, L"material %016llX%s", (unsigned long long)material.hash, material.vertexHash != 0 ? L" with vertex function" : L"");
-			else
-				swprintf_s(text, L"no material");
-			list->SetMarker(0, text, (UINT)((wcslen(text) + 1) * sizeof(wchar_t)));
-			m_lastMarker = marker;
+			wchar_t size[32];
+			swprintf_s(size, L"%u%s", indices->SizeInBytes, indices->Format == DXGI_FORMAT_R32_UINT ? L" (32 bit)" : L"");
+			wcscat_s(text, size);
 		}
+		if (use_material && material.vertexHash != 0)
+			wcscat_s(text, L", material vertex function");
+		list->SetMarker(0, text, (UINT)((wcslen(text) + 1) * sizeof(wchar_t)));
+		m_lastMarker = use_material ? material.hash : 1;
 	}
 
 	const D3D_PRIMITIVE_TOPOLOGY topology = Get_Topology(type);
