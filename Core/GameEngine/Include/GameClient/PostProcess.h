@@ -326,7 +326,6 @@ public:
 	std::vector<PolygonMaterial> m_polygonMaterials;	///< PolygonMaterial = <material> <polygon name>, before the kinds
 	Real m_gridSpacing;					///< world units between the vertices of water whose material moves them
 	Int m_riverSubdivisions;			///< pieces each river quad is cut into across and along for such materials
-	Real m_lodDistance;					///< from this camera distance on, far water has half as many vertices (doubling)
 	Bool m_refraction;					///< the scene colour is copied before the water for materials that read it
 	Bool m_drawWaterTracks;				///< the map's .wak waves are drawn as well
 	Int m_shoreFieldResolution;			///< texels per terrain cell of the water field

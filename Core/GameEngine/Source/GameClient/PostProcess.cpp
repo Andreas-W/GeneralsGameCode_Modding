@@ -412,7 +412,6 @@ const char *const WaterRenderingSettings::s_kindNames[] = { "Ocean", "Lake", "Ri
 WaterRenderingSettings::WaterRenderingSettings() :
 	m_gridSpacing(10.0f),
 	m_riverSubdivisions(4),
-	m_lodDistance(600.0f),
 	m_refraction(TRUE),
 	m_drawWaterTracks(FALSE),
 	m_shoreFieldResolution(2),
@@ -429,7 +428,6 @@ const FieldParse WaterRenderingSettings::s_fieldParseTable[] =
 	{ "PolygonMaterial",		parsePolygonMaterial,	nullptr,	offsetof( WaterRenderingSettings, m_polygonMaterials ) },
 	{ "GridSpacing",			INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_gridSpacing ) },
 	{ "RiverSubdivisions",		INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_riverSubdivisions ) },
-	{ "LodDistance",			INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_lodDistance ) },
 	{ "Refraction",				INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_refraction ) },
 	{ "DrawWaterTracks",		INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_drawWaterTracks ) },
 	{ "ShoreFieldResolution",	INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldResolution ) },

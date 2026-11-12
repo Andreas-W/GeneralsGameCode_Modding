@@ -38,6 +38,8 @@
 #include "Common/GameType.h"
 #include "Common/Snapshot.h"
 
+#include <vector>
+
 #define INVALID_WATER_HEIGHT 0.0f	///water height guaranteed to be below all terrain.
 
 #define NUM_BUMP_FRAMES 32	///number of animation frames in bump map
@@ -247,7 +249,20 @@ protected:
 	Bool m_vertexMaterialDrawn;				///< a material that moves the vertices drew water this frame
 	Int getWaterMaterial(PolygonTrigger *pTrig);
 	void setWaterMaterialParameters(Int material, Bool river);
-	void drawTrapezoidWaterGrid(Vector3 points[4], Int material, Int diffuse);
+	Int getStandingWaterDiffuse();
+	void drawStandingWaterGrid(PolygonTrigger *pTrig, Int material);
+	/// The world grid cells a standing water area covers, for drawStandingWaterGrid.
+	struct GridMask
+	{
+		Int id;							///< of the water area
+		UnsignedInt hash;				///< of its points, to notice changes
+		Real spacing;
+		Int x0, y0;						///< first cell, in cells from the world origin
+		Int width, height;				///< cells
+		std::vector<UnsignedByte> inside;	///< per cell
+	};
+	std::vector<GridMask> m_gridMasks;
+	const GridMask *getGridMask(PolygonTrigger *pTrig, Real spacing);
 	void loadSetting ( Setting *skySetting, TimeOfDay timeOfDay );	///<init sky/water settings from GDF
 	void renderSky();	///<draw the sky layer (clouds, stars, etc.)
 	void testCurvedWater();	///<draw the sky layer (clouds, stars, etc.)

@@ -974,6 +974,7 @@ void WaterRenderObjClass::load()
 	if (m_waterTrackSystem)
 		m_waterTrackSystem->loadTracks();
 	m_waterField->invalidate();
+	m_gridMasks.clear();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2006,8 +2007,11 @@ void WaterRenderObjClass::renderWater()
 					drawRiverWater(pTrig, material);
 					continue;
 				}
-				// Water whose material moves the vertices is drawn as one grid, not in feathered layers.
-				const Bool grid = material >= 0 && TheW3DMaterials->waterHasVertexFunction(material);
+				// Water whose material moves the vertices is drawn as one grid over the whole area.
+				if (material >= 0 && TheW3DMaterials->waterHasVertexFunction(material)) {
+					drawStandingWaterGrid(pTrig, material);
+					continue;
+				}
 				Int k;
 				for (k=1; k<pTrig->getNumPoints()-1; k=k+2) {
 					ICoord3D pt3 = *pTrig->getPoint(0);
@@ -2023,7 +2027,7 @@ void WaterRenderObjClass::renderWater()
 					points[2].Set(pt2.x, pt2.y, pt2.z);
 					points[3].Set(pt3.x, pt3.y, pt3.z);
 
-					if ( TheGlobalData->m_featherWater && !grid )
+					if ( TheGlobalData->m_featherWater )
 					{
 						for (int r = 0; r < TheGlobalData->m_featherWater; ++r)
 						{
@@ -3178,6 +3182,63 @@ void WaterRenderObjClass::setupFlatWaterShader()
 }
 
 //-------------------------------------------------------------------------------------------------
+/** The vertex colour of standing water: the map's water colour, or the terrain lighting times the water's
+	* diffuse colour, with the water's opacity in alpha. */
+//-------------------------------------------------------------------------------------------------
+Int WaterRenderObjClass::getStandingWaterDiffuse()
+{
+	Real shadeR=TheWaterTransparency->m_standingWaterColor.red;
+	Real shadeG=TheWaterTransparency->m_standingWaterColor.green;
+	Real shadeB=TheWaterTransparency->m_standingWaterColor.blue;
+
+	//If the water color is not overridden, use legacy lighting code.
+	if ( shadeR==1.0f && shadeG==1.0f && shadeB==1.0f)
+	{
+		shadeR = TheGlobalData->m_terrainAmbient[0].red;
+		shadeG = TheGlobalData->m_terrainAmbient[0].green;
+		shadeB = TheGlobalData->m_terrainAmbient[0].blue;
+
+		//Add in diffuse lighting from each terrain light
+		for (Int lightIndex=0; lightIndex < TheGlobalData->m_numGlobalLights; lightIndex++)
+		{
+			if (-TheGlobalData->m_terrainLightPos[lightIndex].z > 0)
+			{	shadeR += -TheGlobalData->m_terrainLightPos[lightIndex].z * TheGlobalData->m_terrainDiffuse[lightIndex].red;
+				shadeG += -TheGlobalData->m_terrainLightPos[lightIndex].z * TheGlobalData->m_terrainDiffuse[lightIndex].green;
+				shadeB += -TheGlobalData->m_terrainLightPos[lightIndex].z * TheGlobalData->m_terrainDiffuse[lightIndex].blue;
+			}
+		}
+
+		//Get water material colors
+		Real waterShadeR = (m_settings[m_tod].waterDiffuse & 0xff) / 255.0f;
+		Real waterShadeG = ((m_settings[m_tod].waterDiffuse >> 8) & 0xff) / 255.0f;
+		Real waterShadeB = ((m_settings[m_tod].waterDiffuse >> 16) & 0xff) / 255.0f;
+
+		shadeR=shadeR*waterShadeR*255.0f;
+		shadeG=shadeG*waterShadeG*255.0f;
+		shadeB=shadeB*waterShadeB*255.0f;
+	}
+	else
+	{
+		shadeR=shadeR*255.0f;
+		shadeG=shadeG*255.0f;
+		shadeB=shadeB*255.0f;
+
+		if (shadeR == 0 && shadeG == 0 && shadeB == 0)
+		{	//special case where we disable lighting
+			shadeR=255;
+			shadeG=255;
+			shadeB=255;
+		}
+	}
+
+	Int diffuse=REAL_TO_INT(shadeB) | (REAL_TO_INT(shadeG) << 8) | (REAL_TO_INT(shadeR) << 16);
+
+	//Keep diffuse from lighting calculations but substitute custom alpha
+	diffuse |= m_settings[m_tod].waterDiffuse & 0xff000000;	//copy alpha/opacity from ini setting
+	return diffuse;
+}
+
+//-------------------------------------------------------------------------------------------------
 //Draw a 4 sided flat water area.
 //-------------------------------------------------------------------------------------------------
 void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4], Int material)
@@ -3231,61 +3292,7 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4], Int material)
 	}
 
 	Real	waterFactor=150;
-	Real shadeR=TheWaterTransparency->m_standingWaterColor.red;
-	Real shadeG=TheWaterTransparency->m_standingWaterColor.green;
-	Real shadeB=TheWaterTransparency->m_standingWaterColor.blue;
-
-	//If the water color is not overridden, use legacy lighting code.
-	if ( shadeR==1.0f && shadeG==1.0f && shadeB==1.0f)
-	{
-		shadeR = TheGlobalData->m_terrainAmbient[0].red;
-		shadeG = TheGlobalData->m_terrainAmbient[0].green;
-		shadeB = TheGlobalData->m_terrainAmbient[0].blue;
-
-		//Add in diffuse lighting from each terrain light
-		for (Int lightIndex=0; lightIndex < TheGlobalData->m_numGlobalLights; lightIndex++)
-		{
-			if (-TheGlobalData->m_terrainLightPos[lightIndex].z > 0)
-			{	shadeR += -TheGlobalData->m_terrainLightPos[lightIndex].z * TheGlobalData->m_terrainDiffuse[lightIndex].red;
-				shadeG += -TheGlobalData->m_terrainLightPos[lightIndex].z * TheGlobalData->m_terrainDiffuse[lightIndex].green;
-				shadeB += -TheGlobalData->m_terrainLightPos[lightIndex].z * TheGlobalData->m_terrainDiffuse[lightIndex].blue;
-			}
-		}
-
-		//Get water material colors
-		Real waterShadeR = (m_settings[m_tod].waterDiffuse & 0xff) / 255.0f;
-		Real waterShadeG = ((m_settings[m_tod].waterDiffuse >> 8) & 0xff) / 255.0f;
-		Real waterShadeB = ((m_settings[m_tod].waterDiffuse >> 16) & 0xff) / 255.0f;
-
-		shadeR=shadeR*waterShadeR*255.0f;
-		shadeG=shadeG*waterShadeG*255.0f;
-		shadeB=shadeB*waterShadeB*255.0f;
-	}
-	else
-	{
-		shadeR=shadeR*255.0f;
-		shadeG=shadeG*255.0f;
-		shadeB=shadeB*255.0f;
-
-		if (shadeR == 0 && shadeG == 0 && shadeB == 0)
-		{	//special case where we disable lighting
-			shadeR=255;
-			shadeG=255;
-			shadeB=255;
-		}
-	}
-
-	Int diffuse=REAL_TO_INT(shadeB) | (REAL_TO_INT(shadeG) << 8) | (REAL_TO_INT(shadeR) << 16);
-
-	//Keep diffuse from lighting calculations but substitute custom alpha
-	diffuse |= m_settings[m_tod].waterDiffuse & 0xff000000;	//copy alpha/opacity from ini setting
-
-	// A material that moves the vertices needs a finer grid, drawn in pieces the camera sees.
-	if (material >= 0 && TheW3DMaterials->waterHasVertexFunction(material))
-	{
-		drawTrapezoidWaterGrid(points, material, diffuse);
-		return;
-	}
+	Int diffuse=getStandingWaterDiffuse();
 
 	DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8,dynamic_fvf_type,(rectangleCount+1)*2);
 
@@ -3509,29 +3516,98 @@ void WaterRenderObjClass::drawTrapezoidWater(Vector3 points[4], Int material)
 }
 
 //-------------------------------------------------------------------------------------------------
-/** A 4 sided water area for a Direct3D 12 material that moves the vertices: a grid of GridSpacing,
-	* in chunks that are left out when the camera does not see them and get fewer vertices far away
-	* (the material flattens its waves there, so the chunks still meet). The material applies the shroud
-	* and blends by itself. */
+/** The cells of the world grid (GridSpacing) that a standing water area covers: those whose centre or a
+	* corner lies inside it, so the water reaches a little past its edge rather than leaving gaps. Kept until
+	* the area or the spacing changes, as testing every cell is too slow for each frame. */
 //-------------------------------------------------------------------------------------------------
-void WaterRenderObjClass::drawTrapezoidWaterGrid(Vector3 points[4], Int material, Int diffuse)
+const WaterRenderObjClass::GridMask *WaterRenderObjClass::getGridMask(PolygonTrigger *pTrig, Real spacing)
 {
-	const Int CHUNK_QUADS = 32;
+	UnsignedInt hash = 2166136261u;
+	for (Int i = 0; i < pTrig->getNumPoints(); i++)
+	{
+		const unsigned char *bytes = (const unsigned char *)pTrig->getPoint(i);
+		for (size_t b = 0; b < sizeof(ICoord3D); b++)
+			hash = (hash ^ bytes[b]) * 16777619u;
+	}
+	GridMask *mask = nullptr;
+	for (size_t i = 0; i < m_gridMasks.size(); i++)
+		if (m_gridMasks[i].id == pTrig->getID())
+			mask = &m_gridMasks[i];
+	if (mask != nullptr && mask->hash == hash && mask->spacing == spacing)
+		return mask;
+	if (mask == nullptr)
+	{
+		m_gridMasks.push_back(GridMask());
+		mask = &m_gridMasks.back();
+		mask->id = pTrig->getID();
+	}
+	mask->hash = hash;
+	mask->spacing = spacing;
+
+	Int minX = pTrig->getPoint(0)->x, maxX = minX, minY = pTrig->getPoint(0)->y, maxY = minY;
+	for (Int i = 1; i < pTrig->getNumPoints(); i++)
+	{
+		minX = min(minX, pTrig->getPoint(i)->x);
+		maxX = max(maxX, pTrig->getPoint(i)->x);
+		minY = min(minY, pTrig->getPoint(i)->y);
+		maxY = max(maxY, pTrig->getPoint(i)->y);
+	}
+	mask->x0 = (Int)floorf(minX / spacing);
+	mask->y0 = (Int)floorf(minY / spacing);
+	mask->width = max(1, min(8192, (Int)ceilf(maxX / spacing) - mask->x0));
+	mask->height = max(1, min(8192, (Int)ceilf(maxY / spacing) - mask->y0));
+
+	// Which grid points are inside, then a cell is in when its centre or any corner is.
+	const Int pointsX = mask->width + 1;
+	std::vector<UnsignedByte> pointInside((size_t)pointsX * (mask->height + 1));
+	for (Int y = 0; y <= mask->height; y++)
+	{
+		for (Int x = 0; x <= mask->width; x++)
+		{
+			ICoord3D point;
+			point.x = REAL_TO_INT((mask->x0 + x) * spacing);
+			point.y = REAL_TO_INT((mask->y0 + y) * spacing);
+			point.z = 0;
+			pointInside[(size_t)y * pointsX + x] = pTrig->pointInTrigger(point) ? 1 : 0;
+		}
+	}
+	mask->inside.assign((size_t)mask->width * mask->height, 0);
+	for (Int y = 0; y < mask->height; y++)
+	{
+		for (Int x = 0; x < mask->width; x++)
+		{
+			Bool in = pointInside[(size_t)y * pointsX + x] || pointInside[(size_t)y * pointsX + x + 1]
+				|| pointInside[(size_t)(y + 1) * pointsX + x] || pointInside[(size_t)(y + 1) * pointsX + x + 1];
+			if (!in)
+			{
+				ICoord3D centre;
+				centre.x = REAL_TO_INT((mask->x0 + x + 0.5f) * spacing);
+				centre.y = REAL_TO_INT((mask->y0 + y + 0.5f) * spacing);
+				centre.z = 0;
+				in = pTrig->pointInTrigger(centre);
+			}
+			mask->inside[(size_t)y * mask->width + x] = in ? 1 : 0;
+		}
+	}
+	return mask;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A standing water area for a Direct3D 12 material that moves the vertices: the cells of a grid of
+	* GridSpacing aligned to the world, so that neighbouring pieces and overlapping areas share exactly the same
+	* vertices and no gaps open between them when the waves move them. Drawn in chunks the camera culls. The
+	* material applies the shroud and blends by itself. */
+//-------------------------------------------------------------------------------------------------
+void WaterRenderObjClass::drawStandingWaterGrid(PolygonTrigger *pTrig, Int material)
+{
+	const Int CHUNK_CELLS = 32;
 	const Real WAVE_MARGIN = 40.0f;	// how far the material may move a vertex, for culling
 	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
 	const Real spacing = settings != nullptr ? max(settings->m_gridSpacing, 2.0f) : 10.0f;
-	const Real lodDistance = settings != nullptr ? max(settings->m_lodDistance, 1.0f) : 600.0f;
-
-	// P(u, v) = p0 + u (p1 - p0) + v (p3 - p0) + u v (p2 - p1 - p3 + p0), as drawTrapezoidWater does.
-	const Vector3 origin(points[0]);
-	const Vector3 uAxis(points[1] - points[0]);
-	const Vector3 vAxis(points[3] - points[0]);
-	const Vector3 twist(points[2] - points[1] - points[3] + points[0]);
-	const Real uLength = ((points[1] - points[0]).Length() + (points[2] - points[3]).Length()) * 0.5f;
-	const Real vLength = ((points[3] - points[0]).Length() + (points[2] - points[1]).Length()) * 0.5f;
-	const Int uQuads = max(1, min(4096, (Int)ceilf(uLength / spacing)));
-	const Int vQuads = max(1, min(4096, (Int)ceilf(vLength / spacing)));
+	const Real level = (Real)pTrig->getPoint(0)->z;
 	const Real waterFactor = 150.0f;
+	const GridMask *mask = getGridMask(pTrig, spacing);
+	const Int diffuse = getStandingWaterDiffuse();
 
 	Matrix3D tm(1);
 	DX8Wrapper::Set_Transform(D3DTS_WORLD,tm);
@@ -3547,65 +3623,63 @@ void WaterRenderObjClass::drawTrapezoidWaterGrid(Vector3 points[4], Int material
 	}
 	m_vertexMaterialDrawn = TRUE;
 
-	Int uIndex[CHUNK_QUADS + 1];
-	Int vIndex[CHUNK_QUADS + 1];
-	const Vector3 cameraPosition = m_renderCamera != nullptr ? m_renderCamera->Get_Position() : Vector3(0, 0, 0);
-	for (Int v0 = 0; v0 < vQuads; v0 += CHUNK_QUADS)
+	UnsignedShort vertexIndex[(CHUNK_CELLS + 1) * (CHUNK_CELLS + 1)];
+	for (Int cy = 0; cy < mask->height; cy += CHUNK_CELLS)
 	{
-		for (Int u0 = 0; u0 < uQuads; u0 += CHUNK_QUADS)
+		for (Int cx = 0; cx < mask->width; cx += CHUNK_CELLS)
 		{
-			const Int uEnd = min(u0 + CHUNK_QUADS, uQuads);
-			const Int vEnd = min(v0 + CHUNK_QUADS, vQuads);
-
-			// The chunk lies within the box of its corners (a bilinear patch is inside their hull).
-			Vector3 corners[4];
-			const Real us[2] = { (Real)u0 / uQuads, (Real)uEnd / uQuads };
-			const Real vs[2] = { (Real)v0 / vQuads, (Real)vEnd / vQuads };
-			for (Int c = 0; c < 4; c++)
-			{
-				const Real u = us[c & 1];
-				const Real v = vs[c >> 1];
-				corners[c] = origin + uAxis * u + vAxis * v + twist * (u * v);
-			}
-			Vector3 boxMin(corners[0]), boxMax(corners[0]);
-			for (Int c = 1; c < 4; c++)
-			{
-				boxMin.Update_Min(corners[c]);
-				boxMax.Update_Max(corners[c]);
-			}
-			const Vector3 margin(WAVE_MARGIN, WAVE_MARGIN, WAVE_MARGIN);
+			const Int cellsX = min(CHUNK_CELLS, mask->width - cx);
+			const Int cellsY = min(CHUNK_CELLS, mask->height - cy);
+			const Real x0 = (mask->x0 + cx) * spacing;
+			const Real y0 = (mask->y0 + cy) * spacing;
 			AABoxClass box;
-			box.Init_Min_Max(boxMin - margin, boxMax + margin);
+			box.Init_Min_Max(Vector3(x0 - WAVE_MARGIN, y0 - WAVE_MARGIN, level - WAVE_MARGIN),
+				Vector3(x0 + cellsX * spacing + WAVE_MARGIN, y0 + cellsY * spacing + WAVE_MARGIN, level + WAVE_MARGIN));
 			if (m_renderCamera != nullptr && m_renderCamera->Cull_Box(box))
 				continue;
 
-			// Every vertex near the camera, every second or fourth farther away; the chunk's edges are kept.
-			const Real distance = (box.Center - cameraPosition).Length();
-			const Int stride = distance < lodDistance ? 1 : (distance < 2.0f * lodDistance ? 2 : 4);
-			Int uCount = 0, vCount = 0;
-			for (Int u = u0; u < uEnd; u += stride)
-				uIndex[uCount++] = u;
-			uIndex[uCount++] = uEnd;
-			for (Int v = v0; v < vEnd; v += stride)
-				vIndex[vCount++] = v;
-			vIndex[vCount++] = vEnd;
+			// The vertices of the cells that are in, each once.
+			const Int pointsX = cellsX + 1;
+			Int vertexCount = 0;
+			Int cellCount = 0;
+			for (Int i = 0; i < pointsX * (cellsY + 1); i++)
+				vertexIndex[i] = 0xffff;
+			for (Int y = 0; y < cellsY; y++)
+			{
+				for (Int x = 0; x < cellsX; x++)
+				{
+					if (!mask->inside[(size_t)(cy + y) * mask->width + cx + x])
+						continue;
+					++cellCount;
+					const Int corners[4] = { y * pointsX + x, y * pointsX + x + 1, (y + 1) * pointsX + x, (y + 1) * pointsX + x + 1 };
+					for (Int c = 0; c < 4; c++)
+						if (vertexIndex[corners[c]] == 0xffff)
+							vertexIndex[corners[c]] = (UnsignedShort)vertexCount++;
+				}
+			}
+			if (cellCount == 0)
+				continue;
 
-			const Int vertexCount = uCount * vCount;
-			const Int triangleCount = (uCount - 1) * (vCount - 1) * 2;
-			DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8, triangleCount * 3);
+			DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8, cellCount * 6);
 			{
 				DynamicIBAccessClass::WriteLockClass lockib(&ib_access);
 				UnsignedShort *curIb = lockib.Get_Index_Array();
-				for (Int j = 0; j < vCount - 1; j++)
+				for (Int y = 0; y < cellsY; y++)
 				{
-					for (Int i = 0; i < uCount - 1; i++)
+					for (Int x = 0; x < cellsX; x++)
 					{
-						curIb[0] = (j)*uCount + i;
-						curIb[1] = (j+1)*uCount + i+1;
-						curIb[2] = (j+1)*uCount + i;
-						curIb[3] = (j)*uCount + i;
-						curIb[4] = (j)*uCount + i+1;
-						curIb[5] = (j+1)*uCount + i+1;
+						if (!mask->inside[(size_t)(cy + y) * mask->width + cx + x])
+							continue;
+						const UnsignedShort v00 = vertexIndex[y * pointsX + x];
+						const UnsignedShort v10 = vertexIndex[y * pointsX + x + 1];
+						const UnsignedShort v01 = vertexIndex[(y + 1) * pointsX + x];
+						const UnsignedShort v11 = vertexIndex[(y + 1) * pointsX + x + 1];
+						curIb[0] = v00;
+						curIb[1] = v11;
+						curIb[2] = v01;
+						curIb[3] = v00;
+						curIb[4] = v10;
+						curIb[5] = v11;
 						curIb += 6;
 					}
 				}
@@ -3613,33 +3687,36 @@ void WaterRenderObjClass::drawTrapezoidWaterGrid(Vector3 points[4], Int material
 			DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8, dynamic_fvf_type, vertexCount);
 			{
 				DynamicVBAccessClass::WriteLockClass lock(&vb_access);
-				VertexFormatXYZNDUV2* vb = lock.Get_Formatted_Vertex_Array();
-				for (Int j = 0; j < vCount; j++)
+				VertexFormatXYZNDUV2* vertices = lock.Get_Formatted_Vertex_Array();
+				for (Int y = 0; y <= cellsY; y++)
 				{
-					const Real v = (Real)vIndex[j] / vQuads;
-					for (Int i = 0; i < uCount; i++)
+					for (Int x = 0; x <= cellsX; x++)
 					{
-						const Real u = (Real)uIndex[i] / uQuads;
-						const Vector3 vertex = origin + uAxis * u + vAxis * v + twist * (u * v);
-						vb->x = vertex.X;
-						vb->y = vertex.Y;
-						vb->z = vertex.Z;
+						const UnsignedShort index = vertexIndex[y * pointsX + x];
+						if (index == 0xffff)
+							continue;
+						// The same grid point gives the same numbers in every chunk and every area.
+						const Real wx = (Real)(mask->x0 + cx + x) * spacing;
+						const Real wy = (Real)(mask->y0 + cy + y) * spacing;
+						VertexFormatXYZNDUV2* vb = vertices + index;
+						vb->x = wx;
+						vb->y = wy;
+						vb->z = level;
 						vb->diffuse = diffuse;
-						vb->u1 = vertex.X / waterFactor;
-						vb->v1 = vertex.Y / waterFactor;
-						vb->u2 = vertex.X / BUMP_SIZE;
-						vb->v2 = (vertex.Y + 0.3f * vertex.X) / BUMP_SIZE;
+						vb->u1 = wx / waterFactor;
+						vb->v1 = wy / waterFactor;
+						vb->u2 = wx / BUMP_SIZE;
+						vb->v2 = (wy + 0.3f * wx) / BUMP_SIZE;
 						vb->nx = 0;
 						vb->ny = 0;
 						vb->nz = 1.0f;
-						vb++;
 					}
 				}
 			}
 			DX8Wrapper::Set_Index_Buffer(ib_access, 0);
 			DX8Wrapper::Set_Vertex_Buffer(vb_access);
 			DX8Wrapper::Set_DX8_Render_State(D3DRS_CULLMODE, D3DCULL_NONE);
-			DX8Wrapper::Draw_Triangles(0, triangleCount, 0, vertexCount);
+			DX8Wrapper::Draw_Triangles(0, cellCount * 2, 0, vertexCount);
 		}
 	}
 
