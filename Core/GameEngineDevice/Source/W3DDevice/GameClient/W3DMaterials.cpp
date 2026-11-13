@@ -356,6 +356,8 @@ cbuffer Params : register(b2)
 	float ShoreFoamWidth;		// distance from the shoreline the shore foam covers, 0 = 6; -1 = by depth only
 	float ShoreFoamMinimum;		// 0..1, a foam line along the shore that is always there, 0 = none
 	float ShoreFoamWindward;	// 0..1, how much the shore foam keeps to coasts facing the waves, 0 = all coasts alike
+	float ShoreFoamMinimumTexture;	// 0..1, how much the foam pattern shows in the minimum line, 0 = 0.5; -1 = flat
+	float ShoreWaveFoamDepth;	// water depth up to which the shore waves carry foam, 0 = 6; -1 = none
 	float CrestFoam;			// strength of the foam on high wave crests, 0 = 0.4; -1 = none
 	float CrestFoamStart;		// wave height where crest foam begins, -1 (trough) .. 1 (highest crest), 0 = 0.45
 	float CrestFoamRange;		// height above the start until the whole foam pattern shows, 0 = 0.4
@@ -697,15 +699,17 @@ float4 main(MaterialInput input) : SV_Target
 		float soft = edge * edge * pattern;
 		float hard = smoothstep(0.75, 0.85, edge) * (0.6 + 0.4 * pattern);
 		float shoreFoam = lerp(soft, hard, saturate(ShoreHardness));
-		if (hasField)
-			shoreFoam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / 6);
+		// Foam on the waves running up the beach, as far out as ShoreWaveFoamDepth (full up to half of it).
+		if (hasField && ShoreWaveFoamDepth >= 0)
+			shoreFoam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / Or(ShoreWaveFoamDepth, 6));
 		// Coasts facing the waves: the direction away from the shore runs against the waves there.
 		if (hasField && ShoreFoamWindward > 0)
 		{
 			float facing = saturate(-dot(field.zw, normalize(Or(WaveDirection, float2(1, 0.35)))));
 			shoreFoam *= lerp(1, facing, saturate(ShoreFoamWindward));
 		}
-		shoreFoam = max(shoreFoam, saturate(ShoreFoamMinimum) * edge);
+		float minimumTexture = ShoreFoamMinimumTexture < 0 ? 0 : saturate(Or(ShoreFoamMinimumTexture, 0.5));
+		shoreFoam = max(shoreFoam, saturate(ShoreFoamMinimum) * edge * lerp(1, pattern, minimumTexture));
 		foam = shoreFoam * Or(FoamStrength, 0.85);
 	}
 	if (CrestFoam >= 0 && fade > 0.01)
