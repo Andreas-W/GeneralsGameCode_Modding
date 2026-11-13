@@ -390,6 +390,8 @@ End
 | `SkyColor`, `HorizonColor`, `Reflection` | Reflected sky overhead (0.30 0.45 0.65) and at the horizon (0.70 0.80 0.90), or a latitude-longitude `EmissiveMap`, and its strength at flat angles (0.8) |
 | `SSRStrength`, `SSRMaxDistance` | Reflection of what is on screen (0.8; −1 = none) and how far it is searched (400) |
 | `Gloss`, `GlintStrength` | Sun glints (800, 1.2) |
+| `ViewGlint` | Weaker glints from a second light that turns with the camera and always stands beyond the water, so that glints show whichever way the camera faces (the sun's only show when it looks towards the sun), as a factor of `GlintStrength` (0 = none; 0.35 is subtle). Where both meet the stronger counts |
+| `ViewGlintGloss`, `ViewGlintHeight` | Their sharpness (half of `Gloss`) and the height of that light above the horizon in degrees (the sun's height); a higher light moves them towards the bottom of the screen |
 | `RefractionStrength` | How much the waves bend what is below (1) |
 | `Absorption` | How fast red, green and blue fade per world unit of water (0.035 0.012 0.008) |
 | `ScatterColor`, `UnderwaterAmbient` | The water's own colour (0.06 0.32 0.36) and how much light it gets (1) |

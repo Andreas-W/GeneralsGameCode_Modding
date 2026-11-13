@@ -367,6 +367,9 @@ cbuffer Params : register(b2)
 	float TextureTint;			// how much the map's water texture tints the water, 0 = 0.25; -1 = none
 	float DeepOpacity;			// without the scene colour: how opaque deep water gets, 0 = 0.75
 	float DepthScale;			// without the scene colour: depth until the water is deep, 0 = 40
+	float ViewGlint;			// glints from a light that always stands beyond the water as seen from the camera, factor of GlintStrength, 0 = none
+	float ViewGlintGloss;		// their sharpness, 0 = half of Gloss
+	float ViewGlintHeight;		// degrees above the horizon of that light, 0 = as high as the sun
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -727,7 +730,22 @@ float4 main(MaterialInput input) : SV_Target
 	float3 color = lerp(under, reflection * shroud, fresnel);
 	color = lerp(color, Or(FoamColor, float3(0.92, 0.95, 1.0)) * daylight * shroud, foam);
 	float3 halfway = normalize(toSun + toEye);
-	float3 glint = pow(saturate(dot(n, halfway)), Or(Gloss, 800)) * Or(GlintStrength, 1.2) * sunColor * shroud * (1 - foam);
+	float gloss = Or(Gloss, 800);
+	float glintAmount = pow(saturate(dot(n, halfway)), gloss);
+	// The real sun glints only show when the camera looks towards the sun, and the default camera looks north.
+	// A weaker second light turns with the camera and stands beyond the water, so that some glints show from
+	// every direction; the larger of the two counts, so they do not add up when the camera faces the sun.
+	if (ViewGlint > 0)
+	{
+		// The view looks along view space z in the direction where ViewDistance grows (-z in W3D).
+		float3 forward = mul((float3x3)View, float3(0, 0, sign(Projection._34)));
+		float2 away = Or(forward.xy, float2(0, 1));
+		float height = ViewGlintHeight > 0 ? radians(ViewGlintHeight) : asin(saturate(toSun.z));
+		float3 toLight = float3(normalize(away) * cos(height), sin(height));
+		float viewAmount = pow(saturate(dot(n, normalize(toLight + toEye))), Or(ViewGlintGloss, gloss * 0.5));
+		glintAmount = max(glintAmount, viewAmount * ViewGlint);
+	}
+	float3 glint = glintAmount * Or(GlintStrength, 1.2) * sunColor * shroud * (1 - foam);
 
 	// The edge fades in over ShoreDistance of depth; the foam only over the last bit of it, so that it marks
 	// where the water begins also on a soft edge.

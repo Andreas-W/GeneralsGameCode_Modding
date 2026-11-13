@@ -45,7 +45,10 @@ All commits are on `feat/dx12-water`, branched from `main`:
    from crest foam (`ShoreFoamWidth`, `ShoreFoamMinimum`, `ShoreFoamWindward`, `CrestFoamScale`, `CrestFoamSpeed`,
    `ExtraMap` as crest pattern, foam visible up to the waterline), `58d3e382b` `ShoreFoamMinimumTexture`,
    `ShoreWaveFoamDepth`.
-5. GPU hang diagnostics: `427ff9d7d`, `5eb3d2dc3`, `a8d9b6eec`, `886548f06`, and the write-up `263a7b78d`.
+5. Glints: `ViewGlint`, `ViewGlintGloss`, `ViewGlintHeight`, a weaker glint light that turns with the camera,
+   because the default camera faces north and the sun glints are never seen. W3D view space looks along −z
+   (`sign(Projection._34)` gives the forward direction).
+6. GPU hang diagnostics: `427ff9d7d`, `5eb3d2dc3`, `a8d9b6eec`, `886548f06`, and the write-up `263a7b78d`.
 
 ## Mod-side setup (not in this repository)
 
@@ -151,6 +154,9 @@ Material Ocean
   Param = CrestFoam 0.7
   Param = CrestFoamScale 160
   Param = CrestFoamSpeed 2.5
+  ; Glints from every camera direction
+  Param = ViewGlint 0.35
+  Param = ViewGlintGloss 800
   ParamEvening = ScatterColor 0.06 0.22 0.28
   ParamNight = ScatterColor 0.01 0.05 0.09
   ParamNight = GlintStrength 1.5
