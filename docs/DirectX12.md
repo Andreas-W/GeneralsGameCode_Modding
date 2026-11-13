@@ -348,7 +348,8 @@ End
 #### Water (`Use = Water`)
 
 Draws standing water and rivers. The maps are file names in `Art\Textures`: `NormalMap` = waves,
-`SpecularMap` = foam, `EmissiveMap` = sky. Without a `WaterRendering` block (see below) all water uses the
+`SpecularMap` = foam, `EmissiveMap` = sky; `MAT_Ocean` also takes `ExtraMap` as the crest foam pattern of
+standing water (rivers use that slot for their edge, so their crests use `SpecularMap`). Without a `WaterRendering` block (see below) all water uses the
 last water material.
 
 There are two built-in water shaders:
@@ -371,8 +372,8 @@ End
 |---|---|
 | `WaveScale`, `WaveSpeed`, `WaveStrength` | Size (160), speed (12) and strength (0.25) of the waves |
 | `Gloss`, `GlintStrength` | Sun glints (180, 2) |
-| `SkyColor`, `HorizonColor`, `Reflection` | Reflected sky, stronger at flat angles |
-| `DeepColor`, `DepthScale` | Colour of deep water and the depth until it is reached (40) |
+| `SkyColor`, `HorizonColor`, `Reflection` | Reflected sky overhead (0.35 0.5 0.7) and at the horizon (0.7 0.8 0.9), stronger at flat angles (0.4) |
+| `DeepColor`, `DepthScale`, `DeepOpacity` | Colour of deep water (0.02 0.08 0.12), the depth until it is reached (40), how opaque it gets (0.7) |
 | `ShoreDistance` | Soft fade at the shore (3) |
 | `FoamDistance`, `FoamStrength` | Foam along the shore (4, 0.5; `FoamDistance -1` = no foam) |
 
@@ -386,7 +387,7 @@ End
 | `WaveFadeDistance` | Camera distance at which the waves are flat (1400) |
 | `ShoreFadeDistance`, `DepthFade` | Distance from the shore (60) and water depth (10) over which the waves grow |
 | `NormalStrength`, `NormalScale`, `NormalSpeed` | Ripples: strength (0.35), size (90), speed (6) |
-| `SkyColor`, `HorizonColor`, `Reflection` | Reflected sky (or a latitude-longitude `EmissiveMap`) and its strength at flat angles (0.8) |
+| `SkyColor`, `HorizonColor`, `Reflection` | Reflected sky overhead (0.30 0.45 0.65) and at the horizon (0.70 0.80 0.90), or a latitude-longitude `EmissiveMap`, and its strength at flat angles (0.8) |
 | `SSRStrength`, `SSRMaxDistance` | Reflection of what is on screen (0.8; −1 = none) and how far it is searched (400) |
 | `Gloss`, `GlintStrength` | Sun glints (800, 1.2) |
 | `RefractionStrength` | How much the waves bend what is below (1) |
@@ -394,16 +395,21 @@ End
 | `ScatterColor`, `UnderwaterAmbient` | The water's own colour (0.06 0.32 0.36) and how much light it gets (1) |
 | `CausticStrength`, `CausticScale`, `CausticSpeed` | Light lines on the ground below (0.5; −1 = none), cell size (35), speed (1) |
 | `TextureTint` | How much the map's water texture and colour tint the water (0.25; −1 = none) |
-| `ShoreDistance` | Water depth over which the edge fades in (1) |
+| `ShoreDistance` | Water depth over which the edge fades in (1); foam stays visible up to the waterline, so it marks where the water begins on a soft edge |
 | `ShoreHardness` | 0 = a soft foamy edge, 1 = a hard foam line |
 | `ShoreWaveLength`, `ShoreWaveSpeed`, `ShoreWaveRange` | Waves running up the beach: spacing (28), speed (7), how far out they form (45) |
 | `ShoreWaveHeight` | How much they lift the surface (0.5; −1 = none) |
-| `FoamDistance`, `FoamStrength`, `FoamColor` | Shore foam (3; −1 = none), strength (0.85), colour |
-| `FoamScale`, `FoamSpeed` | World units one repeat of the foam pattern covers (40; the red channel of `SpecularMap`, else built-in noise a quarter that size) and how fast it drifts (factor, 1) |
-| `CrestFoam` | Foam on high wave crests (0.4; −1 = none) |
+| `FoamDistance`, `FoamStrength` | Shore foam: water depth it covers (3; −1 = no shore foam) and its strength (0.85) |
+| `ShoreFoamWidth` | Distance from the shoreline the shore foam also covers, so that steep coasts get it too (6; −1 = by depth only) |
+| `ShoreFoamMinimum` | 0..1, a foam line along the shore that is always there, whatever the pattern and the shore waves do (0 = none) |
+| `ShoreFoamWindward` | 0..1, how much the shore foam keeps to coasts facing `WaveDirection` (0 = all coasts alike; the minimum line stays everywhere) |
+| `FoamScale`, `FoamSpeed` | World units one repeat of the shore foam pattern covers (40; the red channel of `SpecularMap`, else built-in noise a quarter that size) and how fast it drifts (factor, 1) |
+| `FoamColor` | Colour of all foam (0.92 0.95 1.0) |
+| `CrestFoam` | Strength of the foam on high wave crests (0.4; −1 = none); `FoamStrength` does not apply to it |
+| `CrestFoamScale`, `CrestFoamSpeed` | Size and drift of the crest foam pattern, the red channel of `ExtraMap`, else of `SpecularMap` (0 = the same as `FoamScale`, `FoamSpeed`) |
 | `CrestFoamStart`, `CrestFoamRange` | Wave height where crest foam begins, −1 (trough) to 1 (highest crest) (0.45), and how much higher the whole foam pattern shows (0.4); in between only its brightest spots |
 | `CrestFoamSoftness` | How soft the edges of the crest foam patches are (0.15; larger = blurrier) |
-| `DeepColor`, `DeepOpacity`, `DepthScale` | Only with `Refraction = No`: like `MAT_Water` |
+| `DeepColor`, `DeepOpacity`, `DepthScale` | Only with `Refraction = No`: like `MAT_Water` (0.02 0.08 0.12, 0.75, 40). With refraction, `ScatterColor` and `Absorption` do their job |
 
 Example presets for three kinds of water:
 

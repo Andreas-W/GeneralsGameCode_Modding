@@ -349,14 +349,19 @@ cbuffer Params : register(b2)
 	float ShoreWaveSpeed;		// world units per second they run, 0 = 7
 	float ShoreWaveHeight;		// world units they lift the surface, 0 = 0.5; -1 = none
 	float ShoreWaveRange;		// distance from the shore where they form, 0 = 45
-	float FoamDistance;			// water depth with foam along the shore, 0 = 3; -1 = no foam
-	float FoamStrength;			// 0 = 0.85
-	float FoamScale;			// world units one repeat of the foam pattern (SpecularMap) covers, 0 = 40
-	float FoamSpeed;			// how fast the foam pattern drifts, factor, 0 = 1
-	float CrestFoam;			// foam on high wave crests, 0 = 0.4; -1 = none
+	float FoamDistance;			// water depth with foam along the shore, 0 = 3; -1 = no shore foam
+	float FoamStrength;			// strength of the shore foam, 0 = 0.85
+	float FoamScale;			// world units one repeat of the shore foam pattern (SpecularMap) covers, 0 = 40
+	float FoamSpeed;			// how fast the shore foam pattern drifts, factor, 0 = 1
+	float ShoreFoamWidth;		// distance from the shoreline the shore foam covers, 0 = 6; -1 = by depth only
+	float ShoreFoamMinimum;		// 0..1, a foam line along the shore that is always there, 0 = none
+	float ShoreFoamWindward;	// 0..1, how much the shore foam keeps to coasts facing the waves, 0 = all coasts alike
+	float CrestFoam;			// strength of the foam on high wave crests, 0 = 0.4; -1 = none
 	float CrestFoamStart;		// wave height where crest foam begins, -1 (trough) .. 1 (highest crest), 0 = 0.45
 	float CrestFoamRange;		// height above the start until the whole foam pattern shows, 0 = 0.4
 	float CrestFoamSoftness;	// how soft the edges of the foam patches are, 0 = 0.15
+	float CrestFoamScale;		// world units one repeat of the crest foam pattern (ExtraMap, else SpecularMap) covers, 0 = FoamScale
+	float CrestFoamSpeed;		// how fast the crest foam pattern drifts, factor, 0 = FoamSpeed
 	float TextureTint;			// how much the map's water texture tints the water, 0 = 0.25; -1 = none
 	float DeepOpacity;			// without the scene colour: how opaque deep water gets, 0 = 0.75
 	float DepthScale;			// without the scene colour: depth until the water is deep, 0 = 40
@@ -493,6 +498,20 @@ float Caustic(float2 p, float t)
 		c += 1 / (1 + 18 * abs(sin(q.x) * sin(q.y)));
 	}
 	return saturate(c / 3 - 0.15);
+}
+// A foam pattern 0..1: the red channel of the extra map (crest foam of standing water; rivers have their edge
+// alpha there) or of the specular map, else built-in noise a quarter of the size of a repeat of the map.
+float FoamPattern(float2 world, float scale, float time, bool extra)
+{
+	float2 uv = (world + float2(0.3, 0.2) * time) / scale;
+	float pattern;
+	if (extra && River <= 0 && HasMap(MAP_EXTRA))
+		pattern = ExtraMap.Sample(ExtraSampler, uv).r;
+	else if (HasMap(MAP_SPECULAR))
+		pattern = SpecularMap.Sample(SpecularSampler, uv).r;
+	else
+		pattern = saturate(RippleHeight(world / (scale * 0.225), time * 0.4) * 1.6 - 0.3);
+	return pattern;
 }
 // Sky in a direction: a latitude-longitude picture in the emissive map, else a gradient.
 float3 Sky(float3 direction)
@@ -663,41 +682,53 @@ float4 main(MaterialInput input) : SV_Target
 	float facing = saturate(dot(n, toEye));
 	float fresnel = (0.02 + 0.98 * pow(1 - facing, 5)) * Or(Reflection, 0.8);
 
-	// Foam: along the shore (soft, or a hard line), on the shore waves and on high crests.
+	// Foam: along the shore (soft, or a hard line), on the shore waves, and on high crests, each with its own
+	// pattern and strength.
 	float foam = 0;
+	float foamScale = Or(FoamScale, 40);
+	float foamSpeed = Or(FoamSpeed, 1);
 	if (FoamDistance >= 0)
 	{
-		// The built-in noise is a quarter of the size of a repeat of the map.
-		float foamScale = Or(FoamScale, 40);
-		float foamTime = t * Or(FoamSpeed, 1);
-		float pattern = HasMap(MAP_SPECULAR) ? SpecularMap.Sample(SpecularSampler, (world.xy + float2(0.3, 0.2) * foamTime) / foamScale).r
-			: saturate(RippleHeight(world.xy / (foamScale * 0.225), foamTime * 0.4) * 1.6 - 0.3);
+		float pattern = FoamPattern(world.xy, foamScale, t * foamSpeed, false);
+		// The band by water depth, and by distance from the shoreline so that steep coasts get foam too.
 		float edge = 1 - saturate(depth / Or(FoamDistance, 3));
+		if (hasField && ShoreFoamWidth >= 0)
+			edge = max(edge, 1 - saturate(shore / Or(ShoreFoamWidth, 6)));
 		float soft = edge * edge * pattern;
 		float hard = smoothstep(0.75, 0.85, edge) * (0.6 + 0.4 * pattern);
-		foam = lerp(soft, hard, saturate(ShoreHardness));
+		float shoreFoam = lerp(soft, hard, saturate(ShoreHardness));
 		if (hasField)
-			foam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / 6);
-		if (CrestFoam >= 0 && fade > 0.01)
+			shoreFoam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / 6);
+		// Coasts facing the waves: the direction away from the shore runs against the waves there.
+		if (hasField && ShoreFoamWindward > 0)
 		{
-			// The wave height at the pixel, -1 .. 1 of the sum of the four waves, decides how much of the foam
-			// pattern shows: low crests only its brightest spots, high crests all of it.
-			float height = waveOffset.z / max(Or(WaveAmplitude, 1.5) * fade * 2.08, 1e-3);
-			float amount = saturate((height - Or(CrestFoamStart, 0.45)) / Or(CrestFoamRange, 0.4));
-			float soft = Or(CrestFoamSoftness, 0.15);
-			foam += smoothstep(1 - amount, 1 - amount + soft, pattern) * amount * Or(CrestFoam, 0.4);
+			float facing = saturate(-dot(field.zw, normalize(Or(WaveDirection, float2(1, 0.35)))));
+			shoreFoam *= lerp(1, facing, saturate(ShoreFoamWindward));
 		}
-		foam = saturate(foam * Or(FoamStrength, 0.85));
+		shoreFoam = max(shoreFoam, saturate(ShoreFoamMinimum) * edge);
+		foam = shoreFoam * Or(FoamStrength, 0.85);
 	}
+	if (CrestFoam >= 0 && fade > 0.01)
+	{
+		// The wave height at the pixel, -1 .. 1 of the sum of the four waves, decides how much of the foam
+		// pattern shows: low crests only its brightest spots, high crests all of it.
+		float pattern = FoamPattern(world.xy, Or(CrestFoamScale, foamScale), t * Or(CrestFoamSpeed, foamSpeed), true);
+		float height = waveOffset.z / max(Or(WaveAmplitude, 1.5) * fade * 2.08, 1e-3);
+		float amount = saturate((height - Or(CrestFoamStart, 0.45)) / Or(CrestFoamRange, 0.4));
+		float soft = Or(CrestFoamSoftness, 0.15);
+		foam += smoothstep(1 - amount, 1 - amount + soft, pattern) * amount * Or(CrestFoam, 0.4);
+	}
+	foam = saturate(foam);
 
 	float3 color = lerp(under, reflection * shroud, fresnel);
 	color = lerp(color, Or(FoamColor, float3(0.92, 0.95, 1.0)) * daylight * shroud, foam);
 	float3 halfway = normalize(toSun + toEye);
 	float3 glint = pow(saturate(dot(n, halfway)), Or(Gloss, 800)) * Or(GlintStrength, 1.2) * sunColor * shroud * (1 - foam);
 
-	// The edge fades in over ShoreDistance of depth.
+	// The edge fades in over ShoreDistance of depth; the foam only over the last bit of it, so that it marks
+	// where the water begins also on a soft edge.
 	float edgeFade = saturate(depth / Or(ShoreDistance, 1));
-	alpha = saturate(max(alpha, foam)) * edgeFade;
+	alpha = saturate(max(alpha * edgeFade, foam * saturate(depth / 0.3)));
 
 	// Fog: what came through the water is fogged already; only the rest is fogged here.
 	float3 seen = throughScene * (1 - fresnel) * (1 - foam);
