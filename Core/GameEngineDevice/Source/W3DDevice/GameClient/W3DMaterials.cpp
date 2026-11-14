@@ -310,8 +310,9 @@ float4 main(MaterialInput input) : SV_Target
 // the water's own colour lit by the sun and the ambient light; caustics play on the ground below. On top: ripples
 // from normal maps (or built-in noise), the sky and the screen (screen space reflection) reflected by the
 // Fresnel term, sun glints, and at the shore foam and waves that run up to the beach, found in the water field.
-// Without the scene colour (WaterRendering Refraction = No) it blends like MAT_Water. A value of 0 means the
-// default given in the comment; -1 turns off what says so.
+// Only with Refraction 1 (for deep water made for ships) and the scene colour (WaterRendering Refraction); else it
+// is opaque and blends like MAT_Water, so that the shallow water of other maps hides its ground. A value of 0
+// means the default given in the comment; -1 turns off what says so.
 static const char s_oceanShader[] = R"(
 #include "Material.hlsli"
 cbuffer Params : register(b2)
@@ -373,6 +374,7 @@ cbuffer Params : register(b2)
 	float WaveShading;			// how much the water's own colour is lighter on slopes facing the sun and darker on the others, 0 = none
 	float CrestScatter;			// how much lighter the water's own colour is on crests and darker in troughs, 0 = none
 	float3 CrestScatterColor;	// the water's own colour on high crests, 0 0 0 = ScatterColor
+	float Refraction;			// 1 = see through the water to the ground (deep water), 0 = opaque like MAT_Water
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -657,7 +659,7 @@ float4 main(MaterialInput input) : SV_Target
 	float3 throughScene = float3(0, 0, 0);	// the part of it that is the scene, fogged and shrouded already
 	float3 transmit = float3(0, 0, 0);
 	float alpha;
-	if (HasSceneColor() && HasSceneDepth())
+	if (Refraction > 0 && HasSceneColor() && HasSceneDepth())
 	{
 		// Refraction: bent by the waves, the more the deeper the thing below is, so that hulls stay joined
 		// at the waterline; never to something in front of the water or much nearer to it.
@@ -994,6 +996,21 @@ static std::string baseTextureName(const char *name)
 	return result;
 }
 
+//-------------------------------------------------------------------------------------------------
+/** A water material that wants to see through the water: Param Refraction above 0, at any time of day. */
+//-------------------------------------------------------------------------------------------------
+static Bool asksForRefraction(const MaterialTemplate& settings)
+{
+	for (Int time = -1; time < TIME_OF_DAY_COUNT; ++time)
+	{
+		const std::vector<PostProcessParameter>& parameters = time < 0 ? settings.m_parameters : settings.m_timeOfDayParameters[time];
+		for (size_t i = 0; i < parameters.size(); ++i)
+			if (parameters[i].m_name.compareNoCase("Refraction") == 0 && parameters[i].m_values[0] > 0.0f)
+				return TRUE;
+	}
+	return FALSE;
+}
+
 #endif // RTS_RENDERER_DX12
 
 //-------------------------------------------------------------------------------------------------
@@ -1007,7 +1024,6 @@ W3DMaterials::W3DMaterials() :
 	m_collecting(FALSE),
 	m_terrainMaterial(-1),
 	m_waterMaterial(-1),
-	m_vertexWater(FALSE),
 	m_particleColor(FALSE),
 	m_categoryTexture(nullptr),
 	m_categoryBound(FALSE),
@@ -1108,7 +1124,6 @@ void W3DMaterials::release()
 	m_particleMaterial.clear();
 	m_terrainMaterial = -1;
 	m_waterMaterial = -1;
-	m_vertexWater = FALSE;
 	m_particleColor = FALSE;
 	m_materials = nullptr;
 	m_built = FALSE;
@@ -1195,6 +1210,7 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 		built.textureCount = 0;
 		built.lastHouseColor = 0;
 		built.sceneColor = FALSE;
+		built.vertexFunction = FALSE;
 		for (Int i = 0; i < 4; ++i)
 			built.waterMaps[i] = nullptr;
 		if (FAILED(materials->Create_Material(shader, &built.id)))
@@ -1208,9 +1224,8 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 			for (Int i = 0; i < 4; ++i)
 				if (settings->m_maps[i].isNotEmpty() && settings->m_maps[i].getCharAt(0) != '_')
 					built.waterMaps[i] = findMap(settings->m_name, settings->m_maps[i]);
-			built.sceneColor = materials->Has_Material_Parameter(built.id, "RefractionStrength");
-			if (built.sceneColor && materials->Has_Vertex_Function(built.id))
-				m_vertexWater = TRUE;
+			built.sceneColor = materials->Has_Material_Parameter(built.id, "RefractionStrength") && asksForRefraction(*settings);
+			built.vertexFunction = materials->Has_Vertex_Function(built.id) != FALSE;
 		}
 		m_builtMaterials.push_back(built);
 		const Int builtIndex = (Int)m_builtMaterials.size() - 1;
@@ -1513,10 +1528,44 @@ Bool W3DMaterials::waterHasParameter(Int material, const char *name)
 //-------------------------------------------------------------------------------------------------
 Bool W3DMaterials::replacesHeightAmbientLight()
 {
-	if (prepare() == nullptr || !m_vertexWater)
+	if (prepare() == nullptr)
 		return FALSE;
 	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
-	return settings == nullptr || (settings->m_replaceHeightAmbientLight && settings->m_refraction);
+	if (settings != nullptr && !settings->m_replaceHeightAmbientLight)
+		return FALSE;
+	return usedWaterRefracts(TRUE);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Whether a water material the map uses (WaterRendering names it, or it is the default) sees through the water,
+	* and, with vertexFunction, also moves the vertices. WaterRendering Refraction = No turns it off for all. */
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::usedWaterRefracts(Bool vertexFunction)
+{
+	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
+	if (settings != nullptr && !settings->m_refraction)
+		return FALSE;
+	std::vector<Int> used;
+	if (settings == nullptr)
+	{
+		used.push_back(m_waterMaterial);
+	}
+	else
+	{
+		for (Int kind = 0; kind < WaterRenderingSettings::KIND_COUNT; ++kind)
+			used.push_back(findWaterMaterial(settings->m_kindMaterials[kind]));
+		for (size_t i = 0; i < settings->m_polygonMaterials.size(); ++i)
+			used.push_back(findWaterMaterial(settings->m_polygonMaterials[i].m_material));
+	}
+	for (size_t i = 0; i < used.size(); ++i)
+	{
+		if (used[i] < 0 || used[i] >= (Int)m_builtMaterials.size())
+			continue;
+		const Built& built = m_builtMaterials[used[i]];
+		if (built.sceneColor && (!vertexFunction || built.vertexFunction))
+			return TRUE;
+	}
+	return FALSE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1569,13 +1618,10 @@ void W3DMaterials::setWaterParameter(const char *name, const Real *values, Int c
 Bool W3DMaterials::refractsWater()
 {
 #ifdef RTS_RENDERER_DX12
-	if (!hasWater() || (TheWaterRenderingSettings != nullptr && !TheWaterRenderingSettings->m_refraction))
-		return FALSE;
-	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
-		if (m_builtMaterials[i].sceneColor)
-			return TRUE;
-#endif
+	return hasWater() && usedWaterRefracts(FALSE);
+#else
 	return FALSE;
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1755,7 +1801,14 @@ Bool W3DMaterials::setParameter(const AsciiString& material, const AsciiString& 
 	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
 	{
 		if (m_builtMaterials[i].settings->m_name.compareNoCase(material) == 0)
-			return SUCCEEDED(m_materials->Set_Material_Parameter(m_builtMaterials[i].id, name.str(), values, (UINT)count));
+		{
+			if (!SUCCEEDED(m_materials->Set_Material_Parameter(m_builtMaterials[i].id, name.str(), values, (UINT)count)))
+				return FALSE;
+			// Live tuning can switch refraction on or off: the scene copy follows.
+			if (name.compareNoCase("Refraction") == 0 && count > 0 && m_builtMaterials[i].settings->m_use == MaterialTemplate::USE_WATER)
+				m_builtMaterials[i].sceneColor = values[0] > 0.0f && m_materials->Has_Material_Parameter(m_builtMaterials[i].id, "RefractionStrength");
+			return TRUE;
+		}
 	}
 #endif
 	return FALSE;

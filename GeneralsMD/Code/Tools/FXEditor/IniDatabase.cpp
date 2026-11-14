@@ -354,6 +354,20 @@ std::string IniText::setField(const std::string &text, Int nugget, const char *k
 	if (i >= 0)
 		return rewriteValue(text, lines[i], value);
 
+	// Base (Material) goes right below the block's header: the game starts the block from it, so it would undo
+	// the lines before it.
+	if (nugget < 0 && sameNoCase(key, "Base"))
+	{
+		for (size_t j = 0; j < lines.size(); ++j)
+		{
+			if (lines[j].type == IniLine::HEADER && lines[j].depth == 0)
+			{
+				const char *lineBreak = lines[j].end > 0 && text[lines[j].end - 1] == '\n' ? "" : "\n";
+				return text.substr(0, lines[j].end) + lineBreak + lines[j].indent + "  " + key + " = " + value + "\n" + text.substr(lines[j].end);
+			}
+		}
+	}
+
 	// A new line at the end of the scope, indented like the other fields there.
 	const Int endLine = scopeEnd(lines, nugget);
 	if (endLine < 0)

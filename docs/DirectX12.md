@@ -307,6 +307,18 @@ for each of their textures. Missing maps are fine: the shader just goes without 
 Names ending in `_N`, `_S` and `_E` are already used by retail textures for night, snow and other variants.
 That is why the map suffixes default to `_nrm`, `_spec` and `_emis`.
 
+A material can start from another one with `Base` as its first line. Everything is copied (`Use`, `Textures`,
+`Shader`, the maps, `Param` and the time-of-day `Param` lines); the lines after it change the copy, and a `Param`
+replaces the one of the same name:
+
+```ini
+Material OceanShips
+  Base = Ocean                 ; first line: lines before it would be undone
+  Param = Refraction 1
+  Param = WaveAmplitude 3.6
+End
+```
+
 `MAT_Standard` parameters:
 
 | Parameter | Effect |
@@ -354,10 +366,11 @@ last water material.
 
 There are two built-in water shaders:
 - `MAT_Water`: flat water, as before, with shader waves, glints, sky and shore foam.
-- `MAT_Ocean`: water that moves. Its surface rises and falls in real waves, and you see through it to the
-  ground and to units below. The water darkens what is below it by its depth, and caustics play on the
-  ground. Ripples, sky and screen reflections, sun glints, shore foam, and waves running up the beach come
-  on top.
+- `MAT_Ocean`: water that moves. Its surface rises and falls in real waves. By default it is opaque like
+  `MAT_Water`, coloured by the map's water texture and water colour, so the shallow water of maps not made
+  for ships hides its ground. With `Param = Refraction 1` you see through it to the ground and to units below:
+  the water darkens what is below it by its depth, and caustics play on the ground. Ripples, sky and screen
+  reflections, sun glints, shore foam, and waves running up the beach come on top either way.
 
 ```ini
 Material Water
@@ -392,6 +405,7 @@ End
 | `Gloss`, `GlintStrength` | Sun glints (800, 1.2) |
 | `ViewGlint` | Weaker glints from a second light that turns with the camera and always stands beyond the water, so that glints show whichever way the camera faces (the sun's only show when it looks towards the sun), as a factor of `GlintStrength` (0 = none; 0.35 is subtle). Where both meet the stronger counts |
 | `ViewGlintGloss`, `ViewGlintHeight` | Their sharpness (half of `Gloss`) and the height of that light above the horizon in degrees (the sun's height); a higher light moves them towards the bottom of the screen |
+| `Refraction` | 1 = see through the water (deep water made for ships); 0 = opaque (the default). Needs `WaterRendering Refraction = Yes` (the default). `Absorption`, `ScatterColor`, `UnderwaterAmbient`, `RefractionStrength` and the caustics only work with it; `DeepColor`, `DeepOpacity` and `DepthScale` only without it |
 | `RefractionStrength` | How much the waves bend what is below (1) |
 | `Absorption` | How fast red, green and blue fade per world unit of water (0.035 0.012 0.008) |
 | `ScatterColor`, `UnderwaterAmbient` | The water's own colour (0.06 0.32 0.36) and how much light it gets (1) |
@@ -415,14 +429,20 @@ End
 | `CrestFoamScale`, `CrestFoamSpeed` | Size and drift of the crest foam pattern, the red channel of `ExtraMap`, else of `SpecularMap` (0 = the same as `FoamScale`, `FoamSpeed`) |
 | `CrestFoamStart`, `CrestFoamRange` | Wave height where crest foam begins, −1 (trough) to 1 (highest crest) (0.45), and how much higher the whole foam pattern shows (0.4); in between only its brightest spots |
 | `CrestFoamSoftness` | How soft the edges of the crest foam patches are (0.15; larger = blurrier) |
-| `DeepColor`, `DeepOpacity`, `DepthScale` | Only with `Refraction = No`: like `MAT_Water` (0.02 0.08 0.12, 0.75, 40). With refraction, `ScatterColor` and `Absorption` do their job |
+| `DeepColor`, `DeepOpacity`, `DepthScale` | Only without refraction: like `MAT_Water` (0.02 0.08 0.12, 0.75, 40); lit by the map's light. With refraction, `ScatterColor` and `Absorption` do their job |
 
-Example presets for three kinds of water:
+Example presets for three kinds of water, opaque for every map, plus a see-through ocean for maps made for
+ships (their `map.ini` picks it, see below):
 
 ```ini
 Material Ocean
   Use = Water
   Shader = MAT_Ocean
+  Param = WaveAmplitude 1.2
+End
+Material OceanShips
+  Base = Ocean
+  Param = Refraction 1
   Param = WaveAmplitude 2
   ParamNight = ScatterColor 0.01 0.05 0.08
 End
@@ -459,7 +479,7 @@ WaterRendering
   PolygonMaterial = Lake Harbour Basin   ; <material> <water area name>: before the kinds
   GridSpacing = 10             ; world units between the vertices of water whose material moves them
   RiverSubdivisions = 4        ; such rivers get each quad cut into 4 x 4 pieces
-  Refraction = Yes             ; copy the scene before the water, for MAT_Ocean's view into the water
+  Refraction = Yes             ; allows materials with Param Refraction 1 to see through the water; No = all opaque
   DrawWaterTracks = No         ; the map's .wak waves too (MAT_Ocean makes its own)
   ShoreFieldResolution = 2     ; texels per terrain cell of the water field
   ShoreFieldRange = 100        ; largest distance to the shore it holds
@@ -467,7 +487,13 @@ WaterRendering
 End
 ```
 
-An empty or unknown material name gives the last water material. The **water field** is a texture over the
+Each water area gets the material of its `PolygonMaterial` line (by the area's name in WorldBuilder), else the
+one of its kind: a river is a river, standing water with a point within one cell of the edge of the playable
+area an ocean, any other standing water a lake. An empty or unknown material name gives the last water
+material. The scene is only copied before the water when a material the map uses has `Refraction 1`, so maps with
+opaque water do not pay for it.
+
+The **water field** is a texture over the
 map that `MAT_Ocean` reads. It holds the terrain height, the distance to the shore and the direction away from
 it. The engine builds it when the map loads, and again when the water level or the terrain changes.
 
@@ -475,21 +501,34 @@ it. The engine builds it when the map loads, and again when the water level or t
 
 **Materials per map**: a map's `map.ini` may contain `Material` and `WaterRendering` blocks too, and
 WorldBuilder shows them.
-- A `Material` block replaces the whole material of that name, so list all its parameters, not only the
-  changed ones.
+- A `Material` block replaces the whole material of that name, unless it starts with `Base` = its own name:
+  then it changes only what it lists.
 - A `WaterRendering` block changes only the fields it lists.
 - Both come back to the mod's settings when the game ends.
 
-Example: murky water for one map:
+Example: a map made for ships uses the mod's see-through materials. Name every kind its water may be detected
+as, or single water areas by name:
+
+```ini
+WaterRendering
+  OceanMaterial = OceanShips
+  LakeMaterial = OceanShips                    ; enclosed basins count as lakes
+  PolygonMaterial = OceanShips Harbour Basin   ; or one area by its name, whatever its kind
+End
+```
+
+Example: murky water for one map, the mod's Ocean with two parameters changed:
 
 ```ini
 Material Ocean
-  Use = Water
-  Shader = MAT_Ocean
+  Base = Ocean
   Param = ScatterColor 0.12 0.15 0.06
-  Param = Absorption 0.1 0.08 0.07
+  Param = DeepColor 0.10 0.12 0.05
 End
 ```
+
+Draw radius cursors and other decals at water height on top of the water with `RadiusDecalsAboveWater = Yes` in
+`GameData.ini`; otherwise see-through water bends them like the ground.
 
 #### Terrain (`Use = Terrain`, one per mod)
 

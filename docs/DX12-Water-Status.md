@@ -51,6 +51,11 @@ All commits are on `feat/dx12-water`, branched from `main`:
 6. Deep water contrast: `WaveShading`, `CrestScatter`, `CrestScatterColor` shade the water's own colour by wave
    slope and height, because from the steep camera the reflection hardly changes and deep water looked flat.
 7. GPU hang diagnostics: `427ff9d7d`, `5eb3d2dc3`, `a8d9b6eec`, `886548f06`, and the write-up `263a7b78d`.
+8. Alpha blended parts under refracting water (`Flush_Submerged`, Tech Oil Rig legs): `d225e77ec`.
+9. Presets for maps not made for ships: `MAT_Ocean` is opaque unless `Param = Refraction 1`; the scene copy and
+   `Flush_Submerged` only run when a material the map uses refracts. `Material` blocks take `Base = <material>`
+   (also `Base` = their own name in a `map.ini`, to change only some parameters). Naval maps pick the see-through
+   materials in their `map.ini` (`WaterRendering OceanMaterial = OceanShips`).
 
 ## Mod-side setup (not in this repository)
 
@@ -174,6 +179,21 @@ Material Ocean
 End
 ```
 
+Since 2026-11-14 (item 9) that Ocean is split: `Ocean` keeps the shared lines (maps, wave length and choppiness,
+foam, glints, `ScatterColor` / `CrestScatter` / `WaveShading`, `TextureTint`, `FoamColor`) with `WaveAmplitude 1.2`
+and is opaque; `OceanShips` is `Base = Ocean` plus `Refraction 1`, `WaveAmplitude 3.6`, `Absorption`,
+`RefractionStrength`, `UnderwaterAmbient`, `CausticStrength` (night −1). The mod's 11 maps with `EnableShips`
+(`$GAME_DIR\Maps\*`) got in their `map.ini`:
+
+```ini
+WaterRendering
+  OceanMaterial = OceanShips
+  LakeMaterial = OceanShips
+End
+```
+
+Backups: `Material.ini.bak-presets`, `map.ini.bak-presets`. `GameData.ini` sets `RadiusDecalsAboveWater = Yes`.
+
 Textures the Ocean preset uses, all in `$GAME_DIR\Art\Textures` (mod art, not in this repository):
 `fxwatertile02f_n.tga` (ripples), `TWWaterFoam2.dds` (shore foam), `WaterFoam.dds` / `.tga` (crest foam; the
 author's own). The material looks for `.dds` first, then `.tga`, whatever extension the INI names.
@@ -207,8 +227,12 @@ author's own). The material looks for `.dds` first, then `.tga`, whatever extens
 ## Things to know
 
 - `Param` values of 0 mean the shader's default; −1 turns off the features marked so in DirectX12.md.
-- With `Refraction = Yes` (the default) `MAT_Ocean` ignores `DeepColor`, `DepthScale` and `DeepOpacity`;
-  `ScatterColor` and `Absorption` do their job.
+- With `Param = Refraction 1` (and `WaterRendering Refraction = Yes`, the default) `MAT_Ocean` ignores `DeepColor`,
+  `DepthScale` and `DeepOpacity`; `ScatterColor` and `Absorption` do their job. Without it (the default) the reverse.
+  `render_materials(material="Ocean", param="Refraction", values=[1])` switches it live.
+- The terrain bake of `TerrainHeightAmbientLight` is decided when the map loads, from whether its water refracts;
+  switching `Refraction` live does not redo it.
+- Radius cursors on see-through water need `RadiusDecalsAboveWater = Yes` in `GameData.ini`.
 - `FoamStrength`, `FoamScale`, `FoamSpeed`, `FoamDistance -1` concern the shore foam only; the crest foam has
   `CrestFoam`, `CrestFoamScale`, `CrestFoamSpeed` and its own pattern in `ExtraMap`. Rivers cannot use `ExtraMap`
   (the engine puts the river edge alpha there), so their crests use `SpecularMap`.

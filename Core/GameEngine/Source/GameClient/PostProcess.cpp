@@ -300,8 +300,35 @@ MaterialTemplate::MaterialTemplate()
 	m_maps[3] = "None";
 }
 
+/// The material a Material block replaces, while the block is read, so that its Base can name itself.
+static const MaterialTemplate *s_replacedMaterial = nullptr;
+
+//-------------------------------------------------------------------------------------------------
+/** Base = <material>: the block starts as a copy of that material, under its own name, and the lines after it
+	* change it. It may name the block's own material as it was before (a map.ini changing the mod's material). */
+//-------------------------------------------------------------------------------------------------
+static void parseMaterialBase( INI *ini, void *instance, void *store, const void *userData )
+{
+	MaterialTemplate *material = (MaterialTemplate *)instance;
+	AsciiString baseName = ini->getNextToken();
+	const MaterialTemplate *base = nullptr;
+	if (s_replacedMaterial != nullptr && baseName.compareNoCase(material->m_name) == 0)
+		base = s_replacedMaterial;
+	else if (TheMaterialSettings != nullptr && baseName.compareNoCase(material->m_name) != 0)
+		base = TheMaterialSettings->findMaterial(baseName);
+	if (base == nullptr)
+	{
+		DEBUG_CRASH(("Material %s: unknown Base %s", material->m_name.str(), baseName.str()));
+		throw INI_INVALID_DATA;
+	}
+	AsciiString name = material->m_name;
+	*material = *base;
+	material->m_name = name;
+}
+
 const FieldParse MaterialTemplate::s_fieldParseTable[] =
 {
+	{ "Base",			parseMaterialBase,		nullptr,	0 },
 	{ "Use",			INI::parseIndexList,	s_materialUseNames,	offsetof( MaterialTemplate, m_use ) },
 	{ "Textures",		parseInputs,			nullptr,	offsetof( MaterialTemplate, m_textures ) },
 	{ "Shader",			INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_shader ) },
@@ -363,7 +390,8 @@ MaterialTemplate* MaterialSettings::findOrCreateMaterial(const AsciiString& name
 }
 
 //-------------------------------------------------------------------------------------------------
-/** A material defined again (for example by the mod after the defaults) is replaced as a whole. */
+/** A material defined again (for example by the mod after the defaults) is replaced as a whole, unless its
+	* block starts from the old one with Base = <its own name>. */
 //-------------------------------------------------------------------------------------------------
 void INI::parseMaterialDefinition( INI *ini )
 {
@@ -371,10 +399,22 @@ void INI::parseMaterialDefinition( INI *ini )
 		TheMaterialSettings = new MaterialSettings;
 
 	AsciiString name = ini->getNextToken();
+	const Bool existed = TheMaterialSettings->findMaterial(name) != nullptr;
 	MaterialTemplate *material = TheMaterialSettings->findOrCreateMaterial(name);
+	MaterialTemplate replaced = *material;
 	*material = MaterialTemplate();
 	material->m_name = name;
-	ini->initFromINI( material, MaterialTemplate::s_fieldParseTable );
+	s_replacedMaterial = existed ? &replaced : nullptr;
+	try
+	{
+		ini->initFromINI( material, MaterialTemplate::s_fieldParseTable );
+	}
+	catch (...)
+	{
+		s_replacedMaterial = nullptr;
+		throw;
+	}
+	s_replacedMaterial = nullptr;
 	MaterialSettings::changed();
 }
 

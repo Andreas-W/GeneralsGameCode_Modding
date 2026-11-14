@@ -91,6 +91,10 @@
 //	  Shader = MAT_Particle			; MAT_Standard for meshes, MAT_Particle, MAT_Terrain, MAT_Water
 //	End
 //
+//	Material OceanShips
+//	  Base = Ocean					; first line: start as a copy of that material, the lines after change it;
+//	End								; in a map.ini, Material Ocean with Base = Ocean changes only what it lists
+//
 // For Water the maps are file names in Art\Textures (NormalMap = waves, SpecularMap = foam, EmissiveMap =
 // sky); for Terrain the maps come from Art\Terrain\<terrain texture><suffix> (NormalMap, SpecularMap) and
 // the game passes its cloud and light map textures.

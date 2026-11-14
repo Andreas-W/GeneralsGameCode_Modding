@@ -90,6 +90,7 @@ const RenderField FIELDS[] =
 	{ "ShadowMap", "DetailCascade", RF_BOOL, "Yes", 0, "a second, sharper map around the middle of the view", nullptr },
 	{ "ShadowMap", "DetailCoverage", RF_REAL, "0.3", 0.005f, "its width as a fraction of the main map's", nullptr },
 	{ "ShadowMap", "DetailSize", RF_INT, "0", 16.0f, "its texels, 0 = Size", nullptr },
+	{ "Material", "Base", RF_TEXT, "", 0, "material to start from (first line); the lines after it change it", nullptr },
 	{ "Material", "Use", RF_ENUM, "Meshes", 0, "what gets the material", MATERIAL_USES },
 	{ "Material", "Textures", RF_TEXT, "", 0, "base textures without extension (Meshes, Particles)", nullptr },
 	{ "Material", "Shader", RF_TEXT, "MAT_Standard", 0, "Data\\Shaders\\Material\\<Shader>.hlsl, else a built-in (MAT_Standard, MAT_Particle, MAT_Terrain, MAT_Water)", nullptr },

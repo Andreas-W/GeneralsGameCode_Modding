@@ -93,17 +93,19 @@ public:
 	void setWaterParameter(Int material, const char *name, const Real *values, Int count);
 	Bool waterHasVertexFunction(Int material);	///< its shader moves the vertices (MaterialVertex)
 	Bool waterHasParameter(Int material, const char *name);
-	/// A water material moves the vertices and sees through the water (refraction), so the terrain under the
-	/// water does not get MapData TerrainHeightAmbientLight baked in (WaterRendering ReplaceHeightAmbientLight).
+	/// A water material the map uses moves the vertices and sees through the water (Param Refraction 1), so the
+	/// terrain under the water does not get MapData TerrainHeightAmbientLight baked in (WaterRendering
+	/// ReplaceHeightAmbientLight).
 	Bool replacesHeightAmbientLight();
 	/// Textures t8.. of all materials (the water field, the shroud ...), Set_Material_Textures.
 	void setSharedTextures(UnsignedInt first, UnsignedInt count, IDirect3DBaseTexture8 *const *textures);
 
-	/// Copies of the scene for the materials: the depth (and with WaterRendering Refraction the colour, for
-	/// water materials with RefractionStrength) before the water when a water material runs, the depth and
+	/// Copies of the scene for the materials: the depth (and the colour when refractsWater()) before the water
+	/// when a water material runs, the depth and
 	/// colour before the particles when particle materials run. Call at those points.
 	void captureBeforeWater();
-	/// Whether the water bends a copy of the scene, so what is under water must be drawn before it.
+	/// Whether a water material the map uses bends a copy of the scene (Param Refraction 1, WaterRendering
+	/// Refraction), so what is under water must be drawn before it.
 	Bool refractsWater();
 	void captureBeforeParticles();
 
@@ -116,7 +118,8 @@ private:
 		Bool houseColor;			///< the shader has a HouseColor parameter
 		UnsignedInt lastHouseColor;	///< what it was last set to
 		TextureClass *waterMaps[4];	///< water materials: their maps, file names in the INI
-		Bool sceneColor;			///< water materials: reads the scene colour (RefractionStrength)
+		Bool sceneColor;			///< water materials: sees through the water (RefractionStrength, Param Refraction 1)
+		Bool vertexFunction;		///< water materials: moves the vertices (MaterialVertex)
 	};
 	struct ObjectInfo
 	{
@@ -143,6 +146,7 @@ private:
 	TextureClass *findMap(const AsciiString& baseName, const AsciiString& spec);
 
 	Int findMaterial(const AsciiString& name);	///< m_builtMaterials index of a mesh material, -1 for none
+	Bool usedWaterRefracts(Bool vertexFunction);	///< a water material the map uses sees through the water (and moves it)
 	const Entry& lookupObject(Int material, TextureClass *baseTexture);
 
 	ID3D8On12Materials *m_materials;		///< the device the materials were built for
@@ -167,7 +171,6 @@ private:
 	std::map<TextureClass *, Entry> m_particleEntries;
 	Int m_terrainMaterial;								///< m_builtMaterials index, -1 for none
 	Int m_waterMaterial;								///< the last water material, the default
-	Bool m_vertexWater;									///< a water material has a vertex function
 	Bool m_particleColor;								///< a particle material wants the scene colour (Distortion)
 	std::set<std::string> m_seenTextures;
 	AsciiString m_error;
