@@ -395,6 +395,8 @@ End
 | `RefractionStrength` | How much the waves bend what is below (1) |
 | `Absorption` | How fast red, green and blue fade per world unit of water (0.035 0.012 0.008) |
 | `ScatterColor`, `UnderwaterAmbient` | The water's own colour (0.06 0.32 0.36) and how much light it gets (1) |
+| `WaveShading` | How much the water's own colour is lighter on wave slopes facing the sun and darker on the others, so that the waves show from the steep camera (0 = none); lit from the sun's side at most 45 degrees high, the average brightness stays |
+| `CrestScatter`, `CrestScatterColor` | How much lighter the water's own colour is on crests and darker in troughs (0 = none), and its colour on high crests (`ScatterColor`) |
 | `CausticStrength`, `CausticScale`, `CausticSpeed` | Light lines on the ground below (0.5; −1 = none), cell size (35), speed (1) |
 | `TextureTint` | How much the map's water texture and colour tint the water (0.25; −1 = none) |
 | `ShoreDistance` | Water depth over which the edge fades in (1); foam stays visible up to the waterline, so it marks where the water begins on a soft edge |

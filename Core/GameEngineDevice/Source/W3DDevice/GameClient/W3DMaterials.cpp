@@ -370,6 +370,9 @@ cbuffer Params : register(b2)
 	float ViewGlint;			// glints from a light that always stands beyond the water as seen from the camera, factor of GlintStrength, 0 = none
 	float ViewGlintGloss;		// their sharpness, 0 = half of Gloss
 	float ViewGlintHeight;		// degrees above the horizon of that light, 0 = as high as the sun
+	float WaveShading;			// how much the water's own colour is lighter on slopes facing the sun and darker on the others, 0 = none
+	float CrestScatter;			// how much lighter the water's own colour is on crests and darker in troughs, 0 = none
+	float3 CrestScatterColor;	// the water's own colour on high crests, 0 0 0 = ScatterColor
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -587,7 +590,7 @@ bool ScreenReflection(float3 viewPosition, float3 viewDirection, float surface, 
 	}
 	return false;
 }
-
+)" R"(
 float4 main(MaterialInput input) : SV_Target
 {
 	float t = Time;
@@ -626,6 +629,26 @@ float4 main(MaterialInput input) : SV_Target
 	float4 base = BaseTexture.Sample(BaseSampler, input.tex0.xy + ripple * 0.02);
 	float3 tint = lerp(float3(1, 1, 1), saturate(base.rgb * input.diffuse.rgb * 1.6), TextureTint < 0 ? 0 : Or(TextureTint, 0.25));
 
+	// The water's own colour follows the wave shape, so that deep water does not look flat from the steep camera,
+	// where the reflection hardly changes. The wave height is -1 (trough) .. 1 (highest crest).
+	float waveHeight = waveOffset.z / max(Or(WaveAmplitude, 1.5) * fade * 2.08, 1e-3);
+	float3 scatterColor = Or(ScatterColor, float3(0.06, 0.32, 0.36));
+	if (CrestScatter > 0)
+	{
+		float3 crestColor = Or(CrestScatterColor, scatterColor);
+		scatterColor = lerp(scatterColor, crestColor, saturate(waveHeight) * saturate(CrestScatter));
+		scatterColor *= max(1 + CrestScatter * waveHeight, 0);
+	}
+	if (WaveShading > 0)
+	{
+		// Lit by the sun from its side but at most 45 degrees high, so that the slopes show at noon too; only the
+		// difference to flat water counts, so that the average brightness stays.
+		float2 sunSide = normalize(Or(toSun.xy, float2(0.6, 0.8)));
+		float height = min(asin(saturate(toSun.z)), 0.785);
+		float3 shadeLight = float3(sunSide * cos(height), sin(height));
+		scatterColor *= max(1 + WaveShading * 2 * (dot(n, shadeLight) - shadeLight.z), 0);
+	}
+
 	float2 uv = ScreenUV(input);
 	float waterDistance = ViewDistance(input.viewPosition.z);
 	// How the surface leans away from flat, on the screen: only that bends what is below.
@@ -654,7 +677,7 @@ float4 main(MaterialInput input) : SV_Target
 			float caustic = Caustic(belowWorld.xy / Or(CausticScale, 35), t * Or(CausticSpeed, 1));
 			below *= 1 + caustic * Or(CausticStrength, 0.5) * sunColor * saturate(toSun.z) * exp(-belowDepth * 0.06) * saturate(belowDepth);
 		}
-		float3 scatter = Or(ScatterColor, float3(0.06, 0.32, 0.36)) * tint * (ambient + sunColor * saturate(toSun.z) * 0.6) * Or(UnderwaterAmbient, 1);
+		float3 scatter = scatterColor * tint * (ambient + sunColor * saturate(toSun.z) * 0.6) * Or(UnderwaterAmbient, 1);
 		throughScene = below * transmit;
 		under = throughScene + scatter * (1 - transmit) * shroud;
 		alpha = 1;
@@ -666,7 +689,9 @@ float4 main(MaterialInput input) : SV_Target
 		float sceneDepth = DepthBehind(input) * abs(dot(normalize(input.viewPosition), up));
 		float d = hasField ? depth : sceneDepth;
 		float deep = saturate(d / Or(DepthScale, 40));
-		under = lerp(base.rgb * input.diffuse.rgb, Or(DeepColor, float3(0.02, 0.08, 0.12)) * daylight, deep * 0.7);
+		// The wave shape shades the deep colour like the scattered colour above.
+		float3 shade = scatterColor / Or(ScatterColor, float3(0.06, 0.32, 0.36));
+		under = lerp(base.rgb * input.diffuse.rgb, Or(DeepColor, float3(0.02, 0.08, 0.12)) * daylight * shade, deep * 0.7);
 		alpha = River > 0 ? base.a : input.diffuse.a;
 		alpha = lerp(alpha, max(alpha, Or(DeepOpacity, 0.75)), deep);
 		depth = d;
@@ -720,8 +745,7 @@ float4 main(MaterialInput input) : SV_Target
 		// The wave height at the pixel, -1 .. 1 of the sum of the four waves, decides how much of the foam
 		// pattern shows: low crests only its brightest spots, high crests all of it.
 		float pattern = FoamPattern(world.xy, Or(CrestFoamScale, foamScale), t * Or(CrestFoamSpeed, foamSpeed), true);
-		float height = waveOffset.z / max(Or(WaveAmplitude, 1.5) * fade * 2.08, 1e-3);
-		float amount = saturate((height - Or(CrestFoamStart, 0.45)) / Or(CrestFoamRange, 0.4));
+		float amount = saturate((waveHeight - Or(CrestFoamStart, 0.45)) / Or(CrestFoamRange, 0.4));
 		float soft = Or(CrestFoamSoftness, 0.15);
 		foam += smoothstep(1 - amount, 1 - amount + soft, pattern) * amount * Or(CrestFoam, 0.4);
 	}

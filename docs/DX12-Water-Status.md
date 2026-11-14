@@ -48,7 +48,9 @@ All commits are on `feat/dx12-water`, branched from `main`:
 5. Glints: `ViewGlint`, `ViewGlintGloss`, `ViewGlintHeight`, a weaker glint light that turns with the camera,
    because the default camera faces north and the sun glints are never seen. W3D view space looks along −z
    (`sign(Projection._34)` gives the forward direction).
-6. GPU hang diagnostics: `427ff9d7d`, `5eb3d2dc3`, `a8d9b6eec`, `886548f06`, and the write-up `263a7b78d`.
+6. Deep water contrast: `WaveShading`, `CrestScatter`, `CrestScatterColor` shade the water's own colour by wave
+   slope and height, because from the steep camera the reflection hardly changes and deep water looked flat.
+7. GPU hang diagnostics: `427ff9d7d`, `5eb3d2dc3`, `a8d9b6eec`, `886548f06`, and the write-up `263a7b78d`.
 
 ## Mod-side setup (not in this repository)
 
@@ -194,7 +196,10 @@ author's own). The material looks for `.dds` first, then `.tga`, whatever extens
 4. Tune live: `render_materials(material="Ocean", param="ShoreFoamMinimum", values=[0.8])` changes a parameter
    without restarting; `render_materials(reload=true)` rereads `Material.ini` and the shader files. Nothing is
    saved; copy good values into `Material.ini`.
-5. Look: a beach on Isle Of War Ships is at `view_screenshot(x=1950, y=4620, zoom=0.7)`; that map is in evening
+5. Reveal the map first, or water under fog of war looks much darker than it is:
+   `game_command("scripts.action", {"name": "MAP_REVEAL_ALL_PERM", "parameters": ["player0"]})`
+   (`MAP_REVEAL_ALL` reveals only once; the area falls back to fog).
+   Look: a beach on Isle Of War Ships is at `view_screenshot(x=1950, y=4620, zoom=0.7)`; that map is in evening
    light, so foam looks darker than at noon.
 6. Ask before replacing the user's `generalszh.exe`; keep a backup (`generalszh.exe.bak` is the build from before
    the water work).
