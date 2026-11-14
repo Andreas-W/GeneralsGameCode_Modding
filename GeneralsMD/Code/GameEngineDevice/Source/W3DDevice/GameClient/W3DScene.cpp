@@ -43,6 +43,7 @@
 #include "Common/PlayerList.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/TerrainLogic.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/ParticleSys.h"
 #include "GameClient/Color.h"
@@ -847,6 +848,16 @@ void RTS3DScene::renderOneObject(RenderInfoClass &rinfo, RenderObjClass *robj, I
 
 //DECLARE_PERF_TIMER(translucentRender)
 
+/** Whether a box of alpha blended triangles lies under the water, up to a little above the still surface. */
+static bool isBoxUnderWater(const Vector3& worldMin, const Vector3& worldMax)
+{
+	const Real SURFACE_TOLERANCE = 1.0f;
+	Real waterZ;
+	if (TheTerrainLogic == nullptr || !TheTerrainLogic->isUnderwater((worldMin.X + worldMax.X) * 0.5f, (worldMin.Y + worldMax.Y) * 0.5f, &waterZ))
+		return false;
+	return worldMax.Z <= waterZ + SURFACE_TOLERANCE;
+}
+
 /**Draw everything that was submitted from this scene*/
 void RTS3DScene::Flush(RenderInfoClass & rinfo)
 {
@@ -879,7 +890,13 @@ void RTS3DScene::Flush(RenderInfoClass & rinfo)
 		DoShadows(rinfo, true);	//draw all stencil shadows
 
 	if (TheW3DMaterials)
+	{
+		// Alpha blended parts under water (the legs of an oil rig) go into the copy the water bends,
+		// instead of being drawn unbent over the water at the end.
+		if (TheW3DMaterials->refractsWater())
+			SortingRendererClass::Flush_Submerged(isBoxUnderWater);
 		TheW3DMaterials->captureBeforeWater();	// soft shores of the water material
+	}
 	WW3D::Render_And_Clear_Static_Sort_Lists(rinfo);	//draws things like water
 
 	//draw the above-water decal subset AFTER water so those decals show over it (still depth-tested, so

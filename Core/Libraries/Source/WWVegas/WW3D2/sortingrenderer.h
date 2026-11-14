@@ -22,6 +22,7 @@
 
 class SortingNodeStruct;
 class SphereClass;
+class Vector3;
 
 class SortingRendererClass
 {
@@ -30,6 +31,7 @@ class SortingRendererClass
 	static void Flush_Sorting_Pool();
 	static void Insert_To_Sorted_List(SortingNodeStruct* state);
 	static void Insert_To_Sorting_Pool(SortingNodeStruct* state);
+	static bool Get_World_Box(const SortingNodeStruct* state, Vector3& world_min, Vector3& world_max);
 
 public:
 	static void Insert_Triangles(
@@ -46,6 +48,13 @@ public:
 		unsigned short vertex_count);
 
 	static void Flush();
+
+	/// Tells whether a world space box lies entirely below the water surface.
+	typedef bool (*SubmergedTest)(const Vector3& world_min, const Vector3& world_max);
+	/// Draws now, sorted among themselves, the queued triangles whose world space box the test calls
+	/// submerged, and leaves the rest for Flush. For drawing what is under water before the water.
+	static void Flush_Submerged(SubmergedTest is_submerged);
+
 	static void Deinit();
 
 	static void SetMinVertexBufferSize( unsigned val );

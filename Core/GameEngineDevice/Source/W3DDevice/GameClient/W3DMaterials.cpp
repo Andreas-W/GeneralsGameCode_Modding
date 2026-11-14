@@ -1566,18 +1566,25 @@ void W3DMaterials::setWaterParameter(const char *name, const Real *values, Int c
 }
 
 //-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::refractsWater()
+{
+#ifdef RTS_RENDERER_DX12
+	if (!hasWater() || (TheWaterRenderingSettings != nullptr && !TheWaterRenderingSettings->m_refraction))
+		return FALSE;
+	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+		if (m_builtMaterials[i].sceneColor)
+			return TRUE;
+#endif
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
 void W3DMaterials::captureBeforeWater()
 {
 #ifdef RTS_RENDERER_DX12
 	if (!hasWater())
 		return;
-	Bool color = FALSE;
-	if (TheWaterRenderingSettings == nullptr || TheWaterRenderingSettings->m_refraction)
-	{
-		for (size_t i = 0; i < m_builtMaterials.size() && !color; ++i)
-			color = m_builtMaterials[i].sceneColor;
-	}
-	m_materials->Capture_Scene(color);
+	m_materials->Capture_Scene(refractsWater());
 #endif
 }
 

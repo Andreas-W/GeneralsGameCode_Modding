@@ -103,6 +103,8 @@ public:
 	/// water materials with RefractionStrength) before the water when a water material runs, the depth and
 	/// colour before the particles when particle materials run. Call at those points.
 	void captureBeforeWater();
+	/// Whether the water bends a copy of the scene, so what is under water must be drawn before it.
+	Bool refractsWater();
 	void captureBeforeParticles();
 
 private:
