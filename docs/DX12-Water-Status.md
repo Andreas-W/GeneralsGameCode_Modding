@@ -181,8 +181,10 @@ End
 
 Since 2026-11-14 (item 9) that Ocean is split: `Ocean` keeps the shared lines (maps, wave length and choppiness,
 foam, glints, `ScatterColor` / `CrestScatter` / `WaveShading`, `TextureTint`, `FoamColor`) with `WaveAmplitude 1.2`
-and is opaque; `OceanShips` is `Base = Ocean` plus `Refraction 1`, `WaveAmplitude 3.6`, `Absorption`,
-`RefractionStrength`, `UnderwaterAmbient`, `CausticStrength` (night −1). The mod's 11 maps with `EnableShips`
+and `ShoreDistance 1.5` and is opaque; `OceanShips` is `Base = Ocean` plus `Refraction 1`, `WaveAmplitude 3.6`,
+`ShoreDistance 5`, `Absorption`, `RefractionStrength`, `UnderwaterAmbient`, `CausticStrength` (night −1). A large
+`ShoreDistance` on opaque water makes all water shallower than it see-through (Flash Effect's bays are only a few
+units deep). The mod's 11 maps with `EnableShips`
 (`$GAME_DIR\Maps\*`) got in their `map.ini`:
 
 ```ini

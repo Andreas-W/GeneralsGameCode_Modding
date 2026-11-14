@@ -413,7 +413,7 @@ End
 | `CrestScatter`, `CrestScatterColor` | How much lighter the water's own colour is on crests and darker in troughs (0 = none), and its colour on high crests (`ScatterColor`) |
 | `CausticStrength`, `CausticScale`, `CausticSpeed` | Light lines on the ground below (0.5; −1 = none), cell size (35), speed (1) |
 | `TextureTint` | How much the map's water texture and colour tint the water (0.25; −1 = none) |
-| `ShoreDistance` | Water depth over which the edge fades in (1); foam stays visible up to the waterline, so it marks where the water begins on a soft edge |
+| `ShoreDistance` | Water depth over which the edge fades in (1); foam stays visible up to the waterline, so it marks where the water begins on a soft edge. Keep it small on opaque water: water shallower than this shows the ground, and the water of many maps is only a few units deep |
 | `ShoreHardness` | 0 = a soft foamy edge, 1 = a hard foam line |
 | `ShoreWaveLength`, `ShoreWaveSpeed`, `ShoreWaveRange` | Waves running up the beach: spacing (28), speed (7), how far out they form (45) |
 | `ShoreWaveHeight` | How much they lift the surface (0.5; −1 = none) |
