@@ -43,6 +43,8 @@
 #include "W3DDevice/GameClient/W3DDisplay.h"
 #include "W3DDevice/GameClient/W3DMaterials.h"
 #include "W3DDevice/GameClient/W3DPostProcess.h"
+#include "W3DDevice/GameClient/W3DView.h"
+#include "WW3D2/camera.h"
 #include "WW3D2/dx8wrapper.h"
 
 #include "imgui.h"
@@ -71,6 +73,9 @@ Bool s_imguiReady = FALSE;
 Bool s_hideOverlay = FALSE;
 Bool s_frameBuilt = FALSE;
 std::string s_layoutFile;
+
+/// How far the camera zooms out, in multiples of the game's MaxCameraHeight.
+const Real MAX_ZOOM_OUT = 10.0f;
 
 Int s_pendingWidth = 0;
 Int s_pendingHeight = 0;
@@ -135,6 +140,58 @@ void applyPendingResize()
 	}
 	if (s_scene && s_scene->isReady())
 		HideControlBar(TRUE);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The game view covers the free middle of the interface (the whole display when the interface is
+	hidden) with the game's full field of view, so the preview shows as much of the map as the game
+	shows on the whole screen. Drawn on the whole display, the panels hide most of it and the camera
+	seems much closer than in the game. */
+//-------------------------------------------------------------------------------------------------
+void fitViewTo(Int x, Int y, Int width, Int height)
+{
+	if (TheTacticalView == nullptr || TheDisplay == nullptr || TheGlobalData->m_headless)
+		return;
+	if (width < 16 || height < 16 || x + width > (Int)TheDisplay->getWidth() || y + height > (Int)TheDisplay->getHeight())
+		return;
+	W3DView *view = static_cast<W3DView *>(TheTacticalView);
+	CameraClass *camera = view->get3DCamera();
+	const Real fov = view->getFieldOfView();
+	Int originX, originY;
+	view->getOrigin(&originX, &originY);
+	if (originX == x && originY == y && view->getWidth() == width && view->getHeight() == height
+		&& fabs(camera->Get_Horizontal_FOV() - fov) < 0.001f)
+		return;
+	// Back to the corner first, so that no step reaches past the display.
+	view->setOrigin(0, 0);
+	view->setWidth(width);
+	view->setHeight(height);
+	view->setOrigin(x, y);
+	// setWidth narrows the field of view to keep the scale of the whole screen.
+	camera->Set_View_Plane(fov, -1);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The game keeps the camera between MinCameraHeight and MaxCameraHeight of GameData.ini; the
+	editor lets it zoom out much further. The default zoom stays the game's (MaxCameraHeight).
+	Zooming in still stops at MinCameraHeight. */
+//-------------------------------------------------------------------------------------------------
+void unlockZoomOut()
+{
+	if (TheTacticalView == nullptr)
+		return;
+	TheTacticalView->setZoomLimited(FALSE);
+	const Real height = TheTacticalView->getHeightAboveGround();
+	const Real lowest = TheGlobalData->m_minCameraHeight;
+	const Real highest = TheGlobalData->m_maxCameraHeight * MAX_ZOOM_OUT;
+	if (height < lowest)
+		TheTacticalView->setHeightAboveGround(lowest);
+	else if (height > highest)
+		TheTacticalView->setHeightAboveGround(highest);
+
+	// The terrain the game draws around the camera is sized for its view on the whole screen. The
+	// preview is taller for its width and zooms out further, so it would show black beyond it.
+	TheWritableGlobalData->m_drawEntireTerrain = TRUE;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -208,6 +265,9 @@ void drawInterface()
 			buildDefaultLayout(dockspace);
 	}
 	ImGui::DockSpaceOverViewport(dockspace, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+	const ImGuiDockNode *central = ImGui::DockBuilderGetCentralNode(dockspace);
+	if (central)
+		fitViewTo((Int)central->Pos.x, (Int)central->Pos.y, (Int)central->Size.x, (Int)central->Size.y);
 
 	FXEditorPanels::drawMainMenu();
 	FXEditorPanels::drawLibrary();
@@ -494,6 +554,8 @@ void FXEditorApp::update()
 		startPendingMap();
 	if (s_scene)
 		s_scene->update();
+	if (s_scene && s_scene->isReady())
+		unlockZoomOut();
 	// The map the editor was started with.
 	if (s_previewMapKey.isEmpty() && s_scene && s_scene->isReady())
 	{
@@ -658,7 +720,10 @@ Bool FXEditorApp::captureScreenshot(const char *path, Bool withInterface, AsciiS
 		error = "the window is minimized";
 		return FALSE;
 	}
-	// A fresh frame, with or without the interface on top.
+	// A fresh frame, with or without the interface on top. Without it, the view covers the whole
+	// display as in the game; the next frame of the interface fits it to the middle again.
+	if (!withInterface)
+		fitViewTo(0, 0, TheDisplay->getWidth(), TheDisplay->getHeight());
 	s_hideOverlay = !withInterface;
 	TheDisplay->draw();
 	s_hideOverlay = FALSE;
