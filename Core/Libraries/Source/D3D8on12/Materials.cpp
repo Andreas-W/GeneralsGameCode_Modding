@@ -117,14 +117,27 @@ bool HasSceneColor() { return HasMap(MAP_SCENE_COLOR); }
 bool HasWaterField() { return HasMap(MAP_WATER_FIELD); }
 bool HasShroud() { return HasMap(MAP_SHROUD); }
 bool HasWaterDisturbance() { return HasMap(MAP_WATER_DISTURBANCE); }
-// Where the pixel is on the screen, 0..1, for SceneDepth and SceneColor.
-float2 ScreenUV(MaterialInput input)
+// Size in pixels of the screen the scene textures cover.
+float2 ScreenSize()
 {
 	float width, height;
 	SceneColor.GetDimensions(width, height);
 	if (width <= 0)
 		SceneDepth.GetDimensions(width, height);
-	return input.position.xy / max(float2(width, height), 1);
+	return max(float2(width, height), 1);
+}
+// Where the pixel is on the screen, 0..1, for SceneDepth and SceneColor.
+float2 ScreenUV(MaterialInput input) { return input.position.xy / ScreenSize(); }
+// The camera's normalized device coordinates at a screen point and back. The camera's viewport can be a
+// part of the screen (Viewport: x, y, width, height in pixels), the scene textures cover all of it.
+float2 ScreenNdc(float2 uv)
+{
+	float2 local = (uv * ScreenSize() - Viewport.xy) / Viewport.zw;
+	return float2(local.x * 2 - 1, 1 - local.y * 2);
+}
+float2 NdcToScreenUV(float2 ndc)
+{
+	return (Viewport.xy + float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5) * Viewport.zw) / ScreenSize();
 }
 // Distance in front of the camera of a view space point (W3D cameras look down -z, so this follows
 // the projection's w).
@@ -156,7 +169,7 @@ float3 SceneViewPosition(float2 uv)
 	float depth = SceneDepth.SampleLevel(SceneDepthSampler, uv, 0);
 	float viewZ = (Projection._43 - depth * Projection._44) / (depth * Projection._34 - Projection._33);
 	float w = ViewDistance(viewZ);
-	float2 ndc = float2(uv.x * 2 - 1, 1 - uv.y * 2);
+	float2 ndc = ScreenNdc(uv);
 	return float3((ndc.x * w - viewZ * Projection._31) / Projection._11, (ndc.y * w - viewZ * Projection._32) / Projection._22, viewZ);
 }
 // Its world position.

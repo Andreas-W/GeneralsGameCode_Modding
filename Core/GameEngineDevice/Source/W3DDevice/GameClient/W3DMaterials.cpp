@@ -537,9 +537,9 @@ float3 Sky(float3 direction)
 float2 ProjectToScreen(float3 viewPoint, out bool inside)
 {
 	float4 clip = mul(float4(viewPoint, 1), Projection);
-	float2 uv = float2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
-	inside = clip.w > 0 && all(uv >= 0) && all(uv <= 1);
-	return uv;
+	float2 ndc = clip.xy / clip.w;
+	inside = clip.w > 0 && all(abs(ndc) <= 1);
+	return NdcToScreenUV(ndc);
 }
 // What the scene shows in a view space direction from a point: steps that grow with the distance through the
 // depth copy, then a binary search between the last step in front and the first behind. Only what stands
@@ -584,7 +584,8 @@ bool ScreenReflection(float3 viewPosition, float3 viewDirection, float surface, 
 			if (SceneWorldPosition(hitUV).z < surface - 0.5)
 				return false;
 			color = SceneColorAt(hitUV);
-			float2 edge = saturate(min(hitUV, 1 - hitUV) * 10);
+			float2 local = ScreenNdc(hitUV) * 0.5 + 0.5;
+			float2 edge = saturate(min(local, 1 - local) * 10);
 			weight = edge.x * edge.y * (1 - high / range);
 			return true;
 		}

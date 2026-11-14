@@ -287,6 +287,24 @@ static D3DMATRIX Multiply(const D3DMATRIX& a, const D3DMATRIX& b)
 	return result;
 }
 
+// The passes find a pixel's position from its place on the whole screen. A camera that draws into a
+// part of the screen (the tactical view with a ViewportHeightScale below 1, or any smaller view) maps to that part
+// only: its projection gets the step from there to the whole screen appended.
+static D3DMATRIX Screen_Projection(const D3DMATRIX& projection, const D3DVIEWPORT8& viewport, UINT width, UINT height)
+{
+	if (width == 0 || height == 0 || viewport.Width == 0 || viewport.Height == 0
+		|| (viewport.X == 0 && viewport.Y == 0 && viewport.Width == width && viewport.Height == height))
+		return projection;
+	D3DMATRIX toScreen = {};
+	toScreen._11 = (float)viewport.Width / width;
+	toScreen._22 = (float)viewport.Height / height;
+	toScreen._33 = 1.0f;
+	toScreen._41 = (2.0f * viewport.X + viewport.Width) / width - 1.0f;
+	toScreen._42 = 1.0f - (2.0f * viewport.Y + viewport.Height) / height;
+	toScreen._44 = 1.0f;
+	return Multiply(projection, toScreen);
+}
+
 static void Set_Size(float* size, UINT width, UINT height)
 {
 	size[0] = (float)width;
@@ -322,8 +340,10 @@ void STDMETHODCALLTYPE PostProcessor::Set_Camera(const D3DMATRIX* view, const D3
 {
 	if (view != nullptr)
 		m_view = *view;
+	// The camera's viewport is still set when it gives its matrices.
 	if (projection != nullptr)
-		m_projection = *projection;
+		m_projection = Screen_Projection(*projection, m_device->m_state.viewport,
+			m_device->m_presentParams.BackBufferWidth, m_device->m_presentParams.BackBufferHeight);
 }
 
 void STDMETHODCALLTYPE PostProcessor::Set_HDR_Scene(BOOL enable)
@@ -568,10 +588,12 @@ HRESULT PostProcessor::Draw_Shadows(const ShadowCascade* cascades,
 	Set_Size(c.screenSize, width, height);
 	Set_Size(c.outputSize, width, height);
 	Set_Size(c.inputSize[0], width, height);
+	// The scene camera, and its viewport, are still set.
+	const D3DMATRIX screenProjection = Screen_Projection(projection, device.m_state.viewport, width, height);
 	c.view = view;
 	c.inverseView = Invert(view);
-	c.projection = projection;
-	c.inverseProjection = Invert(projection);
+	c.projection = screenProjection;
+	c.inverseProjection = Invert(screenProjection);
 	ShadowConstants& s = *(ShadowConstants*)constants.cpu;
 	memset(&s, 0, sizeof(s));
 	s.viewProjection = Multiply(cascades[0].view, cascades[0].projection);
