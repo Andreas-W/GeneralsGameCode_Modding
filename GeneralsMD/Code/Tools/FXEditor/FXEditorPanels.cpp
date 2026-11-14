@@ -45,6 +45,7 @@
 #include "GameMcpCommands.h"
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_stdlib.h"
 
 #include <algorithm>
@@ -64,14 +65,40 @@ const ImVec4 COLOR_DIRTY(1.0f, 0.75f, 0.3f, 1.0f);
 const ImVec4 COLOR_ERROR(1.0f, 0.4f, 0.4f, 1.0f);
 const ImVec4 COLOR_DIM(0.6f, 0.6f, 0.6f, 1.0f);
 
-Bool s_showLibrary = TRUE;
-Bool s_showInspector = TRUE;
-Bool s_showPreview = TRUE;
-Bool s_showAudio = TRUE;
-Bool s_showLog = TRUE;
 Bool s_showDemo = FALSE;
 Bool s_showAllFields = FALSE;
 Bool s_showMapDialog = FALSE;
+Bool s_resetPanels = FALSE;		///< this frame, the panel groups go back to their first size
+Bool s_resetPanelsNext = FALSE;
+
+// The panels sit in three groups over the game view, which covers the whole window: library and audio
+// on the left, inspector (and Direct3D 12) on the right, preview and log at the bottom between them.
+// Each group sticks to its edge of the window, folds up as one, and its inner edge can be dragged.
+enum PanelGroup
+{
+	GROUP_LEFT,
+	GROUP_RIGHT,
+	GROUP_BOTTOM,
+	GROUP_COUNT
+};
+
+struct PanelGroupState
+{
+	Bool shown;
+	Bool collapsed;
+	ImVec2 size;		///< as last drawn; 0 until then
+};
+
+PanelGroupState s_groups[GROUP_COUNT] =
+{
+	{ TRUE, FALSE, ImVec2(0.0f, 0.0f) },
+	{ TRUE, FALSE, ImVec2(0.0f, 0.0f) },
+	{ TRUE, FALSE, ImVec2(0.0f, 0.0f) },
+};
+
+const float DEFAULT_LIBRARY_SPLIT = 0.65f;
+float s_librarySplit = DEFAULT_LIBRARY_SPLIT;	///< part of the left group's height the library takes
+float s_libraryHeight = 0.0f;					///< the library's height this frame
 
 // The map dialog: the maps of the map cache, the picked one and the faction for multiplayer maps.
 struct MapEntry
@@ -1000,8 +1027,230 @@ void drawMapDialog()
 
 //=================================================================================================
 
+//-------------------------------------------------------------------------------------------------
+/** Width a side group takes from the bottom group: none while it is hidden or folded up. */
+//-------------------------------------------------------------------------------------------------
+static float sideWidth(PanelGroup group, float fallback)
+{
+	const PanelGroupState &state = s_groups[group];
+	if (!state.shown || state.collapsed)
+		return 0.0f;
+	return state.size.x > 0.0f ? state.size.x : fallback;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The size a group was saved with in FXEditorPanels.ini, or 0 when there is none. */
+//-------------------------------------------------------------------------------------------------
+static ImVec2 savedGroupSize(const char *title)
+{
+	const ImGuiWindowSettings *settings = ImGui::FindWindowSettingsByID(ImHashStr(title));
+	if (settings == nullptr)
+		return ImVec2(0.0f, 0.0f);
+	return ImVec2((float)settings->Size.x, (float)settings->Size.y);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The group's inner edge: dragged with the mouse, it sets the group's width (height at the bottom).
+	The groups have no resize borders or corner grips of their own; they would move the anchored edge. */
+//-------------------------------------------------------------------------------------------------
+static void dragGroupEdge(PanelGroup group, PanelGroupState &state)
+{
+	static Int s_draggedGroup = -1;
+	const float grab = 6.0f;
+	const ImVec2 pos = ImGui::GetWindowPos();
+	const ImVec2 size = ImGui::GetWindowSize();
+	ImVec2 lo;
+	ImVec2 hi;
+	if (group == GROUP_LEFT)
+	{
+		lo = ImVec2(pos.x + size.x - grab, pos.y);
+		hi = ImVec2(pos.x + size.x, pos.y + size.y);
+	}
+	else if (group == GROUP_RIGHT)
+	{
+		lo = pos;
+		hi = ImVec2(pos.x + grab, pos.y + size.y);
+	}
+	else
+	{
+		lo = pos;
+		hi = ImVec2(pos.x + size.x, pos.y + grab);
+	}
+	const ImGuiIO &io = ImGui::GetIO();
+	const Bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
+		&& ImGui::IsMouseHoveringRect(lo, hi, false);
+	if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+		s_draggedGroup = group;
+	const Bool dragging = s_draggedGroup == group;
+	if (dragging)
+	{
+		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+			s_draggedGroup = -1;
+		else if (group == GROUP_LEFT)
+			state.size.x += io.MouseDelta.x;
+		else if (group == GROUP_RIGHT)
+			state.size.x -= io.MouseDelta.x;
+		else
+			state.size.y -= io.MouseDelta.y;
+	}
+	if (hovered || dragging)
+	{
+		ImGui::SetMouseCursor(group == GROUP_BOTTOM ? ImGuiMouseCursor_ResizeNS : ImGuiMouseCursor_ResizeEW);
+		ImGui::GetForegroundDrawList()->AddRectFilled(lo, hi,
+			ImGui::GetColorU32(dragging ? ImGuiCol_SeparatorActive : ImGuiCol_SeparatorHovered));
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Begins the window of a panel group at its edge of the window, below the menu bar. True when its
+	contents are to be drawn; then the caller ends it with ImGui::End. */
+//-------------------------------------------------------------------------------------------------
+static Bool beginGroup(PanelGroup group, const char *title)
+{
+	PanelGroupState &state = s_groups[group];
+	if (!state.shown)
+		return FALSE;
+	const ImGuiViewport *viewport = ImGui::GetMainViewport();
+	const float bar = ImGui::GetFrameHeight();
+	const float left = viewport->Pos.x;
+	const float top = viewport->Pos.y + bar;
+	const float width = viewport->Size.x;
+	const float height = viewport->Size.y - bar;
+	const float leftDefault = width * 0.2f;
+	const float rightDefault = width * 0.3f;
+
+	// The size it had last time, then the default.
+	if (s_resetPanels)
+		state.size = ImVec2(0.0f, 0.0f);
+	else if (state.size.x <= 0.0f)
+		state.size = savedGroupSize(title);
+	if (state.size.x <= 0.0f || state.size.y <= 0.0f)
+		state.size = group == GROUP_BOTTOM ? ImVec2(0.0f, height * 0.3f) : ImVec2(group == GROUP_LEFT ? leftDefault : rightDefault, height);
+
+	ImVec2 size;
+	ImVec2 pos;
+	if (group == GROUP_BOTTOM)
+	{
+		const float x0 = left + sideWidth(GROUP_LEFT, leftDefault);
+		const float span = max(100.0f, left + width - sideWidth(GROUP_RIGHT, rightDefault) - x0);
+		state.size.y = max(100.0f, min(max(100.0f, height * 0.8f), state.size.y));
+		size = ImVec2(span, state.size.y);
+		pos = ImVec2(x0, top + height - (state.collapsed ? bar : size.y));
+	}
+	else
+	{
+		state.size.x = max(180.0f, min(max(180.0f, width * 0.45f), state.size.x));
+		size = ImVec2(state.size.x, height);
+		pos = ImVec2(group == GROUP_LEFT ? left : left + width - size.x, top);
+	}
+	state.size = size;
+
+	ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+	if (s_resetPanels)
+		ImGui::SetNextWindowCollapsed(false, ImGuiCond_Always);
+	bool open = true;
+	const Bool visible = ImGui::Begin(title, &open, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoDocking);
+	state.collapsed = ImGui::IsWindowCollapsed();
+	if (!state.collapsed)
+		dragGroupEdge(group, state);
+	if (!open)
+		state.shown = FALSE;
+	if (!visible)
+	{
+		ImGui::End();
+		return FALSE;
+	}
+	return TRUE;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A bar between the library and the audio list that moves the split when dragged. */
+//-------------------------------------------------------------------------------------------------
+static void drawLibrarySplitter(float total)
+{
+	ImGui::InvisibleButton("##librarysplit", ImVec2(-1.0f, 8.0f));
+	if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+		ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+	if (ImGui::IsItemActive() && total > 0.0f)
+		s_librarySplit += ImGui::GetIO().MouseDelta.y / total;
+	const ImVec2 lo = ImGui::GetItemRectMin();
+	const ImVec2 hi = ImGui::GetItemRectMax();
+	const float y = (lo.y + hi.y) * 0.5f;
+	ImGui::GetWindowDrawList()->AddLine(ImVec2(lo.x, y), ImVec2(hi.x, y),
+		ImGui::GetColorU32(ImGui::IsItemActive() ? ImGuiCol_SeparatorActive : ImGuiCol_Separator));
+}
+
+static void recordParticleHistory();
+
+//-------------------------------------------------------------------------------------------------
+void FXEditorPanels::drawPanels()
+{
+	recordParticleHistory();
+
+	if (beginGroup(GROUP_LEFT, "Library, Audio###LeftPanels"))
+	{
+		if (s_resetPanels)
+			s_librarySplit = DEFAULT_LIBRARY_SPLIT;
+		const float total = ImGui::GetContentRegionAvail().y;
+		const float lowest = min(0.2f, 120.0f / max(total, 1.0f));
+		s_librarySplit = max(lowest, min(1.0f - lowest, s_librarySplit));
+		s_libraryHeight = total * s_librarySplit;
+		drawLibrary();
+		drawLibrarySplitter(total);
+		ImGui::TextDisabled("%s", AUDIO);
+		drawAudio();
+		ImGui::End();
+	}
+
+	if (beginGroup(GROUP_RIGHT, FXEditorApp::isDX12() ? "Inspector, Direct3D 12###RightPanels" : "Inspector###RightPanels"))
+	{
+		if (FXEditorApp::isDX12())
+		{
+			if (ImGui::BeginTabBar("##right"))
+			{
+				if (ImGui::BeginTabItem(INSPECTOR))
+				{
+					drawInspector();
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem(RENDER))
+				{
+					drawRender();
+					ImGui::EndTabItem();
+				}
+				ImGui::EndTabBar();
+			}
+		}
+		else
+			drawInspector();
+		ImGui::End();
+	}
+
+	if (beginGroup(GROUP_BOTTOM, "Preview, Log###BottomPanels"))
+	{
+		if (ImGui::BeginTabBar("##bottom"))
+		{
+			if (ImGui::BeginTabItem(PREVIEW))
+			{
+				drawPreview();
+				ImGui::EndTabItem();
+			}
+			if (ImGui::BeginTabItem(LOG))
+			{
+				drawLog();
+				ImGui::EndTabItem();
+			}
+			ImGui::EndTabBar();
+		}
+		ImGui::End();
+	}
+}
+
 void FXEditorPanels::drawMainMenu()
 {
+	s_resetPanels = s_resetPanelsNext;
+	s_resetPanelsNext = FALSE;
 	if (!ImGui::BeginMainMenuBar())
 		return;
 	IniDatabase &ini = FXEditorApp::ini();
@@ -1059,11 +1308,19 @@ void FXEditorPanels::drawMainMenu()
 	}
 	if (ImGui::BeginMenu("View"))
 	{
-		ImGui::MenuItem(LIBRARY, nullptr, (bool *)&s_showLibrary);
-		ImGui::MenuItem(INSPECTOR, nullptr, (bool *)&s_showInspector);
-		ImGui::MenuItem(PREVIEW, nullptr, (bool *)&s_showPreview);
-		ImGui::MenuItem(AUDIO, nullptr, (bool *)&s_showAudio);
-		ImGui::MenuItem(LOG, nullptr, (bool *)&s_showLog);
+		ImGui::MenuItem("Left panels", nullptr, (bool *)&s_groups[GROUP_LEFT].shown);
+		ImGui::MenuItem("Right panels", nullptr, (bool *)&s_groups[GROUP_RIGHT].shown);
+		ImGui::MenuItem("Bottom panels", nullptr, (bool *)&s_groups[GROUP_BOTTOM].shown);
+		if (ImGui::MenuItem("Reset panels"))
+		{
+			for (Int i = 0; i < GROUP_COUNT; ++i)
+			{
+				s_groups[i].shown = TRUE;
+				s_groups[i].collapsed = FALSE;
+				s_groups[i].size = ImVec2(0.0f, 0.0f);
+			}
+			s_resetPanelsNext = TRUE;
+		}
 		ImGui::Separator();
 		ImGui::MenuItem("ImGui demo", nullptr, (bool *)&s_showDemo);
 		ImGui::EndMenu();
@@ -1108,17 +1365,15 @@ void FXEditorPanels::drawMainMenu()
 //-------------------------------------------------------------------------------------------------
 void FXEditorPanels::drawLibrary()
 {
-	if (!s_showLibrary)
-		return;
-	if (!ImGui::Begin(LIBRARY, (bool *)&s_showLibrary))
+	if (!ImGui::BeginChild(LIBRARY, ImVec2(0.0f, s_libraryHeight)))
 	{
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 	if (!FXEditorApp::scene().isReady() || TheParticleSystemManager == nullptr)
 	{
 		ImGui::TextColored(COLOR_DIM, "Waiting for the preview game...");
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 
@@ -1209,17 +1464,15 @@ void FXEditorPanels::drawLibrary()
 		}
 		ImGui::EndTabBar();
 	}
-	ImGui::End();
+	ImGui::EndChild();
 }
 
 //-------------------------------------------------------------------------------------------------
 void FXEditorPanels::drawInspector()
 {
-	if (!s_showInspector)
-		return;
-	if (!ImGui::Begin(INSPECTOR, (bool *)&s_showInspector))
+	if (!ImGui::BeginChild(INSPECTOR))
 	{
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 	IniDatabase &ini = FXEditorApp::ini();
@@ -1231,7 +1484,7 @@ void FXEditorPanels::drawInspector()
 			ImGui::TextColored(COLOR_DIM, "Pick a particle system or FXList in the library.");
 		else
 			ImGui::TextColored(COLOR_DIM, "No INI text found for %s.", FXEditorApp::getSelectedName().str());
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 
@@ -1333,24 +1586,28 @@ void FXEditorPanels::drawInspector()
 		}
 		ImGui::EndTabBar();
 	}
-	ImGui::End();
+	ImGui::EndChild();
 }
 
 //-------------------------------------------------------------------------------------------------
+/** The particle count of the preview over the last frames, also while the Preview tab is not shown. */
+static void recordParticleHistory()
+{
+	PreviewStats stats;
+	FXEditorApp::scene().getStats(stats);
+	s_particleHistory.push_back((float)stats.previewParticles);
+	if (s_particleHistory.size() > 300)
+		s_particleHistory.erase(s_particleHistory.begin());
+}
+
 void FXEditorPanels::drawPreview()
 {
 	PreviewScene &scene = FXEditorApp::scene();
 	PreviewStats stats;
 	scene.getStats(stats);
-	s_particleHistory.push_back((float)stats.previewParticles);
-	if (s_particleHistory.size() > 300)
-		s_particleHistory.erase(s_particleHistory.begin());
-
-	if (!s_showPreview)
-		return;
-	if (!ImGui::Begin(PREVIEW, (bool *)&s_showPreview))
+	if (!ImGui::BeginChild(PREVIEW))
 	{
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 
@@ -1438,23 +1695,21 @@ void FXEditorPanels::drawPreview()
 			maxValue * 1.1f, ImVec2(-1.0f, 60.0f));
 		ImGui::EndTable();
 	}
-	ImGui::End();
+	ImGui::EndChild();
 }
 
 //-------------------------------------------------------------------------------------------------
 void FXEditorPanels::drawAudio()
 {
-	if (!s_showAudio)
-		return;
-	if (!ImGui::Begin(AUDIO, (bool *)&s_showAudio))
+	if (!ImGui::BeginChild(AUDIO))
 	{
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 	if (TheAudio == nullptr || !FXEditorApp::scene().isReady())
 	{
 		ImGui::TextColored(COLOR_DIM, "Waiting for the preview game...");
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 
@@ -1516,17 +1771,15 @@ void FXEditorPanels::drawAudio()
 		}
 	}
 	ImGui::EndChild();
-	ImGui::End();
+	ImGui::EndChild();
 }
 
 //-------------------------------------------------------------------------------------------------
 void FXEditorPanels::drawLog()
 {
-	if (!s_showLog)
-		return;
-	if (!ImGui::Begin(LOG, (bool *)&s_showLog))
+	if (!ImGui::BeginChild(LOG))
 	{
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 	Int count = 0;
@@ -1546,7 +1799,7 @@ void FXEditorPanels::drawLog()
 		lastSerial = entries[count - 1].serial;
 	}
 	ImGui::EndChild();
-	ImGui::End();
+	ImGui::EndChild();
 }
 
 //-------------------------------------------------------------------------------------------------

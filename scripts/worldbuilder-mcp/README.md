@@ -246,7 +246,11 @@ Edits are kept and what played plays again on the new map. **Map > Empty preview
 the default map, **Reload map** starts the current one again.
 
 The editor does not take the game's single-instance lock, so it runs next to the game and
-WorldBuilder. Its window layout is kept in `FXEditorLayout.ini` in the user data folder.
+WorldBuilder. The game view fills the window as in the game. The panels lie over it in three
+groups that stick to the window's edges: library and audio on the left, inspector (and Direct3D 12)
+on the right, preview and log at the bottom. The arrow in a group's title bar folds the whole group,
+its inner edge can be dragged, **View** hides groups and **Reset panels** puts them back. The sizes
+are kept in `FXEditorPanels.ini` in the user data folder.
 
 ## How editing works
 

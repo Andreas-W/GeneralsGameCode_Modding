@@ -30,6 +30,10 @@ namespace FXEditorPanels
 	extern const char *const RENDER;
 
 	void drawMainMenu();
+	/// The panels, in three groups that stick to the left, right and bottom edge of the window over the
+	/// game view and fold up as one: library and audio, inspector and Direct3D 12, preview and log.
+	void drawPanels();
+	// The panels' contents, drawn into their group.
 	void drawLibrary();
 	void drawInspector();
 	void drawPreview();

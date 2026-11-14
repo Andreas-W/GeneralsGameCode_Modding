@@ -953,22 +953,16 @@ void drawShadowTab()
 //-------------------------------------------------------------------------------------------------
 void FXEditorPanels::drawRender()
 {
-	// A layout saved before this window existed has no place for it: it joins the inspector.
-	if (ImGuiWindow *inspector = ImGui::FindWindowByName(INSPECTOR))
+	if (!ImGui::BeginChild(RENDER))
 	{
-		if (inspector->DockId != 0)
-			ImGui::SetNextWindowDockID(inspector->DockId, ImGuiCond_FirstUseEver);
-	}
-	if (!ImGui::Begin(RENDER))
-	{
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 	IniDatabase &ini = db();
 	if (!ini.isLoaded())
 	{
 		ImGui::TextColored(COLOR_DIM, "Waiting for the preview game...");
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 
@@ -1015,5 +1009,5 @@ void FXEditorPanels::drawRender()
 		}
 		ImGui::EndTabBar();
 	}
-	ImGui::End();
+	ImGui::EndChild();
 }
