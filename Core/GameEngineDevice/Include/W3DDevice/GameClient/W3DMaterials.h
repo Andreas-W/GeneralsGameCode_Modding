@@ -38,6 +38,7 @@ class RenderObjClass;
 class MaterialTemplate;
 struct ID3D8On12Materials;
 struct IDirect3DBaseTexture8;
+struct IDirect3DTexture8;
 
 class W3DMaterials : public MeshMaterialBinderClass
 {
@@ -137,6 +138,7 @@ private:
 	ID3D8On12Materials *prepare();			///< the device's materials, built for it; null when they do not run
 	void setSunParameters(UINT material);
 	void build(ID3D8On12Materials *materials);
+	void createNoise(ID3D8On12Materials *materials);	///< the shared noise texture (t12)
 	void applyParameters(const Built& built, Bool logUnknown);
 	void release();
 	void releaseIfOutdated();
@@ -172,6 +174,7 @@ private:
 	Int m_terrainMaterial;								///< m_builtMaterials index, -1 for none
 	Int m_waterMaterial;								///< the last water material, the default
 	Bool m_particleColor;								///< a particle material wants the scene colour (Distortion)
+	IDirect3DTexture8 *m_noiseTexture;					///< tileable fractal noise for all materials (t12)
 	std::set<std::string> m_seenTextures;
 	AsciiString m_error;
 };

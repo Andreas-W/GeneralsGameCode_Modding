@@ -120,8 +120,8 @@ HRESULT Device::Init_Gpu_Objects()
 	}
 
 	// Samplers of the extra textures: linear clamped, linear wrapped, point clamped, and a comparison.
-	D3D12_STATIC_SAMPLER_DESC static_samplers[MATERIAL_EXTRA_TEXTURES] = {};
-	for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
+	D3D12_STATIC_SAMPLER_DESC static_samplers[MATERIAL_STATIC_SAMPLERS] = {};
+	for (UINT extra = 0; extra < MATERIAL_STATIC_SAMPLERS; ++extra)
 	{
 		D3D12_STATIC_SAMPLER_DESC& sampler = static_samplers[extra];
 		const bool wrap = extra == 1;
@@ -137,7 +137,7 @@ HRESULT Device::Init_Gpu_Objects()
 	D3D12_ROOT_SIGNATURE_DESC root_desc = {};
 	root_desc.NumParameters = ROOT_PARAMETER_COUNT;
 	root_desc.pParameters = params;
-	root_desc.NumStaticSamplers = MATERIAL_EXTRA_TEXTURES;
+	root_desc.NumStaticSamplers = MATERIAL_STATIC_SAMPLERS;
 	root_desc.pStaticSamplers = static_samplers;
 	root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 

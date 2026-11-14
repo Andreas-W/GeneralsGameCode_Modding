@@ -397,6 +397,10 @@ End
 | `WaveAmplitude` | Height of the largest wave in world units (1.5; −1 = flat) |
 | `WaveLength`, `WaveSpeed`, `WaveDirection` | Longest wave (140), speed factor (1), direction x y (1 0.35); three shorter waves run beside it |
 | `WaveChoppiness` | 0..1, how sharp the crests are (0.6) |
+| `NoiseHeight` | World units the fractal noise lifts and lowers the surface on top of the waves, so that their pattern does not repeat (0 = none). Three layers of the shared `NoiseTexture`, each of another size, turned and drifting its own way. It moves the vertices (coarse layers) and the per-pixel normal, and counts into the wave height, so crest foam and crest colour break up where the noise is low. About 65 more instructions and 3 texture reads per pixel when on; nothing when 0 |
+| `NoiseScale` | World units one repeat of the largest layer covers (600); the others are 0.43 and 0.19 of it |
+| `NoiseSpeed` | World units per second the layers drift (3) |
+| `NoiseDetail` | 0..1, strength of each finer layer against the one before (0.5) |
 | `WaveFadeDistance` | Camera distance at which the waves are flat (1400) |
 | `ShoreFadeDistance`, `DepthFade` | Distance from the shore (60) and water depth (10) over which the waves grow |
 | `NormalStrength`, `NormalScale`, `NormalSpeed` | Ripples: strength (0.35), size (90), speed (6) |
@@ -643,7 +647,11 @@ float4 main(MaterialInput input) : SV_Target
 - for water, the water field and the shroud: `WaterField` (terrain height, distance to the shore, direction
   away from it) and `ShroudTexture`, with `HasWaterField()` / `HasShroud()`. The game passes their world to
   texture transforms as the parameters `WaterFieldTransform` and `ShroudTransform`. The samplers
-  `LinearClampSampler`, `LinearWrapSampler` and `PointClampSampler` go with them.
+  `LinearClampSampler`, `LinearWrapSampler` and `PointClampSampler` go with them;
+- for every material, `NoiseTexture` (t12, with `LinearWrapSampler`, `HasNoise()`): tileable fractal noise the
+  game makes at start, 256 x 256 with mipmaps. Red is the height (-1..1), green and blue its slope per repeat of
+  the texture (d/du, d/dv). Sample it in a few layers of different size and direction so that it does not show
+  its repeat (as `MAT_Ocean` does for `NoiseHeight`).
 
 **Moving vertices**: a material can also define a vertex function, which moves each vertex in world space
 before it is drawn:
@@ -657,7 +665,7 @@ void MaterialVertex(inout MaterialVertexData v)
 ```
 
 The same file is compiled a second time for it, with `MATERIAL_VERTEX_STAGE` defined. There it may read the
-constants, the parameters and `WaterField` (with `SampleLevel`), but not the other textures. Water whose
+constants, the parameters, `WaterField` and `NoiseTexture` (with `SampleLevel`), but not the other textures. Water whose
 material has a vertex function is drawn as a finer grid (`WaterRendering GridSpacing`). Compile errors in it
 are reported like those of the pixel shader.
 

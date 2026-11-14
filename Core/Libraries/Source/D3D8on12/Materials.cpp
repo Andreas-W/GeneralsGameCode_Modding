@@ -68,6 +68,9 @@ Texture2D WaterField : register(t8);
 Texture2D ShroudTexture : register(t9);
 Texture2D ShadowTexture : register(t10);
 Texture2D WaterDisturbance : register(t11);
+// Tileable fractal noise (with LinearWrapSampler): r = height -1..1, gb = its slope per repeat of the texture
+// (d/du, d/dv), a = 0. The engine makes it.
+Texture2D NoiseTexture : register(t12);
 SamplerState LinearClampSampler : register(s8);
 SamplerState LinearWrapSampler : register(s9);
 SamplerState PointClampSampler : register(s10);
@@ -109,6 +112,7 @@ static const uint MAP_WATER_FIELD = 8;
 static const uint MAP_SHROUD = 9;
 static const uint MAP_SHADOW = 10;
 static const uint MAP_WATER_DISTURBANCE = 11;
+static const uint MAP_NOISE = 12;
 #define Time (MaterialTime.x)
 bool HasMap(uint slot) { return ((uint)MaterialFlags.x >> slot) & 1; }
 bool IsLit() { return MaterialFlags.y != 0; }
@@ -117,6 +121,7 @@ bool HasSceneColor() { return HasMap(MAP_SCENE_COLOR); }
 bool HasWaterField() { return HasMap(MAP_WATER_FIELD); }
 bool HasShroud() { return HasMap(MAP_SHROUD); }
 bool HasWaterDisturbance() { return HasMap(MAP_WATER_DISTURBANCE); }
+bool HasNoise() { return HasMap(MAP_NOISE); }
 // Size in pixels of the screen the scene textures cover.
 float2 ScreenSize()
 {

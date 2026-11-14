@@ -34,8 +34,9 @@ namespace D3D8On12
 const unsigned FF_STAGES = 8;
 const unsigned FF_LIGHTS = 8;
 // Textures t8.. of material shaders, visible to their vertex functions too (Set_Material_Textures); in the root
-// signature they follow b2, one table each, with static samplers s8..s11.
-const unsigned MATERIAL_EXTRA_TEXTURES = 4;
+// signature they follow b2, one table each. Static samplers s8..s11 serve all of them.
+const unsigned MATERIAL_EXTRA_TEXTURES = 5;
+const unsigned MATERIAL_STATIC_SAMPLERS = 4;
 
 struct VertexShaderKey
 {

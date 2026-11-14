@@ -19,7 +19,7 @@ New water visuals for the DX12 renderer (`-dx12`, D3D8on12), inspired by Red Ale
 
 | What | Where |
 |------|-------|
-| Material vertex functions (`MaterialVertex`), extra textures t8..t11, the `View` matrix in b0, half float format | `Core/Libraries/Source/D3D8on12/`: `ShaderGen.cpp`, `Materials.cpp`, `Draw.cpp`, `Gpu.cpp` (root signature), `Pipeline.h`, `Formats.cpp`, `d3d8on12_ext.h` |
+| Material vertex functions (`MaterialVertex`), extra textures t8..t12, the `View` matrix in b0, half float format | `Core/Libraries/Source/D3D8on12/`: `ShaderGen.cpp`, `Materials.cpp`, `Draw.cpp`, `Gpu.cpp` (root signature), `Pipeline.h`, `Formats.cpp`, `d3d8on12_ext.h` |
 | DRED / breadcrumb logging for device removal | `Device.cpp` (`Log_Device_Removed`, `Log_Breadcrumbs`), `Interface.cpp` (env variables) |
 | `Material` blocks in `map.ini`, time-of-day `Param*` lines, `WaterRendering` block | `Core/GameEngine/Source/GameClient/PostProcess.cpp`, `Include/GameClient/PostProcess.h`, `Common/INI/INI.cpp` |
 | Built-in shaders `MAT_Water`, `MAT_Ocean` (raw string literals `s_waterShader`, `s_oceanShader`), water material binding | `Core/GameEngineDevice/Source/W3DDevice/GameClient/W3DMaterials.cpp` |
@@ -56,6 +56,16 @@ All commits are on `feat/dx12-water`, branched from `main`:
    `Flush_Submerged` only run when a material the map uses refracts. `Material` blocks take `Base = <material>`
    (also `Base` = their own name in a `map.ini`, to change only some parameters). Naval maps pick the see-through
    materials in their `map.ini` (`WaterRendering OceanMaterial = OceanShips`).
+10. Less repetitive waves: `NoiseHeight`, `NoiseScale`, `NoiseSpeed`, `NoiseDetail` add fractal noise on top of
+   the four Gerstner waves. The noise is a shared texture `NoiseTexture` (t12, the 5th extra material texture), four
+   octaves of tileable gradient noise with its slope, made by `W3DMaterials::createNoise` at start (RGBA16F
+   256 x 256, mipmaps). `MAT_Ocean` samples it in three layers of different size, direction and drift; vertices
+   read coarse mip levels, pixels the level of their size on screen. fxc: +65 pixel instruction slots (3 texture
+   reads), +58 vertex; the same in shader maths (simplex, 4 octaves) was +238. A first attempt, `WaveVariation`
+   (value noise scaling and bending the Gerstner waves), was dropped: it made their regular pattern stronger.
+   Tried on Isle Of War Ships at night only (NoiseHeight 3..12): crests and glints become irregular, crest foam
+   thins out (the wave height it reads now includes NoiseHeight). Not checked in daylight; GPU time not measured
+   (`render_timing` returned no frames).
 
 ## Mod-side setup (not in this repository)
 

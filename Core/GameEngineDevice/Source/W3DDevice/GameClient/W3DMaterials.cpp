@@ -375,6 +375,10 @@ cbuffer Params : register(b2)
 	float CrestScatter;			// how much lighter the water's own colour is on crests and darker in troughs, 0 = none
 	float3 CrestScatterColor;	// the water's own colour on high crests, 0 0 0 = ScatterColor
 	float Refraction;			// 1 = see through the water to the ground (deep water), 0 = opaque like MAT_Water
+	float NoiseHeight;			// world units the fractal noise lifts and lowers the surface on top of the waves, 0 = none
+	float NoiseScale;			// world units one repeat of its largest layer covers, 0 = 600
+	float NoiseSpeed;			// world units per second it drifts, 0 = 3
+	float NoiseDetail;			// 0..1, strength of each finer layer against the one before, 0 = 0.5
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -413,6 +417,32 @@ void Gerstner(float2 p, float2 direction, float wavelength, float amplitude, flo
 }
 float2 Rotate(float2 v, float angle) { float s, c; sincos(angle, s, c); return float2(v.x * c - v.y * s, v.x * s + v.y * c); }
 
+// Fractal noise on top of the waves (NoiseHeight): three layers of the shared noise texture, each of another
+// size, turned and drifting its own way, so that the pattern does not repeat. Returns the height and its slope
+// (d/dx, d/dy) in world units, the height within about -NoiseHeight .. NoiseHeight.
+static float s_noiseFootprint = 20;	// world units a pixel covers, for the mip level; vertices take the coarse levels
+float3 NoiseLayer(float2 p, float scale, float angle, float2 drift)
+{
+	float s, c;
+	sincos(angle, s, c);
+	float2 uv = (float2(c * p.x - s * p.y, s * p.x + c * p.y) + drift) / scale;
+	float3 n = NoiseTexture.SampleLevel(LinearWrapSampler, uv, log2(max(s_noiseFootprint * 256 / scale, 1))).rgb;
+	// The slope per repeat of the texture, turned back into world directions.
+	float2 g = n.gb / scale;
+	return float3(n.r, c * g.x + s * g.y, c * g.y - s * g.x);
+}
+float3 Noise(float2 p, float t)
+{
+	if (NoiseHeight <= 0 || !HasNoise())
+		return float3(0, 0, 0);
+	float scale = Or(NoiseScale, 600);
+	float drift = Or(NoiseSpeed, 3) * t;
+	float detail = saturate(Or(NoiseDetail, 0.5));
+	float3 n = NoiseLayer(p, scale, 0.3, float2(0.8, 0.6) * drift)
+		+ NoiseLayer(p, scale * 0.43, 2.2, float2(-0.5, 0.87) * drift * 1.4) * detail
+		+ NoiseLayer(p, scale * 0.19, 4.0, float2(-0.6, -0.8) * drift * 1.9) * (detail * detail);
+	return n * (NoiseHeight / (1 + detail + detail * detail));
+}
 // The waves at a point, scaled by fade.
 void Waves(float2 p, float fade, float t, out float3 offset, out float3 slope)
 {
@@ -428,6 +458,9 @@ void Waves(float2 p, float fade, float t, out float3 offset, out float3 slope)
 	Gerstner(p, Rotate(d, 0.45), wavelength * 0.61, amplitude * 0.55, steep, t, offset, slope);
 	Gerstner(p, Rotate(d, -0.6), wavelength * 0.37, amplitude * 0.33, steep, t, offset, slope);
 	Gerstner(p, Rotate(d, 1.1), wavelength * 0.23, amplitude * 0.2, steep, t, offset, slope);
+	float3 noise = Noise(p, t) * fade;
+	offset.z += noise.x;
+	slope.xy += noise.yz;
 }
 // Waves running up the beach: a band every ShoreWaveLength that moves towards the shore.
 float ShoreWave(float shore, float2 p, float t)
@@ -605,6 +638,7 @@ float4 main(MaterialInput input) : SV_Target
 	float depth = surface - field.x;			// to the terrain, straight down
 	float shore = field.y;
 	bool hasField = HasWaterField();
+	s_noiseFootprint = max(length(ddx(world.xy)), length(ddy(world.xy)));
 
 	// The wave normal, worked out again per pixel (interpolated vertex normals draw the grid into sharp glints),
 	// and the ripples on it, in world space.
@@ -633,8 +667,9 @@ float4 main(MaterialInput input) : SV_Target
 	float3 tint = lerp(float3(1, 1, 1), saturate(base.rgb * input.diffuse.rgb * 1.6), TextureTint < 0 ? 0 : Or(TextureTint, 0.25));
 
 	// The water's own colour follows the wave shape, so that deep water does not look flat from the steep camera,
-	// where the reflection hardly changes. The wave height is -1 (trough) .. 1 (highest crest).
-	float waveHeight = waveOffset.z / max(Or(WaveAmplitude, 1.5) * fade * 2.08, 1e-3);
+	// where the reflection hardly changes. The wave height is -1 (trough) .. 1 (highest crest), the noise
+	// included, so that crest foam and colour break up where the noise is low.
+	float waveHeight = waveOffset.z / max((Or(WaveAmplitude, 1.5) * 2.08 + max(NoiseHeight, 0)) * fade, 1e-3);
 	float3 scatterColor = Or(ScatterColor, float3(0.06, 0.32, 0.36));
 	if (CrestScatter > 0)
 	{
@@ -1012,6 +1047,78 @@ static Bool asksForRefraction(const MaterialTemplate& settings)
 	return FALSE;
 }
 
+static const Int NOISE_SIZE = 256;				///< texels of the noise texture per side
+static const UnsignedInt NOISE_SHARED_SLOT = 4;	///< Set_Material_Textures slot of the noise texture, t12
+
+//-------------------------------------------------------------------------------------------------
+static unsigned short toHalfFloat(float value)
+{
+	union { float f; unsigned int u; } bits;
+	bits.f = value;
+	const unsigned int sign = (bits.u >> 16) & 0x8000;
+	const int exponent = (int)((bits.u >> 23) & 0xff) - 127 + 15;
+	const unsigned int mantissa = bits.u & 0x7fffff;
+	if (exponent <= 0)
+		return (unsigned short)sign;
+	if (exponent >= 31)
+		return (unsigned short)(sign | 0x7bff);	// the largest finite half
+	return (unsigned short)(sign | (exponent << 10) | (mantissa >> 13));
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Unit gradients of the period x period lattice points of one noise octave, x and y in turn. */
+//-------------------------------------------------------------------------------------------------
+static void makeNoiseGradients(Int period, UnsignedInt seed, std::vector<float>& gradients)
+{
+	gradients.resize(period * period * 2);
+	for (Int i = 0; i < period * period; ++i)
+	{
+		UnsignedInt hash = (UnsignedInt)i * 0x27d4eb2du ^ seed;
+		hash ^= hash >> 15;
+		hash *= 0x2c1b3c6du;
+		hash ^= hash >> 12;
+		const float angle = (hash & 0xffff) * (6.2831853f / 65536.0f);
+		gradients[i * 2 + 0] = cosf(angle);
+		gradients[i * 2 + 1] = sinf(angle);
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Gradient noise with period cells per repeat at u, v (0..1) that tiles: its value and its slope per
+	* repeat (d/du, d/dv). The quintic fade keeps the slope smooth across the cells. */
+//-------------------------------------------------------------------------------------------------
+static void periodicNoise(float u, float v, Int period, const std::vector<float>& gradients, float& value, float& du, float& dv)
+{
+	const float x = u * period;
+	const float y = v * period;
+	const Int x0 = (Int)floorf(x);
+	const Int y0 = (Int)floorf(y);
+	const float fx = x - x0;
+	const float fy = y - y0;
+	const Int x1 = (x0 + 1) % period;
+	const Int y1 = (y0 + 1) % period;
+	const float *g00 = &gradients[(y0 * period + x0) * 2];
+	const float *g10 = &gradients[(y0 * period + x1) * 2];
+	const float *g01 = &gradients[(y1 * period + x0) * 2];
+	const float *g11 = &gradients[(y1 * period + x1) * 2];
+	const float n00 = g00[0] * fx + g00[1] * fy;
+	const float n10 = g10[0] * (fx - 1) + g10[1] * fy;
+	const float n01 = g01[0] * fx + g01[1] * (fy - 1);
+	const float n11 = g11[0] * (fx - 1) + g11[1] * (fy - 1);
+	const float sx = fx * fx * fx * (fx * (fx * 6 - 15) + 10);
+	const float sy = fy * fy * fy * (fy * (fy * 6 - 15) + 10);
+	const float dsx = 30 * fx * fx * (fx - 1) * (fx - 1);
+	const float dsy = 30 * fy * fy * (fy - 1) * (fy - 1);
+	const float k = n00 - n10 - n01 + n11;
+	value = n00 + sx * (n10 - n00) + sy * (n01 - n00) + sx * sy * k;
+	const float dx = g00[0] + sx * (g10[0] - g00[0]) + sy * (g01[0] - g00[0]) + sx * sy * (g00[0] - g10[0] - g01[0] + g11[0])
+		+ dsx * ((n10 - n00) + sy * k);
+	const float dy = g00[1] + sx * (g10[1] - g00[1]) + sy * (g01[1] - g00[1]) + sx * sy * (g00[1] - g10[1] - g01[1] + g11[1])
+		+ dsy * ((n01 - n00) + sx * k);
+	du = dx * period;
+	dv = dy * period;
+}
+
 #endif // RTS_RENDERER_DX12
 
 //-------------------------------------------------------------------------------------------------
@@ -1026,6 +1133,7 @@ W3DMaterials::W3DMaterials() :
 	m_terrainMaterial(-1),
 	m_waterMaterial(-1),
 	m_particleColor(FALSE),
+	m_noiseTexture(nullptr),
 	m_categoryTexture(nullptr),
 	m_categoryBound(FALSE),
 	m_meshOverride(FALSE),
@@ -1116,6 +1224,13 @@ void W3DMaterials::release()
 			m_materials->Release_Material(m_builtMaterials[i].id);
 		for (size_t i = 0; i < m_shaders.size(); ++i)
 			m_materials->Release_Shader(m_shaders[i]);
+		IDirect3DBaseTexture8 *const none = nullptr;
+		m_materials->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &none);
+	}
+	if (m_noiseTexture != nullptr)
+	{
+		m_noiseTexture->Release();
+		m_noiseTexture = nullptr;
 	}
 #endif
 	clearEntries();
@@ -1145,6 +1260,7 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 	m_builtTimeOfDay = TheGlobalData->m_timeOfDay;
 	if (TheMaterialSettings == nullptr)
 		return;
+	createNoise(materials);
 
 	MaterialShaderIncludes includes;
 	std::map<std::string, unsigned int> compiled;
@@ -1251,6 +1367,104 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 			break;
 		}
 	}
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Makes the noise texture that all materials can read (t12, NoiseTexture): four octaves of gradient
+	* noise that tile, the height in red and its slope per repeat of the texture in green and blue, with
+	* mipmaps. Materials sample it in layers of different size and direction, so that it does not repeat. */
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::createNoise(ID3D8On12Materials *materials)
+{
+#ifdef RTS_RENDERER_DX12
+	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
+	Int levels = 1;
+	for (Int size = NOISE_SIZE; size > 1; size /= 2)
+		++levels;
+	IDirect3DTexture8 *texture = nullptr;
+	if (device == nullptr || FAILED(device->CreateTexture(NOISE_SIZE, NOISE_SIZE, levels, 0, D3DFMT_A16B16G16R16F_D3D8ON12, D3DPOOL_MANAGED, &texture)))
+	{
+		DEBUG_LOG(("Materials: could not make the noise texture"));
+		return;
+	}
+
+	// Height and slope of every texel: the octaves summed, then scaled to a largest height of 1.
+	const Int count = NOISE_SIZE * NOISE_SIZE;
+	std::vector<float> texels(count * 3, 0.0f);
+	std::vector<float> gradients;
+	Int period = 4;
+	float amplitude = 1.0f;
+	for (Int octave = 0; octave < 4; ++octave)
+	{
+		makeNoiseGradients(period, 0x9e3779b9u * (octave + 1), gradients);
+		for (Int y = 0; y < NOISE_SIZE; ++y)
+		{
+			for (Int x = 0; x < NOISE_SIZE; ++x)
+			{
+				float value, du, dv;
+				periodicNoise((x + 0.5f) / NOISE_SIZE, (y + 0.5f) / NOISE_SIZE, period, gradients, value, du, dv);
+				float *texel = &texels[(y * NOISE_SIZE + x) * 3];
+				texel[0] += value * amplitude;
+				texel[1] += du * amplitude;
+				texel[2] += dv * amplitude;
+			}
+		}
+		period *= 2;
+		amplitude *= 0.5f;
+	}
+	float largest = 1e-6f;
+	for (Int i = 0; i < count; ++i)
+		largest = max(largest, fabsf(texels[i * 3]));
+	for (Int i = 0; i < count * 3; ++i)
+		texels[i] /= largest;
+
+	// Each mip level is the average of 2 x 2 texels of the one above; height and slope average alike.
+	Int size = NOISE_SIZE;
+	for (Int level = 0; level < levels; ++level)
+	{
+		D3DLOCKED_RECT locked;
+		if (FAILED(texture->LockRect(level, &locked, nullptr, 0)))
+		{
+			texture->Release();
+			DEBUG_LOG(("Materials: could not fill the noise texture"));
+			return;
+		}
+		for (Int y = 0; y < size; ++y)
+		{
+			unsigned short *row = (unsigned short *)((unsigned char *)locked.pBits + y * locked.Pitch);
+			for (Int x = 0; x < size; ++x)
+			{
+				const float *texel = &texels[(y * size + x) * 3];
+				row[x * 4 + 0] = toHalfFloat(texel[0]);
+				row[x * 4 + 1] = toHalfFloat(texel[1]);
+				row[x * 4 + 2] = toHalfFloat(texel[2]);
+				row[x * 4 + 3] = 0;
+			}
+		}
+		texture->UnlockRect(level);
+		if (size == 1)
+			break;
+		const Int half = size / 2;
+		std::vector<float> smaller(half * half * 3);
+		for (Int y = 0; y < half; ++y)
+		{
+			for (Int x = 0; x < half; ++x)
+			{
+				for (Int c = 0; c < 3; ++c)
+				{
+					smaller[(y * half + x) * 3 + c] = 0.25f * (texels[((2 * y) * size + 2 * x) * 3 + c] + texels[((2 * y) * size + 2 * x + 1) * 3 + c]
+						+ texels[((2 * y + 1) * size + 2 * x) * 3 + c] + texels[((2 * y + 1) * size + 2 * x + 1) * 3 + c]);
+				}
+			}
+		}
+		texels.swap(smaller);
+		size = half;
+	}
+
+	m_noiseTexture = texture;
+	IDirect3DBaseTexture8 *const shared = texture;
+	materials->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &shared);
 #endif
 }
 
