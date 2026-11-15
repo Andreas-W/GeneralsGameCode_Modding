@@ -1,6 +1,6 @@
 ---
 name: adapt-map-for-navy
-description: Adapt a Zero Hour map for ships with the WorldBuilder MCP. Grows the map with open sea on all sides, lifts the land and carves a gradual seabed at least 50 deep (raising HeightMapScale in map.ini when needed), paints a noisy SandMediumType9blue gradient from the shore outward, adds the naval AI markers (Shipyard<N>_<n> waypoints, NavalPerimeter<N> areas, Naval<N> / NavalFlank<N> paths), writes EnableShips, the underwater lighting and the see-through water materials to map.ini, and shifts the waves in a matching .wak file. Use when asked to "prepare a map for navy / ships / water", "make this map naval" or "adapt a map for navy".
+description: Adapt a Zero Hour map for ships with the WorldBuilder MCP. Grows the map with open sea on all sides, lifts the land and carves a gradual seabed at least 50 deep (raising HeightMapScale in map.ini when needed), paints a noisy SandMediumType9blue gradient from the shore outward, adds the naval AI markers (Shipyard<N>_<n> waypoints, NavalPerimeter<N> areas, Naval<N> / NavalFlank<N> paths), writes EnableShips, the underwater lighting, the see-through water materials and the DX8 water transparency to map.ini, and shifts the waves in a matching .wak file. Use when asked to "prepare a map for navy / ships / water", "make this map naval" or "adapt a map for navy".
 argument-hint: "[map path, default: the map open in WorldBuilder]"
 ---
 
@@ -52,6 +52,12 @@ Helper: `navy_tool.py` next to this file (standard library only; run it with `py
      LakeMaterial = OceanShips
    End
    ```
+
+   The old DX8 water needs see-through settings for ships too (the mod's `Water.ini` keeps the defaults for other maps). Write them with the helper, which adds a `WaterTransparency` block or updates the two fields in an existing one, keeping its other lines:
+
+   `python -I navy_tool.py dx8water "<map folder>/map.ini"`
+
+   It writes `TransparentWaterMinOpacity = 0.5` and `TransparentWaterDepth = 15.0` (`--min-opacity`, `--depth` for others) and keeps `map.ini.bak-dx8water`. `--maps <Maps folder>` instead does every `map.ini` with `EnableShips = Yes` below it; `--dry-run` only reports.
 5. `map_open(<same path>)`: WorldBuilder reads `HeightMapScale` only when it opens a map. `map_info` must now show the new `height_map_scale`; the heights look scaled up until the import.
 6. `terrain_import_heightmap(path=$WORK/heights16.png, fit="exact", range=<import_range>)`. Spot-check a few vertices with `terrain_get_heights` (land = old + lift, deep sea = the floor).
 
@@ -111,7 +117,7 @@ The file holds, per wave, a start and end point (2 × float32 world x/y) and an 
    - the lift, new water height, scale and depth;
    - the bands;
    - the markers per player;
-   - the `map.ini` fields and the `WaterRendering` block;
+   - the `map.ini` fields, the `WaterRendering` and `WaterTransparency` blocks;
    - the `.wak` shift;
    - where the backups are.
 
