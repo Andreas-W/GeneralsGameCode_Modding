@@ -487,6 +487,7 @@ WaterRendering
   LakeMaterial = Lake          ; any other standing water
   RiverMaterial = River        ; rivers
   PolygonMaterial = Lake Harbour Basin   ; <material> <water area name>: before the kinds
+  OceanMinimumArea = 300000   ; world units² the bounding box of standing water at the edge needs to be an ocean
   GridSpacing = 10             ; world units between the vertices of water whose material moves them
   RiverSubdivisions = 4        ; such rivers get each quad cut into 4 x 4 pieces
   Refraction = Yes             ; allows materials with Param Refraction 1 to see through the water; No = all opaque
@@ -499,7 +500,8 @@ End
 
 Each water area gets the material of its `PolygonMaterial` line (by the area's name in WorldBuilder), else the
 one of its kind: a river is a river, standing water with a point within one cell of the edge of the playable
-area an ocean, any other standing water a lake. An empty or unknown material name gives the last water
+area an ocean when its bounding box covers at least `OceanMinimumArea` (300000, about 550 x 550; the corner
+ponds of Tournament Desert, up to 476 x 411, stay lakes), any other standing water a lake. An empty or unknown material name gives the last water
 material. The scene is only copied before the water when a material the map uses has `Refraction 1`, so maps with
 opaque water do not pay for it.
 

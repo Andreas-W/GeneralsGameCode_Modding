@@ -328,6 +328,7 @@ public:
 
 	AsciiString m_kindMaterials[KIND_COUNT];	///< OceanMaterial, LakeMaterial, RiverMaterial; empty = the last water material
 	std::vector<PolygonMaterial> m_polygonMaterials;	///< PolygonMaterial = <material> <polygon name>, before the kinds
+	Real m_oceanMinimumArea;			///< world units² the bounding box of standing water at the edge needs to be an ocean, else a lake
 	Real m_gridSpacing;					///< world units between the vertices of water whose material moves them
 	Int m_riverSubdivisions;			///< pieces each river quad is cut into across and along for such materials
 	Bool m_refraction;					///< the scene colour is copied before the water for materials that read it

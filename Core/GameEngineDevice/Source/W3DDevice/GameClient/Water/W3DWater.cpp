@@ -2055,7 +2055,8 @@ void WaterRenderObjClass::renderWater()
 
 //-------------------------------------------------------------------------------------------------
 /** The water material of a water area (WaterRendering): by its name, else by its kind; a river is a river,
-	* standing water reaching the edge of the playable area an ocean, any other a lake. */
+	* standing water reaching the edge of the playable area an ocean when its bounding box is at least
+	* OceanMinimumArea (small ponds in a corner stay lakes), any other a lake. */
 //-------------------------------------------------------------------------------------------------
 Int WaterRenderObjClass::getWaterMaterial(PolygonTrigger *pTrig)
 {
@@ -2074,15 +2075,26 @@ Int WaterRenderObjClass::getWaterMaterial(PolygonTrigger *pTrig)
 		const Int border = map->getBorderSizeInline();
 		const Real maxX = (Real)(map->getXExtent() - 1 - 2 * border) * MAP_XY_FACTOR - MAP_XY_FACTOR;
 		const Real maxY = (Real)(map->getYExtent() - 1 - 2 * border) * MAP_XY_FACTOR - MAP_XY_FACTOR;
+		Bool atEdge = FALSE;
+		IRegion2D bounds = { { 0, 0 }, { 0, 0 } };
+		if (pTrig->getNumPoints() > 0)
+		{
+			bounds.lo.x = bounds.hi.x = pTrig->getPoint(0)->x;
+			bounds.lo.y = bounds.hi.y = pTrig->getPoint(0)->y;
+		}
 		for (Int i = 0; i < pTrig->getNumPoints(); ++i)
 		{
 			const ICoord3D *point = pTrig->getPoint(i);
 			if (point->x <= MAP_XY_FACTOR || point->y <= MAP_XY_FACTOR || point->x >= maxX || point->y >= maxY)
-			{
-				kind = WaterRenderingSettings::KIND_OCEAN;
-				break;
-			}
+				atEdge = TRUE;
+			bounds.lo.x = min(bounds.lo.x, point->x);
+			bounds.lo.y = min(bounds.lo.y, point->y);
+			bounds.hi.x = max(bounds.hi.x, point->x);
+			bounds.hi.y = max(bounds.hi.y, point->y);
 		}
+		const Real area = (Real)(bounds.hi.x - bounds.lo.x) * (Real)(bounds.hi.y - bounds.lo.y);
+		if (atEdge && area >= settings->m_oceanMinimumArea)
+			kind = WaterRenderingSettings::KIND_OCEAN;
 	}
 	return TheW3DMaterials->findWaterMaterial(settings->getMaterialName(kind, pTrig->getTriggerName()));
 }

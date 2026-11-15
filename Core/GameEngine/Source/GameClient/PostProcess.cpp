@@ -450,6 +450,7 @@ WaterRenderingSettings* TheWaterRenderingSettings = nullptr;
 const char *const WaterRenderingSettings::s_kindNames[] = { "Ocean", "Lake", "River", nullptr };
 
 WaterRenderingSettings::WaterRenderingSettings() :
+	m_oceanMinimumArea(300000.0f),
 	m_gridSpacing(10.0f),
 	m_riverSubdivisions(4),
 	m_refraction(TRUE),
@@ -466,6 +467,7 @@ const FieldParse WaterRenderingSettings::s_fieldParseTable[] =
 	{ "LakeMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_LAKE] ) },
 	{ "RiverMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_RIVER] ) },
 	{ "PolygonMaterial",		parsePolygonMaterial,	nullptr,	offsetof( WaterRenderingSettings, m_polygonMaterials ) },
+	{ "OceanMinimumArea",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_oceanMinimumArea ) },
 	{ "GridSpacing",			INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_gridSpacing ) },
 	{ "RiverSubdivisions",		INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_riverSubdivisions ) },
 	{ "Refraction",				INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_refraction ) },
