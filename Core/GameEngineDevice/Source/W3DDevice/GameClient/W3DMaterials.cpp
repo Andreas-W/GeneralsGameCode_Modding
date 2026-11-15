@@ -359,6 +359,7 @@ cbuffer Params : register(b2)
 	float ShoreFoamWindward;	// 0..1, how much the shore foam keeps to coasts facing the waves, 0 = all coasts alike
 	float ShoreFoamMinimumTexture;	// 0..1, how much the foam pattern shows in the minimum line, 0 = 0.5; -1 = flat
 	float ShoreWaveFoamDepth;	// water depth up to which the shore waves carry foam, 0 = 6; -1 = none
+	float ShoreWaveFoam;		// strength of the foam on the shore waves, factor, 0 = 1
 	float CrestFoam;			// strength of the foam on high wave crests, 0 = 0.4; -1 = none
 	float CrestFoamStart;		// wave height where crest foam begins, -1 (trough) .. 1 (highest crest), 0 = 0.45
 	float CrestFoamRange;		// height above the start until the whole foam pattern shows, 0 = 0.4
@@ -775,7 +776,7 @@ float4 main(MaterialInput input) : SV_Target
 		float shoreFoam = lerp(soft, hard, saturate(ShoreHardness));
 		// Foam on the waves running up the beach, as far out as ShoreWaveFoamDepth (full up to half of it).
 		if (hasField && ShoreWaveFoamDepth >= 0)
-			shoreFoam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / Or(ShoreWaveFoamDepth, 6));
+			shoreFoam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / Or(ShoreWaveFoamDepth, 6)) * Or(ShoreWaveFoam, 1);
 		// Coasts facing the waves: the direction away from the shore runs against the waves there.
 		if (hasField && ShoreFoamWindward > 0)
 		{

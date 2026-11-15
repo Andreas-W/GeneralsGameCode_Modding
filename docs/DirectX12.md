@@ -431,6 +431,7 @@ End
 | `ShoreFoamMinimum` | 0..1, a foam line along the shore that is always there, whatever the shore waves do (0 = none) |
 | `ShoreFoamMinimumTexture` | 0..1, how much the shore foam pattern breaks up that line (0.5; −1 = a flat line) |
 | `ShoreWaveFoamDepth` | Water depth up to which the waves running up the beach carry foam, full up to half of it (6; −1 = none); how far out they form is `ShoreWaveRange` |
+| `ShoreWaveFoam` | Strength of the foam on the shore waves, a factor on top of `FoamStrength` (1); low values give ponds faint waves next to a steady shore line (`ShoreFoamMinimum`) |
 | `ShoreFoamWindward` | 0..1, how much the shore foam keeps to coasts facing `WaveDirection` (0 = all coasts alike; the minimum line stays everywhere) |
 | `FoamScale`, `FoamSpeed` | World units one repeat of the shore foam pattern covers (40; the red channel of `SpecularMap`, else built-in noise a quarter that size) and how fast it drifts (factor, 1) |
 | `FoamColor` | Colour of all foam (0.92 0.95 1.0) |
