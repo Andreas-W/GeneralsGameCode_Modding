@@ -1214,7 +1214,7 @@ void FXEditorPanels::drawPanels()
 					drawInspector();
 					ImGui::EndTabItem();
 				}
-				if (ImGui::BeginTabItem(RENDER))
+				if (ImGui::BeginTabItem(RENDER, nullptr, takeRenderTabRequest() ? ImGuiTabItemFlags_SetSelected : 0))
 				{
 					drawRender();
 					ImGui::EndTabItem();

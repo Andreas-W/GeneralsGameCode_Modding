@@ -319,6 +319,11 @@ Material OceanShips
 End
 ```
 
+The FX Editor's Direct3D 12 panel shows what a material gets from its `Base` in blue, with the base's name in the
+tooltip. Changing such a field or parameter, or its `+` button, writes it into the material itself; its `x`
+removes it again, back to the base's value. Time-of-day lines of the base are inherited too and are edited in
+the text.
+
 `MAT_Standard` parameters:
 
 | Parameter | Effect |

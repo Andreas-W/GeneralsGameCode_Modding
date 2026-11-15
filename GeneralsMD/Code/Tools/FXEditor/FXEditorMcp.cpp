@@ -20,6 +20,7 @@
 
 #include "FXEditorMcp.h"
 #include "FXEditorApp.h"
+#include "FXEditorPanels.h"
 #include "FieldSchema.h"
 #include "IniDatabase.h"
 #include "PassOrder.h"
@@ -1040,6 +1041,17 @@ McpJson cmdSelect(const McpJson &args)
 	return j;
 }
 
+McpJson cmdRenderSelect(const McpJson &args)
+{
+	const std::string type = gameMcpArgString(args, "type", "Material");
+	if (_stricmp(type.c_str(), "Material") != 0)
+		gameMcpFail("only Material blocks are selected so far");
+	const std::string name = gameMcpArgString(args, "name");
+	if (!FXEditorPanels::selectMaterial(name.c_str()))
+		gameMcpFail("no Material %s", name.c_str());
+	return McpJson::makeObject().set("type", type).set("name", name);
+}
+
 McpJson cmdStop(const McpJson &args)
 {
 	PreviewScene &scene = FXEditorApp::scene();
@@ -1232,6 +1244,8 @@ void FXEditorMcp::registerCommands()
 		"sandbox skirmish with that faction, otherwise as a single player game. Wait for fx.status map_loading=false.");
 	gameMcpRegisterCommand("fx.select", cmdSelect,
 		"{kind=particle|fxlist, name} Shows it in the inspector, as a click in the library; while an effect plays, it plays instead.");
+	gameMcpRegisterCommand("fx.render_select", cmdRenderSelect,
+		"{type=Material, name} Shows the block in the Direct3D 12 panel, as a click in its list (for fx.capture with_interface).");
 	gameMcpRegisterCommand("fx.stop", cmdStop, "{action=stop|restart|clear} Stops or restarts what plays, or removes all particles.");
 	gameMcpRegisterCommand("fx.time", cmdTime, "{paused?, step?, speed?} Pauses, steps logic frames, sets the speed (1 = normal).");
 	gameMcpRegisterCommand("fx.stats", cmdStats, "{systems=true} Particle counts in total and of the preview, and the live systems.");

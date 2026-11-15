@@ -41,6 +41,10 @@ namespace FXEditorPanels
 	void drawLog();
 	/// Post-processing, materials and shadow maps of the Direct3D 12 renderer.
 	void drawRender();
+	/// Shows a Material in the Direct3D 12 panel, as a click in its list does; false when there is none.
+	bool selectMaterial(const char *name);
+	/// The Direct3D 12 panel is to come to the front (once, after selectMaterial).
+	bool takeRenderTabRequest();
 	/// Status over the game view while the preview game loads or when it could not start.
 	void drawOverlayInfo();
 
