@@ -1134,6 +1134,7 @@ W3DMaterials::W3DMaterials() :
 	m_waterMaterial(-1),
 	m_particleColor(FALSE),
 	m_noiseTexture(nullptr),
+	m_noiseDevice(nullptr),
 	m_categoryTexture(nullptr),
 	m_categoryBound(FALSE),
 	m_meshOverride(FALSE),
@@ -1148,6 +1149,7 @@ W3DMaterials::~W3DMaterials()
 	if (TheMeshMaterialBinder == this)
 		TheMeshMaterialBinder = nullptr;
 	release();
+	releaseNoise();
 	delete TheMaterialSettings;
 	TheMaterialSettings = nullptr;
 }
@@ -1224,13 +1226,6 @@ void W3DMaterials::release()
 			m_materials->Release_Material(m_builtMaterials[i].id);
 		for (size_t i = 0; i < m_shaders.size(); ++i)
 			m_materials->Release_Shader(m_shaders[i]);
-		IDirect3DBaseTexture8 *const none = nullptr;
-		m_materials->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &none);
-	}
-	if (m_noiseTexture != nullptr)
-	{
-		m_noiseTexture->Release();
-		m_noiseTexture = nullptr;
 	}
 #endif
 	clearEntries();
@@ -1378,6 +1373,14 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 void W3DMaterials::createNoise(ID3D8On12Materials *materials)
 {
 #ifdef RTS_RENDERER_DX12
+	// It does not depend on the settings: made once per device, not on every edit of a material.
+	if (m_noiseTexture != nullptr && m_noiseDevice == materials)
+	{
+		IDirect3DBaseTexture8 *const shared = m_noiseTexture;
+		materials->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &shared);
+		return;
+	}
+	releaseNoise();
 	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
 	Int levels = 1;
 	for (Int size = NOISE_SIZE; size > 1; size /= 2)
@@ -1463,8 +1466,26 @@ void W3DMaterials::createNoise(ID3D8On12Materials *materials)
 	}
 
 	m_noiseTexture = texture;
+	m_noiseDevice = materials;
 	IDirect3DBaseTexture8 *const shared = texture;
 	materials->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &shared);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::releaseNoise()
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_noiseDevice != nullptr && m_noiseDevice == DX8Wrapper::Get_Materials())
+	{
+		// The renderer keeps only the pointer: it lets go of it first.
+		IDirect3DBaseTexture8 *const none = nullptr;
+		m_noiseDevice->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &none);
+	}
+	if (m_noiseTexture != nullptr)
+		m_noiseTexture->Release();
+	m_noiseTexture = nullptr;
+	m_noiseDevice = nullptr;
 #endif
 }
 
