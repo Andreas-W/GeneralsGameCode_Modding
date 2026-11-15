@@ -45,7 +45,7 @@ public:
 	// Returns the instance id of this game client. Starts at 1.
 	static UnsignedInt getInstanceId();
 
-	// Returns the instance name of the first game client.
+	// Returns the instance name of the first game client. Tools (gAppPrefix not empty) get their own.
 	static const char* getFirstInstanceName();
 
 private:

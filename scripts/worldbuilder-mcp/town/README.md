@@ -137,7 +137,7 @@ Shared: Mogadishu buildings, 1-6° off the street's direction, median street gap
 
 ## Open
 
-- **Nothing has been tested in game.** Truck access to docks and piles is unchecked; this is the next thing to do. When tried, `generalszh.exe` quit at once with exit code 1 and no new debug log, on any map, also started by hand, so it is not about town maps. Cause not found; the single-instance mutex was held while a WorldBuilder ran, but this build may allow several instances (an `_Instance02` log exists).
+- **Nothing has been tested in game.** Truck access to docks and piles is unchecked; this is the next thing to do. When tried, `generalszh.exe` quit at once with exit code 1 and no new debug log, on any map, also started by hand, so it is not about town maps. Cause: WorldBuilder's debug log took the game's single-instance mutex. Fixed: tools now lock a mutex of their own, so the game starts while a (rebuilt) WorldBuilder runs.
 - Outposts have only been looked at in WorldBuilder, in about ten pictures of the 147 kits. River huts need a shore to look right, but only docks are held back from dry land. Kits from night maps such as searchlights are not marked as night kits.
 - Slopes: only tried through `town_generate` on Alpenstadt, Bear Town Beatdown, Tournament Desert and Desert Coast, in WorldBuilder.
 - **Block towns need open ground.** Existing objects and roads cut the grid: on Tournament Desert and Desert Coast (25-31% blocked) they came out with one or two blocks, even after trying 90 grid positions. Irregular towns fit in better.

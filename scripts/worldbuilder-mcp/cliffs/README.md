@@ -142,7 +142,7 @@ In this order:
 5. **AI test**: `ai_skirmish_setup` and an AI match on a generated map, to show that it plays.
 6. **MCP tool**: a `cliff_generate` tool once recipes hold up, as with `town_generate`.
 
-On a new machine: `work/` is git-ignored, so run `cliff_scan.py` and `cliff_measure.py` again (second WorldBuilder running, `TOWN_REF_MAPS` set to the folder holding `Maps\`). `town/start_wb.py` first needs `town/gamedata.py` run once. `WorldBuilderZH.exe` in the mod folder must be a build with the `terrain.cliff_*` commands. Close every WorldBuilder before testing in the game.
+On a new machine: `work/` is git-ignored, so run `cliff_scan.py` and `cliff_measure.py` again (second WorldBuilder running, `TOWN_REF_MAPS` set to the folder holding `Maps\`). `town/start_wb.py` first needs `town/gamedata.py` run once. `WorldBuilderZH.exe` in the mod folder must be a build with the `terrain.cliff_*` commands. A WorldBuilder built before tools got their own single-instance lock keeps the game from starting; close those before testing in the game.
 
 ## Kinds of layout (from the relief pictures, by eye)
 

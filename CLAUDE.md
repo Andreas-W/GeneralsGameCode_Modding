@@ -193,7 +193,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.
 - The bridge exists only in builds with `RTS_BUILD_OPTION_GAME_MCP` and only listens when the game is started with `-mcp`. Without the flag nothing changes for normal play.
 - `game_launch` uses `generalszh.exe` in the mod folder (`GAME_DIR`; `GAME_EXE` picks another exe name). That exe must be an MCP build: if the game starts but the bridge never answers, the installed exe is older than the feature. After changing engine code, rebuild `z_generals` and copy it there (ask first, keep a `.bak` of the user's exe).
 - One game at a time: `game_launch` fails while a game with the bridge runs; `game_quit` it first. If a tool says "Cannot reach the game", no game runs with `-mcp` (or it hangs in a dialog).
-- The game does not start while any WorldBuilder runs: it shares their single-instance check and exits with code 1 before writing a log. Close every WorldBuilder first.
+- The game and WorldBuilder run side by side: tools lock a single-instance mutex of their own (`ClientInstance::getFirstInstanceName` adds `gAppPrefix`). A WorldBuilder or FX Editor older than that change takes the game's lock, and the game then exits with code 1 before writing a log.
 - A game started by hand works too: `generalszh.exe -mcp -mcpGame "<map>" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts`, run from the mod folder.
 
 ### Testing a feature
