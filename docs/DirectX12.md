@@ -439,6 +439,7 @@ End
 | `CrestFoamStart`, `CrestFoamRange` | Wave height where crest foam begins, −1 (trough) to 1 (highest crest) (0.45), and how much higher the whole foam pattern shows (0.4); in between only its brightest spots |
 | `CrestFoamSoftness` | How soft the edges of the crest foam patches are (0.15; larger = blurrier) |
 | `DeepColor`, `DeepOpacity`, `DepthScale` | Only without refraction: like `MAT_Water` (0.02 0.08 0.12, 0.75, 40); lit by the map's light. With refraction, `ScatterColor` and `Absorption` do their job |
+| `ShoreOpacityWidth` | Only without refraction: world units from the shoreline over which the water goes from fully clear to deep (`DeepColor`, `DeepOpacity`), whatever its depth, like the DX8 water (0 = by depth, `DepthScale`, and the edge only clear over `ShoreDistance`). Needs the water field; water outside it keeps the depth |
 
 Example presets for three kinds of water, opaque for every map, plus a see-through ocean for maps made for
 ships (their `map.ini` picks it, see below):

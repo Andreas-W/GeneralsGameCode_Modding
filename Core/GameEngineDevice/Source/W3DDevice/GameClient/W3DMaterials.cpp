@@ -379,6 +379,7 @@ cbuffer Params : register(b2)
 	float NoiseScale;			// world units one repeat of its largest layer covers, 0 = 600
 	float NoiseSpeed;			// world units per second it drifts, 0 = 3
 	float NoiseDetail;			// 0..1, strength of each finer layer against the one before, 0 = 0.5
+	float ShoreOpacityWidth;	// without the scene colour: distance from the shoreline over which the water goes from clear to deep (like DX8), 0 = by depth (DepthScale)
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -727,11 +728,18 @@ float4 main(MaterialInput input) : SV_Target
 		float sceneDepth = DepthBehind(input) * abs(dot(normalize(input.viewPosition), up));
 		float d = hasField ? depth : sceneDepth;
 		float deep = saturate(d / Or(DepthScale, 40));
+		// Like the DX8 water: fully clear at the shoreline, reaching the full opacity that far out, whatever
+		// the depth (DX8 faded by depth, but only from the waterline, so the edge always was clear).
+		bool byShore = hasField && ShoreOpacityWidth > 0;
+		if (byShore)
+			deep = saturate(shore / ShoreOpacityWidth);
 		// The wave shape shades the deep colour like the scattered colour above.
 		float3 shade = scatterColor / Or(ScatterColor, float3(0.06, 0.32, 0.36));
 		under = lerp(base.rgb * input.diffuse.rgb, Or(DeepColor, float3(0.02, 0.08, 0.12)) * daylight * shade, deep * 0.7);
 		alpha = River > 0 ? base.a : input.diffuse.a;
 		alpha = lerp(alpha, max(alpha, Or(DeepOpacity, 0.75)), deep);
+		if (byShore)
+			alpha *= deep;
 		depth = d;
 	}
 	if (River > 0 && HasMap(MAP_EXTRA))

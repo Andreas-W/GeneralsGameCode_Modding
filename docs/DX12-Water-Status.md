@@ -66,6 +66,11 @@ All commits are on `feat/dx12-water`, branched from `main`:
    Tried on Isle Of War Ships at night only (NoiseHeight 3..12): crests and glints become irregular, crest foam
    thins out (the wave height it reads now includes NoiseHeight). Not checked in daylight; GPU time not measured
    (`render_timing` returned no frames).
+11. Opaque water by distance to the shore: `ShoreOpacityWidth` makes opaque `MAT_Ocean` fully clear at the
+   shoreline (alpha 0) and deep (`DeepColor`, `DeepOpacity`) that far out, whatever the depth, like the DX8 water
+   (alpha = depth / `TransparentWaterDepth` from the waterline, so its edge always was clear; our depth fade starts
+   from the WaterSet alpha, 255 in the mod). It reads the shore distance of the water field; 0 keeps the depth
+   fade. Seen in the FX Editor on Isle Of War Ships (OceanShips with Refraction 0, width 120); not tuned in the mod yet.
 
 ## Mod-side setup (not in this repository)
 
