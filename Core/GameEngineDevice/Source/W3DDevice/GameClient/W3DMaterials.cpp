@@ -773,10 +773,11 @@ float4 main(MaterialInput input) : SV_Target
 	if (FoamDistance >= 0)
 	{
 		float pattern = FoamPattern(world.xy, foamScale, t * foamSpeed, false);
-		// The band by water depth, and by distance from the shoreline so that steep coasts get foam too.
+		// The band by water depth, and by distance from the shoreline so that steep coasts get foam too; on both
+		// sides of it, so that water the field takes for land (it never is for long) does not foam all over.
 		float edge = 1 - saturate(depth / Or(FoamDistance, 3));
 		if (hasField && ShoreFoamWidth >= 0)
-			edge = max(edge, 1 - saturate(shore / Or(ShoreFoamWidth, 6)));
+			edge = max(edge, 1 - saturate(abs(shore) / Or(ShoreFoamWidth, 6)));
 		float soft = edge * edge * pattern;
 		float hard = smoothstep(0.75, 0.85, edge) * (0.6 + 0.4 * pattern);
 		float shoreFoam = lerp(soft, hard, saturate(ShoreHardness));

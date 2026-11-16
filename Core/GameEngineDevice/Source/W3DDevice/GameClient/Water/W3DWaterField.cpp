@@ -161,6 +161,40 @@ static void blur(std::vector<float>& values, Int width, Int height, float sigma)
 }
 
 //-------------------------------------------------------------------------------------------------
+/** The water surface of one triangle of a river, its height interpolated between its corners, where it is
+	* higher than what the texels have. */
+//-------------------------------------------------------------------------------------------------
+static void fillTriangle(std::vector<float>& surface, Int width, Int height, Real originX, Real originY, Real texel,
+	const ICoord3D& a, const ICoord3D& b, const ICoord3D& c)
+{
+	const float area = (float)(b.x - a.x) * (c.y - a.y) - (float)(c.x - a.x) * (b.y - a.y);
+	if (fabsf(area) < 1.0f)
+		return;
+	const Int x0 = max(0, (Int)floorf((min(a.x, min(b.x, c.x)) - originX) / texel));
+	const Int x1 = min(width - 1, (Int)ceilf((max(a.x, max(b.x, c.x)) - originX) / texel));
+	const Int y0 = max(0, (Int)floorf((min(a.y, min(b.y, c.y)) - originY) / texel));
+	const Int y1 = min(height - 1, (Int)ceilf((max(a.y, max(b.y, c.y)) - originY) / texel));
+	for (Int y = y0; y <= y1; ++y)
+	{
+		const float py = originY + y * texel;
+		for (Int x = x0; x <= x1; ++x)
+		{
+			const float px = originX + x * texel;
+			// Barycentric weights; all of them 0 or more inside, whichever way round the corners go.
+			const float wa = ((b.x - px) * (c.y - py) - (c.x - px) * (b.y - py)) / area;
+			const float wb = ((c.x - px) * (a.y - py) - (a.x - px) * (c.y - py)) / area;
+			const float wc = 1.0f - wa - wb;
+			if (wa < -1e-4f || wb < -1e-4f || wc < -1e-4f)
+				continue;
+			const float level = wa * a.z + wb * b.z + wc * c.z;
+			float& top = surface[(size_t)y * width + x];
+			if (level > top)
+				top = level;
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Squared distance in texels of each texel to the nearest one where target is set. */
 //-------------------------------------------------------------------------------------------------
 static void distance2D(const std::vector<UnsignedByte>& target, Int width, Int height, std::vector<float>& result)
@@ -361,6 +395,25 @@ Bool W3DWaterField::build()
 	{
 		if (!trigger->isWaterArea() || trigger->getNumPoints() < 3)
 			continue;
+		if (trigger->isRiver())
+		{
+			// A river is a ribbon whose points each have their own height, paired from the river start outwards
+			// and drawn as two triangles per quad (WaterRenderObjClass::drawRiverWater).
+			const Int count = trigger->getNumPoints();
+			const Int start = trigger->getRiverStart();
+			if (start >= count - 1)
+				continue;
+			for (Int k = 0; k + 1 < count / 2; ++k)
+			{
+				const ICoord3D& a0 = *trigger->getPoint((start + 1 + k) % count);
+				const ICoord3D& b0 = *trigger->getPoint(((start - k) % count + count) % count);
+				const ICoord3D& a1 = *trigger->getPoint((start + 2 + k) % count);
+				const ICoord3D& b1 = *trigger->getPoint(((start - k - 1) % count + count) % count);
+				fillTriangle(surface, width, height, originX, originY, texel, a0, b0, b1);
+				fillTriangle(surface, width, height, originX, originY, texel, a0, b1, a1);
+			}
+			continue;
+		}
 		Int minX = trigger->getPoint(0)->x, maxX = minX, minY = trigger->getPoint(0)->y, maxY = minY;
 		for (Int i = 1; i < trigger->getNumPoints(); ++i)
 		{
@@ -418,14 +471,15 @@ Bool W3DWaterField::build()
 			{
 				// The shoreline lies between texels, not on the nearest one of the other kind.
 				distance += water[i] ? -0.5f : 0.5f;
-				// Near it, where one water level covers the neighbours: the distance to where the smoothed terrain
-				// meets the water, from the height above or below it and the slope, which is smooth between texels.
-				if (fabsf(distance) < 2.0f && x > 0 && y > 0 && x < width - 1 && y < height - 1
-					&& surface[i] > -FAR_AWAY && surface[i - 1] == surface[i] && surface[i + 1] == surface[i]
-					&& surface[i - width] == surface[i] && surface[i + width] == surface[i])
+				// Near it, where the neighbours have water of about the same level (no edge of a water area): the
+				// distance to where the smoothed terrain meets the water, from the water depth and its slope, which
+				// are smooth between texels (rivers slope, so the depth, not the terrain).
+				if (fabsf(distance) < 2.0f && x > 0 && y > 0 && x < width - 1 && y < height - 1 && surface[i] > -FAR_AWAY
+					&& fabsf(surface[i - 1] - surface[i]) < 2.0f && fabsf(surface[i + 1] - surface[i]) < 2.0f
+					&& fabsf(surface[i - width] - surface[i]) < 2.0f && fabsf(surface[i + width] - surface[i]) < 2.0f)
 				{
-					const float gx = (terrain[i + 1] - terrain[i - 1]) * 0.5f;
-					const float gy = (terrain[i + width] - terrain[i - width]) * 0.5f;
+					const float gx = ((surface[i + 1] - terrain[i + 1]) - (surface[i - 1] - terrain[i - 1])) * 0.5f;
+					const float gy = ((surface[i + width] - terrain[i + width]) - (surface[i - width] - terrain[i - width])) * 0.5f;
 					const float slope = sqrtf(gx * gx + gy * gy);
 					if (slope > 1e-3f)
 					{
