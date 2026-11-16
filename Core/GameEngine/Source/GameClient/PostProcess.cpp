@@ -457,6 +457,7 @@ WaterRenderingSettings::WaterRenderingSettings() :
 	m_drawWaterTracks(FALSE),
 	m_shoreFieldResolution(2),
 	m_shoreFieldRange(100.0f),
+	m_shoreFieldSmoothing(10.0f),
 	m_replaceHeightAmbientLight(TRUE)
 {
 }
@@ -474,6 +475,7 @@ const FieldParse WaterRenderingSettings::s_fieldParseTable[] =
 	{ "DrawWaterTracks",		INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_drawWaterTracks ) },
 	{ "ShoreFieldResolution",	INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldResolution ) },
 	{ "ShoreFieldRange",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldRange ) },
+	{ "ShoreFieldSmoothing",	INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldSmoothing ) },
 	{ "ReplaceHeightAmbientLight",	INI::parseBool,		nullptr,	offsetof( WaterRenderingSettings, m_replaceHeightAmbientLight ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };

@@ -441,6 +441,7 @@ End
 | `CrestFoamSoftness` | How soft the edges of the crest foam patches are (0.15; larger = blurrier) |
 | `DeepColor`, `DeepOpacity`, `DepthScale` | Only without refraction: like `MAT_Water` (0.02 0.08 0.12, 0.75, 40); lit by the map's light. With refraction, `ScatterColor` and `Absorption` do their job |
 | `ShoreOpacityWidth` | Only without refraction: world units from the shoreline over which the water goes from fully clear to deep (`DeepColor`, `DeepOpacity`), whatever its depth, like the DX8 water (0 = by depth, `DepthScale`, and the edge only clear over `ShoreDistance`). Needs the water field; water outside it keeps the depth |
+| `ShoreLift`, `ShoreLiftWidth` | Smooth shoreline: the surface rises this many world units at the shoreline of the water field (2; −1 = none) and back to its level over that distance into the water (10). It covers the steps the terrain triangles cut into the water's edge on steep banks; beyond the field's shoreline the water fades out, so the edge follows the smoothed shoreline (`ShoreFieldSmoothing`). Raise the lift on very steep banks |
 
 Example presets for three kinds of water, opaque for every map, plus a see-through ocean for maps made for
 ships (their `map.ini` picks it, see below):
@@ -495,6 +496,7 @@ WaterRendering
   DrawWaterTracks = No         ; the map's .wak waves too (MAT_Ocean makes its own)
   ShoreFieldResolution = 2     ; texels per terrain cell of the water field
   ShoreFieldRange = 100        ; largest distance to the shore it holds
+  ShoreFieldSmoothing = 10     ; world units the terrain is smoothed over for it, so its shoreline is smooth; 0 = not
   ReplaceHeightAmbientLight = Yes   ; leave MapData TerrainHeightAmbientLight to MAT_Ocean
 End
 ```
@@ -508,7 +510,10 @@ opaque water do not pay for it.
 
 The **water field** is a texture over the
 map that `MAT_Ocean` reads. It holds the terrain height, the distance to the shore and the direction away from
-it. The engine builds it when the map loads, and again when the water level or the terrain changes.
+it. The engine builds it when the map loads, and again when the water level or the terrain changes. Its terrain
+height is smoothed over `ShoreFieldSmoothing` (a Gaussian blur, that value being two standard deviations), and
+near the shore the distance comes from the smoothed height and slope, so the shoreline it describes is a smooth
+curve instead of the steps of the terrain triangles. Shore fade, foam, opacity, waves and `ShoreLift` follow it.
 
 ### Per map, time of day and scripts
 

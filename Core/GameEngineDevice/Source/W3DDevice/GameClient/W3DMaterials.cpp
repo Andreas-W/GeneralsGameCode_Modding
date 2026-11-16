@@ -381,6 +381,8 @@ cbuffer Params : register(b2)
 	float NoiseSpeed;			// world units per second it drifts, 0 = 3
 	float NoiseDetail;			// 0..1, strength of each finer layer against the one before, 0 = 0.5
 	float ShoreOpacityWidth;	// without the scene colour: distance from the shoreline over which the water goes from clear to deep (like DX8), 0 = by depth (DepthScale)
+	float ShoreLift;			// world units the surface rises at the shoreline, over the steps the terrain cuts into it, 0 = 2; -1 = none
+	float ShoreLiftWidth;		// distance from the shoreline into the water over which that rise goes back to 0, 0 = 10
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -487,6 +489,10 @@ void MaterialVertex(inout MaterialVertexData v)
 	float3 offset, slope;
 	Waves(world.xy, fade, Time, offset, slope);
 	float shoreLift = ShoreWaveHeight < 0 ? 0 : ShoreWave(field.y, world.xy, Time) * Or(ShoreWaveHeight, 0.5) * saturate(depth / 2);
+	// At the shoreline of the water field (smooth) the surface rises over the steps the terrain triangles cut
+	// into the water's edge; the pixel shader fades the water out beyond that shoreline, so its edge is smooth.
+	if (HasWaterField() && ShoreLift >= 0)
+		shoreLift += Or(ShoreLift, 2) * (1 - smoothstep(0, Or(ShoreLiftWidth, 10), field.y));
 	v.worldPosition = world + offset + float3(0, 0, shoreLift);
 	v.worldNormal = normalize(float3(-slope.xy, 1 - slope.z));
 	v.data = float4(fade, offset.z + shoreLift, offset.z / max(Or(WaveAmplitude, 1.5), 1e-3), 0);
@@ -822,6 +828,8 @@ float4 main(MaterialInput input) : SV_Target
 	// where the water begins also on a soft edge.
 	float edgeFade = saturate(depth / Or(ShoreDistance, 1));
 	alpha = saturate(max(alpha * edgeFade, foam * saturate(depth / 0.3)));
+	// Nothing at all beyond the shoreline (where the surface rises over the land at the edge), not even depth.
+	clip(alpha - 0.002);
 
 	// Fog: what came through the water is fogged already; only the rest is fogged here.
 	float3 seen = throughScene * (1 - fresnel) * (1 - foam);

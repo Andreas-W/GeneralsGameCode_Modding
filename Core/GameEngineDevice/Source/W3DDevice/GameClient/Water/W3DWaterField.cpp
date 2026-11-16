@@ -115,6 +115,52 @@ static void distance1D(const float *f, Int n, float *d, Int *v, float *z)
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Gaussian blur of a width x height grid, sigma in texels, the edge texels repeated beyond the edge. */
+//-------------------------------------------------------------------------------------------------
+static void blur(std::vector<float>& values, Int width, Int height, float sigma)
+{
+	const Int radius = min(64, (Int)ceilf(sigma * 2.5f));
+	if (radius < 1)
+		return;
+	std::vector<float> weights(radius + 1);
+	float total = 0.0f;
+	for (Int i = 0; i <= radius; ++i)
+	{
+		weights[i] = expf(-0.5f * (float)(i * i) / (sigma * sigma));
+		total += i == 0 ? weights[i] : 2.0f * weights[i];
+	}
+	for (Int i = 0; i <= radius; ++i)
+		weights[i] /= total;
+
+	std::vector<float> line(max(width, height));
+	for (Int y = 0; y < height; ++y)
+	{
+		float *row = &values[(size_t)y * width];
+		for (Int x = 0; x < width; ++x)
+		{
+			float sum = row[x] * weights[0];
+			for (Int i = 1; i <= radius; ++i)
+				sum += (row[max(x - i, 0)] + row[min(x + i, width - 1)]) * weights[i];
+			line[x] = sum;
+		}
+		for (Int x = 0; x < width; ++x)
+			row[x] = line[x];
+	}
+	for (Int x = 0; x < width; ++x)
+	{
+		for (Int y = 0; y < height; ++y)
+		{
+			float sum = values[(size_t)y * width + x] * weights[0];
+			for (Int i = 1; i <= radius; ++i)
+				sum += (values[(size_t)max(y - i, 0) * width + x] + values[(size_t)min(y + i, height - 1) * width + x]) * weights[i];
+			line[y] = sum;
+		}
+		for (Int y = 0; y < height; ++y)
+			values[(size_t)y * width + x] = line[y];
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Squared distance in texels of each texel to the nearest one where target is set. */
 //-------------------------------------------------------------------------------------------------
 static void distance2D(const std::vector<UnsignedByte>& target, Int width, Int height, std::vector<float>& result)
@@ -345,6 +391,13 @@ Bool W3DWaterField::build()
 		}
 	}
 
+	// The terrain triangles cut steps into the water's edge on steep banks. Smoothed terrain gives a smooth
+	// shoreline for what the materials draw from the field (shore fade, foam, opacity, waves).
+	const Real smoothing = settings != nullptr ? max(settings->m_shoreFieldSmoothing, 0.0f) : 10.0f;
+	const Bool smooth = smoothing > 0.0f;
+	if (smooth)
+		blur(terrain, width, height, smoothing * 0.5f / texel);
+
 	std::vector<UnsignedByte> water(count), dry(count);
 	for (size_t i = 0; i < count; ++i)
 	{
@@ -355,10 +408,35 @@ Bool W3DWaterField::build()
 	distance2D(dry, width, height, toDry);
 	distance2D(water, width, height, toWater);
 	std::vector<float> signedDistance(count);
-	for (size_t i = 0; i < count; ++i)
+	for (Int y = 0; y < height; ++y)
 	{
-		const float distance = water[i] ? sqrtf(toDry[i]) * texel : -sqrtf(toWater[i]) * texel;
-		signedDistance[i] = max(-range, min(range, distance));
+		for (Int x = 0; x < width; ++x)
+		{
+			const size_t i = (size_t)y * width + x;
+			float distance = water[i] ? sqrtf(toDry[i]) : -sqrtf(toWater[i]);	// texels
+			if (smooth)
+			{
+				// The shoreline lies between texels, not on the nearest one of the other kind.
+				distance += water[i] ? -0.5f : 0.5f;
+				// Near it, where one water level covers the neighbours: the distance to where the smoothed terrain
+				// meets the water, from the height above or below it and the slope, which is smooth between texels.
+				if (fabsf(distance) < 2.0f && x > 0 && y > 0 && x < width - 1 && y < height - 1
+					&& surface[i] > -FAR_AWAY && surface[i - 1] == surface[i] && surface[i + 1] == surface[i]
+					&& surface[i - width] == surface[i] && surface[i + width] == surface[i])
+				{
+					const float gx = (terrain[i + 1] - terrain[i - 1]) * 0.5f;
+					const float gy = (terrain[i + width] - terrain[i - width]) * 0.5f;
+					const float slope = sqrtf(gx * gx + gy * gy);
+					if (slope > 1e-3f)
+					{
+						const float estimate = (surface[i] - terrain[i]) / slope;
+						if (fabsf(estimate) < 1.5f)
+							distance = estimate;
+					}
+				}
+			}
+			signedDistance[i] = max(-range, min(range, distance * texel));
+		}
 	}
 
 	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();

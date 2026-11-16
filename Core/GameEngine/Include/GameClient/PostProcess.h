@@ -335,6 +335,7 @@ public:
 	Bool m_drawWaterTracks;				///< the map's .wak waves are drawn as well
 	Int m_shoreFieldResolution;			///< texels per terrain cell of the water field
 	Real m_shoreFieldRange;				///< largest distance to the shore the field holds, world units
+	Real m_shoreFieldSmoothing;			///< world units the terrain is smoothed over for the field, so the shoreline it gives is smooth; 0 = not
 	Bool m_replaceHeightAmbientLight;	///< MapData TerrainHeightAmbientLight is left to the water material
 
 	const AsciiString& getMaterialName(Kind kind, const AsciiString& polygon) const;
