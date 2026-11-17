@@ -899,11 +899,15 @@ void Device::Log_Breadcrumbs(const Node* head)
 			const std::vector<std::string>& names = m_submittedDrawNames[list];
 			if (names.size() != markers || markers == 0)
 				continue;
-			Log("draws of that command list around the stop (%u draws done or under way of %u):", markersBefore, markers);
+			Log("draws of that command list around the stop (%u markers passed of %u):", markersBefore, markers);
 			const UINT current = markersBefore > 0 ? markersBefore - 1 : 0;
-			const UINT from = current > 4 ? current - 4 : 0;
-			for (UINT i = from; i <= current + 2 && i < names.size(); ++i)
-				Log("  %s draw %u: %s", i == current ? "->" : "  ", i, names[i].c_str());
+			const UINT from = current > 8 ? current - 8 : 0;
+			// The parts of the frame before that (the "--" markers of Mark_Time), then the draws around the stop.
+			for (UINT i = 0; i < from && i < names.size(); ++i)
+				if (names[i].compare(0, 2, "--") == 0)
+					Log("     %u: %s", i, names[i].c_str());
+			for (UINT i = from; i <= current + 3 && i < names.size(); ++i)
+				Log("  %s %u: %s", i == current ? "->" : "  ", i, names[i].c_str());
 			break;
 		}
 	}
@@ -926,7 +930,10 @@ void Device::Log_Breadcrumbs(const Node* head)
 				break;
 			}
 		}
+		// The start of the list (the stops so far were all near it), then the operations around the stop.
 		const UINT first = done > 16 ? done - 16 : 0;
+		for (UINT i = 0; i < first && i < 12; ++i)
+			Log("     %u: %s", i, Breadcrumb_Name(node->pCommandHistory[i]));
 		for (UINT i = first; i <= done + 2 && i < node->BreadcrumbCount; ++i)
 		{
 			const wchar_t* context = Breadcrumb_Context(node, i);

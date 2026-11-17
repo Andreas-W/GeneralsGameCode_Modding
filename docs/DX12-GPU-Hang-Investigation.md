@@ -30,6 +30,7 @@ before that, so this alone does not prove the branch is at fault.
 | 16:52 | `886548f06`, pre-water INI files | user, `/testmode`, restarts | freeze_5: draw 19 of 685, a scene draw |
 | 17:12 | `886548f06`, current INI files | automated: save loaded ~21 times through the game MCP | not logged (no DRED) |
 | 2026-11-17 07:22 | `009802817` (smooth shoreline) | user, menu skirmish on NorthAmerica against the AI, on map load (game started 07:20, logic kept running, about 2500 objects) | not logged (started without DRED); no TDR dump in `LiveKernelReports` |
+| 2026-11-17 08:22 | `009802817` + DRED + debug layer | user, about 4.5 minutes after starting | freeze_7: op 56 of 1536, draw 26 of 731 (a small mesh of 420 indices, no culling, drawn three times from one buffer), about five draws into the scene after the shadow casters; the next frame's list queued with 0 done |
 
 The freeze of 2026-11-17 shows that it still happens with the newest water code, on a map without the naval
 setup used for most tests, and five days after the last one: the rate on the author's machine is low enough that
@@ -47,6 +48,13 @@ around where the GPU stopped (see "Tools" below). In every logged freeze:
 - The draw there is ordinary and cheap: shadow map casters of 6 to 30 indices (fvf 0x112), or a scene mesh of
   2850 indices (fvf 0x152, no culling). All use the generated vertex and pixel shaders, no material.
 - The draw differs from freeze to freeze. It is not one particular draw.
+
+With five logged stops (operations 5, 41, 5, 42 and 56 of lists of 300 to 2500), the stop is always among the
+first few dozen operations of a frame: at the shadow casters that start it, or a few draws into the scene right
+after them. A hang in a random draw would almost never land there every time, so the cause is tied to the start of
+the frame (the shadow map pass and the switch to the scene), not to one kind of mesh. Since this note was written, the
+successor the DRED log also has markers at the frame parts (`Mark_Time`: frame, shadow map, shadows applied,
+post-processing) and lists the first operations of the stuck list, to see exactly which part it stops in.
 
 Breadcrumb completion is written at the end of the pipeline, so the draw named is the oldest one not finished.
 The work actually stuck may be a little later. Even so, the stop is always within the first few dozen operations

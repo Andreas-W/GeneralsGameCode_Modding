@@ -23,7 +23,9 @@
 
 #include "Device.h"
 
+#include <stdio.h>
 #include <string.h>
+#include <wchar.h>
 
 namespace D3D8On12
 {
@@ -64,6 +66,23 @@ void Device::Set_Gpu_Timing(bool enable)
 
 void Device::Mark_Time(UINT marker)
 {
+	// With D3D8ON12_DRED the same points of the frame (shadow map, shadows, post-processing) get a marker among
+	// those of the draws, so the log shows in which part of the frame the GPU stopped.
+	if (m_dred && m_recording)
+	{
+		static const char* const names[] = { "frame begins", "frame ends", "shadow map begins", "shadow map ends",
+			"shadows applied: begin", "shadows applied: end", "post-processing begins", "post-processing ends" };
+		char text[64];
+		if (marker < TIMING_PASS)
+			_snprintf_s(text, sizeof(text), _TRUNCATE, "-- %s --", names[marker]);
+		else
+			_snprintf_s(text, sizeof(text), _TRUNCATE, "-- post-processing pass %u --", marker - TIMING_PASS);
+		wchar_t wide[64];
+		swprintf_s(wide, L"%hs", text);
+		m_commandList->SetMarker(0, wide, (UINT)((wcslen(wide) + 1) * sizeof(wchar_t)));
+		m_drawNames.push_back(text);
+		m_lastMarker = 0;
+	}
 	if (!m_timing || !m_recording)
 		return;
 	std::vector<UINT>& markers = m_timingMarkers[m_backBufferIndex];
