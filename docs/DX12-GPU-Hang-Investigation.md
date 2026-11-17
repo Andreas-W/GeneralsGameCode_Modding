@@ -29,6 +29,11 @@ before that, so this alone does not prove the branch is at fault.
 | 15:16 | `886548f06` | user, restarts | freeze_4: draw 0 of 258, a shadow map caster |
 | 16:52 | `886548f06`, pre-water INI files | user, `/testmode`, restarts | freeze_5: draw 19 of 685, a scene draw |
 | 17:12 | `886548f06`, current INI files | automated: save loaded ~21 times through the game MCP | not logged (no DRED) |
+| 2026-11-17 07:22 | `009802817` (smooth shoreline) | user, menu skirmish on NorthAmerica against the AI, on map load (game started 07:20, logic kept running, about 2500 objects) | not logged (started without DRED); no TDR dump in `LiveKernelReports` |
+
+The freeze of 2026-11-17 shows that it still happens with the newest water code, on a map without the naval
+setup used for most tests, and five days after the last one: the rate on the author's machine is low enough that
+most play sessions do not hit it.
 
 The logs were in the session scratchpad (`d3d8on12_freeze_*.log`) and are not in the repository.
 
@@ -111,7 +116,9 @@ waits.
    is possible.
 3. Find out why the scripted save-load loop never reproduced while the MCP-driven one did. Differences: the game
    had run about 3.5 minutes before the loads; the loads came in irregular bursts; possibly window focus.
-4. "could not create a 64x64 texture of format 26" (A4R4G4B4, `DXGI_FORMAT_B4G4R4A4_UNORM` not supported by
+4. Play with `D3D8ON12_DRED=1` by default (`generalszh_dx12_dred.bat` in the mod folder) so that every freeze
+   leaves breadcrumbs in `d3d8on12.log`; without it the log is not even written.
+5. "could not create a 64x64 texture of format 26" (A4R4G4B4, `DXGI_FORMAT_B4G4R4A4_UNORM` not supported by
    `CreateCommittedResource` here) appears 4 times in every log. Not investigated; probably unrelated, but
    unexplained.
 
