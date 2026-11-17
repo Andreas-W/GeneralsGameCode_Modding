@@ -848,14 +848,17 @@ void RTS3DScene::renderOneObject(RenderInfoClass &rinfo, RenderObjClass *robj, I
 
 //DECLARE_PERF_TIMER(translucentRender)
 
-/** Whether a box of alpha blended triangles lies under the water, up to a little above the still surface. */
+/** Whether a box of alpha blended triangles lies under the water, up to a little above the still surface, and
+	* reaches down into it. Effects lying on the surface (splashes, wakes) would otherwise count as under water and
+	* be drawn before it, so the water covered them. */
 static bool isBoxUnderWater(const Vector3& worldMin, const Vector3& worldMax)
 {
 	const Real SURFACE_TOLERANCE = 1.0f;
+	const Real SUBMERGED_DEPTH = 1.0f;
 	Real waterZ;
 	if (TheTerrainLogic == nullptr || !TheTerrainLogic->isUnderwater((worldMin.X + worldMax.X) * 0.5f, (worldMin.Y + worldMax.Y) * 0.5f, &waterZ))
 		return false;
-	return worldMax.Z <= waterZ + SURFACE_TOLERANCE;
+	return worldMax.Z <= waterZ + SURFACE_TOLERANCE && worldMin.Z <= waterZ - SUBMERGED_DEPTH;
 }
 
 /**Draw everything that was submitted from this scene*/
