@@ -635,11 +635,19 @@ std::string Generate_Pixel_Shader(const PixelShaderKey& key)
 			Append(text, "		float4 texture%u = Texture%u.Sample(Sampler%u, coords);\n", stage, stage, stage);
 			Append(text, "		texture%u.rgb *= bumpScale;\n", stage);
 		}
-		else
+		else if (stage == 0)
 		{
 			// A stage without a texture reads the current color as its texture: the engine's screen
 			// fades select the texture of an empty stage 0 to get the vertex color.
 			Append(text, "		float4 texture%u = current;\n", stage);
+		}
+		else
+		{
+			// Later stages without a texture read white, as the Direct3D 8 drivers do. The engine leaves
+			// stage 1 at MODULATE(TEXTURE, CURRENT) after some draws while the next ones bind no second
+			// texture; reading the current color there squared the color and alpha of particles and
+			// alpha blended meshes, which made them much darker and fainter.
+			Append(text, "		float4 texture%u = float4(1, 1, 1, 1);\n", stage);
 		}
 
 		if (s.colorOp == D3DTOP_BUMPENVMAP || s.colorOp == D3DTOP_BUMPENVMAPLUMINANCE)
