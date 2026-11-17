@@ -897,7 +897,7 @@ void RTS3DScene::Flush(RenderInfoClass & rinfo)
 		// Alpha blended parts under water (the legs of an oil rig) go into the copy the water bends,
 		// instead of being drawn unbent over the water at the end.
 		if (TheW3DMaterials->refractsWater())
-			SortingRendererClass::Flush_Submerged(isBoxUnderWater);
+			SortingRendererClass::Flush_Submerged(isBoxUnderWater, rinfo.Camera.Get_Transform());
 		TheW3DMaterials->captureBeforeWater();	// soft shores of the water material
 	}
 	WW3D::Render_And_Clear_Static_Sort_Lists(rinfo);	//draws things like water

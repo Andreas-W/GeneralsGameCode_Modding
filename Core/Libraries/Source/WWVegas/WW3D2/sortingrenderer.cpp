@@ -683,8 +683,10 @@ static bool Uses_Sorting_Buffers(const SortingNodeStruct* state)
 		(state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_SORTING || state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_DYNAMIC_SORTING);
 }
 
-// The world space box of the vertices a node draws.
-bool SortingRendererClass::Get_World_Box(const SortingNodeStruct* state, Vector3& world_min, Vector3& world_max)
+// The world space box of the vertices a node draws. Lines (SegLineRendererClass) queue their
+// vertices in camera space with identity world and view matrices, so the vertices go into camera
+// space with the node's own matrices and come back with the camera's transform.
+bool SortingRendererClass::Get_World_Box(const SortingNodeStruct* state, const Matrix3D& camera_transform, Vector3& world_min, Vector3& world_max)
 {
 	const SortingVertexBufferClass* vertex_buffer=static_cast<const SortingVertexBufferClass*>(state->sorting_state.vertex_buffers[0]);
 	if (vertex_buffer == nullptr || vertex_buffer->VertexBuffer == nullptr || state->vertex_count == 0)
@@ -694,13 +696,15 @@ bool SortingRendererClass::Get_World_Box(const SortingNodeStruct* state, Vector3
 	verts+=state->sorting_state.index_base_offset;
 	verts+=state->min_vertex_index;
 
-	const D3DXMATRIX& m=(const D3DXMATRIX&)state->sorting_state.world;
+	const D3DXMATRIX m=(const D3DXMATRIX&)state->sorting_state.world*(const D3DXMATRIX&)state->sorting_state.view;
 	for (unsigned i=0;i<state->vertex_count;++i) {
 		const VertexFormatXYZNDUV2& v=verts[i];
-		const Vector3 p(
+		const Vector3 camera_point(
 			v.x*m._11 + v.y*m._21 + v.z*m._31 + m._41,
 			v.x*m._12 + v.y*m._22 + v.z*m._32 + m._42,
 			v.x*m._13 + v.y*m._23 + v.z*m._33 + m._43);
+		Vector3 p;
+		Matrix3D::Transform_Vector(camera_transform,camera_point,&p);
 		if (i == 0) {
 			world_min=p;
 			world_max=p;
@@ -712,7 +716,7 @@ bool SortingRendererClass::Get_World_Box(const SortingNodeStruct* state, Vector3
 	return true;
 }
 
-void SortingRendererClass::Flush_Submerged(SubmergedTest is_submerged)
+void SortingRendererClass::Flush_Submerged(SubmergedTest is_submerged, const Matrix3D& camera_transform)
 {
 	if (is_submerged == nullptr || (sorted_list.empty() && unsorted_list.empty()))
 		return;
@@ -726,7 +730,7 @@ void SortingRendererClass::Flush_Submerged(SubmergedTest is_submerged)
 			SortingNodeStruct* state=*node;
 			Vector3 world_min, world_max;
 			if (overlapping_node_count < MAX_OVERLAPPING_NODES && Uses_Sorting_Buffers(state) &&
-				Get_World_Box(state, world_min, world_max) && is_submerged(world_min, world_max)) {
+				Get_World_Box(state, camera_transform, world_min, world_max) && is_submerged(world_min, world_max)) {
 				node=list.erase(node);
 				Insert_To_Sorting_Pool(state);
 			} else {
