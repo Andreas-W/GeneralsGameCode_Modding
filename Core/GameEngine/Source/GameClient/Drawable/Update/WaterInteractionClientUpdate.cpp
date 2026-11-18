@@ -48,6 +48,7 @@ WaterInteractionClientUpdateModuleData::WaterInteractionClientUpdateModuleData()
 	m_wakeRingRadius(0.0f),
 	m_wakeRingTime(LOGICFRAMES_PER_SECOND * 2),
 	m_wakeRingOffset(0.5f),
+	m_bowWaveOffset(0.5f),
 	m_maxHeightAboveWater(5.0f),
 	m_maxDepth(10.0f),
 	m_submergedHighlight(0.0f),
@@ -82,6 +83,7 @@ void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse&
 		{ "MaxHeightAboveWater",	INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_maxHeightAboveWater) },
 		{ "MaxDepth",				INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_maxDepth) },
 		{ "BowWaveParticleSystem",	INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_bowWaveParticleSystem) },
+		{ "BowWaveOffset",			INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_bowWaveOffset) },
 		{ "WakeParticleSystem",		INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_wakeParticleSystem) },
 		{ "SubmergedHighlight",		INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlight) },
 		{ "SubmergedHighlightColor",	INI::parseRGBColor,		nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlightColor) },
@@ -113,10 +115,12 @@ WaterInteractionClientUpdate::~WaterInteractionClientUpdate()
 }
 
 //-------------------------------------------------------------------------------------------------
-/** A particle system attached to the drawable: made when first needed, emitting while active, and with its
-	* particles' speed and count scaled by strength (0..1). The ID is looked up each time, as the system may be gone. */
+/** A particle system attached to the drawable: made when first needed, at forward world units along the object
+	* from its position, emitting while active, and with its particles' speed and count scaled by strength (0..1).
+	* The ID is looked up each time, as the system may be gone. */
 //-------------------------------------------------------------------------------------------------
-void WaterInteractionClientUpdate::updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength)
+void WaterInteractionClientUpdate::updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength,
+	Real forward)
 {
 	if (name.isEmpty() || TheParticleSystemManager == nullptr)
 		return;
@@ -133,6 +137,9 @@ void WaterInteractionClientUpdate::updateParticleSystem(ParticleSystemID& id, co
 		if (system == nullptr)
 			return;
 		system->attachToDrawable(getDrawable());
+		// The local position is in the drawable's space, whose x points forward.
+		const Coord3D offset = { forward, 0.0f, 0.0f };
+		system->setPosition(&offset);
 		id = system->getSystemID();
 	}
 	if (active)
@@ -231,15 +238,6 @@ void WaterInteractionClientUpdate::clientUpdate()
 	const Bool moving = active && speed >= data->m_minSpeed;
 	const Real strength = moving ? min(speed / max(data->m_maxSpeed, 0.001f), 1.0f) : 0.0f;
 
-	updateParticleSystem(m_bowWaveSystem, data->m_bowWaveParticleSystem, moving, strength);
-	updateParticleSystem(m_wakeSystem, data->m_wakeParticleSystem, moving, strength);
-
-	if (!active || !TheWaterDisturbance->isActive())
-	{
-		m_hasWakePosition = FALSE;
-		return;
-	}
-
 	// The hull's size: from the INI, else from the geometry (a box: its two radii; anything else: its radius).
 	const GeometryInfo& geometry = obj->getGeometryInfo();
 	Real length = data->m_hullLength;
@@ -248,6 +246,16 @@ void WaterInteractionClientUpdate::clientUpdate()
 		length = 2.0f * geometry.getMajorRadius();
 	if (width <= 0.0f)
 		width = 2.0f * (geometry.getGeomType() == GEOMETRY_BOX ? geometry.getMinorRadius() : geometry.getMajorRadius());
+
+	updateParticleSystem(m_bowWaveSystem, data->m_bowWaveParticleSystem, moving, strength, length * 0.5f * data->m_bowWaveOffset);
+	updateParticleSystem(m_wakeSystem, data->m_wakeParticleSystem, moving, strength, 0.0f);
+
+	if (!active || !TheWaterDisturbance->isActive())
+	{
+		m_hasWakePosition = FALSE;
+		return;
+	}
+
 	const Real angle = obj->getOrientation();
 	Coord3D surface = *pos;
 	surface.z = waterZ;

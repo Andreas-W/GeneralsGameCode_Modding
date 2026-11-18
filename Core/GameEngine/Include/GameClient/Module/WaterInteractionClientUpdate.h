@@ -56,6 +56,7 @@ public:
 	Real m_maxHeightAboveWater;	///< higher above the water nothing happens
 	Real m_maxDepth;			///< deeper under the water nothing happens
 	AsciiString m_bowWaveParticleSystem;	///< attached while moving, scaled by speed
+	Real m_bowWaveOffset;		///< where along the hull it sits: 1 = bow, 0 = middle, -1 = stern
 	AsciiString m_wakeParticleSystem;		///< attached while moving, scaled by speed
 	Real m_submergedHighlight;	///< strength of the silhouette over the water while wholly under it, 0 = none
 	RGBColor m_submergedHighlightColor;	///< its colour, black = the owner's colour
@@ -80,7 +81,7 @@ public:
 
 protected:
 
-	void updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength);
+	void updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength, Real forward);
 	void updateHighlight(const Object *obj);
 
 	ParticleSystemID m_bowWaveSystem;

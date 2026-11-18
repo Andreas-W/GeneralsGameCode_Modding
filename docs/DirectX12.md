@@ -569,6 +569,7 @@ Object AmericaShipDestroyer
     MaxHeightAboveWater = 5   ; higher above the water (or deeper than MaxDepth) nothing happens
     MaxDepth = 10
     BowWaveParticleSystem =   ; optional, attached while moving, speed and count scaled by speed
+    BowWaveOffset = 0.5       ; where along the hull it sits: 1 = bow, 0 = middle, -1 = stern
     WakeParticleSystem =      ; optional, the same
     SubmergedHighlight = 0    ; 0..1, strength of the outline while wholly under water, 0 = none
     SubmergedHighlightColor = R:0 G:0 B:0   ; its colour, black = the owner's colour
