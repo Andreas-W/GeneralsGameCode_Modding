@@ -723,6 +723,8 @@ void SortingRendererClass::Flush_Submerged(SubmergedTest is_submerged, const Mat
 	WWPROFILE("SortingRenderer::Flush_Submerged");
 
 	// Take the submerged nodes out of the lists, keeping their order; the pool sorts their triangles.
+	// Nodes drawn without a depth test (rally point and waypoint lines, which lie on the sea floor
+	// under water) are meant to show over everything and stay for Flush, after the water.
 	SortingNodeStructList* lists[2] = { &sorted_list, &unsorted_list };
 	for (int l=0;l<2;++l) {
 		SortingNodeStructList& list=*lists[l];
@@ -730,6 +732,7 @@ void SortingRendererClass::Flush_Submerged(SubmergedTest is_submerged, const Mat
 			SortingNodeStruct* state=*node;
 			Vector3 world_min, world_max;
 			if (overlapping_node_count < MAX_OVERLAPPING_NODES && Uses_Sorting_Buffers(state) &&
+				state->sorting_state.shader.Get_Depth_Compare() != ShaderClass::PASS_ALWAYS &&
 				Get_World_Box(state, camera_transform, world_min, world_max) && is_submerged(world_min, world_max)) {
 				node=list.erase(node);
 				Insert_To_Sorting_Pool(state);
