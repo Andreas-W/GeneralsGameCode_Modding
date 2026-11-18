@@ -565,6 +565,7 @@ Object AmericaShipDestroyer
     WakeFoam = 0.3            ; its foam at full speed
     WakeRingRadius = 0        ; world units each splash's ring spreads to, 0 = 4 x the hull width (at least 40)
     WakeRingTime = 2000       ; milliseconds it spreads for, 0 = no rings (the splash only fades in place)
+    WakeRingOffset = 0.5      ; where along the hull the rings start: 1 = bow, 0 = middle, -1 = stern
     MaxHeightAboveWater = 5   ; higher above the water (or deeper than MaxDepth) nothing happens
     MaxDepth = 10
     BowWaveParticleSystem =   ; optional, attached while moving, speed and count scaled by speed
@@ -576,8 +577,9 @@ Object AmericaShipDestroyer
 End
 ```
 
-Each splash of the wake sends out a ring from where the bow was and leaves foam behind the stern; as the boat
-moves on away from the rings they make the V of a wake, starting at the bow and wider the slower the boat. The hull itself is a trough with a steep bow wave in front and a softer crest
+Each splash of the wake sends out a ring from a point along the hull (`WakeRingOffset`, by default halfway
+between the middle and the bow) and leaves foam behind the stern; as the boat moves on away from the rings they
+make the V of a wake, starting near the bow and wider the slower the boat. The hull itself is a trough with a steep bow wave in front and a softer crest
 at the stern. These bend the light (`DisturbanceNormal`); the foam is broken up by the foam pattern.
 
 It does nothing on land (amphibious units), for hidden objects and for objects the local player does not see

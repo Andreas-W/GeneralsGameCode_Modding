@@ -47,6 +47,7 @@ WaterInteractionClientUpdateModuleData::WaterInteractionClientUpdateModuleData()
 	m_wakeFoam(0.3f),
 	m_wakeRingRadius(0.0f),
 	m_wakeRingTime(LOGICFRAMES_PER_SECOND * 2),
+	m_wakeRingOffset(0.5f),
 	m_maxHeightAboveWater(5.0f),
 	m_maxDepth(10.0f),
 	m_submergedHighlight(0.0f),
@@ -77,6 +78,7 @@ void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse&
 		{ "WakeFoam",				INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_wakeFoam) },
 		{ "WakeRingRadius",			INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_wakeRingRadius) },
 		{ "WakeRingTime",			INI::parseDurationUnsignedInt,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_wakeRingTime) },
+		{ "WakeRingOffset",			INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_wakeRingOffset) },
 		{ "MaxHeightAboveWater",	INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_maxHeightAboveWater) },
 		{ "MaxDepth",				INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_maxDepth) },
 		{ "BowWaveParticleSystem",	INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_bowWaveParticleSystem) },
@@ -273,15 +275,16 @@ void WaterInteractionClientUpdate::clientUpdate()
 	const Real dy = stern.y - m_lastWakePosition.y;
 	if (dx * dx + dy * dy >= data->m_wakeSpacing * data->m_wakeSpacing)
 	{
-		// A ring that spreads from where the bow was; the ship moving on away from the rings makes the V of a
-		// wake, starting at the bow as on a real ship. Behind the stern a patch of foam, which only fades.
+		// A ring that spreads from a point along the hull (WakeRingOffset, towards the bow by default); the ship
+		// moving on away from the rings makes the V of a wake, starting near the bow as on a real ship. Behind the
+		// stern a patch of foam, which only fades.
 		if (data->m_wakeRingTime > 0)
 		{
-			Coord3D bow = surface;
-			bow.x += cosf(angle) * length * 0.5f;
-			bow.y += sinf(angle) * length * 0.5f;
+			Coord3D origin = surface;
+			origin.x += cosf(angle) * length * 0.5f * data->m_wakeRingOffset;
+			origin.y += sinf(angle) * length * 0.5f * data->m_wakeRingOffset;
 			const Real ringRadius = data->m_wakeRingRadius > 0.0f ? data->m_wakeRingRadius : max(width * 4.0f, 40.0f);
-			TheWaterDisturbance->addRipple(bow,min(max(width * 0.5f, 8.0f), ringRadius), ringRadius, data->m_wakeHeight * strength,
+			TheWaterDisturbance->addRipple(origin, min(max(width * 0.5f, 8.0f), ringRadius), ringRadius, data->m_wakeHeight * strength,
 				data->m_wakeFoam * strength * 0.25f, data->m_wakeRingTime);
 		}
 		TheWaterDisturbance->addStamp(stern, angle, width * 1.2f, width * 1.2f, data->m_wakeRingTime > 0 ? 0.0f : data->m_wakeHeight * strength,

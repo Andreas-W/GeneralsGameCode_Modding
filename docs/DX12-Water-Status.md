@@ -294,7 +294,7 @@ author's own). The material looks for `.dds` first, then `.tga`, whatever extens
      its top comes within a unit of the surface).
    - Preset polish: tuned default Ocean / Lake / River, normal and foam textures.
    - Ship ripples were too weak to see (heights 0..1 read as world units): defaults raised to
-     `DisturbanceNormal` 6 and `DisturbanceHeight` 3, wakes send out rings from the bow (`WakeRingRadius`, `WakeRingTime`), the
+     `DisturbanceNormal` 6 and `DisturbanceHeight` 3, wakes send out rings from near the bow (`WakeRingRadius`, `WakeRingTime`, `WakeRingOffset`), the
      bow wave is steeper and the disturbance foam is broken up by the foam pattern. A Material.ini that sets
      `DisturbanceNormal 1` / `DisturbanceHeight 1` explicitly keeps the old weak look.
    - The hull stamp is sustained (built up over the fade), so a moving hull smears into a tail about
