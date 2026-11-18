@@ -383,6 +383,9 @@ cbuffer Params : register(b2)
 	float ShoreOpacityWidth;	// without the scene colour: distance from the shoreline over which the water goes from clear to deep (like DX8), 0 = by depth (DepthScale)
 	float ShoreLift;			// world units the surface rises at the shoreline, over the steps the terrain cuts into it, 0 = 2; -1 = none
 	float ShoreLiftWidth;		// distance from the shoreline into the water over which that rise goes back to 0, 0 = 10
+	float ContactFoam;			// foam where an object (hull, pier, rig leg) cuts the water, 0 = 1; -1 = none
+	float ContactFoamWidth;		// distance behind the surface, along the view, over which it fades out, 0 = 5
+	float ContactFoamTexture;	// 0..1, how much the shore foam pattern breaks it up, 0 = 0.5; -1 = flat
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -793,6 +796,21 @@ float4 main(MaterialInput input) : SV_Target
 		float minimumTexture = ShoreFoamMinimumTexture < 0 ? 0 : saturate(Or(ShoreFoamMinimumTexture, 0.5));
 		shoreFoam = max(shoreFoam, saturate(ShoreFoamMinimum) * edge * lerp(1, pattern, minimumTexture));
 		foam = shoreFoam * Or(FoamStrength, 0.85);
+	}
+	// Contact foam: where what the scene drew behind the water (a hull, a pier, the legs of a rig) is close behind
+	// the surface. Not on the terrain, whose shore has the shore foam: the point behind must lie above the ground.
+	if (ContactFoam >= 0 && HasSceneDepth())
+	{
+		float contactBehind = SceneViewDepth(uv) - waterDistance;
+		float3 behindWorld = SceneWorldPosition(uv);
+		float aboveGround = behindWorld.z - Field(behindWorld.xy).x;
+		float contact = (1 - saturate(contactBehind / Or(ContactFoamWidth, 5))) * saturate(aboveGround - 1);
+		if (contact > 0)
+		{
+			float pattern = FoamPattern(world.xy, foamScale, t * foamSpeed, false);
+			float contactTexture = ContactFoamTexture < 0 ? 0 : saturate(Or(ContactFoamTexture, 0.5));
+			foam += contact * lerp(1, pattern, contactTexture) * Or(ContactFoam, 1);
+		}
 	}
 	if (CrestFoam >= 0 && fade > 0.01)
 	{
