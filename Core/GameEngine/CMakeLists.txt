@@ -212,6 +212,7 @@ set(GAMEENGINE_SRC
     Include/GameClient/MetaEvent.h
     Include/GameClient/Module/AnimatedParticleSysBoneClientUpdate.h
     Include/GameClient/Module/BeaconClientUpdate.h
+    Include/GameClient/Module/WaterInteractionClientUpdate.h
     Include/GameClient/Module/DynamicGeometryClientUpdate.h
     Include/GameClient/Module/SwayClientUpdate.h
     Include/GameClient/Mouse.h
@@ -718,6 +719,7 @@ set(GAMEENGINE_SRC
 #    Source/GameClient/Drawable.cpp
     Source/GameClient/Drawable/Update/AnimatedParticleSysBoneClientUpdate.cpp
     Source/GameClient/Drawable/Update/BeaconClientUpdate.cpp
+    Source/GameClient/Drawable/Update/WaterInteractionClientUpdate.cpp
     Source/GameClient/Drawable/Update/DynamicGeometryClientUpdate.cpp
     Source/GameClient/Drawable/Update/SwayClientUpdate.cpp
     Source/GameClient/DrawGroupInfo.cpp

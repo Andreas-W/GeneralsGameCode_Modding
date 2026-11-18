@@ -59,6 +59,7 @@ static PoolSizeRec PoolSizes[] =
 	{ "SwayClientUpdate", 32, 32 },
 	{ "DynamicGeometryClientUpdate", 32, 32 },
 	{ "BeaconClientUpdate", 64, 32 },
+	{ "WaterInteractionClientUpdate", 64, 32 },
 	{ "AIGroupPool", 64, 32 },
 	{ "AIDockMachinePool", 256, 32 },
 	{ "AIGuardMachinePool", 32, 32 },

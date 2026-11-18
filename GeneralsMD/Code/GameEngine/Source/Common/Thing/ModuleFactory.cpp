@@ -322,6 +322,7 @@
 #include "GameClient/Module/SwayClientUpdate.h"
 #include "GameClient/Module/DynamicGeometryClientUpdate.h"
 #include "GameClient/Module/BeaconClientUpdate.h"
+#include "GameClient/Module/WaterInteractionClientUpdate.h"
 
 #include "GameLogic/Module/RiftSlowDeathUpdate.h"
 
@@ -646,6 +647,7 @@ void ModuleFactory::init()
 	addModule( SwayClientUpdate );
 	addModule( DynamicGeometryClientUpdate );
 	addModule( BeaconClientUpdate );
+	addModule( WaterInteractionClientUpdate );
 
 }
 

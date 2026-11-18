@@ -543,6 +543,34 @@ End
 Only on water and only with the Direct3D 12 water; otherwise the nugget does nothing. The game MCP command
 `render.water_ripple` adds one at a position, for tuning.
 
+Boats, ships and amphibious units get their hull and a wake trail into it with a client module, which works on
+top of any draw module:
+
+```ini
+Object AmericaShipDestroyer
+  ; ...
+  ClientUpdate = WaterInteractionClientUpdate ModuleTag_Water
+    HullLength = 0            ; world units along the boat, 0 = from its geometry
+    HullWidth = 0             ; across, 0 = from its geometry
+    MinSpeed = 3              ; world units per second; slower counts as standing
+    MaxSpeed = 40             ; full strength from here
+    HullHeight = 0.6          ; crest and trough of the hull at full speed
+    HullFoam = 0.5            ; foam around the hull at full speed
+    IdleRipple = 0.15         ; the hull while standing
+    WakeSpacing = 10          ; world units between the splashes of the wake trail
+    WakeHeight = 0.25         ; a splash at full speed
+    WakeFoam = 0.3            ; its foam at full speed
+    MaxHeightAboveWater = 5   ; higher above the water (or deeper than MaxDepth) nothing happens
+    MaxDepth = 10
+    BowWaveParticleSystem =   ; optional, attached while moving, speed and count scaled by speed
+    WakeParticleSystem =      ; optional, the same
+  End
+End
+```
+
+It does nothing on land (amphibious units), for hidden objects and for objects the local player does not see
+(fogged or shrouded), so ripples never give away an enemy. The particle systems work with Direct3D 8 too.
+
 ### Per map, time of day and scripts
 
 **Materials per map**: a map's `map.ini` may contain `Material` and `WaterRendering` blocks too, and

@@ -5125,6 +5125,7 @@ ClientUpdateModule* Drawable::findClientUpdateModule( NameKeyType key )
 			{
 				return *clientModules;
 			}
+			++clientModules;
 		}
 	}
 	return nullptr;
