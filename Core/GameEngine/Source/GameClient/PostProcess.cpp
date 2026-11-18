@@ -458,6 +458,9 @@ WaterRenderingSettings::WaterRenderingSettings() :
 	m_shoreFieldResolution(2),
 	m_shoreFieldRange(100.0f),
 	m_shoreFieldSmoothing(10.0f),
+	m_disturbance(TRUE),
+	m_disturbanceRange(1024.0f),
+	m_disturbanceFadeTime(1.0f),
 	m_replaceHeightAmbientLight(TRUE)
 {
 }
@@ -476,6 +479,9 @@ const FieldParse WaterRenderingSettings::s_fieldParseTable[] =
 	{ "ShoreFieldResolution",	INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldResolution ) },
 	{ "ShoreFieldRange",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldRange ) },
 	{ "ShoreFieldSmoothing",	INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldSmoothing ) },
+	{ "Disturbance",			INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_disturbance ) },
+	{ "DisturbanceRange",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_disturbanceRange ) },
+	{ "DisturbanceFadeTime",	INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_disturbanceFadeTime ) },
 	{ "ReplaceHeightAmbientLight",	INI::parseBool,		nullptr,	offsetof( WaterRenderingSettings, m_replaceHeightAmbientLight ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };

@@ -443,6 +443,7 @@ End
 | `ShoreOpacityWidth` | Only without refraction: world units from the shoreline over which the water goes from fully clear to deep (`DeepColor`, `DeepOpacity`), whatever its depth, like the DX8 water (0 = by depth, `DepthScale`, and the edge only clear over `ShoreDistance`). Needs the water field; water outside it keeps the depth |
 | `ShoreLift`, `ShoreLiftWidth` | Smooth shoreline: the surface rises this many world units at the shoreline of the water field (2; −1 = none) and back to its level over that distance into the water (10). It covers the steps the terrain triangles cut into the water's edge on steep banks; beyond the field's shoreline the water fades out, so the edge follows the smoothed shoreline (`ShoreFieldSmoothing`). Raise the lift on very steep banks |
 | `ContactFoam`, `ContactFoamWidth`, `ContactFoamTexture` | Foam where an object cuts the water: hulls, amphibious units, piers, the legs of an oil rig. Taken from the scene depth behind the surface, so it needs no setup on the objects: strength (1; −1 = none), how far behind the surface along the view it fades out (5), and how much the shore foam pattern breaks it up (0.5; −1 = flat). Terrain gets no contact foam, its shore has the shore foam |
+| `DisturbanceHeight`, `DisturbanceNormal`, `DisturbanceFoam` | How the ripples of ships and explosions (the water disturbance, see below) show: world units of height per unit of them (1), how much they bend the surface for the light (1), how much of their foam shows (1); −1 turns each off |
 
 Example presets for three kinds of water, opaque for every map, plus a see-through ocean for maps made for
 ships (their `map.ini` picks it, see below):
@@ -498,6 +499,9 @@ WaterRendering
   ShoreFieldResolution = 2     ; texels per terrain cell of the water field
   ShoreFieldRange = 100        ; largest distance to the shore it holds
   ShoreFieldSmoothing = 10     ; world units the terrain is smoothed over for it, so its shoreline is smooth; 0 = not
+  Disturbance = Yes            ; ships and explosions ripple the water (WaterRipple FX, WaterInteractionClientUpdate)
+  DisturbanceRange = 1024      ; world units around the camera the ripples are kept for
+  DisturbanceFadeTime = 1      ; seconds in which they die down to half
   ReplaceHeightAmbientLight = Yes   ; leave MapData TerrainHeightAmbientLight to MAT_Ocean
 End
 ```
@@ -515,6 +519,29 @@ it. The engine builds it when the map loads, and again when the water level or t
 height is smoothed over `ShoreFieldSmoothing` (a Gaussian blur, that value being two standard deviations), and
 near the shore the distance comes from the smoothed height and slope, so the shoreline it describes is a smooth
 curve instead of the steps of the terrain triangles. Shore fade, foam, opacity, waves and `ShoreLift` follow it.
+
+The **water disturbance** holds the ripples of ships and explosions for `MAT_Ocean`: a half float texture over
+`DisturbanceRange` around the camera, which fades by half every `DisturbanceFadeTime` while new shapes are added
+into it 30 times a second (crest and trough height, foam, a highlight mask for submarines). The water bends its
+surface and lifts it a little from it, and adds its foam. It costs one small texture update per frame and a few
+texture reads per water pixel; with `Disturbance = No` nothing is updated or read. An FXList adds a ring of waves:
+
+```ini
+FXList FX_ShellHitWater
+  WaterRipple
+    StartRadius = 5          ; world units the ring starts with
+    EndRadius = 60           ; and grows to (scaled by the effect's radius when it has one)
+    Height = 1               ; 0..1, strength of its crest and trough
+    Foam = 0.3               ; 0..1, strength of its foam
+    Splash = 0               ; 0..1, a round splash in the middle
+    Duration = 2000          ; milliseconds it grows and dies away in
+    MaxHeightAboveWater = 30 ; higher above the water nothing happens (air bursts)
+  End
+End
+```
+
+Only on water and only with the Direct3D 12 water; otherwise the nugget does nothing. The game MCP command
+`render.water_ripple` adds one at a position, for tuning.
 
 ### Per map, time of day and scripts
 
@@ -663,6 +690,10 @@ float4 main(MaterialInput input) : SV_Target
   away from it) and `ShroudTexture`, with `HasWaterField()` / `HasShroud()`. The game passes their world to
   texture transforms as the parameters `WaterFieldTransform` and `ShroudTransform`. The samplers
   `LinearClampSampler`, `LinearWrapSampler` and `PointClampSampler` go with them;
+- for water, `WaterDisturbance` (t11, `HasWaterDisturbance()`): the ripples of ships and explosions (red crest,
+  green trough, blue foam, alpha highlight), repeating every `DisturbanceTransform.w` world units; sample it at
+  `world.xy * DisturbanceTransform.x` with `LinearWrapSampler` and fade it out away from the camera centre
+  (`DisturbanceTransform.yz`), as `MAT_Ocean` does;
 - for every material, `NoiseTexture` (t12, with `LinearWrapSampler`, `HasNoise()`): tileable fractal noise the
   game makes at start, 256 x 256 with mipmaps. Red is the height (-1..1), green and blue its slope per repeat of
   the texture (d/du, d/dv). Sample it in a few layers of different size and direction so that it does not show
@@ -680,7 +711,7 @@ void MaterialVertex(inout MaterialVertexData v)
 ```
 
 The same file is compiled a second time for it, with `MATERIAL_VERTEX_STAGE` defined. There it may read the
-constants, the parameters, `WaterField` and `NoiseTexture` (with `SampleLevel`), but not the other textures. Water whose
+constants, the parameters, `WaterField`, `WaterDisturbance` and `NoiseTexture` (with `SampleLevel`), but not the other textures. Water whose
 material has a vertex function is drawn as a finer grid (`WaterRendering GridSpacing`). Compile errors in it
 are reported like those of the pixel shader.
 

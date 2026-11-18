@@ -386,6 +386,9 @@ cbuffer Params : register(b2)
 	float ContactFoam;			// foam where an object (hull, pier, rig leg) cuts the water, 0 = 1; -1 = none
 	float ContactFoamWidth;		// distance behind the surface, along the view, over which it fades out, 0 = 5
 	float ContactFoamTexture;	// 0..1, how much the shore foam pattern breaks it up, 0 = 0.5; -1 = flat
+	float DisturbanceHeight;	// world units the ripples of ships and explosions lift the surface per unit of them, 0 = 1; -1 = none
+	float DisturbanceNormal;	// how much they bend the surface for the light, 0 = 1; -1 = none
+	float DisturbanceFoam;		// how much of their foam shows, 0 = 1; -1 = none
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -394,6 +397,7 @@ cbuffer Params : register(b2)
 	float OceanPad1;
 	float4 WaterFieldTransform;	// set by the game: world xy to WaterField uv
 	float4 ShroudTransform;		// set by the game: world xy to ShroudTexture uv; 0 = no shroud here
+	float4 DisturbanceTransform;	// set by the game: 1 / range of the disturbance, the camera's centre x y, the range
 };
 static const float PI2 = 6.2831853;
 float Or(float value, float fallback) { return value != 0 ? value : fallback; }
@@ -407,6 +411,15 @@ float4 Field(float2 world)
 	if (!HasWaterField())
 		return float4(-1e5, 1e4, 0, 0);
 	return WaterField.SampleLevel(LinearClampSampler, world * WaterFieldTransform.xy + WaterFieldTransform.zw, 0);
+}
+// The ripples of ships and explosions (WaterDisturbance, repeating over its range around the camera, so it
+// fades out towards the edge of that range): x = crest, y = trough, z = foam, w = highlight.
+float4 DisturbanceAt(float2 world)
+{
+	if (!HasWaterDisturbance())
+		return float4(0, 0, 0, 0);
+	float edge = 1 - smoothstep(0.35, 0.48, length(world - DisturbanceTransform.yz) * DisturbanceTransform.x);
+	return WaterDisturbance.SampleLevel(LinearWrapSampler, world * DisturbanceTransform.x, 0) * edge;
 }
 
 // One sharp-crested wave: horizontal and vertical offset, and the slope for the normal.
@@ -496,6 +509,11 @@ void MaterialVertex(inout MaterialVertexData v)
 	// into the water's edge; the pixel shader fades the water out beyond that shoreline, so its edge is smooth.
 	if (HasWaterField() && ShoreLift >= 0)
 		shoreLift += Or(ShoreLift, 2) * (1 - smoothstep(0, Or(ShoreLiftWidth, 10), field.y));
+	if (DisturbanceHeight >= 0)
+	{
+		float4 disturbance = DisturbanceAt(world.xy);
+		shoreLift += (disturbance.x - disturbance.y) * Or(DisturbanceHeight, 1);
+	}
 	v.worldPosition = world + offset + float3(0, 0, shoreLift);
 	v.worldNormal = normalize(float3(-slope.xy, 1 - slope.z));
 	v.data = float4(fade, offset.z + shoreLift, offset.z / max(Or(WaveAmplitude, 1.5), 1e-3), 0);
@@ -661,6 +679,19 @@ float4 main(MaterialInput input) : SV_Target
 	float2 ripple = Ripples(p, River > 0 ? 0 : t * Or(NormalSpeed, 6) / scale) * Or(NormalStrength, 0.35);
 	ripple *= saturate(depth / 0.5 + 0.3);
 	float3 n = normalize(waveNormal + float3(-ripple, 0));
+	// The ripples of ships and explosions bend it too, from the slope of their height.
+	float4 disturbance = DisturbanceAt(world.xy);
+	if (HasWaterDisturbance() && DisturbanceNormal >= 0)
+	{
+		uint disturbanceSize, disturbanceHeight;
+		WaterDisturbance.GetDimensions(disturbanceSize, disturbanceHeight);
+		float texel = DisturbanceTransform.w / disturbanceSize;
+		float4 nextX = DisturbanceAt(world.xy + float2(texel, 0));
+		float4 nextY = DisturbanceAt(world.xy + float2(0, texel));
+		float height = disturbance.x - disturbance.y;
+		float2 slope = float2((nextX.x - nextX.y) - height, (nextY.x - nextY.y) - height) / texel;
+		n = normalize(n + float3(-slope * Or(DisturbanceNormal, 1), 0));
+	}
 	float3 camera = CameraWorld();
 	float3 toEye = normalize(camera - world);
 	float3 toSun = normalize(Or(SunDirection, float3(0.3, 0.3, 0.9)));
@@ -821,6 +852,8 @@ float4 main(MaterialInput input) : SV_Target
 		float soft = Or(CrestFoamSoftness, 0.15);
 		foam += smoothstep(1 - amount, 1 - amount + soft, pattern) * amount * Or(CrestFoam, 0.4);
 	}
+	if (DisturbanceFoam >= 0)
+		foam += disturbance.z * Or(DisturbanceFoam, 1);
 	foam = saturate(foam);
 
 	float3 color = lerp(under, reflection * shroud, fresnel);

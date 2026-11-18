@@ -237,6 +237,7 @@ set(GAMEENGINE_SRC
     Include/GameClient/VideoPlayer.h
     Include/GameClient/View.h
     Include/GameClient/Water.h
+    Include/GameClient/WaterDisturbance.h
     Include/GameClient/WindowLayout.h
     Include/GameClient/WindowVideoManager.h
     Include/GameClient/WindowXlat.h
@@ -858,6 +859,7 @@ set(GAMEENGINE_SRC
     Source/GameClient/VideoStream.cpp
     Source/GameClient/View.cpp
     Source/GameClient/Water.cpp
+    Source/GameClient/WaterDisturbance.cpp
 #    Source/GameLogic/AI/AI.cpp
 #    Source/GameLogic/AI/AIDock.cpp
 #    Source/GameLogic/AI/AIGroup.cpp

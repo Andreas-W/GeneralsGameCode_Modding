@@ -67,6 +67,7 @@
 #include "W3DDevice/GameClient/W3DScene.h"
 #include "W3DDevice/GameClient/W3DCustomScene.h"
 #include "W3DDevice/GameClient/W3DMaterials.h"
+#include "W3DDevice/GameClient/W3DWaterDisturbance.h"
 #include "W3DDevice/GameClient/W3DWaterField.h"
 #include "GameClient/PostProcess.h"
 
@@ -332,6 +333,7 @@ WaterRenderObjClass::~WaterRenderObjClass()
 
 	delete m_waterTrackSystem;
 	delete m_waterField;
+	delete m_disturbance;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -390,6 +392,7 @@ WaterRenderObjClass::WaterRenderObjClass()
 	m_riverXOffset=0;
 	m_riverYOffset=0;
 	m_waterField = new W3DWaterField;
+	m_disturbance = new W3DWaterDisturbance;
 	m_waterFieldReady = FALSE;
 	m_renderCamera = nullptr;
 	m_vertexMaterialDrawn = FALSE;
@@ -815,6 +818,8 @@ void WaterRenderObjClass::ReleaseResources()
 		m_waterTrackSystem->ReleaseResources();
 	if (m_waterField)
 		m_waterField->release();
+	if (m_disturbance)
+		m_disturbance->release();
 
 	if (m_dwWavePixelShader)
 		DX8Wrapper::Delete_Pixel_Shader(m_dwWavePixelShader);
@@ -974,6 +979,7 @@ void WaterRenderObjClass::load()
 	if (m_waterTrackSystem)
 		m_waterTrackSystem->loadTracks();
 	m_waterField->invalidate();
+	m_disturbance->reset();
 	m_gridMasks.clear();
 }
 
@@ -1415,6 +1421,16 @@ void WaterRenderObjClass::updateRenderTargetTextures(CameraClass *cam)
 	if (m_waterType == WATER_TYPE_2_PVSHADER && getClippedWaterPlane(cam, nullptr) &&
 		TheTerrainRenderObject && TheTerrainRenderObject->getMap())
 		renderMirror(cam);	//generate texture containing reflected scene
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The disturbance texture of the Direct3D 12 water materials: fades and takes this frame's ripples. Like the
+	* reflection it is drawn before the frame, as nothing can be drawn into a texture while the screen is. */
+//-------------------------------------------------------------------------------------------------
+void WaterRenderObjClass::updateDisturbance(const Coord3D& center)
+{
+	if (m_disturbance)
+		m_disturbance->update(center);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1997,6 +2013,9 @@ void WaterRenderObjClass::renderWater()
 	// The Direct3D 12 water materials get the water field and the shroud for this frame's water.
 	const Bool materials = TheW3DMaterials != nullptr && TheW3DMaterials->hasWater();
 	m_waterFieldReady = materials && m_waterField->update();
+	IDirect3DBaseTexture8 *disturbance = materials ? m_disturbance->getTexture() : nullptr;
+	if (materials)
+		TheW3DMaterials->setSharedTextures(3, 1, &disturbance);
 	m_vertexMaterialDrawn = FALSE;
 
 	for (PolygonTrigger *pTrig=PolygonTrigger::getFirstPolygonTrigger(); pTrig; pTrig = pTrig->getNext()) {
@@ -2050,6 +2069,7 @@ void WaterRenderObjClass::renderWater()
 	{
 		IDirect3DBaseTexture8 *const none[2] = { nullptr, nullptr };
 		TheW3DMaterials->setSharedTextures(0, 2, none);
+		TheW3DMaterials->setSharedTextures(3, 1, none);
 	}
 }
 
@@ -2114,6 +2134,8 @@ void WaterRenderObjClass::setWaterMaterialParameters(Int material, Bool river)
 	const Real noShroud[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	const Bool shaderShroud = m_waterField->hasShroud() && TheW3DMaterials->waterHasVertexFunction(material);
 	TheW3DMaterials->setWaterParameter(material, "ShroudTransform", shaderShroud ? m_waterField->getShroudTransform() : noShroud, 4);
+	if (m_disturbance->getTexture() != nullptr)
+		TheW3DMaterials->setWaterParameter(material, "DisturbanceTransform", m_disturbance->getTransform(), 4);
 }
 
 //-------------------------------------------------------------------------------------------------

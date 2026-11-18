@@ -34,8 +34,10 @@
 #include "GameClient/PostProcess.h"
 #include "GameClient/Shell.h"
 #include "GameClient/View.h"
+#include "GameClient/WaterDisturbance.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Object.h"
+#include "GameLogic/TerrainLogic.h"
 
 namespace
 {
@@ -310,6 +312,27 @@ McpJson cmdMaterials(const McpJson &args)
 	return result;
 }
 
+McpJson cmdWaterRipple(const McpJson &args)
+{
+	// A ring of waves (and a splash) on the Direct3D 12 water, like the WaterRipple FX nugget.
+	Coord3D pos;
+	pos.x = (Real)gameMcpArgNumber(args, "x");
+	pos.y = (Real)gameMcpArgNumber(args, "y");
+	Real waterZ = 0.0f;
+	if (TheTerrainLogic == nullptr || !TheTerrainLogic->isUnderwater(pos.x, pos.y, &waterZ))
+		gameMcpFail("no water at %g, %g", pos.x, pos.y);
+	pos.z = waterZ;
+	const Real endRadius = (Real)gameMcpArgNumber(args, "end_radius", 60.0);
+	TheWaterDisturbance->addRipple(pos, (Real)gameMcpArgNumber(args, "start_radius", 5.0), endRadius,
+		(Real)gameMcpArgNumber(args, "height", 1.0), (Real)gameMcpArgNumber(args, "foam", 0.5),
+		(UnsignedInt)gameMcpArgInt(args, "frames", 30));
+	const Real splash = (Real)gameMcpArgNumber(args, "splash", 0.0);
+	if (splash > 0.0f)
+		TheWaterDisturbance->addStamp(pos, 0.0f, endRadius * 0.5f, endRadius * 0.5f, splash, splash, 0.0f,
+			WaterDisturbance::SHAPE_DISC, FALSE);
+	return McpJson::makeObject().set("active", TheWaterDisturbance->isActive()).set("water_z", waterZ);
+}
+
 } // namespace
 
 void gameMcpRegisterViewCommands()
@@ -332,6 +355,9 @@ void gameMcpRegisterViewCommands()
 	gameMcpRegisterCommand("render.shadows", cmdShadows,
 		"{enabled?, size?, softness?, bias?, depth_bias?, slope_bias?, darkness?, min_sun_elevation?, terrain?, trees?, max_update_rate?, detail_cascade?, detail_coverage?, detail_size?, debug?, debug_cascades?} Shadow maps of the Direct3D 12 renderer: "
 		"changes the ShadowMap settings (not saved; debug shows the amount of shadow as grey) and returns the state.");
+	gameMcpRegisterCommand("render.water_ripple", cmdWaterRipple,
+		"{x, y, start_radius=5, end_radius=60, height=1, foam=0.5, frames=30, splash=0} A ring of waves on the Direct3D 12 "
+		"water at a position, like the WaterRipple FX nugget; active is false when nothing shows (no Direct3D 12 water, or switched off).");
 }
 
 #endif // RTS_GAME_MCP

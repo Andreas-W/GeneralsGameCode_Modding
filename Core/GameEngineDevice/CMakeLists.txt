@@ -82,6 +82,7 @@ set(GAMEENGINEDEVICE_SRC
 #    Include/W3DDevice/GameClient/W3DVolumetricShadow.h
     Include/W3DDevice/GameClient/W3DWater.h
     Include/W3DDevice/GameClient/W3DWaterTracks.h
+    Include/W3DDevice/GameClient/W3DWaterDisturbance.h
     Include/W3DDevice/GameClient/W3DWaterField.h
 #    Include/W3DDevice/GameClient/W3DWaypointBuffer.h
 #    Include/W3DDevice/GameClient/W3DWebBrowser.h
@@ -193,6 +194,7 @@ set(GAMEENGINEDEVICE_SRC
 #    Source/W3DDevice/GameClient/W3DWebBrowser.cpp
     Source/W3DDevice/GameClient/Water/W3DWater.cpp
     Source/W3DDevice/GameClient/Water/W3DWaterTracks.cpp
+    Source/W3DDevice/GameClient/Water/W3DWaterDisturbance.cpp
     Source/W3DDevice/GameClient/Water/W3DWaterField.cpp
     Source/W3DDevice/GameClient/WorldHeightMap.cpp
 #    Source/W3DDevice/GameLogic/W3DGameLogic.cpp
