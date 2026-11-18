@@ -53,6 +53,7 @@
 #include "GameClient/ParticleSys.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameClient/Shadow.h"
+#include "GameClient/WaterDisturbance.h"
 #include "../../../GameEngineDevice/Include/W3DDevice/GameClient/Module/W3DModelDraw.h"
 #include "../../../GameEngineDevice/Include/W3DDevice/GameClient/W3DShadow.h"
 
@@ -800,6 +801,73 @@ private:
 EMPTY_DTOR(TerrainScorchFXNugget)
 
 //-------------------------------------------------------------------------------------------------
+/** A ring of waves on the water that grows and dies away, with an optional splash in the middle. Drawn by the
+	* Direct3D 12 water (WaterDisturbance); otherwise nothing. Only on water, and only near its surface. */
+//-------------------------------------------------------------------------------------------------
+class WaterRippleFXNugget : public FXNugget
+{
+	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(WaterRippleFXNugget, "WaterRippleFXNugget")
+public:
+
+	WaterRippleFXNugget() : m_startRadius(5.0f), m_endRadius(60.0f), m_height(1.0f), m_foam(0.5f), m_splash(0.0f),
+		m_duration(30), m_maxHeightAboveWater(30.0f)
+	{
+	}
+
+	virtual void doFXPos(const Coord3D *primary, const Matrix3D* /*primaryMtx*/, const Real /*primarySpeed*/, const Coord3D * /*secondary*/, const Real overrideRadius, FXSurfaceInfo* surfaceInfo) const
+	{
+		if (primary == nullptr || !TheWaterDisturbance->isActive())
+			return;
+		FXSurfaceInfo localInfo;
+		if (surfaceInfo == nullptr)
+			surfaceInfo = &localInfo;
+		if (!getSurfaceInfo(primary, surfaceInfo, true) || !surfaceInfo->m_isWater || surfaceInfo->m_isBridge)
+			return;
+		if (primary->z - surfaceInfo->m_waterHeight > m_maxHeightAboveWater)
+			return;
+
+		const Real scale = overrideRadius > 0.0f && m_endRadius > 0.0f ? overrideRadius / m_endRadius : 1.0f;
+		Coord3D pos = *primary;
+		pos.z = surfaceInfo->m_waterHeight;
+		TheWaterDisturbance->addRipple(pos, m_startRadius * scale, m_endRadius * scale, m_height, m_foam, max(m_duration, 1u));
+		if (m_splash > 0.0f)
+		{
+			const Real size = m_endRadius * scale * 0.5f;
+			TheWaterDisturbance->addStamp(pos, 0.0f, size, size, m_splash, m_splash, 0.0f, WaterDisturbance::SHAPE_DISC, FALSE);
+		}
+	}
+
+	static void parse(INI *ini, void *instance, void* /*store*/, const void* /*userData*/)
+	{
+		static const FieldParse myFieldParse[] =
+		{
+			{ "StartRadius",			INI::parseReal,					nullptr, offsetof( WaterRippleFXNugget, m_startRadius ) },
+			{ "EndRadius",				INI::parseReal,					nullptr, offsetof( WaterRippleFXNugget, m_endRadius ) },
+			{ "Height",					INI::parseReal,					nullptr, offsetof( WaterRippleFXNugget, m_height ) },
+			{ "Foam",					INI::parseReal,					nullptr, offsetof( WaterRippleFXNugget, m_foam ) },
+			{ "Splash",					INI::parseReal,					nullptr, offsetof( WaterRippleFXNugget, m_splash ) },
+			{ "Duration",				INI::parseDurationUnsignedInt,	nullptr, offsetof( WaterRippleFXNugget, m_duration ) },
+			{ "MaxHeightAboveWater",	INI::parseReal,					nullptr, offsetof( WaterRippleFXNugget, m_maxHeightAboveWater ) },
+			{ nullptr, nullptr, nullptr, 0 }
+		};
+
+		WaterRippleFXNugget* nugget = newInstance( WaterRippleFXNugget );
+		ini->initFromINI(nugget, myFieldParse);
+		((FXList*)instance)->addFXNugget(nugget);
+	}
+
+private:
+	Real			m_startRadius;			///< world units the ring starts with
+	Real			m_endRadius;			///< and grows to (scaled by the effect's radius when it has one)
+	Real			m_height;				///< strength of its crest and trough
+	Real			m_foam;					///< strength of its foam
+	Real			m_splash;				///< strength of a round splash in the middle, 0 = none
+	UnsignedInt		m_duration;				///< logic frames it grows and dies away in
+	Real			m_maxHeightAboveWater;	///< higher above the water nothing happens (air bursts)
+};
+EMPTY_DTOR(WaterRippleFXNugget)
+
+//-------------------------------------------------------------------------------------------------
 class ParticleSystemFXNugget : public FXNugget
 {
 	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(ParticleSystemFXNugget, "ParticleSystemFXNugget")
@@ -1149,6 +1217,7 @@ static const FieldParse TheFXListFieldParse[] =
 	{ "LightPulse",									LightPulseFXNugget::parse, nullptr, 0},
 	{ "ViewShake",									ViewShakeFXNugget::parse, nullptr, 0},
 	{ "TerrainScorch",							TerrainScorchFXNugget::parse, nullptr, 0},
+	{ "WaterRipple",								WaterRippleFXNugget::parse, nullptr, 0},
 	{ "ParticleSystem",							ParticleSystemFXNugget::parse, nullptr, 0},
 	{ "FXListAtBonePos",						FXListAtBonePosFXNugget::parse, nullptr, 0},
 	{ "Decal",											DecalFXNugget::parse, nullptr, 0},

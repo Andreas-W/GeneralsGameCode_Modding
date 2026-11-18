@@ -194,6 +194,15 @@ const NuggetMap &nuggetMap()
 	scorch.push_back(def("Type", FIELD_ENUM, "", SCORCH_NAMES));
 	scorch.push_back(def("Radius", FIELD_REAL, ""));
 
+	std::vector<FieldDef> &ripple = map["WaterRipple"];
+	ripple.push_back(def("StartRadius", FIELD_REAL, "World units the ring of waves starts with."));
+	ripple.push_back(def("EndRadius", FIELD_REAL, "World units it grows to (scaled by the effect's radius when it has one)."));
+	ripple.push_back(def("Height", FIELD_REAL, "Strength of its crest and trough (Direct3D 12 water only)."));
+	ripple.push_back(def("Foam", FIELD_REAL, "Strength of its foam."));
+	ripple.push_back(def("Splash", FIELD_REAL, "Strength of a round splash in the middle, 0 = none."));
+	ripple.push_back(def("Duration", FIELD_DURATION, "Milliseconds it grows and dies away in."));
+	ripple.push_back(def("MaxHeightAboveWater", FIELD_REAL, "Higher above the water nothing happens."));
+
 	std::vector<FieldDef> &ps = map["ParticleSystem"];
 	ps.push_back(def("Name", FIELD_PARTICLE_SYSTEM, "Particle system to start."));
 	ps.push_back(def("Count", FIELD_INT, "Number of systems."));
@@ -257,7 +266,7 @@ const std::vector<std::string> &FieldSchema::nuggetTypes()
 	static std::vector<std::string> types;
 	if (types.empty())
 	{
-		const char *const order[] = { "ParticleSystem", "Sound", "LightPulse", "ViewShake", "TerrainScorch", "Tracer", "Decal",
+		const char *const order[] = { "ParticleSystem", "Sound", "LightPulse", "ViewShake", "TerrainScorch", "WaterRipple", "Tracer", "Decal",
 			"RayEffect", "FXListAtBonePos" };
 		for (size_t i = 0; i < ARRAY_SIZE(order); ++i)
 			types.push_back(order[i]);
