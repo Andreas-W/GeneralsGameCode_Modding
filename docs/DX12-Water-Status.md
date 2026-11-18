@@ -293,7 +293,12 @@ author's own). The material looks for `.dds` first, then `.tga`, whatever extens
    - Once, in a fight, a surfacing submarine was briefly invisible (not reproduced; the outline switches off when
      its top comes within a unit of the surface).
    - Preset polish: tuned default Ocean / Lake / River, normal and foam textures.
+   - Ship ripples were too weak to see (heights 0..1 read as world units): defaults raised to
+     `DisturbanceNormal` 6 and `DisturbanceHeight` 3, wakes send out rings (`WakeRingRadius`, `WakeRingTime`), the
+     bow wave is steeper and the disturbance foam is broken up by the foam pattern. A Material.ini that sets
+     `DisturbanceNormal 1` / `DisturbanceHeight 1` explicitly keeps the old weak look.
+   - Wake rings narrower than about 4 world units alias at the default `DisturbanceRange` (2 units per texel).
 5. Test helpers left in the author's mod folder (not needed elsewhere): `generalszh_dx12_dred.bat`,
    `generalszh_dx12_prewater.bat`, `generalszh_dx12_oldwater.bat`, `generalszh_dx12water.exe`,
-   `generalszh_prewater.exe`, `generalszh_foam.exe`, and INI backups `*.bak-dx12water`, `*.dx12water-current`,
+   `generalszh_prewater.exe`, `generalszh_foam.exe`, `generalszh_wake.exe`, and INI backups `*.bak-dx12water`, `*.dx12water-current`,
    `*.bak-shorefoam*`.

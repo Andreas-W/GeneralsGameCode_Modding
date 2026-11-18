@@ -71,13 +71,13 @@ static void shapeTexel(WaterDisturbance::Shape shape, float x, float y, float ou
 	{
 		case WaterDisturbance::SHAPE_HULL:
 		{
-			// The hull fills the ellipse of radius 0.7: a trough along it, crests at bow and stern, foam around
-			// its outline and a little at the bow, the highlight over it.
+			// The hull fills the ellipse of radius 0.7: a trough along it, a steep bow wave just ahead of the bow
+			// and a softer crest at the stern, foam around its outline and a little at the bow, the highlight over it.
 			const float ex = x / 0.7f;
 			const float ey = y / 0.7f;
 			const float r = sqrtf(ex * ex + ey * ey);
 			out[1] = gauss(r, 0.75f) * 0.8f;
-			out[0] = (gauss(ex - 1.0f, 0.25f) + 0.6f * gauss(ex + 1.0f, 0.25f)) * gauss(ey, 0.6f);
+			out[0] = gauss(ex - 1.05f, 0.12f) * gauss(ey, 0.7f) + 0.6f * gauss(ex + 1.0f, 0.25f) * gauss(ey, 0.6f);
 			out[2] = gauss(r - 1.0f, 0.18f) + 0.5f * gauss(ex - 1.05f, 0.2f) * gauss(ey, 0.5f);
 			out[3] = r < 1.0f ? 1.0f : gauss(r - 1.0f, 0.12f);
 			break;

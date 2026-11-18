@@ -444,7 +444,7 @@ End
 | `ShoreOpacityWidth` | Only without refraction: world units from the shoreline over which the water goes from fully clear to deep (`DeepColor`, `DeepOpacity`), whatever its depth, like the DX8 water (0 = by depth, `DepthScale`, and the edge only clear over `ShoreDistance`). Needs the water field; water outside it keeps the depth |
 | `ShoreLift`, `ShoreLiftWidth` | Smooth shoreline: the surface rises this many world units at the shoreline of the water field (2; −1 = none) and back to its level over that distance into the water (10). It covers the steps the terrain triangles cut into the water's edge on steep banks; beyond the field's shoreline the water fades out, so the edge follows the smoothed shoreline (`ShoreFieldSmoothing`). Raise the lift on very steep banks |
 | `ContactFoam`, `ContactFoamWidth`, `ContactFoamTexture` | Foam where an object cuts the water: hulls, amphibious units, piers, the legs of an oil rig. Taken from the scene depth behind the surface, so it needs no setup on the objects: strength (1; −1 = none), how far behind the surface along the view it fades out (5), and how much the shore foam pattern breaks it up (0.5; −1 = flat). Terrain gets no contact foam, its shore has the shore foam |
-| `DisturbanceHeight`, `DisturbanceNormal`, `DisturbanceFoam` | How the ripples of ships and explosions (the water disturbance, see below) show: world units of height per unit of them (1), how much they bend the surface for the light (1), how much of their foam shows (1); −1 turns each off |
+| `DisturbanceHeight`, `DisturbanceNormal`, `DisturbanceFoam` | How the ripples of ships and explosions (the water disturbance, see below) show: world units of height per unit of them (3), how much they bend the surface for the light (6), how much of their foam shows (1, broken up by the foam pattern: dense where strong, flecks where weak); −1 turns each off |
 | `DisturbanceHighlight` | How much clearer the water gets over a highlighted submarine (`SubmergedHighlight` of `WaterInteractionClientUpdate`): with refraction it absorbs that much less, opaque water gets that much more see-through (0.7; −1 = not) |
 
 Example presets for three kinds of water, opaque for every map, plus a see-through ocean for maps made for
@@ -561,8 +561,10 @@ Object AmericaShipDestroyer
     HullFoam = 0.5            ; foam around the hull at full speed
     IdleRipple = 0.15         ; the hull while standing
     WakeSpacing = 10          ; world units between the splashes of the wake trail
-    WakeHeight = 0.25         ; a splash at full speed
+    WakeHeight = 0.25         ; the ring of a splash at full speed
     WakeFoam = 0.3            ; its foam at full speed
+    WakeRingRadius = 0        ; world units each splash's ring spreads to, 0 = 4 x the hull width (at least 40)
+    WakeRingTime = 2000       ; milliseconds it spreads for, 0 = no rings (the splash only fades in place)
     MaxHeightAboveWater = 5   ; higher above the water (or deeper than MaxDepth) nothing happens
     MaxDepth = 10
     BowWaveParticleSystem =   ; optional, attached while moving, speed and count scaled by speed
@@ -573,6 +575,10 @@ Object AmericaShipDestroyer
   End
 End
 ```
+
+Each splash of the wake sends out a ring; as the boat moves on away from them the rings make the V of a
+wake, wider the slower the boat. The hull itself is a trough with a steep bow wave in front and a softer crest
+at the stern. These bend the light (`DisturbanceNormal`); the foam is broken up by the foam pattern.
 
 It does nothing on land (amphibious units), for hidden objects and for objects the local player does not see
 (fogged or shrouded), so ripples never give away an enemy. The particle systems work with Direct3D 8 too.

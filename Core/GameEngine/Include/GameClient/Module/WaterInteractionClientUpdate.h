@@ -50,6 +50,8 @@ public:
 	Real m_wakeSpacing;			///< world units between the splashes of the wake trail
 	Real m_wakeHeight;			///< strength of a splash of the wake at full speed
 	Real m_wakeFoam;			///< strength of its foam at full speed
+	Real m_wakeRingRadius;		///< world units a splash's ring spreads to, 0 = from the hull's width
+	UnsignedInt m_wakeRingTime;	///< frames the ring spreads for, 0 = no rings (the splash only fades)
 	Real m_maxHeightAboveWater;	///< higher above the water nothing happens
 	Real m_maxDepth;			///< deeper under the water nothing happens
 	AsciiString m_bowWaveParticleSystem;	///< attached while moving, scaled by speed

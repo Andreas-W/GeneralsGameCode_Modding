@@ -386,8 +386,8 @@ cbuffer Params : register(b2)
 	float ContactFoam;			// foam where an object (hull, pier, rig leg) cuts the water, 0 = 1; -1 = none
 	float ContactFoamWidth;		// distance behind the surface, along the view, over which it fades out, 0 = 5
 	float ContactFoamTexture;	// 0..1, how much the shore foam pattern breaks it up, 0 = 0.5; -1 = flat
-	float DisturbanceHeight;	// world units the ripples of ships and explosions lift the surface per unit of them, 0 = 1; -1 = none
-	float DisturbanceNormal;	// how much they bend the surface for the light, 0 = 1; -1 = none
+	float DisturbanceHeight;	// world units the ripples of ships and explosions lift the surface per unit of them, 0 = 3; -1 = none
+	float DisturbanceNormal;	// how much they bend the surface for the light, 0 = 6; -1 = none
 	float DisturbanceFoam;		// how much of their foam shows, 0 = 1; -1 = none
 	float DisturbanceHighlight;	// how much clearer the water gets over highlighted submerged objects, 0 = 0.7; -1 = none
 	float3 SunDirection;		// set by the game
@@ -513,7 +513,7 @@ void MaterialVertex(inout MaterialVertexData v)
 	if (DisturbanceHeight >= 0)
 	{
 		float4 disturbance = DisturbanceAt(world.xy);
-		shoreLift += (disturbance.x - disturbance.y) * Or(DisturbanceHeight, 1);
+		shoreLift += (disturbance.x - disturbance.y) * Or(DisturbanceHeight, 3);
 	}
 	v.worldPosition = world + offset + float3(0, 0, shoreLift);
 	v.worldNormal = normalize(float3(-slope.xy, 1 - slope.z));
@@ -691,7 +691,7 @@ float4 main(MaterialInput input) : SV_Target
 		float4 nextY = DisturbanceAt(world.xy + float2(0, texel));
 		float height = disturbance.x - disturbance.y;
 		float2 slope = float2((nextX.x - nextX.y) - height, (nextY.x - nextY.y) - height) / texel;
-		n = normalize(n + float3(-slope * Or(DisturbanceNormal, 1), 0));
+		n = normalize(n + float3(-slope * Or(DisturbanceNormal, 6), 0));
 	}
 	float3 camera = CameraWorld();
 	float3 toEye = normalize(camera - world);
@@ -859,8 +859,14 @@ float4 main(MaterialInput input) : SV_Target
 		float soft = Or(CrestFoamSoftness, 0.15);
 		foam += smoothstep(1 - amount, 1 - amount + soft, pattern) * amount * Or(CrestFoam, 0.4);
 	}
-	if (DisturbanceFoam >= 0)
-		foam += disturbance.z * Or(DisturbanceFoam, 1);
+	// The foam of wakes and rings, broken up by the foam pattern like the crest foam: where it is strong the whole
+	// pattern shows, where it is weak only the pattern's brightest spots, so a fading wake falls apart into flecks.
+	if (DisturbanceFoam >= 0 && disturbance.z > 0.001)
+	{
+		float amount = saturate(disturbance.z * Or(DisturbanceFoam, 1));
+		float pattern = FoamPattern(world.xy, foamScale * 0.5, t * foamSpeed, false);
+		foam += smoothstep(1 - amount, 1.25 - amount, pattern) * sqrt(amount);
+	}
 	foam = saturate(foam);
 
 	float3 color = lerp(under, reflection * shroud, fresnel);
