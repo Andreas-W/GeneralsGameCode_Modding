@@ -403,6 +403,17 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 		m_clear = FALSE;
 	}
 
+	// The render states set here directly go back to what they were: the cache invalidation below makes the
+	// engine set again only what it sets each frame, and nothing sets D3DRS_ZENABLE but the shadow map pass,
+	// which skips frames. The main scene then drew without a depth test whenever both happened (flicker).
+	static const D3DRENDERSTATETYPE savedStates[] = { D3DRS_ZENABLE, D3DRS_ZWRITEENABLE, D3DRS_CULLMODE, D3DRS_LIGHTING,
+		D3DRS_FOGENABLE, D3DRS_ALPHATESTENABLE, D3DRS_STENCILENABLE, D3DRS_COLORWRITEENABLE, D3DRS_ALPHABLENDENABLE,
+		D3DRS_SRCBLEND, D3DRS_DESTBLEND };
+	const Int savedCount = sizeof(savedStates) / sizeof(savedStates[0]);
+	DWORD savedValues[savedCount];
+	for (Int i = 0; i < savedCount; ++i)
+		device->GetRenderState(savedStates[i], &savedValues[i]);
+
 	device->SetRenderState(D3DRS_ZENABLE, FALSE);
 	device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
 	device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
@@ -491,6 +502,8 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 
 	m_sustained.clear();
 	m_once.clear();
+	for (Int i = 0; i < savedCount; ++i)
+		device->SetRenderState(savedStates[i], savedValues[i]);
 	surface->Release();
 	DX8Wrapper::Set_Render_Target((IDirect3DSurface8 *)nullptr);
 	DX8Wrapper::Invalidate_Cached_Render_States();
