@@ -137,6 +137,23 @@ RTS3DScene::RTS3DScene()
 	m_heatVisionOnlyPass->Set_Material(heatVisionMtl);
 	m_heatVisionOnlyPass->Set_Shader(heatVisionShader);
 
+	// Submerged objects drawn again after the water: unlit colour, see-through, depth tested but not written, so
+	// what lies in front of them (an island, a ship) still hides them. The water writes no depth.
+	m_underwaterHighlightPass = NEW_REF(MaterialPassClass,());
+	VertexMaterialClass *underwaterMtl = NEW_REF(VertexMaterialClass,());
+	underwaterMtl->Set_Lighting(true);
+	underwaterMtl->Set_Ambient(0,0,0);
+	underwaterMtl->Set_Diffuse(0,0,0);
+	underwaterMtl->Set_Emissive(1,1,1);
+	m_underwaterHighlightPass->Set_Material(underwaterMtl);
+	ShaderClass underwaterShader=ShaderClass::_PresetAlphaShader;
+	underwaterShader.Set_Texturing(ShaderClass::TEXTURING_DISABLE);
+	underwaterShader.Set_Depth_Compare(ShaderClass::PASS_LEQUAL);
+	underwaterShader.Set_Depth_Mask(ShaderClass::DEPTH_WRITE_DISABLE);
+	m_underwaterHighlightPass->Set_Shader(underwaterShader);
+	underwaterMtl->Release_Ref();
+	m_underwaterHighlightCount = 0;
+
 
 //	VertexMaterialClass *frenzyMtl = NEW_REF(VertexMaterialClass,());
 //	frenzyMtl->Set_Lighting(TRUE);
@@ -227,6 +244,7 @@ RTS3DScene::~RTS3DScene()
 	REF_PTR_RELEASE(m_heatVisionMaterialPass);
 
 	REF_PTR_RELEASE(m_heatVisionOnlyPass);
+	REF_PTR_RELEASE(m_underwaterHighlightPass);
 
 	delete [] m_translucentObjectsBuffer;
 	delete [] m_nonOccludersOrOccludees;
@@ -717,6 +735,12 @@ void RTS3DScene::renderOneObject(RenderInfoClass &rinfo, RenderObjClass *robj, I
 			}
 		}
 
+		// Submerged objects to draw again over the water (WaterInteractionClientUpdate sets the strength).
+		if (draw->getUnderwaterHighlight() > 0.0f && ss <= OBJECTSHROUD_PARTIAL_CLEAR && m_customPassMode == SCENE_PASS_DEFAULT
+			&& m_underwaterHighlightCount < MAX_UNDERWATER_HIGHLIGHTS
+			&& (m_underwaterHighlightCount == 0 || m_underwaterHighlights[m_underwaterHighlightCount - 1] != robj))
+			m_underwaterHighlights[m_underwaterHighlightCount++] = robj;
+
 		//Apply custom render pass for any drawables with heatvision enabled
 		if (draw->getSecondMaterialPassOpacity() != 0 )
 		{
@@ -846,6 +870,40 @@ void RTS3DScene::renderOneObject(RenderInfoClass &rinfo, RenderObjClass *robj, I
 		rinfo.Pop_Override_Flags();	//flags used to disable base pass and only render custom heat vision pass.
 }
 
+//-------------------------------------------------------------------------------------------------
+/** Submerged objects gathered while drawing (Drawable::getUnderwaterHighlight), drawn again over the water as a
+	* see-through silhouette in their colour. Each is flushed on its own, as they differ in colour and strength. */
+//-------------------------------------------------------------------------------------------------
+void RTS3DScene::flushUnderwaterHighlights(RenderInfoClass & rinfo)
+{
+	if (m_underwaterHighlightCount == 0)
+		return;
+	TheDX8MeshRenderer.Flush();
+	VertexMaterialClass *material = m_underwaterHighlightPass->Peek_Material();
+	LightEnvironmentClass *oldLights = rinfo.light_environment;
+	rinfo.light_environment = nullptr;
+	rinfo.Push_Override_Flags(RenderInfoClass::RINFO_OVERRIDE_ADDITIONAL_PASSES_ONLY);
+	rinfo.Push_Material_Pass(m_underwaterHighlightPass);
+	for (Int i = 0; i < m_underwaterHighlightCount; ++i)
+	{
+		RenderObjClass *robj = m_underwaterHighlights[i];
+		DrawableInfo *drawInfo = (DrawableInfo *)robj->Get_User_Data();
+		Drawable *draw = drawInfo ? drawInfo->m_drawable : nullptr;
+		if (draw == nullptr || draw->getUnderwaterHighlight() <= 0.0f)
+			continue;
+		const RGBColor &color = draw->getUnderwaterHighlightColor();
+		material->Set_Emissive(color.red, color.green, color.blue);
+		rinfo.materialPassAlphaOverride = min(draw->getUnderwaterHighlight(), 1.0f);
+		robj->Render(rinfo);
+		TheDX8MeshRenderer.Flush();
+	}
+	rinfo.Pop_Material_Pass();
+	rinfo.Pop_Override_Flags();
+	rinfo.materialPassAlphaOverride = 1.0f;
+	rinfo.light_environment = oldLights;
+	m_underwaterHighlightCount = 0;
+}
+
 //DECLARE_PERF_TIMER(translucentRender)
 
 /** Whether a box of alpha blended triangles lies under the water, up to a little above the still surface, and
@@ -901,6 +959,7 @@ void RTS3DScene::Flush(RenderInfoClass & rinfo)
 		TheW3DMaterials->captureBeforeWater();	// soft shores of the water material
 	}
 	WW3D::Render_And_Clear_Static_Sort_Lists(rinfo);	//draws things like water
+	flushUnderwaterHighlights(rinfo);	// submerged objects over the water, as silhouettes
 
 	//draw the above-water decal subset AFTER water so those decals show over it (still depth-tested, so
 	//objects stay on top). Which decals qualify is decided per-decal (global flag + per-decal water mode).

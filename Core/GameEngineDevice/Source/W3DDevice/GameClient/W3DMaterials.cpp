@@ -389,6 +389,7 @@ cbuffer Params : register(b2)
 	float DisturbanceHeight;	// world units the ripples of ships and explosions lift the surface per unit of them, 0 = 1; -1 = none
 	float DisturbanceNormal;	// how much they bend the surface for the light, 0 = 1; -1 = none
 	float DisturbanceFoam;		// how much of their foam shows, 0 = 1; -1 = none
+	float DisturbanceHighlight;	// how much clearer the water gets over highlighted submerged objects, 0 = 0.7; -1 = none
 	float3 SunDirection;		// set by the game
 	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
 	float3 SunColor;			// set by the game
@@ -752,6 +753,9 @@ float4 main(MaterialInput input) : SV_Target
 		float belowDepth = max(surface - belowWorld.z, 0);
 		float path = max(SceneViewDepth(refractedUV) - waterDistance, 0) + belowDepth;
 		transmit = exp(-Or(Absorption, float3(0.035, 0.012, 0.008)) * path);
+		// Over a highlighted submerged object (a submarine) the water lets more of it through.
+		if (DisturbanceHighlight >= 0)
+			transmit = lerp(transmit, float3(1, 1, 1), saturate(disturbance.w) * Or(DisturbanceHighlight, 0.7));
 		if (CausticStrength >= 0)
 		{
 			float caustic = Caustic(belowWorld.xy / Or(CausticScale, 35), t * Or(CausticSpeed, 1));
@@ -781,6 +785,9 @@ float4 main(MaterialInput input) : SV_Target
 		alpha = lerp(alpha, max(alpha, Or(DeepOpacity, 0.75)), deep);
 		if (byShore)
 			alpha *= deep;
+		// Over a highlighted submerged object (a submarine) the water gets see-through.
+		if (DisturbanceHighlight >= 0)
+			alpha *= 1 - saturate(disturbance.w) * Or(DisturbanceHighlight, 0.7);
 		depth = d;
 	}
 	if (River > 0 && HasMap(MAP_EXTRA))

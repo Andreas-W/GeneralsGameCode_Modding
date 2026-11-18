@@ -444,6 +444,7 @@ End
 | `ShoreLift`, `ShoreLiftWidth` | Smooth shoreline: the surface rises this many world units at the shoreline of the water field (2; −1 = none) and back to its level over that distance into the water (10). It covers the steps the terrain triangles cut into the water's edge on steep banks; beyond the field's shoreline the water fades out, so the edge follows the smoothed shoreline (`ShoreFieldSmoothing`). Raise the lift on very steep banks |
 | `ContactFoam`, `ContactFoamWidth`, `ContactFoamTexture` | Foam where an object cuts the water: hulls, amphibious units, piers, the legs of an oil rig. Taken from the scene depth behind the surface, so it needs no setup on the objects: strength (1; −1 = none), how far behind the surface along the view it fades out (5), and how much the shore foam pattern breaks it up (0.5; −1 = flat). Terrain gets no contact foam, its shore has the shore foam |
 | `DisturbanceHeight`, `DisturbanceNormal`, `DisturbanceFoam` | How the ripples of ships and explosions (the water disturbance, see below) show: world units of height per unit of them (1), how much they bend the surface for the light (1), how much of their foam shows (1); −1 turns each off |
+| `DisturbanceHighlight` | How much clearer the water gets over a highlighted submarine (`SubmergedHighlight` of `WaterInteractionClientUpdate`): with refraction it absorbs that much less, opaque water gets that much more see-through (0.7; −1 = not) |
 
 Example presets for three kinds of water, opaque for every map, plus a see-through ocean for maps made for
 ships (their `map.ini` picks it, see below):
@@ -564,12 +565,23 @@ Object AmericaShipDestroyer
     MaxDepth = 10
     BowWaveParticleSystem =   ; optional, attached while moving, speed and count scaled by speed
     WakeParticleSystem =      ; optional, the same
+    SubmergedHighlight = 0    ; 0..1, strength of the outline while wholly under water, 0 = none
+    SubmergedHighlightColor = R:0 G:0 B:0   ; its colour, black = the owner's colour
+    HighlightVisibleTo = ALLIES   ; OWNER, ALLIES or ALL: who sees it
   End
 End
 ```
 
 It does nothing on land (amphibious units), for hidden objects and for objects the local player does not see
 (fogged or shrouded), so ripples never give away an enemy. The particle systems work with Direct3D 8 too.
+
+`SubmergedHighlight` is for submarines. While the object's top is more than a world unit under the water, the
+game draws it again after the water as an unlit outline in its colour, at that strength, with Direct3D 8 and 12
+alike, like the markers of units behind buildings. The outline is depth tested, so islands, ships and buildings
+in front of the submarine still hide it. With the Direct3D 12 water the module also marks the hull in the water
+disturbance, and `MAT_Ocean` shows it more clearly there (`DisturbanceHighlight`). The test only looks at the
+position, so a submarine that surfaces and dives through upgrades (a locomotor change) gets the outline only
+while it is down. Enemy submarines get none unless `HighlightVisibleTo = ALL`, so it gives nothing away.
 
 ### Per map, time of day and scripts
 

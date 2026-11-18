@@ -554,6 +554,10 @@ public:
 	// this is for the add'l pass fx which operates completely independently of the stealth opacity effects. Draw() does the fading every frame.
 	Real getSecondMaterialPassOpacity() const { return m_secondMaterialPassOpacity; }		///< get alpha/opacity value used to render add'l  rendering pass.
 	void setSecondMaterialPassOpacity( Real op ) { m_secondMaterialPassOpacity = op; }; ///< set alpha/opacity value used to render add'l  rendering pass.
+	/// A silhouette drawn over the water while the object is under it (submarines, WaterInteractionClientUpdate); 0 = none.
+	void setUnderwaterHighlight( Real strength, const RGBColor &color ) { m_underwaterHighlight = strength; m_underwaterHighlightColor = color; }
+	Real getUnderwaterHighlight() const { return m_underwaterHighlight; }
+	const RGBColor &getUnderwaterHighlightColor() const { return m_underwaterHighlightColor; }
 
 	// both of these assume that you are starting at one extreme 100% or 0% opacity and are trying to go to the other!! -- amit
 	void fadeOut( UnsignedInt frames );		///< fade object out...how gradually this is done is determined by frames
@@ -755,6 +759,8 @@ private:
 	DrawableIconInfo*		m_iconInfo;					///< lazily allocated!
 
 	Real m_secondMaterialPassOpacity;			///< drawable gets rendered again in hardware with an extra material layer
+	Real m_underwaterHighlight;					///< strength of the silhouette over the water, set every frame by a client module
+	RGBColor m_underwaterHighlightColor;		///< its colour
 	// --------- BYTE-SIZED THINGS GO HERE
 	Byte m_selected;						///< drawable is selected or not
 	Bool m_hidden;							///< drawable is "hidden" or not (overrides stealth effects)

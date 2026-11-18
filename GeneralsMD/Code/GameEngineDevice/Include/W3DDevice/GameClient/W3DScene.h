@@ -102,6 +102,7 @@ protected:
 	void renderOneObject(RenderInfoClass &rinfo, RenderObjClass *robj, Int localPlayerIndex);
 	void updateFixedLightEnvironments(RenderInfoClass & rinfo);
 	void flushTranslucentObjects(RenderInfoClass & rinfo);
+	void flushUnderwaterHighlights(RenderInfoClass & rinfo);	///< submerged objects again over the water, as silhouettes
 	void flushOccludedObjects(RenderInfoClass & rinfo);
 	void flagOccludedObjects(CameraClass * camera);
 	void flushOccludedObjectsIntoStencil(RenderInfoClass & rinfo);
@@ -122,6 +123,10 @@ protected:
 	W3DMaskMaterialPassClass *m_maskMaterialPass;			///< Custom render pass applied to entire scene used to mask out pixels.
 	MaterialPassClass *m_heatVisionMaterialPass;			///< Custom render passed applied on top of objects with heatvision effect.
 	MaterialPassClass *m_heatVisionOnlyPass;					///< Custom render pass applied in place of regular pass on objects with heat vision effect.
+	MaterialPassClass *m_underwaterHighlightPass;			///< silhouette of submerged objects drawn after the water (Drawable::getUnderwaterHighlight)
+	enum { MAX_UNDERWATER_HIGHLIGHTS = 32 };
+	RenderObjClass *m_underwaterHighlights[MAX_UNDERWATER_HIGHLIGHTS];	///< those of this frame, gathered while drawing
+	Int m_underwaterHighlightCount;
 	MaterialPassClass *m_frenzyMaterialPass;					///< Custom render pass applied in place of regular pass on objects with FRENZY effect.
 	///Custom rendering passes for each possible player color on the map
 	MaterialPassClass *m_occludedMaterialPass[MAX_PLAYER_COUNT];

@@ -479,6 +479,8 @@ Drawable::Drawable( const ThingTemplate *thingTemplate, DrawableStatusBits statu
 	m_hidden = false;
 	m_hiddenByStealth = false;
 	m_secondMaterialPassOpacity = 0.0f;
+	m_underwaterHighlight = 0.0f;
+	m_underwaterHighlightColor.setFromInt(0);
 	m_drawableFullyObscuredByShroud = false;
 
   m_receivesDynamicLights = TRUE; // a good default... overridden by one of my draw modules if at all

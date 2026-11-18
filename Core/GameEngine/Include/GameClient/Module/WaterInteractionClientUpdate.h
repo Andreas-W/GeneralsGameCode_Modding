@@ -28,6 +28,15 @@
 #include "GameClient/ParticleSys.h"
 
 //-------------------------------------------------------------------------------------------------
+/// Who sees the highlight of a submerged object.
+enum HighlightVisibility CPP_11(: Int)
+{
+	HIGHLIGHT_VISIBLE_TO_OWNER,		///< its owner
+	HIGHLIGHT_VISIBLE_TO_ALLIES,	///< its owner and their allies
+	HIGHLIGHT_VISIBLE_TO_ALL,		///< everyone who sees it at all
+};
+
+//-------------------------------------------------------------------------------------------------
 class WaterInteractionClientUpdateModuleData : public ClientUpdateModuleData
 {
 public:
@@ -45,6 +54,9 @@ public:
 	Real m_maxDepth;			///< deeper under the water nothing happens
 	AsciiString m_bowWaveParticleSystem;	///< attached while moving, scaled by speed
 	AsciiString m_wakeParticleSystem;		///< attached while moving, scaled by speed
+	Real m_submergedHighlight;	///< strength of the silhouette over the water while wholly under it, 0 = none
+	RGBColor m_submergedHighlightColor;	///< its colour, black = the owner's colour
+	Int m_highlightVisibleTo;	///< HighlightVisibility
 
 	WaterInteractionClientUpdateModuleData();
 	static void buildFieldParse(MultiIniFieldParse& p);
@@ -66,6 +78,7 @@ public:
 protected:
 
 	void updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength);
+	void updateHighlight(const Object *obj);
 
 	ParticleSystemID m_bowWaveSystem;
 	ParticleSystemID m_wakeSystem;

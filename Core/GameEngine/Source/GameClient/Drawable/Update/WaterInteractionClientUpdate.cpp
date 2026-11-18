@@ -46,9 +46,15 @@ WaterInteractionClientUpdateModuleData::WaterInteractionClientUpdateModuleData()
 	m_wakeHeight(0.25f),
 	m_wakeFoam(0.3f),
 	m_maxHeightAboveWater(5.0f),
-	m_maxDepth(10.0f)
+	m_maxDepth(10.0f),
+	m_submergedHighlight(0.0f),
+	m_highlightVisibleTo(HIGHLIGHT_VISIBLE_TO_ALLIES)
 {
+	m_submergedHighlightColor.setFromInt(0);
 }
+
+//-------------------------------------------------------------------------------------------------
+static const char *const TheHighlightVisibilityNames[] = { "OWNER", "ALLIES", "ALL", nullptr };
 
 //-------------------------------------------------------------------------------------------------
 void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
@@ -71,6 +77,9 @@ void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse&
 		{ "MaxDepth",				INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_maxDepth) },
 		{ "BowWaveParticleSystem",	INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_bowWaveParticleSystem) },
 		{ "WakeParticleSystem",		INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_wakeParticleSystem) },
+		{ "SubmergedHighlight",		INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlight) },
+		{ "SubmergedHighlightColor",	INI::parseRGBColor,		nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlightColor) },
+		{ "HighlightVisibleTo",		INI::parseIndexList,	TheHighlightVisibilityNames, offsetof(WaterInteractionClientUpdateModuleData, m_highlightVisibleTo) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
 	p.add(dataFieldParse);
@@ -134,6 +143,62 @@ void WaterInteractionClientUpdate::updateParticleSystem(ParticleSystemID& id, co
 }
 
 //-------------------------------------------------------------------------------------------------
+/** While the object is wholly under the water and the local player may see it highlighted: a silhouette over
+	* the water (drawn by the scene after the water, with any renderer), and with the Direct3D 12 water a clearer
+	* view of it through the water (the highlight of the disturbance). Set every frame, cleared otherwise. */
+//-------------------------------------------------------------------------------------------------
+void WaterInteractionClientUpdate::updateHighlight(const Object *obj)
+{
+	const WaterInteractionClientUpdateModuleData *data = getWaterInteractionClientUpdateModuleData();
+	Drawable *draw = getDrawable();
+	const Player *localPlayer = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
+	const Coord3D *pos = draw->getPosition();
+	Real waterZ = 0.0f;
+	Bool show = data->m_submergedHighlight > 0.0f && localPlayer != nullptr && !draw->isDrawableEffectivelyHidden()
+		&& TheTerrainLogic->isUnderwater(pos->x, pos->y, &waterZ)
+		&& pos->z + obj->getGeometryInfo().getMaxHeightAbovePosition() < waterZ - 1.0f
+		&& obj->getShroudedStatus(localPlayer->getPlayerIndex()) < OBJECTSHROUD_FOGGED;
+	if (show)
+	{
+		const Player *owner = obj->getControllingPlayer();
+		switch (data->m_highlightVisibleTo)
+		{
+			case HIGHLIGHT_VISIBLE_TO_OWNER:
+				show = owner == localPlayer;
+				break;
+			case HIGHLIGHT_VISIBLE_TO_ALLIES:
+				show = owner == localPlayer || localPlayer->getRelationship(obj->getTeam()) == ALLIES;
+				break;
+			default:
+				break;
+		}
+	}
+	if (!show)
+	{
+		if (draw->getUnderwaterHighlight() != 0.0f)
+			draw->setUnderwaterHighlight(0.0f, data->m_submergedHighlightColor);
+		return;
+	}
+
+	RGBColor color = data->m_submergedHighlightColor;
+	if (color.red == 0.0f && color.green == 0.0f && color.blue == 0.0f)
+		color.setFromInt(obj->getIndicatorColor());
+	draw->setUnderwaterHighlight(data->m_submergedHighlight, color);
+
+	if (TheWaterDisturbance->isActive())
+	{
+		const GeometryInfo& geometry = obj->getGeometryInfo();
+		const Real length = data->m_hullLength > 0.0f ? data->m_hullLength : 2.0f * geometry.getMajorRadius();
+		const Real width = data->m_hullWidth > 0.0f ? data->m_hullWidth
+			: 2.0f * (geometry.getGeomType() == GEOMETRY_BOX ? geometry.getMinorRadius() : geometry.getMajorRadius());
+		Coord3D surface = *pos;
+		surface.z = waterZ;
+		TheWaterDisturbance->addStamp(surface, obj->getOrientation(), length, width, 0.0f, 0.0f, data->m_submergedHighlight,
+			WaterDisturbance::SHAPE_HULL, TRUE);
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 void WaterInteractionClientUpdate::clientUpdate()
 {
 	const WaterInteractionClientUpdateModuleData *data = getWaterInteractionClientUpdateModuleData();
@@ -152,6 +217,8 @@ void WaterInteractionClientUpdate::clientUpdate()
 	const Player *localPlayer = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
 	if (active && localPlayer && obj->getShroudedStatus(localPlayer->getPlayerIndex()) >= OBJECTSHROUD_FOGGED)
 		active = FALSE;
+
+	updateHighlight(obj);
 
 	const PhysicsBehavior *physics = obj->getPhysics();
 	const Real speed = physics ? fabs(physics->getForwardSpeed2D()) : 0.0f;
