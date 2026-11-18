@@ -570,7 +570,10 @@ Object AmericaShipDestroyer
     MaxDepth = 10
     BowWaveParticleSystem =   ; optional, attached while moving, speed and count scaled by speed
     BowWaveOffset = 0.5       ; where along the hull it sits: 1 = bow, 0 = middle, -1 = stern
-    WakeParticleSystem =      ; optional, the same
+    TrailParticleSystem = NONE ShipWaveTrailSmall     ; optional, any number: <bone> <particle system>, like
+    TrailParticleSystem = Wake01 ShipWaveTrailSmall   ; ParticleSysBone; NONE (or a missing bone) = the object's position
+    TrailMinSpeed = 3         ; world units per second the trails start at (their own, not MinSpeed)
+    IdleWavesParticleSystem = ; optional, at the object's position whenever the bow wave is off (standing, on the water)
     SubmergedHighlight = 0    ; 0..1, strength of the outline while wholly under water, 0 = none
     SubmergedHighlightColor = R:0 G:0 B:0   ; its colour, black = the owner's colour
     HighlightVisibleTo = ALLIES   ; OWNER, ALLIES or ALL: who sees it
@@ -585,6 +588,12 @@ at the stern. These bend the light (`DisturbanceNormal`); the foam is broken up 
 
 It does nothing on land (amphibious units), for hidden objects and for objects the local player does not see
 (fogged or shrouded), so ripples never give away an enemy. The particle systems work with Direct3D 8 too.
+
+The particle systems replace the draw module's `ParticleSysBone` lines in `MOVING` states (remove those, or they
+spawn twice). The bow wave and the trails emit while moving, their particles' speed and count scaled by speed
+(up to `MaxSpeed`); the bow wave from `MinSpeed` on, the trails from `TrailMinSpeed`. A trail sits on its bone in
+the current model, turned like it, and follows a changed model (damaged states). `IdleWavesParticleSystem` is
+the opposite of the bow wave: on, at full strength, while the object is on the water but the bow wave is off.
 
 `SubmergedHighlight` is for submarines. While the object's top is more than a world unit under the water, the
 game draws it again after the water as an unlit outline in its colour, at that strength, with Direct3D 8 and 12

@@ -37,6 +37,14 @@ enum HighlightVisibility CPP_11(: Int)
 };
 
 //-------------------------------------------------------------------------------------------------
+/// A particle system that trails from a bone while the object moves (TrailParticleSystem).
+struct WaterTrailInfo
+{
+	AsciiString boneName;			///< lower case; not found (or NONE) = the object's position
+	AsciiString particleSystem;
+};
+
+//-------------------------------------------------------------------------------------------------
 class WaterInteractionClientUpdateModuleData : public ClientUpdateModuleData
 {
 public:
@@ -57,7 +65,9 @@ public:
 	Real m_maxDepth;			///< deeper under the water nothing happens
 	AsciiString m_bowWaveParticleSystem;	///< attached while moving, scaled by speed
 	Real m_bowWaveOffset;		///< where along the hull it sits: 1 = bow, 0 = middle, -1 = stern
-	AsciiString m_wakeParticleSystem;		///< attached while moving, scaled by speed
+	std::vector<WaterTrailInfo> m_trails;	///< attached to their bones while moving faster than m_trailMinSpeed
+	Real m_trailMinSpeed;		///< per logic frame; the trails emit from this speed on
+	AsciiString m_idleWavesParticleSystem;	///< attached at the object's position while the bow wave is not
 	Real m_submergedHighlight;	///< strength of the silhouette over the water while wholly under it, 0 = none
 	RGBColor m_submergedHighlightColor;	///< its colour, black = the owner's colour
 	Int m_highlightVisibleTo;	///< HighlightVisibility
@@ -81,11 +91,13 @@ public:
 
 protected:
 
-	void updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength, Real forward);
+	ParticleSystem *updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength);
+	void destroyParticleSystem(ParticleSystemID& id);
 	void updateHighlight(const Object *obj);
 
 	ParticleSystemID m_bowWaveSystem;
-	ParticleSystemID m_wakeSystem;
+	ParticleSystemID m_idleWavesSystem;
+	std::vector<ParticleSystemID> m_trailSystems;	///< one per entry of m_trails
 	Coord3D m_lastWakePosition;
 	Bool m_hasWakePosition;
 };

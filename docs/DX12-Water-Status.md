@@ -288,7 +288,7 @@ author's own). The material looks for `.dds` first, then `.tga`, whatever extens
 4. Stage 2 follow-ups:
    - Mod data: add `WaterInteractionClientUpdate` to the ships, amphibious units and submarines (with
      `SubmergedHighlight`), `WaterRipple` to the FXLists of shells and explosions over water; maybe replace the
-     draw modules' wake particle systems with the module's `BowWaveParticleSystem` / `WakeParticleSystem`.
+     draw modules' wake particle systems with the module's `BowWaveParticleSystem`, `TrailParticleSystem` (per bone) and `IdleWavesParticleSystem`.
    - An options menu checkbox for `WaterRippleEffects`.
    - Once, in a fight, a surfacing submarine was briefly invisible (not reproduced; the outline switches off when
      its top comes within a unit of the surface).

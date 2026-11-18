@@ -49,6 +49,7 @@ WaterInteractionClientUpdateModuleData::WaterInteractionClientUpdateModuleData()
 	m_wakeRingTime(LOGICFRAMES_PER_SECOND * 2),
 	m_wakeRingOffset(0.5f),
 	m_bowWaveOffset(0.5f),
+	m_trailMinSpeed(3.0f / LOGICFRAMES_PER_SECOND),
 	m_maxHeightAboveWater(5.0f),
 	m_maxDepth(10.0f),
 	m_submergedHighlight(0.0f),
@@ -59,6 +60,18 @@ WaterInteractionClientUpdateModuleData::WaterInteractionClientUpdateModuleData()
 
 //-------------------------------------------------------------------------------------------------
 static const char *const TheHighlightVisibilityNames[] = { "OWNER", "ALLIES", "ALL", nullptr };
+
+//-------------------------------------------------------------------------------------------------
+/** TrailParticleSystem = <bone> <particle system>, like ParticleSysBone; every entry adds one. */
+//-------------------------------------------------------------------------------------------------
+static void parseWaterTrail(INI* ini, void * /*instance*/, void *store, const void * /*userData*/)
+{
+	WaterTrailInfo info;
+	info.boneName = ini->getNextAsciiString();
+	info.boneName.toLower();
+	info.particleSystem = ini->getNextAsciiString();
+	((std::vector<WaterTrailInfo> *)store)->push_back(info);
+}
 
 //-------------------------------------------------------------------------------------------------
 void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse& p)
@@ -84,7 +97,9 @@ void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse&
 		{ "MaxDepth",				INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_maxDepth) },
 		{ "BowWaveParticleSystem",	INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_bowWaveParticleSystem) },
 		{ "BowWaveOffset",			INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_bowWaveOffset) },
-		{ "WakeParticleSystem",		INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_wakeParticleSystem) },
+		{ "TrailParticleSystem",	parseWaterTrail,		nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_trails) },
+		{ "TrailMinSpeed",			INI::parseVelocityReal,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_trailMinSpeed) },
+		{ "IdleWavesParticleSystem",	INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_idleWavesParticleSystem) },
 		{ "SubmergedHighlight",		INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlight) },
 		{ "SubmergedHighlightColor",	INI::parseRGBColor,		nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlightColor) },
 		{ "HighlightVisibleTo",		INI::parseIndexList,	TheHighlightVisibilityNames, offsetof(WaterInteractionClientUpdateModuleData, m_highlightVisibleTo) },
@@ -97,7 +112,7 @@ void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse&
 WaterInteractionClientUpdate::WaterInteractionClientUpdate( Thing *thing, const ModuleData* moduleData ) :
 	ClientUpdateModule( thing, moduleData ),
 	m_bowWaveSystem(INVALID_PARTICLE_SYSTEM_ID),
-	m_wakeSystem(INVALID_PARTICLE_SYSTEM_ID),
+	m_idleWavesSystem(INVALID_PARTICLE_SYSTEM_ID),
 	m_hasWakePosition(FALSE)
 {
 	m_lastWakePosition.zero();
@@ -106,53 +121,56 @@ WaterInteractionClientUpdate::WaterInteractionClientUpdate( Thing *thing, const 
 //-------------------------------------------------------------------------------------------------
 WaterInteractionClientUpdate::~WaterInteractionClientUpdate()
 {
-	ParticleSystem *system = TheParticleSystemManager ? TheParticleSystemManager->findParticleSystem(m_bowWaveSystem) : nullptr;
-	if (system)
-		system->destroy();
-	system = TheParticleSystemManager ? TheParticleSystemManager->findParticleSystem(m_wakeSystem) : nullptr;
-	if (system)
-		system->destroy();
+	destroyParticleSystem(m_bowWaveSystem);
+	destroyParticleSystem(m_idleWavesSystem);
+	for (size_t i = 0; i < m_trailSystems.size(); ++i)
+		destroyParticleSystem(m_trailSystems[i]);
 }
 
 //-------------------------------------------------------------------------------------------------
-/** A particle system attached to the drawable: made when first needed, at forward world units along the object
-	* from its position, emitting while active, and with its particles' speed and count scaled by strength (0..1).
-	* The ID is looked up each time, as the system may be gone. */
+void WaterInteractionClientUpdate::destroyParticleSystem(ParticleSystemID& id)
+{
+	ParticleSystem *system = TheParticleSystemManager ? TheParticleSystemManager->findParticleSystem(id) : nullptr;
+	if (system)
+		system->destroy();
+	id = INVALID_PARTICLE_SYSTEM_ID;
+}
+
 //-------------------------------------------------------------------------------------------------
-void WaterInteractionClientUpdate::updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active, Real strength,
-	Real forward)
+/** A particle system attached to the drawable: made when first needed, emitting while active, and with its
+	* particles' speed and count scaled by strength (0..1). The ID is looked up each time, as the system may be gone.
+	* Returns the system while active, for the caller to place it in the drawable's space. */
+//-------------------------------------------------------------------------------------------------
+ParticleSystem *WaterInteractionClientUpdate::updateParticleSystem(ParticleSystemID& id, const AsciiString& name, Bool active,
+	Real strength)
 {
 	if (name.isEmpty() || TheParticleSystemManager == nullptr)
-		return;
+		return nullptr;
 	ParticleSystem *system = TheParticleSystemManager->findParticleSystem(id);
 	if (system == nullptr)
 	{
 		id = INVALID_PARTICLE_SYSTEM_ID;
 		if (!active)
-			return;
+			return nullptr;
 		const ParticleSystemTemplate *tmpl = TheParticleSystemManager->findTemplate(name);
 		if (tmpl == nullptr)
-			return;
+			return nullptr;
 		system = TheParticleSystemManager->createParticleSystem(tmpl);
 		if (system == nullptr)
-			return;
+			return nullptr;
 		system->attachToDrawable(getDrawable());
-		// The local position is in the drawable's space, whose x points forward.
-		const Coord3D offset = { forward, 0.0f, 0.0f };
-		system->setPosition(&offset);
 		id = system->getSystemID();
 	}
-	if (active)
-	{
-		const Coord3D speed = { strength, strength, strength };
-		system->setVelocityMultiplier(&speed);
-		system->setBurstCountMultiplier(strength);
-		system->start();
-	}
-	else
+	if (!active)
 	{
 		system->stop();
+		return nullptr;
 	}
+	const Coord3D speed = { strength, strength, strength };
+	system->setVelocityMultiplier(&speed);
+	system->setBurstCountMultiplier(strength);
+	system->start();
+	return system;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -247,8 +265,39 @@ void WaterInteractionClientUpdate::clientUpdate()
 	if (width <= 0.0f)
 		width = 2.0f * (geometry.getGeomType() == GEOMETRY_BOX ? geometry.getMinorRadius() : geometry.getMajorRadius());
 
-	updateParticleSystem(m_bowWaveSystem, data->m_bowWaveParticleSystem, moving, strength, length * 0.5f * data->m_bowWaveOffset);
-	updateParticleSystem(m_wakeSystem, data->m_wakeParticleSystem, moving, strength, 0.0f);
+	// The bow wave while moving, along the hull (the drawable's x points forward); the idle waves at the object's
+	// position whenever the bow wave is off, on the water.
+	ParticleSystem *bowWave = updateParticleSystem(m_bowWaveSystem, data->m_bowWaveParticleSystem, moving, strength);
+	if (bowWave)
+	{
+		const Coord3D offset = { length * 0.5f * data->m_bowWaveOffset, 0.0f, 0.0f };
+		bowWave->setPosition(&offset);
+	}
+	updateParticleSystem(m_idleWavesSystem, data->m_idleWavesParticleSystem, active && !moving, 1.0f);
+
+	// The trails from their bones, from their own minimum speed on. Placed like ParticleSysBone does (the bone's
+	// position and turn in the model), every frame, so they follow a changed model; a bone the current model
+	// lacks (or NONE) puts the trail at the object's position.
+	const Bool trailing = active && speed >= data->m_trailMinSpeed;
+	const Real trailStrength = trailing ? min(speed / max(data->m_maxSpeed, 0.001f), 1.0f) : 0.0f;
+	if (m_trailSystems.size() != data->m_trails.size())
+		m_trailSystems.resize(data->m_trails.size(), INVALID_PARTICLE_SYSTEM_ID);
+	for (size_t i = 0; i < data->m_trails.size(); ++i)
+	{
+		ParticleSystem *trail = updateParticleSystem(m_trailSystems[i], data->m_trails[i].particleSystem, trailing, trailStrength);
+		if (trail == nullptr)
+			continue;
+		Coord3D bonePos;
+		Matrix3D boneTransform(true);
+		bonePos.zero();
+		Matrix3D local(true);
+		if (draw->getCurrentClientBonePositions(data->m_trails[i].boneName.str(), 0, &bonePos, &boneTransform, 1) > 0)
+		{
+			local.Rotate_Z(boneTransform.Get_Z_Rotation());
+			local.Set_Translation(Vector3(bonePos.x, bonePos.y, bonePos.z));
+		}
+		trail->setLocalTransform(&local);
+	}
 
 	if (!active || !TheWaterDisturbance->isActive())
 	{
@@ -325,6 +374,7 @@ void WaterInteractionClientUpdate::loadPostProcess()
 {
 	ClientUpdateModule::loadPostProcess();
 	m_bowWaveSystem = INVALID_PARTICLE_SYSTEM_ID;
-	m_wakeSystem = INVALID_PARTICLE_SYSTEM_ID;
+	m_idleWavesSystem = INVALID_PARTICLE_SYSTEM_ID;
+	m_trailSystems.clear();
 	m_hasWakePosition = FALSE;
 }
