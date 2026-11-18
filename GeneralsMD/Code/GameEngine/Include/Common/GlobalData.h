@@ -159,6 +159,7 @@ public:
 	Bool m_useShadowDecals;
 	Int  m_textureReductionFactor;	//how much to cut texture resolution: 2 is half, 3 is quarter, etc.
 	Bool m_enableBehindBuildingMarkers;
+	Bool m_waterRippleEffects;			///< ships and explosions ripple the Direct3D 12 water (Options.ini WaterRippleEffects)
 	Real m_waterPositionX;
 	Real m_waterPositionY;
 	Real m_waterPositionZ;

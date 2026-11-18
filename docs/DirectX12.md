@@ -42,6 +42,7 @@ WorldBuilder (`WorldBuilderZH.exe -dx12`) and W3DView (`W3DViewZH.exe -dx12`) ta
 |---|---|---|
 | Post-processing | Options menu checkbox (if the mod has added it), or `PostProcessing = yes/no` in `Options.ini` | Turns the whole post-processing chain on or off. |
 | 3D Shadows | Options menu | Needed for shadow maps. Off means no unit shadows, as before. |
+| Water ripples | `WaterRippleEffects = yes/no` in `Options.ini` (no menu checkbox yet) | Ripples and wakes of ships and explosions on the water. Off skips the water disturbance entirely; the submarine highlight and the ships' particle systems stay. |
 | Anti-aliasing | Options menu | Works as with Direct3D 8. The screen filters (black and white, blur, fades) also work with anti-aliasing on, which Direct3D 8 cannot do. |
 
 Everything else (resolution, windowed mode, fullscreen, Alt+Tab) works as with Direct3D 8.
@@ -525,7 +526,8 @@ The **water disturbance** holds the ripples of ships and explosions for `MAT_Oce
 `DisturbanceRange` around the camera, which fades by half every `DisturbanceFadeTime` while new shapes are added
 into it 30 times a second (crest and trough height, foam, a highlight mask for submarines). The water bends its
 surface and lifts it a little from it, and adds its foam. It costs one small texture update per frame and a few
-texture reads per water pixel; with `Disturbance = No` nothing is updated or read. An FXList adds a ring of waves:
+texture reads per water pixel; with `Disturbance = No`, or when the player turns it off (`WaterRippleEffects = no`
+in `Options.ini`), nothing is updated or read. An FXList adds a ring of waves:
 
 ```ini
 FXList FX_ShellHitWater

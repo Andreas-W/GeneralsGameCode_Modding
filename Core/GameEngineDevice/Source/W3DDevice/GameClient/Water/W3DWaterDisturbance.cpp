@@ -351,7 +351,7 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 #ifdef RTS_RENDERER_DX12
 	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
 	const Bool enabled = TheW3DMaterials != nullptr && TheW3DMaterials->isAvailable() && TheW3DMaterials->hasWater()
-		&& (settings == nullptr || settings->m_disturbance);
+		&& (settings == nullptr || settings->m_disturbance) && TheGlobalData->m_waterRippleEffects;
 	if (!enabled)
 	{
 		if (m_active)
