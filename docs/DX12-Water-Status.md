@@ -1,7 +1,7 @@
 # DX12 water: status and how to continue
 
 Hand-over notes for the Direct3D 12 water work on the branch `feat/dx12-water`, written so that it can be picked
-up on another machine. As of 2026-11-13. The reference for every parameter and INI field is
+up on another machine. As of 2026-11-18. The reference for every parameter and INI field is
 [DirectX12.md](DirectX12.md) (sections Water and `WaterRendering`); the open GPU hang is in
 [DX12-GPU-Hang-Investigation.md](DX12-GPU-Hang-Investigation.md).
 
@@ -12,8 +12,10 @@ New water visuals for the DX12 renderer (`-dx12`, D3D8on12), inspired by Red Ale
 - Stage 1 (done): moving wave geometry, normals and specular, refraction, depth-based underwater light,
   soft and hard shores with waves that replace the `.wak` tracks, Ocean / Lake / River presets, all configurable
   in INI and overridable in `map.ini`.
-- Stage 2 (not started): ship ripples as a client module, a highlight for submarines under water, a water
-  displacement FX nugget, more preset polish. Outline below.
+- Stage 2 (done in code, not yet used by the mod's data): contact foam where objects cut the water, a
+  disturbance texture for ripples, the `WaterRipple` FX nugget, the `WaterInteractionClientUpdate` module for
+  ships and amphibious units with a submarine highlight (also DX8), and the `WaterRippleEffects` option.
+  Preset polish is left.
 
 ## Where things are
 
@@ -26,6 +28,11 @@ New water visuals for the DX12 renderer (`-dx12`, D3D8on12), inspired by Red Ale
 | Water field texture (terrain height, distance to shore, shore direction; RGBA16F in t8) and shroud binding (t9) | `Core/GameEngineDevice/Source/W3DDevice/GameClient/Water/W3DWaterField.cpp` |
 | Water drawing: world-aligned grid for moving water, subdivided rivers, per-area material, `.wak` skip | `.../GameClient/Water/W3DWater.cpp` |
 | Skipping the `TerrainHeightAmbientLight` bake | `.../GameClient/BaseHeightMap.cpp` |
+| Water disturbance (ripples; RGBA16F render target around the camera in t11, stamps and fade at 30 Hz) | interface `Core/GameEngine/Include/GameClient/WaterDisturbance.h`, DX12 side `.../GameClient/Water/W3DWaterDisturbance.cpp`, updated from `W3DDisplay::draw` |
+| `WaterRipple` FX nugget | `Core/GameEngine/Source/GameClient/FXList.cpp`, FX Editor schema `GeneralsMD/Code/Tools/FXEditor/FieldSchema.cpp` |
+| `WaterInteractionClientUpdate` (hull, wake, particle systems, submarine highlight) | `Core/GameEngine/{Include/GameClient/Module,Source/GameClient/Drawable/Update}/WaterInteractionClientUpdate.*` |
+| Submarine outline after the water | `RTS3DScene::flushUnderwaterHighlights` in `GeneralsMD/.../W3DScene.cpp`, strength on `Drawable::setUnderwaterHighlight` |
+| `WaterRippleEffects` option | `OptionPreferences::getWaterRippleEffects`, `GlobalData::m_waterRippleEffects` |
 | Offline shader check | `scripts/d3d8on12/check_material_shaders.py` |
 
 A material can override the built-in shader with `$GAME_DIR\Data\Shaders\Material\MAT_Ocean.hlsl`.
@@ -71,6 +78,15 @@ All commits are on `feat/dx12-water`, branched from `main`:
    (alpha = depth / `TransparentWaterDepth` from the waterline, so its edge always was clear; our depth fade starts
    from the WaterSet alpha, 255 in the mod). It reads the shore distance of the water field; 0 keeps the depth
    fade. Seen in the FX Editor on Isle Of War Ships (OceanShips with Refraction 0, width 120); not tuned in the mod yet.
+12. Stage 2, water interaction: `9d1868e19` contact foam (`ContactFoam*`), `6e0466a90` water disturbance
+   (`Disturbance*` in `WaterRendering` and `MAT_Ocean`, game MCP `render.water_ripple`), `644446763` `WaterRipple`
+   FX nugget, `15d29aa43` `WaterInteractionClientUpdate` (replaces the dead `ShipEffectsClientUpdate` stub; also
+   fixes `Drawable::findClientUpdateModule`, which looped forever with two client update modules), `bb4c38114`
+   flicker fix (the disturbance left `D3DRS_ZENABLE` off on frames the shadow map pass skipped), `842316828`
+   submarine highlight, `5c67a3c99` `WaterRippleEffects` option. Tested on a copy of Isle Of War Ships with the
+   module added in its `map.ini` (USA Destroyer, China Gattling Boat, China Nuclear Submarine): hull foam and wakes,
+   rings, the outline in DX8 and DX12, hidden behind a ship in front, gone when surfaced, none for an enemy sub
+   with `ALLIES`, nothing with the option off.
 
 ## Mod-side setup (not in this repository)
 
@@ -269,13 +285,13 @@ author's own). The material looks for `.dds` first, then `.tga`, whatever extens
    a newer NVIDIA driver.
 2. "could not create a 64x64 texture of format 26" (A4R4G4B4) in every `d3d8on12.log`; not investigated.
 3. The user found `RefractionStrength 1` a bit strong; the Ocean preset uses 0.5.
-4. Stage 2 (not started):
-   - Ship ripples: revive `ShipEffectsClientUpdate` (a dead stub in
-     `Core/GameEngine/Source/GameClient/Drawable/Update/`), register it in `ModuleFactory.cpp`, add it to CMake.
-     On DX8 it starts particle systems; on DX12 it sends hull and wake impulses to a GPU ripple simulation
-     (heightfield in t11, `WaterDisturbance` in `Material.hlsli` is already declared) that displaces the water.
-   - Submarine highlight: an outline or tint for submarines under water (stencil, or a material parameter).
-   - FX nugget: `WaterDisturbance` in `FXList.cpp`, plus the FX Editor schema.
+4. Stage 2 follow-ups:
+   - Mod data: add `WaterInteractionClientUpdate` to the ships, amphibious units and submarines (with
+     `SubmergedHighlight`), `WaterRipple` to the FXLists of shells and explosions over water; maybe replace the
+     draw modules' wake particle systems with the module's `BowWaveParticleSystem` / `WakeParticleSystem`.
+   - An options menu checkbox for `WaterRippleEffects`.
+   - Once, in a fight, a surfacing submarine was briefly invisible (not reproduced; the outline switches off when
+     its top comes within a unit of the surface).
    - Preset polish: tuned default Ocean / Lake / River, normal and foam textures.
 5. Test helpers left in the author's mod folder (not needed elsewhere): `generalszh_dx12_dred.bat`,
    `generalszh_dx12_prewater.bat`, `generalszh_dx12_oldwater.bat`, `generalszh_dx12water.exe`,
