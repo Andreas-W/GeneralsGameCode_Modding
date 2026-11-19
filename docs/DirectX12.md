@@ -577,6 +577,7 @@ Object AmericaShipDestroyer
     IdleWavesParticleSystem = ; optional, at the object's position whenever the bow wave is off (standing, on the water)
     SubmergedHighlight = 0    ; 0..1, strength of the outline while wholly under water, 0 = none
     SubmergedHighlightColor = R:0 G:0 B:0   ; its colour, black = the owner's colour
+    SubmergedHighlightOutline = 0   ; pixels: an outline that wide around it instead of the filled silhouette, 0 = the silhouette
     HighlightVisibleTo = ALLIES   ; OWNER, ALLIES or ALL: who sees it
   End
 End
@@ -597,9 +598,12 @@ the current model, turned like it, and follows a changed model (damaged states).
 the opposite of the bow wave: on, at full strength, while the object is on the water but the bow wave is off.
 
 `SubmergedHighlight` is for submarines. While the object's top is more than a world unit under the water, the
-game draws it again after the water as an unlit outline in its colour, at that strength, with Direct3D 8 and 12
-alike, like the markers of units behind buildings. The outline is depth tested, so islands, ships and buildings
-in front of the submarine still hide it. With the Direct3D 12 water the module also marks the hull in the water
+game draws it again after the water as an unlit silhouette in its colour, at that strength, with Direct3D 8 and 12
+alike, like the markers of units behind buildings. With `SubmergedHighlightOutline` it draws an outline that many
+pixels wide around the silhouette instead, the hull itself left as the water shows it (stencil: the silhouette is
+marked, then drawn again shifted in eight directions where it is not; 9 draws per submarine, needs a stencil
+buffer, else the silhouette). An outline wants a high strength (1) and a bright colour to stand out. Both are
+depth tested, so islands, ships and buildings in front of the submarine still hide them. With the Direct3D 12 water the module also marks the hull in the water
 disturbance, and `MAT_Ocean` shows it more clearly there (`DisturbanceHighlight`). The test only looks at the
 position, so a submarine that surfaces and dives through upgrades (a locomotor change) gets the outline only
 while it is down. Enemy submarines get none unless `HighlightVisibleTo = ALL`, so it gives nothing away.

@@ -102,7 +102,8 @@ protected:
 	void renderOneObject(RenderInfoClass &rinfo, RenderObjClass *robj, Int localPlayerIndex);
 	void updateFixedLightEnvironments(RenderInfoClass & rinfo);
 	void flushTranslucentObjects(RenderInfoClass & rinfo);
-	void flushUnderwaterHighlights(RenderInfoClass & rinfo);	///< submerged objects again over the water, as silhouettes
+	void flushUnderwaterHighlights(RenderInfoClass & rinfo);	///< submerged objects again over the water, as silhouettes or outlines
+	void flushUnderwaterOutlines(RenderInfoClass & rinfo);	///< the outlines of those
 	void flushOccludedObjects(RenderInfoClass & rinfo);
 	void flagOccludedObjects(CameraClass * camera);
 	void flushOccludedObjectsIntoStencil(RenderInfoClass & rinfo);
@@ -124,6 +125,7 @@ protected:
 	MaterialPassClass *m_heatVisionMaterialPass;			///< Custom render passed applied on top of objects with heatvision effect.
 	MaterialPassClass *m_heatVisionOnlyPass;					///< Custom render pass applied in place of regular pass on objects with heat vision effect.
 	MaterialPassClass *m_underwaterHighlightPass;			///< silhouette of submerged objects drawn after the water (Drawable::getUnderwaterHighlight)
+	MaterialPassClass *m_underwaterOutlineMaskPass;		///< the same without the depth test, marks them in the stencil for their outlines
 	enum { MAX_UNDERWATER_HIGHLIGHTS = 32 };
 	RenderObjClass *m_underwaterHighlights[MAX_UNDERWATER_HIGHLIGHTS];	///< those of this frame, gathered while drawing
 	Int m_underwaterHighlightCount;

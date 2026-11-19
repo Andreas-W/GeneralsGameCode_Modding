@@ -555,9 +555,10 @@ public:
 	Real getSecondMaterialPassOpacity() const { return m_secondMaterialPassOpacity; }		///< get alpha/opacity value used to render add'l  rendering pass.
 	void setSecondMaterialPassOpacity( Real op ) { m_secondMaterialPassOpacity = op; }; ///< set alpha/opacity value used to render add'l  rendering pass.
 	/// A silhouette drawn over the water while the object is under it (submarines, WaterInteractionClientUpdate); 0 = none.
-	void setUnderwaterHighlight( Real strength, const RGBColor &color ) { m_underwaterHighlight = strength; m_underwaterHighlightColor = color; }
+	void setUnderwaterHighlight( Real strength, const RGBColor &color, Real outline = 0.0f ) { m_underwaterHighlight = strength; m_underwaterHighlightColor = color; m_underwaterHighlightOutline = outline; }
 	Real getUnderwaterHighlight() const { return m_underwaterHighlight; }
 	const RGBColor &getUnderwaterHighlightColor() const { return m_underwaterHighlightColor; }
+	Real getUnderwaterHighlightOutline() const { return m_underwaterHighlightOutline; }
 
 	// both of these assume that you are starting at one extreme 100% or 0% opacity and are trying to go to the other!! -- amit
 	void fadeOut( UnsignedInt frames );		///< fade object out...how gradually this is done is determined by frames
@@ -763,6 +764,7 @@ private:
 	Real m_secondMaterialPassOpacity;			///< drawable gets rendered again in hardware with an extra material layer
 	Real m_underwaterHighlight;					///< strength of the silhouette over the water, set every frame by a client module
 	RGBColor m_underwaterHighlightColor;		///< its colour
+	Real m_underwaterHighlightOutline;			///< pixels wide outline instead of the silhouette, 0 = the silhouette
 	// --------- BYTE-SIZED THINGS GO HERE
 	Byte m_selected;						///< drawable is selected or not
 	Bool m_hidden;							///< drawable is "hidden" or not (overrides stealth effects)

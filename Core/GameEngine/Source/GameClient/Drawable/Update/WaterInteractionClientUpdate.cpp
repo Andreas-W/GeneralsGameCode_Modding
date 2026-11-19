@@ -53,6 +53,7 @@ WaterInteractionClientUpdateModuleData::WaterInteractionClientUpdateModuleData()
 	m_maxHeightAboveWater(5.0f),
 	m_maxDepth(10.0f),
 	m_submergedHighlight(0.0f),
+	m_submergedHighlightOutline(0.0f),
 	m_highlightVisibleTo(HIGHLIGHT_VISIBLE_TO_ALLIES)
 {
 	m_submergedHighlightColor.setFromInt(0);
@@ -102,6 +103,7 @@ void WaterInteractionClientUpdateModuleData::buildFieldParse(MultiIniFieldParse&
 		{ "IdleWavesParticleSystem",	INI::parseAsciiString,	nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_idleWavesParticleSystem) },
 		{ "SubmergedHighlight",		INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlight) },
 		{ "SubmergedHighlightColor",	INI::parseRGBColor,		nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlightColor) },
+		{ "SubmergedHighlightOutline",	INI::parseReal,			nullptr, offsetof(WaterInteractionClientUpdateModuleData, m_submergedHighlightOutline) },
 		{ "HighlightVisibleTo",		INI::parseIndexList,	TheHighlightVisibilityNames, offsetof(WaterInteractionClientUpdateModuleData, m_highlightVisibleTo) },
 		{ nullptr, nullptr, nullptr, 0 }
 	};
@@ -174,7 +176,7 @@ ParticleSystem *WaterInteractionClientUpdate::updateParticleSystem(ParticleSyste
 }
 
 //-------------------------------------------------------------------------------------------------
-/** While the object is wholly under the water and the local player may see it highlighted: a silhouette over
+/** While the object is wholly under the water and the local player may see it highlighted: a silhouette or outline over
 	* the water (drawn by the scene after the water, with any renderer), and with the Direct3D 12 water a clearer
 	* view of it through the water (the highlight of the disturbance). Set every frame, cleared otherwise. */
 //-------------------------------------------------------------------------------------------------
@@ -214,7 +216,7 @@ void WaterInteractionClientUpdate::updateHighlight(const Object *obj)
 	RGBColor color = data->m_submergedHighlightColor;
 	if (color.red == 0.0f && color.green == 0.0f && color.blue == 0.0f)
 		color.setFromInt(obj->getIndicatorColor());
-	draw->setUnderwaterHighlight(data->m_submergedHighlight, color);
+	draw->setUnderwaterHighlight(data->m_submergedHighlight, color, data->m_submergedHighlightOutline);
 
 	if (TheWaterDisturbance->isActive())
 	{

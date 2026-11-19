@@ -70,6 +70,7 @@ public:
 	AsciiString m_idleWavesParticleSystem;	///< attached at the object's position while the bow wave is not
 	Real m_submergedHighlight;	///< strength of the silhouette over the water while wholly under it, 0 = none
 	RGBColor m_submergedHighlightColor;	///< its colour, black = the owner's colour
+	Real m_submergedHighlightOutline;	///< pixels wide outline around it instead of the filled silhouette, 0 = the silhouette
 	Int m_highlightVisibleTo;	///< HighlightVisibility
 
 	WaterInteractionClientUpdateModuleData();

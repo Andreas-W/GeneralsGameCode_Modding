@@ -151,6 +151,12 @@ RTS3DScene::RTS3DScene()
 	underwaterShader.Set_Depth_Compare(ShaderClass::PASS_LEQUAL);
 	underwaterShader.Set_Depth_Mask(ShaderClass::DEPTH_WRITE_DISABLE);
 	m_underwaterHighlightPass->Set_Shader(underwaterShader);
+	// Outlines first mark the whole silhouette in the stencil, also where something in front hides it: the outline
+	// is depth tested itself, and a mark that missed pixels of the object would let the outline show inside it.
+	m_underwaterOutlineMaskPass = NEW_REF(MaterialPassClass,());
+	m_underwaterOutlineMaskPass->Set_Material(underwaterMtl);
+	underwaterShader.Set_Depth_Compare(ShaderClass::PASS_ALWAYS);
+	m_underwaterOutlineMaskPass->Set_Shader(underwaterShader);
 	underwaterMtl->Release_Ref();
 	m_underwaterHighlightCount = 0;
 
@@ -245,6 +251,7 @@ RTS3DScene::~RTS3DScene()
 
 	REF_PTR_RELEASE(m_heatVisionOnlyPass);
 	REF_PTR_RELEASE(m_underwaterHighlightPass);
+	REF_PTR_RELEASE(m_underwaterOutlineMaskPass);
 
 	delete [] m_translucentObjectsBuffer;
 	delete [] m_nonOccludersOrOccludees;
@@ -871,8 +878,21 @@ void RTS3DScene::renderOneObject(RenderInfoClass &rinfo, RenderObjClass *robj, I
 }
 
 //-------------------------------------------------------------------------------------------------
+/** The drawable of a submerged object gathered while drawing, if it still wants its highlight. */
+//-------------------------------------------------------------------------------------------------
+static Drawable *getUnderwaterHighlightDrawable(RenderObjClass *robj)
+{
+	DrawableInfo *drawInfo = (DrawableInfo *)robj->Get_User_Data();
+	Drawable *draw = drawInfo ? drawInfo->m_drawable : nullptr;
+	if (draw == nullptr || draw->getUnderwaterHighlight() <= 0.0f)
+		return nullptr;
+	return draw;
+}
+
+//-------------------------------------------------------------------------------------------------
 /** Submerged objects gathered while drawing (Drawable::getUnderwaterHighlight), drawn again over the water as a
-	* see-through silhouette in their colour. Each is flushed on its own, as they differ in colour and strength. */
+	* see-through silhouette in their colour, or as an outline around it (flushUnderwaterOutlines). Each is flushed
+	* on its own, as they differ in colour and strength. */
 //-------------------------------------------------------------------------------------------------
 void RTS3DScene::flushUnderwaterHighlights(RenderInfoClass & rinfo)
 {
@@ -884,13 +904,18 @@ void RTS3DScene::flushUnderwaterHighlights(RenderInfoClass & rinfo)
 	rinfo.light_environment = nullptr;
 	rinfo.Push_Override_Flags(RenderInfoClass::RINFO_OVERRIDE_ADDITIONAL_PASSES_ONLY);
 	rinfo.Push_Material_Pass(m_underwaterHighlightPass);
+	Bool outlines = FALSE;
 	for (Int i = 0; i < m_underwaterHighlightCount; ++i)
 	{
 		RenderObjClass *robj = m_underwaterHighlights[i];
-		DrawableInfo *drawInfo = (DrawableInfo *)robj->Get_User_Data();
-		Drawable *draw = drawInfo ? drawInfo->m_drawable : nullptr;
-		if (draw == nullptr || draw->getUnderwaterHighlight() <= 0.0f)
+		Drawable *draw = getUnderwaterHighlightDrawable(robj);
+		if (draw == nullptr)
 			continue;
+		if (draw->getUnderwaterHighlightOutline() > 0.0f && DX8Wrapper::Has_Stencil())
+		{
+			outlines = TRUE;
+			continue;
+		}
 		const RGBColor &color = draw->getUnderwaterHighlightColor();
 		material->Set_Emissive(color.red, color.green, color.blue);
 		rinfo.materialPassAlphaOverride = min(draw->getUnderwaterHighlight(), 1.0f);
@@ -898,10 +923,90 @@ void RTS3DScene::flushUnderwaterHighlights(RenderInfoClass & rinfo)
 		TheDX8MeshRenderer.Flush();
 	}
 	rinfo.Pop_Material_Pass();
+	if (outlines)
+		flushUnderwaterOutlines(rinfo);
 	rinfo.Pop_Override_Flags();
 	rinfo.materialPassAlphaOverride = 1.0f;
 	rinfo.light_environment = oldLights;
 	m_underwaterHighlightCount = 0;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Outlines of the submerged objects that want one, a number of pixels wide, outside their silhouette. The
+	* silhouettes go into the stencil first, then every object is drawn again shifted on the screen in eight
+	* directions, only where the stencil is not marked; what is drawn marks it too, so overlapping copies blend each
+	* pixel once. Works the same with Direct3D 8 and 12. The stencil holds nothing needed after the water. */
+//-------------------------------------------------------------------------------------------------
+void RTS3DScene::flushUnderwaterOutlines(RenderInfoClass & rinfo)
+{
+	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
+	D3DVIEWPORT8 viewport;
+	D3DMATRIX projection;
+	if (device == nullptr || FAILED(device->GetViewport(&viewport)) || viewport.Width == 0 || viewport.Height == 0
+		|| FAILED(device->GetTransform(D3DTS_PROJECTION, &projection)))
+		return;
+	device->Clear(0, nullptr, D3DCLEAR_STENCIL, 0, 1.0f, 0);
+
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILENABLE, TRUE);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILREF, 1);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILMASK, 1);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILWRITEMASK, 1);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFAIL, D3DSTENCILOP_KEEP);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILZFAIL, D3DSTENCILOP_KEEP);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILPASS, D3DSTENCILOP_REPLACE);
+
+	// The silhouettes, into the stencil only.
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFUNC, D3DCMP_ALWAYS);
+	const unsigned colorWrite = DX8Wrapper::Get_Device_Render_State(D3DRS_COLORWRITEENABLE);	// the cache may not know it
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_COLORWRITEENABLE, 0);
+	rinfo.Push_Material_Pass(m_underwaterOutlineMaskPass);
+	for (Int i = 0; i < m_underwaterHighlightCount; ++i)
+	{
+		RenderObjClass *robj = m_underwaterHighlights[i];
+		Drawable *draw = getUnderwaterHighlightDrawable(robj);
+		if (draw == nullptr || draw->getUnderwaterHighlightOutline() <= 0.0f)
+			continue;
+		robj->Render(rinfo);
+		TheDX8MeshRenderer.Flush();
+	}
+	rinfo.Pop_Material_Pass();
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_COLORWRITEENABLE, colorWrite);
+
+	// The shifted copies around them. A shift of (dx, dy) in clip space per unit of w moves the picture by
+	// (dx, dy) * (width, height) / 2 pixels: add dx (dy) times the w column to the x (y) column.
+	static const Real DIRECTIONS[8][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
+		{ 0.7071f, 0.7071f }, { -0.7071f, 0.7071f }, { 0.7071f, -0.7071f }, { -0.7071f, -0.7071f } };
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFUNC, D3DCMP_NOTEQUAL);
+	VertexMaterialClass *material = m_underwaterHighlightPass->Peek_Material();
+	rinfo.Push_Material_Pass(m_underwaterHighlightPass);
+	for (Int i = 0; i < m_underwaterHighlightCount; ++i)
+	{
+		RenderObjClass *robj = m_underwaterHighlights[i];
+		Drawable *draw = getUnderwaterHighlightDrawable(robj);
+		if (draw == nullptr || draw->getUnderwaterHighlightOutline() <= 0.0f)
+			continue;
+		const RGBColor &color = draw->getUnderwaterHighlightColor();
+		material->Set_Emissive(color.red, color.green, color.blue);
+		rinfo.materialPassAlphaOverride = min(draw->getUnderwaterHighlight(), 1.0f);
+		const Real pixels = draw->getUnderwaterHighlightOutline();
+		for (Int d = 0; d < 8; ++d)
+		{
+			const Real dx = DIRECTIONS[d][0] * pixels * 2.0f / viewport.Width;
+			const Real dy = DIRECTIONS[d][1] * pixels * 2.0f / viewport.Height;
+			D3DMATRIX shifted = projection;
+			for (Int row = 0; row < 4; ++row)
+			{
+				shifted.m[row][0] += dx * projection.m[row][3];
+				shifted.m[row][1] += dy * projection.m[row][3];
+			}
+			device->SetTransform(D3DTS_PROJECTION, &shifted);
+			robj->Render(rinfo);
+			TheDX8MeshRenderer.Flush();
+		}
+	}
+	rinfo.Pop_Material_Pass();
+	device->SetTransform(D3DTS_PROJECTION, &projection);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILENABLE, FALSE);
 }
 
 //DECLARE_PERF_TIMER(translucentRender)
