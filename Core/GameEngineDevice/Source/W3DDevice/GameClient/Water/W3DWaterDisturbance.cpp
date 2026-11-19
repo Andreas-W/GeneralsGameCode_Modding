@@ -146,6 +146,8 @@ W3DWaterDisturbance::W3DWaterDisturbance() :
 	m_target(nullptr),
 	m_shapesFade(-1.0f),
 	m_range(1024.0f),
+	m_windowX(0),
+	m_windowY(0),
 	m_lastTime(0),
 	m_stepTime(0.0f),
 	m_active(FALSE),
@@ -285,6 +287,8 @@ void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *textu
 	};
 	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
 	const float texelsPerUnit = TARGET_SIZE / m_range;
+	const float windowLeft = (float)(m_windowX - TARGET_SIZE / 2);
+	const float windowBottom = (float)(m_windowY - TARGET_SIZE / 2);
 	float cx = fmodf(stamp.pos.x / m_range, 1.0f);
 	float cy = fmodf(stamp.pos.y / m_range, 1.0f);
 	if (cx < 0.0f)
@@ -316,6 +320,12 @@ void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *textu
 	const DWORD color = D3DCOLOR_ARGB((DWORD)(clamp01[3] * 255.0f + 0.5f), (DWORD)(clamp01[0] * 255.0f + 0.5f),
 		(DWORD)(clamp01[1] * 255.0f + 0.5f), (DWORD)(clamp01[2] * 255.0f + 0.5f));
 	const float reach = sqrtf(halfLength * halfLength + halfWidth * halfWidth);
+	// A shape reaching out of the window would be drawn where its texels repeat inside it, on the far side.
+	const float tx = stamp.pos.x * texelsPerUnit;
+	const float ty = stamp.pos.y * texelsPerUnit;
+	if (tx - reach < windowLeft || tx + reach > windowLeft + TARGET_SIZE || ty - reach < windowBottom
+		|| ty + reach > windowBottom + TARGET_SIZE)
+		return;
 	device->SetTexture(0, texture);
 	for (Int oy = -1; oy <= 1; ++oy)
 	{
@@ -346,6 +356,40 @@ void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *textu
 }
 
 //-------------------------------------------------------------------------------------------------
+/** Clears texels x0..x1-1, y0..y1-1 (not wrapped, at most the texture size each way). */
+//-------------------------------------------------------------------------------------------------
+void W3DWaterDisturbance::clearTexels(Int x0, Int y0, Int x1, Int y1)
+{
+#ifdef RTS_RENDERER_DX12
+	if (x1 <= x0 || y1 <= y0)
+		return;
+	struct Vertex { float x, y, z, rhw; DWORD color; float u, v; };
+	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
+	const Int width = x1 - x0;
+	const Int height = y1 - y0;
+	const Int sx = ((x0 % TARGET_SIZE) + TARGET_SIZE) % TARGET_SIZE;
+	const Int sy = ((y0 % TARGET_SIZE) + TARGET_SIZE) % TARGET_SIZE;
+	for (Int oy = 0; oy <= 1; ++oy)
+	{
+		if (oy == 1 && sy + height <= TARGET_SIZE)
+			break;
+		for (Int ox = 0; ox <= 1; ++ox)
+		{
+			if (ox == 1 && sx + width <= TARGET_SIZE)
+				break;
+			// Edges half a texel before the centres (on whole coordinates in Direct3D 8), so no centre is on one.
+			const float left = (float)(sx - ox * TARGET_SIZE) - 0.5f;
+			const float top = (float)(sy - oy * TARGET_SIZE) - 0.5f;
+			const Vertex quad[4] = {
+				{ left, top, 0.0f, 1.0f, 0, 0, 0 }, { left + width, top, 0.0f, 1.0f, 0, 1, 0 },
+				{ left + width, top + height, 0.0f, 1.0f, 0, 1, 1 }, { left, top + height, 0.0f, 1.0f, 0, 0, 1 } };
+			device->DrawPrimitiveUP(D3DPT_TRIANGLEFAN, 2, quad, sizeof(Vertex));
+		}
+	}
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
 void W3DWaterDisturbance::update(const Coord3D& center)
 {
 #ifdef RTS_RENDERER_DX12
@@ -360,7 +404,12 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 		return;
 	}
 
-	m_range = settings != nullptr ? max(settings->m_disturbanceRange, 64.0f) : 1024.0f;
+	const Real range = settings != nullptr ? max(settings->m_disturbanceRange, 64.0f) : 1024.0f;
+	if (range != m_range)
+	{
+		m_range = range;
+		m_clear = TRUE;
+	}
 	const Real fadeTime = settings != nullptr ? max(settings->m_disturbanceFadeTime, 0.05f) : 1.0f;
 	const Real fade = powf(0.5f, STEP_SECONDS / fadeTime);
 	if (!ensureResources(fade))
@@ -370,8 +419,6 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 	}
 	m_active = TRUE;
 	m_transform[0] = 1.0f / m_range;
-	m_transform[1] = center.x;
-	m_transform[2] = center.y;
 	m_transform[3] = m_range;
 
 	// Whole steps since the last frame; without one the texture stays as it is.
@@ -397,6 +444,14 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 	if (FAILED(m_target->GetSurfaceLevel(0, &surface)))
 		return;
 	DX8Wrapper::Set_Render_Target(surface);
+	// The window follows the camera in whole texels.
+	const Real texelSize = m_range / TARGET_SIZE;
+	const Int windowX = (Int)floorf(center.x / texelSize);
+	const Int windowY = (Int)floorf(center.y / texelSize);
+	const Int movedX = windowX - m_windowX;
+	const Int movedY = windowY - m_windowY;
+	if (abs(movedX) >= TARGET_SIZE || abs(movedY) >= TARGET_SIZE)
+		m_clear = TRUE;
 	if (m_clear)
 	{
 		device->Clear(0, nullptr, D3DCLEAR_TARGET, 0, 1.0f, 0);
@@ -434,6 +489,31 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 	device->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 	device->SetVertexShader(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
 	device->SetPixelShader(0);
+
+	// Texels the window moved onto still hold what was there one range away: cleared. Nothing to do after a full clear.
+	if (movedX != 0 || movedY != 0)
+	{
+		device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
+		device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
+		device->SetTexture(0, nullptr);
+		device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+		device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+		device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+		const Int half = TARGET_SIZE / 2;
+		if (movedX > 0)
+			clearTexels(m_windowX + half, 0, windowX + half, TARGET_SIZE);
+		else if (movedX < 0)
+			clearTexels(windowX - half, 0, m_windowX - half, TARGET_SIZE);
+		if (movedY > 0)
+			clearTexels(0, m_windowY + half, TARGET_SIZE, windowY + half);
+		else if (movedY < 0)
+			clearTexels(0, windowY - half, TARGET_SIZE, m_windowY - half);
+	}
+	m_windowX = windowX;
+	m_windowY = windowY;
+	m_transform[1] = windowX * texelSize;
+	m_transform[2] = windowY * texelSize;
 
 	for (Int step = 0; step < steps; ++step)
 	{

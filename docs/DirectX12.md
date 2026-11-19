@@ -753,7 +753,8 @@ float4 main(MaterialInput input) : SV_Target
 - for water, `WaterDisturbance` (t11, `HasWaterDisturbance()`): the ripples of ships and explosions (red crest,
   green trough, blue foam, alpha highlight), repeating every `DisturbanceTransform.w` world units; sample it at
   `world.xy * DisturbanceTransform.x` with `LinearWrapSampler` and fade it out away from the camera centre
-  (`DisturbanceTransform.yz`), as `MAT_Ocean` does;
+  (`DisturbanceTransform.yz`), as `MAT_Ocean` does. It holds only the square of that size around the centre,
+  so outside half a range from it the texture shows what lies a range further;
 - for every material, `NoiseTexture` (t12, with `LinearWrapSampler`, `HasNoise()`): tileable fractal noise the
   game makes at start, 256 x 256 with mipmaps. Red is the height (-1..1), green and blue its slope per repeat of
   the texture (d/du, d/dv). Sample it in a few layers of different size and direction so that it does not show

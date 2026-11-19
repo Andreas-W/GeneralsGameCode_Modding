@@ -71,6 +71,7 @@ private:
 
 	Bool ensureResources(Real fade);
 	void drawStamp(const Stamp& stamp, IDirect3DTexture8 *texture, Real scale);
+	void clearTexels(Int x0, Int y0, Int x1, Int y1);
 
 	WaterDisturbance *m_previous;			///< TheWaterDisturbance before this one
 	IDirect3DTexture8 *m_target;			///< the disturbance
@@ -82,6 +83,10 @@ private:
 	std::vector<Ripple> m_ripples;
 	Real m_transform[4];
 	Real m_range;
+	// The texture repeats every m_range, so it holds only the square of m_range around the camera's centre
+	// (the window); texels the window moves onto are cleared, and shapes outside it are not drawn.
+	Int m_windowX;							///< texel column of the window's centre, not wrapped
+	Int m_windowY;							///< texel row of the window's centre, not wrapped
 	UnsignedInt m_lastTime;
 	Real m_stepTime;						///< seconds not yet stepped
 	Bool m_active;
