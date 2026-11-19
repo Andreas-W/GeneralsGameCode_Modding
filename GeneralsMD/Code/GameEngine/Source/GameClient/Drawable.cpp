@@ -431,6 +431,8 @@ Drawable::Drawable( const ThingTemplate *thingTemplate, DrawableStatusBits statu
 	m_stealthOpacity = 1.0f;
 	m_effectiveStealthOpacity = 1.0f;
 	m_terrainDecalType = TERRAIN_DECAL_NONE;
+	m_terrainDecalSizeX = 0.0f;
+	m_terrainDecalSizeY = 0.0f;
 
   m_fadeMode = FADING_NONE;
 	m_timeElapsedFade = 0;
@@ -913,6 +915,8 @@ void Drawable::setTerrainDecal(TerrainDecalType type)
 		return;
 
 	m_terrainDecalType=type;
+	m_terrainDecalSizeX = 0.0f;
+	m_terrainDecalSizeY = 0.0f;
 
 	DrawModule** dm = getDrawModules();
 
@@ -927,6 +931,9 @@ void Drawable::setTerrainDecal(TerrainDecalType type)
 //-------------------------------------------------------------------------------------------------
 void Drawable::setTerrainDecalSize(Real x, Real y)
 {
+	m_terrainDecalSizeX = x;
+	m_terrainDecalSizeY = y;
+
 	DrawModule** dm = getDrawModules();
 
 	if (*dm)
@@ -4396,6 +4403,8 @@ void Drawable::replaceModelConditionStateInDrawable()
 	// modules, because the terrain decal is applied to the first draw module only, and the new first
 	// draw module may be different than before.
 	const TerrainDecalType terrainDecalType = getTerrainDecalType();
+	const Real terrainDecalSizeX = m_terrainDecalSizeX;
+	const Real terrainDecalSizeY = m_terrainDecalSizeY;
 	setTerrainDecal(TERRAIN_DECAL_NONE);
 
 	for (DrawModule** dm = getDrawModules(); *dm; ++dm)
@@ -4406,6 +4415,17 @@ void Drawable::replaceModelConditionStateInDrawable()
 	}
 
 	setTerrainDecal(terrainDecalType);
+
+	// The new decal starts at the template's shadow size and full opacity. Give it the size and opacity of the
+	// old one, or it shows like that until whoever sized it (HordeUpdate) does so again.
+	if (terrainDecalType != TERRAIN_DECAL_NONE)
+	{
+		if (terrainDecalSizeX != 0.0f || terrainDecalSizeY != 0.0f)
+			setTerrainDecalSize(terrainDecalSizeX, terrainDecalSizeY);
+		DrawModule** dm = getDrawModules();
+		if (*dm && m_decalOpacityFadeRate != 0.0f)
+			(*dm)->setTerrainDecalOpacity(m_decalOpacity);
+	}
 }
 
 //-------------------------------------------------------------------------------------------------

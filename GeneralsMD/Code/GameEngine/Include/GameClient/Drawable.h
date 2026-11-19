@@ -695,6 +695,8 @@ private:
 																//   1    = full effect
 
 	TerrainDecalType m_terrainDecalType; ///<current decal in use by m_terrainDecal
+	Real m_terrainDecalSizeX;	///< size last given to the current decal, 0 = its default
+	Real m_terrainDecalSizeY;
 
 	Real m_explicitOpacity;			///< opacity level. 1.0f == Solid/Opaque.
 	Real m_stealthOpacity;			///< <<minimum>> opacity due to stealth. pulse is between opaque and this
