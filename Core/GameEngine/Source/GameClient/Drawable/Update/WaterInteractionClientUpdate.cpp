@@ -42,7 +42,7 @@ WaterInteractionClientUpdateModuleData::WaterInteractionClientUpdateModuleData()
 	m_hullHeight(0.6f),
 	m_hullFoam(0.5f),
 	m_idleRipple(0.15f),
-	m_wakeSpacing(10.0f),
+	m_wakeSpacing(8.0f),
 	m_wakeHeight(0.25f),
 	m_wakeFoam(0.3f),
 	m_wakeRingRadius(0.0f),
