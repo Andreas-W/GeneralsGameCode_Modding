@@ -12,6 +12,7 @@ export default defineConfig({
 			title: 'GeneralsGameCode Modding',
 			description: 'Modding documentation for the GeneralsGameCode_Modding fork of Command & Conquer: Generals Zero Hour.',
 			logo: { src: './src/assets/logo.svg' },
+			components: { ThemeProvider: './src/components/ThemeProvider.astro' },
 			customCss: [
 				'@fontsource/oswald/500.css',
 				'@fontsource/oswald/600.css',
