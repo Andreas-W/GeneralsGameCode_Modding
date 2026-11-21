@@ -1,58 +1,68 @@
 ---
 title: "Energy shields"
 description: "ShieldBody and EnergyShieldBehavior."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Body/ShieldBody.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/EnergyShieldBehavior.cpp
 sidebar:
   order: 11
 ---
 
-## Energy Shields
 Added a Body and Behavior module for rechargable energy shields. This adds another health bar on top and absorbs damage until it's depleted.
 
-### ShieldBody
-This Body is required for shields to work.
+## ShieldBody
+This Body is required for shields to work. It is an `ActiveBody` with an extra shield health pool on top.
 
 ```ini
 Body = ShieldBody ModuleTag_ES1
-  ;<ActiveBody paramters>
-  StartsActive = No  ; Enable Shields by default; Otherwise an upgrade is required (defined in EnergyShieldBehavior)
-  ShieldMaxHealth = 100  ; Health points of the shield (only needed if ShieldMaxHealthPercent is not set)
-  ShieldMaxHealthPercent = 30%  ; Health points relative to MaxHealth (overrides ShieldMaxHealth)
-  ShieldArmorSetFlag = PLAYER_UPGRADE  ; (Optional) ArmorSetFlag to use while the shield is up
-  ShieldPassThroughDamageTypes = <Damage Types> ; List of damage types that will go through the shield and damage the Health. NONE +X, ALL -Y notation.
-  DefaultShieldPassThroughDamageTypes = <Damage Types> ; This has the same functionalty as above, but is predefined with all utility damage types that should always be passed through. This should not be defined in most cases, but can be overriden
+  ;<ActiveBody parameters>
+  MaxHealth = 500
+  StartsActive = No  ; Yes = the shield is up with full health from the start, without the upgrade from EnergyShieldBehavior (the shield model/subobject is not shown until the first recharge; prefer StartsActive on EnergyShieldBehavior)
+  ShieldMaxHealth = 0  ; Health points of the shield
+  ShieldMaxHealthPercent = 30%  ; Shield health as a part of MaxHealth. Computed when read, so put it after MaxHealth. Whichever of the two comes last wins.
+  ShieldArmorSetFlag = PLAYER_UPGRADE  ; (Optional) ArmorSet flag set while the shield has health. Damage to the shield uses that armor; pass-through damage uses the armor without it.
+  ShieldPassThroughDamageTypes = <Damage Types> ; Damage types that ignore the shield and damage the health directly. NONE +X / ALL -Y notation.
+  DefaultShieldPassThroughDamageTypes = <Damage Types> ; Same, but predefined with the utility damage types that should always pass through (see below). Rarely needs to be changed.
 End
 ```
 NOTE: DefaultShieldPassThroughDamageTypes default values: NONE +STATUS +DEPLOY +UNRESISTABLE +HEALING +PENALTY +DISARM +HAZARD_CLEANUP +TOPPLING +SUBDUAL_UNRESISTABLE +CHRONO_UNRESISTABLE
 
-### EnergyShieldBehavior
-The second required module for shield logic
+When the object becomes disabled (e.g. EMP), an active shield drops to 0 and starts its recharge delay.
+
+## EnergyShieldBehavior
+The second required module for shield logic. It is an upgrade module: the shield is switched on (at full health) by `TriggeredBy` or `StartsActive`, and it takes the other upgrade fields (`ConflictsWith`, `RequiresAllTriggers`, ...).
 
 ```ini
 Behavior = EnergyShieldBehavior ModuleTag_ES2
-    StartsActive = No  ; Enabled by default (no upgrade required)
+    StartsActive = No  ; Yes = enabled from the start (no upgrade required)
     TriggeredBy = <Upgrade Name>
-    ShieldRechargeDelay = 5000  ; Time (ms) of no damage taken, until shield starts recharging.
-    ShieldRechargeRate = 100  ; Delay (ms) between shield recharge ticks
-    ShieldRechargeAmount = 0  ; How much shield to recharge per tick (Absolute. Use only one)
-    ShieldRechargeAmountPercent = 2%  ; How much shield to recharge per tick (Percentage. Use only one)
-    ShieldHealthBarColor = R:128 G:255 B:255 A:255  ; RGBA color for the shield health bar
-    ShieldHealthBarBackgroundColor = R:0 G:0 B:0 A:255  ; RGBA color for the shield health bar outline
-    ShowHealthBarBackgroundWhenEmpty = No   ; Show empty frame when shield is depleted
-    ShowHealthBarWhenUnselected = No ; Show shield health bar when the unit is not selected or mousover
-    ShieldModelCondition = <ConditionStateName>  ; Optional: Conditionstate to set when shield is active
-    ShieldSubObjectName = <SubObjName> ; Optional: Model subobject to show when the shield is active
-    ShieldHitModelCondition = <ConditionStateName> ; Optional: Conditionstate to set when shield was hit
-    ShieldHitSubObjectName = <SubObjName> ; Optional: Model subobject to show when the shield was hit
-    ShieldHitConditionDuration = 500  ; Optional: How long to show conditionstate when shield was hit
-    ShieldDownFX = <FXList> ; Optional: FX to play when shield is depleted
-    ShieldUpFX = <FXList> ; Optional: FX to play when a depleted shield starts recharging
+    ShieldRechargeDelay = 0  ; Time (ms) without damage until the shield starts recharging.
+    ShieldRechargeRate = 0  ; Time (ms) between shield recharge ticks
+    ShieldRechargeAmount = 0  ; Shield health recharged per tick (absolute)
+    ShieldRechargeAmountPercent = 0%  ; Shield health recharged per tick (part of the shield's max health). Used instead of ShieldRechargeAmount when set.
+    ShieldHealthBarColor = R:255 G:255 B:255 A:255  ; RGBA color for the shield health bar
+    ShieldHealthBarBackgroundColor = R:255 G:255 B:255 A:255  ; RGBA color for the shield health bar outline
+    ShowHealthBarBackgroundWhenEmpty = No   ; Show the empty frame when the shield is depleted
+    ShowHealthBarWhenUnselected = No ; Show the shield health bar when the unit is not selected or moused over
+    ShieldModelCondition = <ConditionStateName>  ; Optional: condition state set while the shield is up
+    ShieldSubObjectName = <SubObjName> ; Optional: model subobject shown while the shield is up
+    ShieldHitModelCondition = <ConditionStateName> ; Optional: condition state set when the shield is hit
+    ShieldHitSubObjectName = <SubObjName> ; Optional: model subobject shown when the shield is hit
+    ShieldHitConditionDuration = 0  ; How long (ms) the hit state is shown; 0 = never
+    ShieldDownFX = <FXList> ; Optional: FX played when the shield is depleted
+    ShieldUpFX = <FXList> ; Optional: FX played when a depleted shield starts recharging
 End
 ```
 
-** Note: for the shield health bar to work, the KindOf "SHOW_PROGRESS_BAR" is required on the object** 
+Note: with `ShieldRechargeDelay = 0` the shield never recharges, and with `ShieldRechargeRate = 0` it recharges only one tick after each delay. Give both a value.
 
-** Note2: When using both ShieldHitModelCondition and ShieldModelCondition parameters: When the shield is hit, both conditionstates are active at the same time. So a setup like this is required:
+Note: the hit state (`ShieldHit...`) and `ShieldDownFX` only work when `ShieldModelCondition` or `ShieldSubObjectName` is set.
+
+**Note:** for the shield health bar to work, the object needs the KindOf `SHOW_PROGRESS_BAR`.
+
+**Note:** when using both `ShieldHitModelCondition` and `ShieldModelCondition`, both condition states are active at the same time while the shield is hit. So a setup like this is required:
 
 ```ini
 Draw = W3DModelDraw ModuleTag_ES0

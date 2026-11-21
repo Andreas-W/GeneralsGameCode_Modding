@@ -1,7 +1,18 @@
 ---
 title: "Direct3D 12 renderer"
 description: "Post-processing, shadow maps and HLSL materials with the Direct3D 12 renderer."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - Core/GameEngine/Source/GameClient/PostProcess.cpp
+  - Core/GameEngineDevice/Source/W3DDevice/GameClient/W3DPostProcess.cpp
+  - Core/GameEngineDevice/Source/W3DDevice/GameClient/W3DMaterials.cpp
+  - Core/Libraries/Source/D3D8on12/PostProcess.cpp
+  - Core/Libraries/Source/D3D8on12/Materials.cpp
+  - Core/Libraries/Source/D3D8on12/d3d8on12_ext.h
+  - Core/GameEngine/Source/GameClient/Drawable/Update/WaterInteractionClientUpdate.cpp
+  - Core/GameEngine/Source/GameClient/FXList.cpp
+  - Core/GameEngine/Source/Common/OptionPreferences.cpp
 sidebar:
   order: 0
 ---
@@ -112,6 +123,7 @@ End
 
 PostProcessChain Dream          ; an alternative list, for the "Run another chain" script action
   Passes = BloomExtract BloomBlurH BloomBlurV ColorGrade DreamBlur
+  Disabled = DreamBlur          ; a chain has its own Disabled list
 End
 ```
 
@@ -147,10 +159,10 @@ Editor's **Auto inputs** sets the `Inputs` this way from the shaders and the ord
 | `PP_Blur` | image | `Direction` (`1 0` or `0 1`), `Radius` (1) |
 | `PP_ColorGrade` | scene, bloom, lookup table (256×16), ambient occlusion, auto exposure, all but the scene optional | `BloomIntensity`, `Exposure` (stops), `Contrast`, `Saturation`, `Tint` + `TintStrength`, `Lift`, `Gamma`, `Gain`, `LutStrength`, `AOStrength` (1), `Tonemap` (picks a curve, a whole number: 0 none, 1 ACES, 2 filmic, 3 Reinhard), `TonemapStrength` (1; less blends toward the image without the curve, clipped at white), `WhitePoint` (4; filmic and Reinhard only), `HighlightExpand` |
 | `PP_Luminance` | scene | none; use `Scale = 8`, `HDR = Yes` |
-| `PP_AutoExposure` | `PP_Luminance` output, `Previous` | `Key` (0.18), `Speed` (1.5), `MinExposure` / `MaxExposure` (−2 / 2), `Strength` (1); use `Scale = 0`, `HDR = Yes`, feed into `PP_ColorGrade`'s fifth input |
+| `PP_AutoExposure` | `PP_Luminance` output, `Previous` | `Key` (0.18), `Speed` (1.5), `MinExposure` / `MaxExposure` (−2 / 2 while both are 0), `Strength` (1); use `Scale = 0`, `HDR = Yes`, feed into `PP_ColorGrade`'s fifth input |
 | `PP_SSAO` | `Depth` | `Radius` (20 world units), `Intensity` (1), `Bias` (2), `Power` (1.5) |
 | `PP_DepthBlur` | image, `Depth` | `Direction`, `Sharpness` (1); blurs without crossing depth edges, for ambient occlusion |
-| `PP_Fog` | image, `Depth` | `Color`, `Density` (1), `Start` (700), `End` (1600), `HeightStart`, `HeightEnd` |
+| `PP_Fog` | image, `Depth` | `Color`, `Density` (1), `Start` (700), `End` (`Start` + 900, so 1600), `HeightStart`, `HeightEnd` (height fog below `HeightStart`, full at `HeightEnd`; only when `HeightEnd` is lower) |
 | `PP_DepthOfField` | image, `Depth` | `FocusDistance` (screen centre), `FocusRange` (150), `BlurRange` (500), `MaxBlur` (3 px), `FarOnly` (1 keeps aircraft sharp) |
 | `PP_EdgeAA` | image | `EdgeThreshold` (0.166), `EdgeThresholdMin` (0.0625), `Subpixel` (0.75) |
 | `PP_SharpenVignette` | image | `Sharpen` (0..1), `Vignette` (0..1), `VignetteRadius` (0.75), `VignetteSoftness` (0.45) |
@@ -338,7 +350,7 @@ the text.
 | `NormalStrength` | Scales the normal map's bumps (1) |
 | `FlipGreen` | 1 for normal maps with green pointing down |
 | `HeightFromColor` | Fake bumps from the base texture's brightness, to try the look without new art |
-| `Specular`, `Gloss` | Highlight strength and sharpness (24; 64 with a map) |
+| `Specular`, `Gloss` | Highlight strength and sharpness. Without a specular map `Specular` 0 means no highlight; with one it scales the map's red (0 = 1). `Gloss` 0 = 24, with a map 64 (times the map's green) |
 | `EmissiveStrength`, `EmissiveColor` | Glow brightness (above 1 feeds bloom) and tint |
 | `TeamEmissive` | 0..1: how much the glow takes the owner's team colour |
 | `ScrollSpeed` | Glow texture scroll, texture coordinates per second |
@@ -542,9 +554,9 @@ FXList FX_ShellHitWater
     StartRadius = 5          ; world units the ring starts with
     EndRadius = 60           ; and grows to (scaled by the effect's radius when it has one)
     Height = 1               ; 0..1, strength of its crest and trough
-    Foam = 0.3               ; 0..1, strength of its foam
+    Foam = 0.5               ; 0..1, strength of its foam
     Splash = 0               ; 0..1, a round splash in the middle
-    Duration = 2000          ; milliseconds it grows and dies away in
+    Duration = 1000          ; milliseconds it grows and dies away in
     MaxHeightAboveWater = 30 ; higher above the water nothing happens (air bursts)
   End
 End
@@ -567,7 +579,7 @@ Object AmericaShipDestroyer
     HullHeight = 0.6          ; crest and trough of the hull at full speed
     HullFoam = 0.5            ; foam around the hull at full speed
     IdleRipple = 0.15         ; the hull while standing
-    WakeSpacing = 10          ; world units between the splashes of the wake trail
+    WakeSpacing = 8           ; world units between the splashes of the wake trail
     WakeHeight = 0.25         ; the ring of a splash at full speed
     WakeFoam = 0.3            ; its foam at full speed
     WakeRingRadius = 0        ; world units each splash's ring spreads to, 0 = 4 x the hull width (at least 40)
@@ -658,18 +670,25 @@ End
 ```
 
 Bumps come from `Art\Terrain\<terrain texture>_nrm.tga` where it exists, otherwise from the texture's
-brightness. Highlights come from `_spec.tga`. Clouds, the light map and the shroud stay as before.
+brightness. Highlights come from `_spec.tga`. The suffixes are the material's `NormalMap` and `SpecularMap`
+(only suffixes starting with `_` work here). Clouds, the light map and the shroud stay as before.
 Parameters: `HeightFromColor` (1; −1 = no brightness bumps), `NormalStrength`, `Specular`, `Gloss` (32),
 `FlipGreen`. At the lowest terrain detail only brightness bumps are used.
 
 **Post-processing per map**: a map's `map.ini` can contain `PostProcessPass`, `PostProcess`, `PostProcessChain` and
-`ShadowMap` blocks. They change the mod's settings for that map only. A block with the name of an existing
-pass changes only the fields it lists (a `Param` replaces the parameter of the same name), and the mod's
-settings come back when the game ends. Example: a sepia look and
-darker shadows for one mission:
+`ShadowMap` blocks. They change the mod's settings for that map only, and the mod's settings come back when the
+game ends. `PostProcess` and `ShadowMap` blocks change only the fields they list (`Passes` also clears
+`Disabled`). A `PostProcessPass` or `PostProcessChain` block with the name of an existing one replaces it as a
+whole, so repeat its `Shader`, `Inputs`, `Scale`, `HDR` and every `Param` you want to keep. Example: a sepia look
+and darker shadows for one mission, with the `ColorGrade` pass of the example chain above:
 
 ```ini
 PostProcessPass ColorGrade
+  Shader = PP_ColorGrade
+  Inputs = Scene BloomBlurV None AOBlurV AutoExposure
+  Param = BloomIntensity 0.6
+  Param = Tonemap 1
+  Param = Exposure 0.25
   Param = Saturation -0.7
   Param = Tint 0.9 0.75 0.55
   Param = TintStrength 0.3
@@ -755,7 +774,7 @@ float4 main(MaterialInput input) : SV_Target
   `SpecularLight(input, normal, power)`;
 - `TangentFrame(viewPosition, normal, uv)`, for normal maps without tangents in the model;
 - `Finish(color, glow, input)`, which applies fog and the alpha test;
-- `MaterialTime` (seconds), and for particles and water the scene behind: `SceneDepth`, `SceneColor`,
+- `Time` (seconds, the same as `MaterialTime.x`), and for particles and water the scene behind: `SceneDepth`, `SceneColor`,
   `ScreenUV`, `DepthBehind`, `WorldPosition`, `SceneViewPosition(uv)` and `SceneWorldPosition(uv)`;
 - for water, the water field and the shroud: `WaterField` (terrain height, distance to the shore, direction
   away from it) and `ShroudTexture`, with `HasWaterField()` / `HasShroud()`. The game passes their world to

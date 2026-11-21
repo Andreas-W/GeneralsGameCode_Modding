@@ -1,20 +1,31 @@
 ---
 title: "Bridges"
 description: "Destroyable road bridges and drawbridges."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - Core/GameEngine/Source/GameClient/Terrain/TerrainRoads.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Map/TerrainLogic.cpp
+  - GeneralsMD/Code/GameEngineDevice/Source/W3DDevice/GameClient/W3DBridgeBuffer.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/BridgeBehavior.cpp
+  - GeneralsMD/Code/GameEngine/Source/Common/Thing/ThingTemplate.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/DrawBridgeUpdate.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/DrawBridgeTowerUpdate.cpp
 sidebar:
   order: 14
 ---
 
-## Bridge.ini / TerrainRoad (Bridge type)
+## Roads.ini: Bridge
 
-* `BridgeHoleAreaPercentage = 100%` - (Percentage of the bridge span that is removed/becomes impassable when the bridge is destroyed. Lets you tune how much of the bridge collapses.)
+Bridges are `Bridge` blocks in `Roads.ini`. A landmark bridge (a bridge object placed on the map) uses the `Bridge` block with the same name as its object.
+
+* `BridgeHoleAreaPercentage = 0%` - (Part of the span, centered on the middle and across the full width, that becomes impassable while the bridge is destroyed or a drawbridge is open. 0 (not set) = the whole deck. Used by destroyable road bridges, landmark bridges and drawbridges. A drawbridge only pushes and crushes units inside this area, so give drawbridges a value.)
 
 ### Destroyable road bridges
 
 Road bridges (the procedural bridges placed with the bridge tool in WorldBuilder, drawn from `BridgeModelName`) can now be destroyed and rebuilt like landmark bridges. Before, they were always indestructible and had no towers.
 
-* `Destroyable = No` - (If Yes, the bridge can be damaged and destroyed. It is owned by the neutral player and gets the 4 targetable towers from `TowerObjectNameFromLeft/FromRight/ToLeft/ToRight`, which a Dozer/Worker can use to rebuild it (if the span object's `BridgeBehavior` has `Restoreable = Yes`). The deck model switches to `BridgeModelNameDamaged` / `ReallyDamaged` / `Broken` with the span object's damage state.)
+* `Destroyable = No` - (If Yes, the bridge can be damaged and destroyed. It is owned by the neutral player and gets the 4 targetable towers from `TowerObjectNameFromLeft/FromRight/ToLeft/ToRight`, which a Dozer/Worker can use to rebuild it (if the span object's `BridgeBehavior` has `Restoreable = Yes`). The deck model switches to `BridgeModelNameDamaged` / `BridgeModelNameReallyDamaged` / `BridgeModelNameBroken` (and the matching `Texture...`) with the span object's damage state.)
 * `BridgeObjectName = GenericBridge` - (Object template that represents the bridge span in the logic. For a destroyable bridge this object needs a body, armor and `BridgeBehavior`, and `KindOf` should include `BRIDGE`. Its geometry is a placeholder: at runtime the box is resized to the bridge (half span length × half bridge width) so area weapons aimed at the deck hit it, and it collapses to nothing while the bridge is destroyed. Leave out to use `GenericBridge` as before.)
 * `BridgeDeckHeight = 0.0` - (Thickness of the deck (and girders/arches) below the driving surface. It is subtracted from the clearance under the bridge, so units that need clearance (see `RequiredBridgeHeight` below) have to fit below the bottom of the deck, not the road surface. Applies to all bridge types.)
 
@@ -29,7 +40,7 @@ The sectional deck has no skeleton, so it cannot play a model animation. These p
 * `BridgeCollapseSingleSpanDrop = 0.0` - (World units a single-span deck sinks. 0 = use `BridgeCollapseDrop`.)
 
 Notes:
-* A `Bridge` block that leaves out `RadarColor` or `BridgeHoleAreaPercentage`, or any of the new fields, now takes them from `DefaultBridge`, like the other fields.
+* A `Bridge` block that leaves out `RadarColor` or `BridgeHoleAreaPercentage`, or any of the new fields, now takes them from `DefaultBridge`, like the other fields. Not inherited (a bug in the original code): `DamagedToSound`, `RepairedToSound`, `TransitionToOCL` and `TransitionToFX`.
 
 Example (Roads.ini):
 ```ini
@@ -100,38 +111,57 @@ End
 
 ## ThingTemplate
 
-* `RequiredBridgeHeight = 0` - (Minimum bridge-layer height this object's pathfinding requires to be allowed to cross a bridge. Lets tall units/ships be blocked from bridges that aren't high enough for them, while shorter units can still cross.)
-  - Clearance is stored in steps of 10 world units; the requirement is rounded **up** to the next step (e.g. 12 needs 20), so an object is never let through a gap it does not fit under. The clearance is measured to the bottom of the deck (`BridgeDeckHeight`).
+* `RequiredBridgeHeight = <from geometry>` - (Clearance this object needs to pass **under** a bridge. Lets tall units and ships be blocked from passing below bridges that are too low, while smaller ones still pass. When not set, the object's geometry height is used (at least one step; `NO_COLLIDE` objects need none). `0` = never blocked; a negative value = use the geometry height.)
+  - Clearance is stored in steps of 10 world units, at most 15 steps (150); the requirement is rounded **up** to the next step (e.g. 12 needs 20), so an object is never let through a gap it does not fit under. The clearance is measured to the bottom of the deck (`BridgeDeckHeight`).
+  - A closing drawbridge kills objects under it that need more clearance than it has (see `ClosingDamageTime` below).
 
 ## BridgeBehavior
 
-Added parameters to push objects on a bridge when it is repaired:
-* `RepairPushDuration = 0` - (Duration in ms over which objects standing on the bridge are pushed up when the bridge is repaired/restored.)
-* `RepairPushForce = 0` - (Acceleration applied to objects on the bridge while it is being repaired.)
+* `Restoreable = No` - (If Yes, the bridge towers survive the bridge's death, so a Dozer/Worker can rebuild it from them. If No, the towers are killed with the bridge.)
+
+Added parameters to clear units out of a bridge when it is repaired:
+* `RepairPushDuration = 0` - (Time in ms after the repair during which units inside the bridge area (but not on top of the deck) are pushed sideways out of it.)
+* `RepairPushForce = 0` - (Acceleration of that push, in distance/sec²; scaled by mass so every unit gets the same acceleration. 0 = no push.)
 
 `BridgeDieFX` / `BridgeDieOCL` accept a new optional location label:
 * `BridgeDieFX = FX:<FXList> Delay:<ms> [Bone:<bone>] [SpanFraction:<0..1>]`
 * `SpanFraction` places the effect along the bridge centreline: 0 = the 'from' bank, 1 = the 'to' bank. FX are oriented along the span. Meant for road bridges, whose span object has no model and so no bones. `Bone` takes priority if both are given; with neither, a random spot on the deck is used as before.
 
-## DrawBridgeUpdate (New) / DrawBridgeTowerUpdate
+## DrawBridgeUpdate / DrawBridgeTowerUpdate
 
 **New in this fork.**
 
-New modules implementing an openable "draw bridge" that can be raised and lowered, triggered via a special power.
+Modules for a landmark "drawbridge" that can be opened and closed. The towers carry the control: selecting a tower and using its special power opens or closes the bridge.
 
-`DrawBridgeUpdate` (on the bridge object):
+`DrawBridgeUpdate` (on the bridge object, next to its `BridgeBehavior`):
 ```ini
 Behavior = DrawBridgeUpdate ModuleTag_DrawBridge
-  OpeningDuration = 0       ; time in ms to open (raise) the bridge
-  ClosingDuration = 0       ; time in ms to close (lower) the bridge
-  OpeningPushForce = 0      ; acceleration applied to objects when the bridge opens (pushes them off)
-  ClosingDamageTime = 0     ; time in ms during closing when objects underneath take damage
+  OpeningDuration = 0       ; time in ms to open the bridge; also how long it is locked after a toggle
+  ClosingDuration = 0       ; time in ms to close the bridge; also how long it is locked after a toggle
+  OpeningPushForce = 0      ; acceleration (dist/sec^2) throwing units on the deck off it, 45 degrees up toward the end of their half, while it opens; 0 = no push
+  ClosingDamageTime = 0     ; ms after closing starts when units under the bridge that are too tall for it (RequiredBridgeHeight) are crushed
+  BridgeOpeningFX = <FXList>        ; when the bridge starts opening
+  BridgeOpenFX = <FXList>           ; when it is fully open
+  BridgeClosingFX = <FXList>        ; when it starts closing
+  BridgeClosedFX = <FXList>         ; when it is fully closed
+  BridgeOpeningAudio = <AudioEvent> ; plays while it opens (stopped when open)
+  BridgeClosingAudio = <AudioEvent> ; plays while it closes (stopped when closed)
 End
 ```
 
-`DrawBridgeTowerUpdate` (on the bridge tower/control object):
+Notes:
+* Opening sets the model condition `DOOR_1_OPENING` on the bridge object, which stays while it is open; closing sets `DOOR_1_CLOSING`, which stays while it is closed. Both are cleared when the bridge is destroyed or repaired. The open bridge is impassable over its `BridgeHoleAreaPercentage` area, and the push and the crush only reach units inside that area.
+* Toggling is refused while the bridge is dead.
+
+`DrawBridgeTowerUpdate` (on the bridge tower objects, named in the bridge's `TowerObjectName...` fields):
 ```ini
+Behavior = SpecialAbility ModuleTag_DrawBridgeAbility
+  SpecialPowerTemplate = <SpecialPower entry>   ; e.g. with Enum = SPECIAL_TOGGLE_DRAWBRIDGE
+  UpdateModuleStartsAttack = Yes
+End
 Behavior = DrawBridgeTowerUpdate ModuleTag_DrawBridgeTower
-  SpecialPowerTemplate = <SpecialPower entry>   ; special power that triggers opening/closing
+  SpecialPowerTemplate = <SpecialPower entry>   ; special power that opens/closes the bridge
 End
 ```
+
+The tower needs a special power module for the same `SpecialPowerTemplate`. Its command buttons choose the direction with `Options`: `OPTION_ONE` closes the bridge, `OPTION_TWO` opens it. With `CHECK_LIKE` the button of the current state is shown checked.

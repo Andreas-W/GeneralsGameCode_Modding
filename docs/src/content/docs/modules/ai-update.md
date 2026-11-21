@@ -1,7 +1,13 @@
 ---
 title: "AI update modules"
 description: "Changes to AIUpdateInterface and the other AIUpdate modules."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp
+  - GeneralsMD/Code/GameEngine/Include/GameLogic/Module/AIUpdate.h
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/AI/AIStates.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/AI/TurretAI.cpp
 sidebar:
   order: 1
 ---
@@ -9,8 +15,15 @@ sidebar:
 ## AIUpdateInterface (And all other AIUpdate types)
 
 New experimental parameter:
-* `PreferredAttackAngle = <angle> [MIRRORED]` - (mirrored keyword is optional)
-When a unit turns to attack, it will attempt to turn to this angle. If mirrored is enable it can also use the same angle +180°. Possibly useful for battleship setups with multiple turrets. Only works for locomotors that can turn in place (minTurnSpeed = 0)
+* `PreferredAttackAngle = Min:<degrees> Max:<degrees>` - (an allowed range of angles, relative to the unit's facing, at which the target should be. The line can be repeated to add more ranges. Without `Max:` the range ends at 360; `Max:` alone starts the range at 0.)
+When a unit turns to attack, it turns so that the target lies in the closest of these ranges. Possibly useful for battleship setups with multiple turrets, e.g. a broadside on either side:
+
+```ini
+  PreferredAttackAngle = Min:45 Max:135
+  PreferredAttackAngle = Min:-135 Max:-45
+```
+
+Only works for locomotors that can turn in place (minTurnSpeed = 0). The older syntax `PreferredAttackAngle = <angle> [MIRRORED]` is no longer supported: every line must start with `Min:` or `Max:`.
 Note: this is NOT needed for limited turret angles (See below). Units will follow the actual turret angles when trying to attack.
 
 ### Minimum range handling (reversing)
@@ -32,9 +45,11 @@ End
 ```
 
 ### Turret
-New paramters for Turret or AltTurret entries
-* `MinTurretAngle = 0` - Minimum angle the turret is allowed to turn
-* `MaxTurretAngle = 0` - Maximum angle the turret is allowed to turn
+New parameters for Turret or AltTurret entries (and `Turret1` ... `Turret8`, see [Turrets](/GeneralsGameCode_Modding/systems/turrets/))
+* `MinTurretAngle = 0` - Minimum angle (degrees) the turret is allowed to turn
+* `MaxTurretAngle = 0` - Maximum angle (degrees) the turret is allowed to turn
+
+Setting either of them limits the turret; without both lines the turret is unlimited.
 Notes:
 - for backwards facing configurations, MaxTurretAngle can be > MinTurretAngle; Currently this is not working 100% reliably
 - Remove the angle limit lines to use unlimited angle. A value of 0 will use 0 as limit.

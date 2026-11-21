@@ -1,7 +1,12 @@
 ---
 title: "Changes and bug fixes"
 description: "Raised limits, changed defaults and fixed engine bugs."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Include/Common/Upgrade.h
+  - GeneralsMD/Code/GameEngine/Include/GameLogic/AI.h
+  - Core/GameEngine/Include/Common/SciencePurchaseSlots.h
 sidebar:
   order: 39
 ---
@@ -13,34 +18,35 @@ We try to keep changes to a minimum. This list contains all changes that will af
 
 ## Limits
 ### Increased Upgrade Limit to 1024
+The game can define up to 1024 `Upgrade` blocks (`UPGRADE_MAX_COUNT`), instead of 128 in retail.
 
 ### AI SkillSets can list 35 sciences
-A `SkillSet` in AIData.ini can now list up to 35 `Science` entries (every slot of the three purchase screens) instead of 20. Extra entries used to be dropped with a debug crash.
+A `SkillSet1` .. `SkillSet5` block of a `SideInfo` in AIData.ini can now list up to 35 `Science` entries (every slot of the three purchase screens) instead of 20. Further entries are still dropped, with a debug crash.
 
 ## Code Changes
 
 ### Minor Laser visual improvements
-#### Module: LaserDraw
-In vanilla ZH, a laser beam always moves along with the shooter's firebone, but the Muzzle particle system will stay in place.
+#### Module: LaserUpdate
+In vanilla ZH, a laser beam always moves along with the shooter's firebone, but the `MuzzleParticleSystem` will stay in place.
 This has been changed. The muzzle particle system will now always move with the shooter's firebone along with the laser beam.
 
 ### Fixed HelixContain passenger fireports not working
 
-#### Module: HelixContainUpdate
+#### Module: HelixContain
 
-Transports with HelixContain and fireports, now have their passenger correctly fire from the Firepoint bones
+Transports with HelixContain and fireports, now have their passenger correctly fire from the `FIREPOINTxx` bones.
 
-Note: This requires the transport to have the FIREPOINTXX bones. It is not enough to put them on a portable Bunker object.
+Note: This requires the transport to have the `FIREPOINTxx` bones. It is not enough to put them on a portable Bunker object.
 
 ### Changed default behavior for Airborne collisions in PhysicsUpdate
 
-To avoid helicopters randomly dying via a chain reaction, we changed the conditions when "VehicleCrashesIntoNonBuildingWeaponTemplate" is fired. This wepaon should be triggered when an object (i.e. a dying helicopter) crashes into a ground vehicle, but it often triggers already mid air if the object collides with airborne projectiles, lasers or dummy objects. We changed the default behavior to ignore airborne collisions.
+To avoid helicopters randomly dying via a chain reaction, we changed the conditions when "VehicleCrashesIntoNonBuildingWeaponTemplate" is fired. This weapon should be triggered when an object (i.e. a dying helicopter) crashes into a ground vehicle, but it often triggers already mid air if the object collides with airborne projectiles, lasers or dummy objects. We changed the default behavior to ignore airborne collisions.
 
-#### Module: PhysicsUpdate
+#### Module: PhysicsBehavior
 
-Changed conditions for _VehicleCrashesIntoNonBuildingWeaponTemplate_ to be fired on non-airborne collisions only. Added new parameter to restore default behavior
+Changed conditions for _VehicleCrashesIntoNonBuildingWeaponTemplate_ to be fired only when the object it falls into is not airborne. Added new parameter to restore default behavior
 
-- `VehicleCrashWeaponAllowAirborne = No` - (restores default behavior to also trigger VehicleCrashesIntoNonBuildingWeaponTemplate on airborne collisions. Not Recommended)
+- `VehicleCrashWeaponAllowAirborne = No` - (`Yes` restores the vanilla behavior to also trigger VehicleCrashesIntoNonBuildingWeaponTemplate on airborne collisions. Not Recommended)
 
 ### VTOL Improvements
 (Module: JetAIUpdate)
@@ -64,7 +70,7 @@ When a bunker buster bomb hits a garrisoned structure that is under construction
 
 ### Fixed USA Chemsuit Upgrade crashing when a unit starts as veteran
 
-Units with Chemsuit upgrade now correctly show the decal and when starting with veterancy. 
+The `ArmorUpgrade` triggered by `Upgrade_AmericaChemicalSuits` sets the Chemsuit terrain decal on the unit's drawable. It used to crash when the unit had no drawable at that moment; now the decal is only set when there is one.
 
 ### Fixed Decal Shadows being applied multiple times
 
@@ -74,15 +80,15 @@ Fixed issue for units with texture based shadows (SHADOW_DECAL, SHADOW_ALPHA_DEC
 
 VeterancyCrateCollide only worked for pilots. Now it can be used for regular crates.
 
-### Fixed PoisonedBehavior not using POISON damage typer
-In order to prevent an infinite self-poisoning loop, the damage being dealt was set to DAMAGE_UNRESISTABLE.
-This is now fixed and POISON damage is applied.
+### Fixed PoisonedBehavior not using POISON damage type
+The damage over time of `PoisonedBehavior` is `POISON` damage again. In order to prevent an infinite self-poisoning loop, the damage being dealt was set to DAMAGE_UNRESISTABLE.
+This is now fixed (the poison source is checked instead) and POISON damage is applied.
 
 ### Fixed Transitionstates anims not working reliably on Night/Snow maps
-Fixed an issue where TransitionStates are incorrectly initialized of Night or Snow states are not explicitly defined for a Draw module. This caused Turrets or firebones sometimes not working during Transition animations. 
+Fixed an issue where TransitionStates are incorrectly initialized if Night or Snow states are not explicitly defined for a Draw module. This caused Turrets or firebones sometimes not working during Transition animations. 
 
 ### Fixed FXLists being wrongly aligned
-By default, FXList without "OrientToObject = Yes" will not have their offset aligned to the parent object. This prevents the issue of large effects like Nuke mushroom clouds to be "drifting away". The original behavior can be restored by using "OrientOffset = Yes".
+By default, a `ParticleSystem` nugget of an FXList without `OrientToObject = Yes` will not have its `Offset` aligned to the parent object. This prevents the issue of large effects like Nuke mushroom clouds to be "drifting away". The original behavior can be restored by using `OrientOffset = Yes` in the nugget.
 
 ### Fixed shared weapon reload
 Fixed an issue with `WeaponReloadSharedAcrossSets` (see [Objects & Modules](/GeneralsGameCode_Modding/objects/object-definition/#weaponset)) where reload time / ammo count was not shared correctly when switching between weapon sets.
@@ -93,23 +99,19 @@ Fixed an issue where a weapon's looping firing sound could keep playing after th
 
 ### Fixed LocomotorWorksWhenDisabled
 #### Module: AIUpdate
-Fixed and added safeguards for `LocomotorWorksWhenDisabled`, so disabled units with this flag move correctly across the various AIUpdate types.
+Fixed and added safeguards for the Locomotor field `LocomotorWorksWhenDisabled`, so disabled units with this flag move correctly across the various AIUpdate types.
 
 ### Veterancy weapon FX for scatter/secondary projectiles
 Projectiles (`DumbProjectileBehavior`, `FreeFallProjectileBehavior`, `MissileAIUpdate`, `NeutronMissileUpdate`) now snapshot the **launcher's** veterancy level and use it to pick the per-veterancy weapon FX (`VeterancyProjectileExhaust`, `VeterancyFireFX`, `VeterancyProjectileDetonationFX`, `VeterancyFireOCL`, ...). This makes veterancy-based exhaust/FX work correctly for ScatterShot and other secondary weapon effects.
 
 ### KINDOF_NO_SELECT now actually works
-Previously a no-op, the `KINDOF_NO_SELECT` KindOf flag now correctly prevents an object from being selected (`Object::isSelectable()`). Any object relying on this flag to be an unselectable helper/decoration now behaves as documented.
+Previously a no-op, `KindOf = NO_SELECT` (`KINDOF_NO_SELECT` in the code) now correctly prevents an object from being selected (`Object::isSelectable()`). Any object relying on this flag to be an unselectable helper/decoration now behaves as documented.
 
-### Name lookups are now consistently case-insensitive
-Fixed `NameKeyGenerator::nameToLowercaseKey` to store the canonicalized lowercase string instead of the original-case one. Previously, looking up the same name in different letter casing via the lowercase-key path could allocate separate, non-matching entries. Case variants now always resolve to one canonical entry.
-
-### Fixed ModuleFactory module-ID mismatch in Generals (non-ZH)
-Fixed a `ModuleFactory` ID mismatch caused by earlier W3D module additions, which could have silently misassigned module types in base Generals builds.
+### Lowercase name keys are stored in lowercase
+Fixed `NameKeyGenerator::nameToLowercaseKey` to store the name in lowercase instead of in the letter casing it was first seen with. Previously, a later case-sensitive lookup of the lowercase name did not find that entry and created a second, different key for the same name.
 
 ### Contain fixes
 * Occupants are now preserved when transferring a garrisoned/contained object to an ally (previously they could be lost).
-* Restored retail-compatible behavior for `Object::m_containedByID` after a prior regression.
 * Tunnel Network passengers can once again exit from any tunnel entrance, not just the one they entered through.
 * Passengers can now exit an immobilized Battle Bus (previously they were stuck inside).
 
@@ -117,11 +119,11 @@ Fixed a `ModuleFactory` ID mismatch caused by earlier W3D module additions, whic
 StickyBomb-based Booby Traps can be placed on an object that already has one again.
 
 ### Fixed diving missiles missing moving targets
-Diving missiles (e.g. MissileAIUpdate variants) now correctly track and hit moving targets instead of frequently missing.
+Diving missiles (`MissileAIUpdate`) now correctly track and hit moving targets instead of frequently missing.
 
 ### JetAIUpdate: Airfield loss fixes
 * Aircraft no longer fall to their death if their Airfield is lost/destroyed while they are returning to it.
-* Aircraft no longer land or remain landed at an Airfield that has been destroyed.
+* Helicopters no longer land or remain landed at an Airfield that has been destroyed.
 * Helicopter landing position is now saved/restored correctly.
 
 ### Removed the 100pt font size cap

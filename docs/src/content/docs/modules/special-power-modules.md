@@ -1,7 +1,12 @@
 ---
 title: "Special power modules"
 description: "Special power modules and their update modules."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/UpgradeSpecialPower.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/OCLSpecialPower.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate/TeleporterAIUpdate.cpp
 sidebar:
   order: 7
 ---
@@ -21,12 +26,14 @@ Behavior = UpgradeSpecialPower ModuleTag_SpecUp01
 End
 ```
 
+A player upgrade is given to the player; an object upgrade to the object. For a power used on a target object, the target gets the object upgrade (and a player upgrade goes to the target's owner). A power used on a location grants nothing.
+
 ## OCLSpecialPower
 
 Added new parameter:
-*`SelectCreatedObject = No` The (first) created object will be automatically selected by the player
+* `SelectCreatedObject = No` - The (first) created object will be automatically selected by the player
 
-* `MinDistToSimilarRadius = 0.0` - (If > 0, the special power cannot be targeted within this radius of another object created by the same OCL special power. Useful to prevent stacking multiple deployments on top of each other. Default = 0 = no limit)
+* `MinDistToSimilarRadius = 0.0` - (If > 0, a special power without a target (used at the object's own position) does nothing while an object of the `ReferenceObject` type, of any owner, is within this radius; the player hears the "can't do that" sound. Useful to prevent stacking multiple deployments on top of each other. Needs `ReferenceObject`. Default = 0 = no limit)
 
 ## TeleporterAIUpdate
 
@@ -43,11 +50,12 @@ Behavior = TeleporterAIUpdate ModuleTag_123
    TeleportTargetFX = [FXList entry] ; FX to play at the unit's target position when it teleports
    TeleportRecoverEndFX = [FXList entry] ; FX to play on the unit, when it has finished recovering
    MinDistanceForTeleport = 20.0  ; distance in which the unit moves normally instead of teleporting
+   MinDisabledDuration = 0  ; base recovery time in ms, added to the distance based part
    DisabledDurationPerDistance = 10.0 ; How long the unit will need to recover, linear to the distance (in MS per distance). Recommended values = 5-10. 
    TeleportRecoverSoundAmbient = [AudioEvent entry] ; Ambient sound played on the unit while it recovers from a teleport.
-   TeleportRecoverOpacityStart = 10%  ; Unit maximum transparency when it starts to recover.
-   TeleportRecoverOpacityEnd = 80%  ; Unit minimum transparency when it has finished recovering.
-   TeleportRecoverTint = TELEPORT_RECOVER  ; Color tint status to apply while recovering
+   TeleportRecoverOpacityStart = 10%  ; Unit opacity when it starts to recover (default = 100%).
+   TeleportRecoverOpacityEnd = 80%  ; Unit opacity when it has finished recovering (default = 100%).
+   TeleportRecoverTint = TELEPORT_RECOVER  ; Color tint status to apply while recovering (default = none)
    [entries from AIUpdate]
 End
 ```

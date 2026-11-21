@@ -1,16 +1,32 @@
 ---
 title: "Upgrade modules"
 description: "New and changed upgrade modules."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/WeaponSetUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/ArmorUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/LocomotorSetUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/MaxHealthUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/CostModifierUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Include/GameLogic/Module/CostModifierUpgrade.h
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/ProductionTimeModifierUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/ExperienceScalarUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/UnitProductionBonusUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/PropagateUpgradeToContainedUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/StealthUpgrade.cpp
+  - GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DelayedUpgradeBehavior.h
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/DelayedUpgradeBehavior.cpp
+  - GeneralsMD/Code/GameEngine/Source/Common/RTS/Player.cpp
 sidebar:
   order: 2
 ---
 
 ## WeaponSetUpgrade
 Added new parameters for WeaponSetUpgrade
-* `WeaponSetFlag = <WeaponSetFlag>` - define which Weaponset to enable (default = PLAYER_UPGRADE)
+* `WeaponSetFlag = <WeaponSetFlag>` - define which Weaponset to enable (default = PLAYER_UPGRADE; `NONE` sets no flag, so the module only clears `WeaponSetFlagsToClear`)
 * `WeaponSetFlagsToClear = <WeaponSetFlag1> <WeaponSetFlag2> ..` - define which Weaponsets to disable
-* `NeedsParkedAircraft = No` - Units with JetAIUpdate need to be parked in hangar to research this upgrade
+* `NeedsParkedAircraft = No` - If Yes, the upgrade only applies to units with JetAIUpdate while they are parked in a hangar
 
 **Notes:**
 WeaponSetFlagsToClear can be used to switch between WeaponSets using multiple upgrades.
@@ -42,7 +58,7 @@ You can combine this with NeedsParkedAircraft to allow Jets to switch their ammo
 
 ## ArmorUpgrade
 Added new parameters for ArmorUpgrade
-* `ArmorSetFlag = <ArmorSetFlag>` - define which Armorset to enable (default = PLAYER_UPGRADE)
+* `ArmorSetFlag = <ArmorSetFlag>` - define which Armorset to enable (default = PLAYER_UPGRADE; `NONE` is not accepted here)
 * `ArmorSetFlagsToClear = <ArmorSetFlag1> <ArmorSetFlag2> ..` - define which ArmorSets to disable
 
 **Notes:**
@@ -51,7 +67,7 @@ ArmorSetFlagsToClear can be used to switch between ArmorSets using multiple upgr
 ## LocomotorSetUpgrade
 Added new parameters for LocomotorSetUpgrade
 * `EnableUpgrade = No` - (if 'Yes' (default),  locomotor is switched to SET_NORMAL_UPGRADED; if 'No' locomotor is switched back to SET_NORMAL)
-* `ExplicitLocomotorType = SET_SUPERSONIC` - Optional; explicitly switch to the defined locomotor set (This is not persistant, unlike EnableUpgrade)
+* `ExplicitLocomotorType = SET_SUPERSONIC` - Optional (default = none); explicitly switch to the defined locomotor set (This is not persistent, unlike EnableUpgrade). Names: `SET_NORMAL`, `SET_NORMAL_UPGRADED`, `SET_FREEFALL`, `SET_WANDER`, `SET_PANIC`, `SET_TAXIING`, `SET_SUPERSONIC`, `SET_SLUGGISH`, `SET_VTOL`. `SET_NORMAL_UPGRADED` (or `None`) falls back to the `EnableUpgrade` behavior
 
 **Notes:**
 EnableUpgrade only allows for a single locomotor upgrade, but it can be toggled on/off with multiple upgrades.
@@ -61,11 +77,11 @@ With ExplicitLocomotorType, Locomotor sets can be set freely, but they will not 
 
 Added new parameter for MaxHealthUpgrade
 
-* `MultiplyMaxHealth = 1.0` - (multiplier on the unit's current HP; default = 1.0 -> no change.)
+* `MultiplyMaxHealth = 1.0` - (multiplier on the unit's current maximum health; default = 1.0 -> no change. How current health follows is set by the existing `ChangeType`.)
 
 **Notes:**
 * It is recommended to change all health upgrades to multiplicative as they will not be affected by other HP changes like veterancy, and can be freely stacked (and even reversed).
-* You can still use AddMaxHealth for additive boni, and could even combine it with MultiplyMaxHealth. The formula is `NewHP = (CurrentHP * MultiplyMaxHealth) + AddMaxHealth`.
+* You can still use AddMaxHealth for additive boni, and could even combine it with MultiplyMaxHealth. The formula is: new max health = (current max health * MultiplyMaxHealth) + AddMaxHealth.
 
 ## CostModifierUpgrade
 
@@ -108,16 +124,16 @@ End
 
 ## ExperienceScalarUpgrade
 
-~~Added parameter to make module active by default (useful for negativ scalars):~~
-* ~~`StartsActive = False`~~
+~~Added parameter to make module active by default (useful for negative scalars):~~
+* ~~`StartsActive = No`~~
 
-Update: removed this, because it didn't work. You will need to grant a dummy upgrade instead.
+Update: this did not work reliably; grant a dummy upgrade instead. (The field is still accepted by the parser.)
 
 
 Added new parameter to modify XP value of a unit (i.e. XP that is gained for the enemy when the unit is killed)
-* `AddXPValueScalar = 0.0` - Additive modifier for XP value scalar. I.e.: XPValueNew = XPValueOld * (1.0 + AddXPValueScalar).
+* `AddXPValueScalar = 0.0` - Added to the object's XP value scalar (which starts at 1.0). I.e. with no other changes: XPValueNew = XPValueOld * (1.0 + AddXPValueScalar).
 
-* `SetMaxVeterancyLevel = <VeterancyLevel>` - (Raises the unit's maximum veterancy level (e.g. to `LEVEL_FOUR` or `LEVEL_FIVE`) when this upgrade is active. Lets you unlock the extra veterancy levels via an upgrade. See [Veterancy Object Parameters](/GeneralsGameCode_Modding/systems/veterancy/#veterancy-object-parameters).)
+* `SetMaxVeterancyLevel = <VeterancyLevel>` - (Sets the unit's maximum veterancy level (e.g. to `LEVEL_FOUR` or `LEVEL_FIVE`) when this upgrade is active. Lets you unlock the extra veterancy levels via an upgrade. See [Veterancy Object Parameters](/GeneralsGameCode_Modding/systems/veterancy/#veterancy-object-parameters).)
 
 ## UnitProductionBonusUpgrade
 
@@ -131,7 +147,7 @@ Parameters:
 * `BuildTimeModifierPercentage = 0` - Percentage amount that the unit's build time is modified
 * `UnitTemplateName = <Name of an Object>` - The unit to apply this bonus to. (multiple lines are allowed)
 * `IsOneShotUpgrade = No` - (If Yes, the bonus is applied once and is not tracked/removed - matches the old, pre-stacking behavior. If No (default), the bonus is now correctly removed if the upgrade module is deleted, and transferred to the new owner if the object is captured.)
-* `BonusStacksWith = NO_STACKING` - (Controls stacking when the same unit type receives this bonus from multiple sources. Options: `NO_STACKING` (default; a second source does not add further bonus), `SAME_TYPE` (stacks with bonuses from any source, including the same upgrade/object type), `OTHER_TYPE` (stacks only with bonuses coming from a different source object type).)
+* `BonusStacksWith = DIFFERENT_VALUE` - (Controls stacking when the same unit type receives this bonus from multiple sources; same values as for CostModifierUpgrade. `DIFFERENT_VALUE` (default; a second source with the same percentage adds no further bonus, a different percentage does), `OTHER_TYPE` (same percentages stack only when they come from different source object types), `SAME_TYPE` (every source stacks, including several objects of the same type).)
 
 **Example**
 ```ini
@@ -152,15 +168,15 @@ End
 
 **New in this fork.**
 
-An upgrade module that, when triggered, forwards one or more player upgrades onto every object currently contained (garrisoned/loaded) inside this object - so passengers with a matching `UpgradeModule` react as if they had been upgraded directly, without needing the upgrade to be player-wide.
+An upgrade module that, when triggered, gives one or more object upgrades to every object currently contained (garrisoned/loaded) inside this object - so passengers with upgrade modules triggered by that upgrade react as if they had been upgraded directly. The object needs a Contain module. A rider that is kept outside the normal passenger list (e.g. the portable structure of a HelixContain) gets it too.
 
-* `UpgradeToPropagate = <Upgrade name> ...` - (One or more upgrade template names to grant to each currently-contained object. Multiple names can be listed.)
+* `UpgradeToPropagate = <Upgrade name> ...` - (One or more upgrade names to grant to each currently-contained object, on one line separated by spaces. Only upgrades with `Type = OBJECT` are propagated; player upgrades are skipped (with an assert in debug builds). Riders that already have the upgrade or have no module reacting to it are skipped. Objects that enter later do not get it.)
 
 **Example**
 ```ini
 Behavior = PropagateUpgradeToContainedUpgrade ModuleTag_01
-  TriggeredBy = Upgrade_NationalismReactorBonus
-  UpgradeToPropagate = Upgrade_Nationalism
+  TriggeredBy = Upgrade_GLAHindGroundAttackLoadout   ; object upgrade
+  UpgradeToPropagate = Upgrade_GLAHindGroundAttackLoadout
 End
 ```
 
@@ -184,8 +200,15 @@ Example:
 Behavior = DelayedUpgradeBehavior ModuleTag_DelUp
   TriggeredBy = <Upgrade entry>   ; Initial Trigger
   ; additional generic Upgrade params (ConflictsWith, RemovesUpgrades, FXListUpgrade, RequiresAllTriggers)
-  UpgradesToTrigger = <Upgrade1, Upgrade2, ...>   ; Upgrades that will be triggered after the delay
-  UpgradesToRemove = <Upgrade1, Upgrade2, ...>    ; Upgrades that will be removed after the delay
-  TriggerAfterTime = <time in msec>    ; Time delay
+  StartsActive = No   ; If Yes, the module triggers itself when the object is created
+  UpgradesToTrigger = <Upgrade1> <Upgrade2> ...   ; Upgrades that will be granted after the delay (player or object upgrades)
+  UpgradesToRemove = <Upgrade1> <Upgrade2> ...    ; Upgrades that will be removed after the delay (player or object upgrades)
+  TriggerAfterTime = <time in msec>    ; Time delay (default = 0)
 End
 ```
+
+Notes:
+- Upgrade names are separated by spaces; commas are not separators.
+- With `TriggerAfterTime = 0` (the default) nothing is triggered or removed.
+- It triggers once; it can trigger again only after the triggering upgrade was removed and given again.
+- An unknown upgrade name throws an INI error when the delay ends.

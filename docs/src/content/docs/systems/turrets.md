@@ -1,13 +1,25 @@
 ---
 title: "Turrets"
 description: "Up to eight turrets per object."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/AIUpdate.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/AI/TurretAI.cpp
+  - Core/GameEngineDevice/Source/W3DDevice/GameClient/Drawable/Draw/W3DModelDraw.cpp
+  - GeneralsMD/Code/GameEngine/Include/GameLogic/WeaponSet.h
 sidebar:
   order: 36
 ---
 
 Up to 8 turrets can now be used instead of only 2.
-They use the name Turret3, Turret4, ... Turret8. Turret1 can be used as alias to Turret and Turret2 can be used as alias to AltTurret
+They use the name Turret3, Turret4, ... Turret8. Turret1 can be used as alias to Turret and Turret2 can be used as alias to AltTurret. An alias and its original name fill the same turret, so give only one of them (a second definition of the same turret is an INI error).
+
+The names exist in two places:
+* In the AI update (any AIUpdate type): `Turret1` ... `Turret8` blocks with the usual turret fields (`TurretTurnRate`, `ControlledWeaponSlots`, ...; see [AIUpdate turret fields](/GeneralsGameCode_Modding/modules/ai-update/#turret)).
+* In the W3DModelDraw condition states: `Turret<N> = <bone>`, `Turret<N>Pitch = <bone>`, `Turret<N>ArtAngle = <degrees>` and `Turret<N>ArtPitch = <degrees>` for N = 1..8 (`Turret` / `TurretPitch` / `TurretArtAngle` / `TurretArtPitch` and the `AltTurret...` names still work for turrets 1 and 2).
+
+Weapon slots go up to eight: `PRIMARY`, `SECONDARY`, `TERTIARY`, `WEAPON_FOUR` ... `WEAPON_EIGHT`.
 
 Example Draw (unit with 6 turrets and 7 weapons):
 ```ini

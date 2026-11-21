@@ -1,7 +1,12 @@
 ---
 title: "Weapon.ini"
 description: "New Weapon fields and WeaponExtend."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Weapon.cpp
+  - GeneralsMD/Code/GameEngine/Include/GameLogic/Weapon.h
+  - GeneralsMD/Code/GameEngine/Source/Common/GlobalData.cpp
 sidebar:
   order: 22
 ---
@@ -21,9 +26,11 @@ Added new weapon parameters to tweak ScatterTargets
 
 * `ScatterTargetCenteredAtShooter = No` - (Scatter target coordinates will be used relative to the shooter's position instead of the target, i.e. the firing unit is considered to be at 0/0)
 
-* `ScatterTargetResetTime = 0` (Duration in msec; Scatter targets will be reset after the unit is not firing for this amount of time)
+* `ScatterTargetResetTime = 0` - (Duration in msec; Scatter targets will be reset after the unit is not firing for this amount of time)
 
-* `ScatterTargetResetRecenter = No` - When scatter targets are reset, with only a portion of the clip remaining, chose targets in the center of the list of ScatterTargets. This is recommended for "sweeping" targets that form a line in both sides of the main target.
+* `ScatterTargetResetRecenter = No` - (When scatter targets are reset, with only a portion of the clip remaining, choose targets in the center of the list of ScatterTargets. This is recommended for "sweeping" targets that form a line on both sides of the main target.)
+
+* `ScatterOnWaterSurface = <GameData WeaponScatterOnWaterSurfaceDefault>` - (Scattered shots (ScatterRadius and ScatterTargets) aim at the water surface where it is above the terrain, instead of at the terrain under the water. The default comes from `WeaponScatterOnWaterSurfaceDefault` in GameData.ini, which is `No` unless set.)
 
 These features can be used to e.g. fire a laser in a line, or create strafing runs for aircraft, by using a linear pattern with ScatterTargetAligned=Yes and ScatterTargetRandomOrder=No
 
@@ -31,8 +38,8 @@ These features can be used to e.g. fire a laser in a line, or create strafing ru
 Added new weapon parameters to define FXList that is played on PreAttack
 
 * `PreAttackFX = <FXListEntry>` - (FXList entry; played when PRE_ATTACK starts. Default = None)
-* `VeterancyPreAttackFX = [VETERAN | ELITE | HEROIC] <FXListEntry>` - (Veterancy level and FXList entry. played when PRE_ATTACK starts. Default = None)
-* `PreAttackFXDelay` = 200 - (Minimal delay in ms when PreAttack FX can be played again. In some situations, e.g. when following a moving target, PreAttack state can be entered repeatedly and this avoids spamming the FX. Default = 200)
+* `VeterancyPreAttackFX = [REGULAR | VETERAN | ELITE | HEROIC] <FXListEntry>` - (Veterancy level and FXList entry. played when PRE_ATTACK starts. Default = None)
+* `PreAttackFXDelay = 200` - (Minimal delay in ms when PreAttack FX can be played again. In some situations, e.g. when following a moving target, PreAttack state can be entered repeatedly and this avoids spamming the FX. Default = 200)
 
 Notes:
 - FXList will be aligned to the object's FireFX bone.
@@ -74,7 +81,7 @@ Notes:
 Scale damage down towards the edge of the blast radius, so the center hits harder than the rim.
 
 * `PrimaryDamageTaperOff = 1.0` - (Factor of primary damage applied at the edge of the `PrimaryDamageRadius`. `1.0` = no taper (default, full damage across the whole radius); `0.5` = half damage at the edge, full at the center.)
-* `SecondaryDamageTaperOff = 1.0` - (Same, for the secondary damage radius.)
+* `SecondaryDamageTaperOff = 1.0` - (Same for the secondary ring: full secondary damage at the edge of the primary radius, this factor of it at the edge of the `SecondaryDamageRadius`.)
 
 ### Damage / Radius Scaling by Engagement Distance
 
@@ -84,10 +91,15 @@ Scale a weapon's damage and radii based on how far the target is, interpolated f
 * `RadiusFactorAtMaxRange = 1.0` - (Same, applied to the damage radii. Also affects the radius used to align the detonation FX.)
 * `ScatterRadiusFactorAtMaxRange = 1.0` - (Same, applied to the weapon's `ScatterRadius`, so shots scatter more/less depending on distance.)
 
+### Reload
+
+* `ResetFireBonesOnReload = No` - (When the clip reloads, the next shot is fired from the first fire bone / barrel again instead of continuing the barrel rotation. With `ShareWeaponReloadTime = Yes` in the WeaponSet, the other weapons of the set are reset too.)
+
 ## WeaponExtend
 
 Added support to create WeaponExtend definitions, which will inherit all parameters from the parent Weapon.
 All parameters from Weapons can be used to override values from the parent weapon. It is possible to extend an extended weapon.
+List-type entries are added to what the parent has: `ScatterTarget` lines append to the parent's scatter targets, and `WeaponBonus` lines add to the parent's bonuses.
 
 - `WeaponExtend <ExtendedWeapon> <ParentWeapon>`
 
@@ -100,4 +112,4 @@ End
 ```
 This defines a new weapon Chem_HindRocketPodWeapon, using all parameters from HindRocketPodWeapon, overriding or adding the ProjectileDetonationOCL param
 
-Note: The extended weapon needs to be defined below the parent weapon in the ini file. (or alphabetically in a later order if defined in a different ini file)
+Note: The parent must already be loaded when the WeaponExtend is read: define it below the parent weapon in the same INI file (or in a file that loads later, alphabetically). A missing parent is a debug crash and the weapon is not created.

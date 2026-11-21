@@ -1,7 +1,18 @@
 ---
 title: "SpecialPower.ini"
 description: "New special power fields, Eva events and the Kodiak power."
-status: unverified
+status: verified
+verifiedAt: 7cdd826c5
+sources:
+  - GeneralsMD/Code/GameEngine/Source/Common/RTS/SpecialPower.cpp
+  - GeneralsMD/Code/GameEngine/Include/Common/SpecialPowerType.h
+  - GeneralsMD/Code/GameEngine/Source/Common/RTS/ActionManager.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/SpecialPower/SpecialPowerModule.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameClient/Eva.cpp
+  - Core/GameEngine/Source/GameClient/GUI/ControlBar/ControlBar.cpp
+  - Core/GameEngine/Include/GameClient/ControlBar.h
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/KodiakUpdate.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/KodiakDeploymentUpdate.cpp
 sidebar:
   order: 29
 ---
@@ -19,10 +30,33 @@ sidebar:
 * SPECIAL_RIFT_GENERATOR
 * SPECIAL_ALL_BATTLE_PLANS - behaves like the no-target CIA Intelligence power; meant for [AllBattlePlansUpdate](/GeneralsGameCode_Modding/systems/battle-plans/#allbattleplansupdate)
 * SPECIAL_ALL_BATTLE_PLANS_ACTIVE - display-only power for the remaining time of the above
+* SPECIAL_TOGGLE_DRAWBRIDGE - opens / closes a drawbridge, see [Bridges](/GeneralsGameCode_Modding/systems/bridges/)
+* SPECIAL_JUMPJET
+
+Faction / general specific copies of vanilla powers were added as well. Without a `BehaviorEnum` they behave like the vanilla power given here:
+
+* like SPECIAL_PARADROP_AMERICA: AIRF_SPECIAL_PARADROP_AMERICA, SOCOM_SPECIAL_SUPPLY_DROP, SOCOM_SPECIAL_TANK_PARADROP, TANK_SPECIAL_TANK_PARADROP, TANK_SPECIAL_PARADROP, SUPW_SPECIAL_PARADROP_AMERICA, SUPW_SPECIAL_TANK_PARADROP
+* like SPECIAL_CIA_INTELLIGENCE: SECW_SPECIAL_HUNTER_SEEKER, SPECIAL_ALL_BATTLE_PLANS
+* like SPECIAL_SPY_SATELLITE: CHINA_SPECIAL_SPY_SATELLITE, SECW_SPECIAL_SPY_SATELLITE, LAZR_SPECIAL_SPY_SATELLITE
+* like SPECIAL_CARPET_BOMB: AIRF_SPECIAL_SUPERSONIC_AIRSTRIKE, AIRF_SPECIAL_HEAVY_AIRSTRIKE, SOCOM_SPECIAL_COASTAL_BOMBARDEMENT, TANK_SPECIAL_NAPALM_BOMB, TANK_SPECIAL_CHINA_CARPET_BOMB, NUKE_SPECIAL_NUCLEAR_AIRSTRIKE, NUKE_SPECIAL_CHINA_CARPET_BOMB, NUKE_SPECIAL_BALLISTIC_MISSILE, SECW_SPECIAL_SYSTEM_HACK, DEMO_SPECIAL_SUICIDE_PLANE, DEMO_SPECIAL_CARPET_BOMB, CHEM_SPECIAL_CARPET_BOMB, CHEM_SPECIAL_AIRSTRIKE, FORT_SPECIAL_AIRSTRIKE, FORT_SPECIAL_CARPET_BOMB, LAZR_SPECIAL_DAISY_CUTTER, LAZR_SPECIAL_AIRSTRIKE, SUPW_SPECIAL_AIRSTRIKE
+* like SPECIAL_AMBUSH: AIRF_SPECIAL_HELICOPTER_AMBUSH, DEMO_SPECIAL_AMBUSH, CHEM_SPECIAL_AMBUSH, LAZR_SPECIAL_AMBUSH
+* like SPECIAL_FRENZY: AIRF_SPECIAL_HOLO_PLANES, TANK_SPECIAL_FRENZY, NUKE_SPECIAL_FRENZY, DEMO_SPECIAL_FRENZY, CHEM_SPECIAL_FRENZY, FORT_SPECIAL_FRENZY
+* like SPECIAL_CLUSTER_MINES: TANK_SPECIAL_CLUSTER_MINES
+* like SPECIAL_REPAIR_VEHICLES: TANK_SPECIAL_REPAIR_VEHICLES, NUKE_SPECIAL_REPAIR_VEHICLES, DEMO_SPECIAL_REPAIR_VEHICLES, CHEM_SPECIAL_REPAIR_VEHICLES, FORT_SPECIAL_REPAIR_VEHICLES, LAZR_SPECIAL_NANO_SWARM, SUPW_SPECIAL_FORCEFIELD
+* like SPECIAL_EMP_PULSE: TANK_SPECIAL_EMP_PULSE, NUKE_SPECIAL_NEUTRON_BOMB, SECW_SPECIAL_EMP_HACK
+* like SPECIAL_ARTILLERY_BARRAGE: TANK_SPECIAL_ARTILLERY_BARRAGE, NUKE_SPECIAL_ARTILLERY_BARRAGE, DEMO_SPECIAL_ARTILLERY_BARRAGE, FORT_SPECIAL_ARTILLERY_BARRAGE, LAZR_SPECIAL_ORBITAL_STRIKE, SUPW_SPECIAL_ORBITAL_STRIKE
+* like SPECIAL_CASH_HACK: NUKE_SPECIAL_CASH_HACK
+* like SPECIAL_SPECTRE_GUNSHIP: SECW_SPECIAL_DRONE_GUNSHIP, LAZR_SPECIAL_SPECTRE_GUNSHIP, SUPW_SPECIAL_SPECTRE_GUNSHIP
+* like SPECIAL_SNEAK_ATTACK: DEMO_SPECIAL_SNEAK_ATTACK, CHEM_SPECIAL_SNEAK_ATTACK
+* like SPECIAL_GPS_SCRAMBLER: DEMO_SPECIAL_GPS_SCRAMBLER, CHEM_SPECIAL_GPS_SCRAMBLER, FORT_SPECIAL_GPS_SCRAMBLER
+* like SPECIAL_ANTHRAX_BOMB: DEMO_SPECIAL_ANTHRAX_BOMB, CHEM_SPECIAL_ANTHRAX_BOMB
+* like SPECIAL_LEAFLET_DROP: CHEM_SPECIAL_VIRUS, SUPW_SPECIAL_CRYOBOMB
+
+All other new enums (the superweapons above, SPECIAL_JUMPJET) behave like SPECIAL_NEUTRON_MISSILE unless `BehaviorEnum` is set.
 
 ### New Parser Fields:
 `BehaviorEnum = <OTHER ENUM>`  
-Used to set how a new SpecialPower behaves, new enums will be like "SPECIAL_NEUTRON_MISSILE", with this field another behavior can be set, there is a lot of hardcoded stuff in the exe.
+Used to set how a power with one of the new enums behaves when it is targeted and checked (which targets it accepts, how the command is validated), since a lot of this is hardcoded per enum. Without it the defaults listed above apply (most new enums behave like `SPECIAL_NEUTRON_MISSILE`). It has no effect on vanilla enums.
 
 `EvaDetectedOwn = <Name of eva event>`  
 `EvaDetectedAlly = <Name of eva event>`  
@@ -33,7 +67,10 @@ Used to set how a new SpecialPower behaves, new enums will be like "SPECIAL_NEUT
 `EvaReadyOwn = <Name of eva event>`  
 `EvaReadyAlly = <Name of eva event>`  
 `EvaReadyEnemy = <Name of eva event>`  
-These allow to specify eva events for a special power. When not set, vanilla special power still have their hardcoded events. When set, only the given event plays (the hardcoded detected/launched events of the vanilla superweapons are no longer played in addition).
+These allow to specify eva events (names from the Eva.ini event list, see below) for a special power. Own / Ally / Enemy is the relation of the player hearing it to the power's owner.
+
+* Launched / Ready: when the field for that relation is set, that event plays instead of the hardcoded one. `None` plays nothing. When not set, vanilla powers still play their hardcoded events; powers with the new enums play nothing.
+* Detected (played when a structure with the power is completed): when any of the three `EvaDetected*` fields is set to an event, only these fields are used for that structure (an unset relation plays nothing) and the hardcoded detected events are not played. `None` alone does not switch off the hardcoded detected events.
 
 `OwnerOnlyTimer = No`  
 Used with `PublicTimer = Yes`: the countdown is shown only to the player who owns the power. Such a timer is also shown for objects that are not structures, e.g. a helper object that shows its owner how long a temporary effect still lasts. Default = No.
@@ -42,13 +79,15 @@ Used with `PublicTimer = Yes`: the countdown is shown only to the player who own
 Used with `PublicTimer = Yes`: the countdown is drawn like a ready timer (ready font, flashing) the whole time, e.g. while an effect is active. Default = No.
 
 `Cost = 0`  
-Optional credits cost to activate the special power. When set (> 0), the player must have enough money, and the cost is deducted when the power is fired. The command button is disabled/greyed out when the player cannot afford it, and the cost is shown in the button tooltip. Default = 0 (free).
+Optional credits cost to activate the special power. When set (> 0), the player must have enough money, and the cost is withdrawn when the power is triggered. The command button is disabled/greyed out when the player cannot afford it, and the cost is shown in the button tooltip. Default = 0 (free).
 
 `NeedsTargetDesignator = No`  
-When Yes, this special power can only be fired while a valid target designator is active for the player (see the [SpecialPowerDesignatorUpdate](/GeneralsGameCode_Modding/systems/target-designator/#specialpowerdesignatorupdate) module). Used to gate a superweapon behind a "designate target" unit/ability. Default = No.
+When Yes, this special power can only be fired at a location within the radius of one of the player's own living target designators (objects with `KindOf = TARGET_DESIGNATOR` and a [SpecialPowerDesignatorUpdate](/GeneralsGameCode_Modding/systems/target-designator/#specialpowerdesignatorupdate) valid for this power, searched up to 5000 units around the target). Used to gate a superweapon behind a "designate target" unit/ability. Default = No.
+
+#### Special power module: StartsReady
 
 `StartsReady = No`  
-If Yes, the special power is ready to fire immediately once available (no initial reload wait). Default = No (normal reload-on-creation behavior).
+Not a SpecialPower.ini field: it goes into the special power *module* of the object (the `SpecialPowerModule` family, e.g. `OCLSpecialPower`, `SpecialAbility`). If Yes, the power is ready to fire as soon as the object exists (already built), or as soon as an `UnpauseSpecialPowerUpgrade` unpauses it, instead of waiting for its first `ReloadTime`. It does nothing for powers with `SharedSyncedTimer = Yes`, and for an object that is still under construction when it is created. Default = No.
 
 #### Code Example:
 ```ini
@@ -74,22 +113,28 @@ End
 
 ### Multi-Target Special Powers
 
-Added CommandButton parameters to let a special power be aimed at **multiple target points** in one activation (used together with the [MultiLocationSpecialPowerUpdate](/GeneralsGameCode_Modding/systems/superweapons/#multilocationspecialpowerupdate) module). The player places an anchor and then several target points.
+Added CommandButton parameters to let a special power be aimed at **multiple target points** in one activation (used together with the [MultiLocationSpecialPowerUpdate](/GeneralsGameCode_Modding/systems/superweapons/#multilocationspecialpowerupdate) module and `Options = NEED_N_TARGET_POS`). The player clicks the target points one after the other, optionally after an anchor.
 
-* `NumberOfTargets = 1` - (How many target points the player must place for this power.)
-* `TargetRadius = 0.0` - (Radius cursor shown at each target point.)
-* `TargetDecalRadius = 0.0` - (Radius of the decal drawn at each placed target point.)
-* `TargetRadiusMode = <mode>` - (How the target radius is interpreted/displayed.)
-* `AnchorRadius = 0.0` - (Radius around the initial anchor point within which targets must be placed.)
-* `AnchorDecalRadius = 0.0` - (Radius of the decal drawn at the anchor point.)
-* `AnchorRadiusCursorType = <RadiusCursor>` - (Radius cursor type shown for the anchor.)
-* `MarkerObject = <ObjectTemplate>` - (Object placed as a visual marker at each confirmed target point.)
-* `MarkerFX = <FXList>` - (FXList played at each confirmed target point.)
-* `SecondCursorName = <cursor>` - (Mouse cursor used while placing the additional target points, after the anchor.)
+* `NumberOfTargets = 2` - (How many target points the player must place for this power. Default = 2, the two-point chronosphere power.)
+* `TargetRadiusMode = NONE` - (How the clicks are constrained; a click outside the allowed radius is rejected. Default = NONE)
+  - `NONE` - no constraint, every click is a target
+  - `AREA_FROM_FIRST` - the first click is a target and the center; later clicks must be within `TargetRadius` of it
+  - `ANCHORED_AREA` - the first click is only an anchor (not a target); every target must be within `AnchorRadius` of it
+  - `CHAIN_PREVIOUS` - each click after the first must be within `TargetRadius` of the previous one
+* `TargetRadius = 0.0` - (Constraint radius for `AREA_FROM_FIRST` / `CHAIN_PREVIOUS`, and the fallback for the other radii.)
+* `TargetDecalRadius = 0.0` - (Radius of the decal (`RadiusCursorType`) drawn at each placed target point and previewed at the cursor. 0 = use `TargetRadius`.)
+* `AnchorRadius = 0.0` - (`ANCHORED_AREA` only: radius around the anchor within which targets must be placed. 0 = use `TargetRadius`.)
+* `AnchorDecalRadius = 0.0` - (Radius of the decal drawn at the anchor. 0 = use the anchor's constraint radius.)
+* `AnchorRadiusCursorType = NONE` - (Radius cursor type shown for the anchor; NONE = use `RadiusCursorType`.)
+* `MarkerObject = <ObjectTemplate>` - (Object drawn as a visual marker at each placed target point, not at the anchor. Client-side only.)
+* `MarkerFX = <FXList>` - (FXList played at each placed target point, not at the anchor.)
+* `SecondCursorName = <cursor>` - (Mouse cursor used once the first point is placed, instead of `CursorName`.)
 
 ## Eva.ini
 
 ### New Eva events:
+
+Eva.ini event names that can be used with the `Eva*` fields above, besides the vanilla ones:
 
 * SUPERWEAPONDETECTED_OWN_ION_CANNON
 * SUPERWEAPONDETECTED_ALLY_ION_CANNON
@@ -176,7 +221,7 @@ based on spectre gunship, a unit with multiple turrets and a primary weapon are 
 * **MainTurrets**: Follow manual targetting (spectre)
 * **SideTurrets**: Auto-Acquire targets (cheap first)
 * **AATurrets**: Auto-Acquire targets
-* **MainWeapon**: Primary Weapon of the gunship itself that is fired when ready. Has it's own scatter pattern and option to lock on to targets within a radius of scatter impact. Scatter Pattern is in KodiakUpdate, the weapon itself should not have a scatter radius or scatter targets. The Kodiak update will try to fire the weapon when ready going through scatter targets in same order. Use a clipsize. If clipreloadtime is smaller than OrbitTime, the weapon is fired again.
+* **MainWeapon**: Primary Weapon of the gunship itself that is fired when ready. Has its own scatter pattern and option to lock on to targets within a radius of scatter impact. Scatter Pattern is in KodiakUpdate, the weapon itself should not have a scatter radius or scatter targets. The Kodiak update will try to fire the weapon when ready going through scatter targets in same order. Use a clipsize. If clipreloadtime is smaller than OrbitTime, the weapon is fired again.
 
 All turrets must be contained objects, this allows individual attack orders. 
 
@@ -247,7 +292,7 @@ Example Code in the gunship unit:
     End
   End
 ```
-Coresponding CommandCenter Code:
+Corresponding CommandCenter Code:
 ```ini
   Behavior = SpecialAbility ModuleTag_496
     SpecialPowerTemplate = ZSupW_SuperweaponKodiakGunship
