@@ -4,7 +4,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "gen": "python ../scripts/docs/gen_reference.py",
+    "predev": "npm run gen",
     "dev": "astro dev",
+    "prebuild": "npm run gen",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"

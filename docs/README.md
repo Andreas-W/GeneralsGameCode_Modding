@@ -9,6 +9,10 @@ GitHub Pages by `.github/workflows/docs.yml` on every push to `main`.
   (source files it documents) and `ini` (module or INI block name). See `src/content.config.ts`.
 - Links between pages are checked at build time: a broken link or anchor fails the build.
 
+- The INI field reference (`src/content/docs/reference/generated/`, git-ignored) is generated from the
+  `FieldParse` tables by `scripts/docs/gen_reference.py`. `npm run dev` and `npm run build` run it first,
+  so Python 3 must be on `PATH` as `python`.
+
 Run locally (Node 22 or newer):
 
 ```
