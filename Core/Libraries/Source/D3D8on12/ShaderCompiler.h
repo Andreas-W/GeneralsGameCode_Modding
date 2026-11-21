@@ -43,6 +43,10 @@ struct ShaderVariable
 HRESULT Compile_Pixel_Shader(const char* source, UINT length, const char* name, const char* header_name, const char* header,
 	ID3DInclude* include, ComPtr<ID3DBlob>& code, ID3DBlob** errors);
 
+// The source with its includes and macros resolved, as one text, the same way as Compile_Pixel_Shader reads it.
+HRESULT Preprocess_Shader(const char* source, UINT length, const char* name, const char* header_name, const char* header,
+	ID3DInclude* include, const D3D_SHADER_MACRO* defines, std::string& text, ID3DBlob** errors);
+
 // The size and the variables of the cbuffer buffer_name of a compiled shader; 0 and none without it.
 void Reflect_Constant_Buffer(ID3DBlob* code, const char* buffer_name, UINT& size, std::unordered_map<std::string, ShaderVariable>& variables);
 

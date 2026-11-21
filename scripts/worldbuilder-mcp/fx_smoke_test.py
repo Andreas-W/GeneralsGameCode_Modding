@@ -324,6 +324,8 @@ def main() -> int:
             check(mat["params"].get("FXEditorSmokeTest") == "0.5", f"material {material['name']} param set")
             bridge.call("fx.render_undo", type="Material", name=material["name"], action="revert")
             check(bridge.call("fx.render_status")["unsaved"] == 0, "nothing left to save")
+            selected = bridge.call("fx.render_select", type="Material", name=material["name"])
+            check(selected["name"] == material["name"], f"material {material['name']} shown in the window")
 
         print("maps")
         maps = bridge.call("fx.maps")

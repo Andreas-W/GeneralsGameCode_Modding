@@ -38,6 +38,7 @@ class RenderObjClass;
 class MaterialTemplate;
 struct ID3D8On12Materials;
 struct IDirect3DBaseTexture8;
+struct IDirect3DTexture8;
 
 class W3DMaterials : public MeshMaterialBinderClass
 {
@@ -86,9 +87,27 @@ public:
 	void setTerrainParameter(const char *name, const Real *values, Int count);
 	void setWaterParameter(const char *name, const Real *values, Int count);
 
-	/// Copies of the scene for the materials: the depth before the water when a water material runs, the
-	/// depth and colour before the particles when particle materials run. Call at those points.
+	/// Water materials by name (Use = Water; WaterRendering picks them per body of water). The index is for
+	/// the calls below; -1 for none. An empty or unknown name gives the last water material.
+	Int findWaterMaterial(const AsciiString& name);
+	bool bindWater(Int material, IDirect3DBaseTexture8 *extraMap);
+	void setWaterParameter(Int material, const char *name, const Real *values, Int count);
+	Bool waterHasVertexFunction(Int material);	///< its shader moves the vertices (MaterialVertex)
+	Bool waterHasParameter(Int material, const char *name);
+	/// A water material the map uses moves the vertices and sees through the water (Param Refraction 1), so the
+	/// terrain under the water does not get MapData TerrainHeightAmbientLight baked in (WaterRendering
+	/// ReplaceHeightAmbientLight).
+	Bool replacesHeightAmbientLight();
+	/// Textures t8.. of all materials (the water field, the shroud ...), Set_Material_Textures.
+	void setSharedTextures(UnsignedInt first, UnsignedInt count, IDirect3DBaseTexture8 *const *textures);
+
+	/// Copies of the scene for the materials: the depth (and the colour when refractsWater()) before the water
+	/// when a water material runs, the depth and
+	/// colour before the particles when particle materials run. Call at those points.
 	void captureBeforeWater();
+	/// Whether a water material the map uses bends a copy of the scene (Param Refraction 1, WaterRendering
+	/// Refraction), so what is under water must be drawn before it.
+	Bool refractsWater();
 	void captureBeforeParticles();
 
 private:
@@ -99,6 +118,9 @@ private:
 		Int textureCount;			///< base textures that got it so far
 		Bool houseColor;			///< the shader has a HouseColor parameter
 		UnsignedInt lastHouseColor;	///< what it was last set to
+		TextureClass *waterMaps[4];	///< water materials: their maps, file names in the INI
+		Bool sceneColor;			///< water materials: sees through the water (RefractionStrength, Param Refraction 1)
+		Bool vertexFunction;		///< water materials: moves the vertices (MaterialVertex)
 	};
 	struct ObjectInfo
 	{
@@ -116,13 +138,18 @@ private:
 	ID3D8On12Materials *prepare();			///< the device's materials, built for it; null when they do not run
 	void setSunParameters(UINT material);
 	void build(ID3D8On12Materials *materials);
+	void createNoise(ID3D8On12Materials *materials);	///< the shared noise texture (t12)
+	void releaseNoise();
+	void applyParameters(const Built& built, Bool logUnknown);
 	void release();
+	void releaseIfOutdated();
 	void clearEntries();
 	const Entry& lookup(TextureClass *baseTexture, const std::map<std::string, Int>& table, std::map<TextureClass *, Entry>& entries);
 	bool bindEntry(const Entry& entry);
 	TextureClass *findMap(const AsciiString& baseName, const AsciiString& spec);
 
 	Int findMaterial(const AsciiString& name);	///< m_builtMaterials index of a mesh material, -1 for none
+	Bool usedWaterRefracts(Bool vertexFunction);	///< a water material the map uses sees through the water (and moves it)
 	const Entry& lookupObject(Int material, TextureClass *baseTexture);
 
 	ID3D8On12Materials *m_materials;		///< the device the materials were built for
@@ -134,6 +161,8 @@ private:
 	Bool m_meshOverride;					///< Bind_Mesh bound an object's material instead
 	Int m_boundMaterial;					///< m_builtMaterials index bound now, -1 for none
 	Bool m_built;
+	UnsignedInt m_builtGeneration;			///< MaterialSettings::getGeneration() they were built from
+	Int m_builtTimeOfDay;					///< the time of day their parameters are for
 	Bool m_enabled;
 	Bool m_bound;
 	Bool m_collecting;
@@ -144,9 +173,10 @@ private:
 	std::map<TextureClass *, Entry> m_entries;
 	std::map<TextureClass *, Entry> m_particleEntries;
 	Int m_terrainMaterial;								///< m_builtMaterials index, -1 for none
-	Int m_waterMaterial;
-	TextureClass *m_waterMaps[4];
+	Int m_waterMaterial;								///< the last water material, the default
 	Bool m_particleColor;								///< a particle material wants the scene colour (Distortion)
+	IDirect3DTexture8 *m_noiseTexture;					///< tileable fractal noise for all materials (t12)
+	ID3D8On12Materials *m_noiseDevice;					///< the device it was made for; it outlives rebuilds of the materials
 	std::set<std::string> m_seenTextures;
 	AsciiString m_error;
 };

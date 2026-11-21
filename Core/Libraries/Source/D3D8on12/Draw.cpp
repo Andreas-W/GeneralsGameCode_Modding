@@ -41,6 +41,7 @@ static const UINT ROOT_PIXEL_CONSTANTS = 1;
 static const UINT ROOT_TEXTURES = 2;
 static const UINT ROOT_SAMPLERS = ROOT_TEXTURES + FF_STAGES;
 static const UINT ROOT_MATERIAL_CONSTANTS = ROOT_SAMPLERS + FF_STAGES;
+static const UINT ROOT_EXTRA_TEXTURES = ROOT_MATERIAL_CONSTANTS + 1;
 // Stages a material shader reads: base, detail, normal, specular, emissive and one more map.
 static const UINT MATERIAL_STAGES = 6;
 
@@ -493,7 +494,7 @@ ID3D12PipelineState* Device::Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE to
 	if (m_shaders.find(key.vertexShader) != m_shaders.end())
 		vs = m_shaders[key.vertexShader].Get();
 	else
-		vs = Get_Shader(key.vertexShader, shaders.vertexKey != nullptr ? Generate_Vertex_Shader(*shaders.vertexKey) : shaders.vertexShader->hlsl, "vs_5_0");
+		vs = Get_Shader(key.vertexShader, shaders.vertexKey != nullptr ? Generate_Vertex_Shader(*shaders.vertexKey, shaders.vertexHook) : shaders.vertexShader->hlsl, "vs_5_0");
 	ID3DBlob* ps = nullptr;
 	if (shaders.pixelCode != nullptr)
 		ps = shaders.pixelCode;
@@ -611,6 +612,7 @@ void Device::Fill_Vertex_Constants(FFVertexConstants& c, bool lighting, UINT sta
 	memcpy(c.world, &world, sizeof(c.world));
 	memcpy(c.worldView, &world_view, sizeof(c.worldView));
 	memcpy(c.projection, &projection, sizeof(c.projection));
+	memcpy(c.view, &view, sizeof(c.view));
 	// Only what the shader reads: the texture transforms of its stages, the lights when it is lit.
 	for (UINT stage = 0; stage < stages && stage < FF_STAGES; ++stage)
 		memcpy(c.texTransform[stage], &m_state.transforms[2 + stage], sizeof(c.texTransform[stage]));
@@ -852,6 +854,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	// A material replaces the fixed function pixel shader of ordinary 3D draws, not in the shadow map.
 	const bool point_sprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
 	MaterialSystem::Binding material = {};
+	UINT extra_srvs[MATERIAL_EXTRA_TEXTURES] = {};
 	const bool use_material = m_materialSystem != nullptr && !shader_vs && !shader_ps && !rhw && !point_sprite && !shadow_pass
 		&& m_materialSystem->Current(material);
 	UINT material_maps = 0;
@@ -874,6 +877,21 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 			material_maps |= 1u << 6;
 		if (srvs[7] != 0)
 			material_maps |= 1u << 7;
+		for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
+		{
+			TextureType type_of_texture = TEXTURE_NONE;
+			IDirect3DBaseTexture8* texture = m_materialSystem->Extra_Texture(extra);
+			extra_srvs[extra] = Prepare_Texture(texture, type_of_texture);
+			if (type_of_texture == TEXTURE_2D)
+			{
+				Make_Readable_By_All_Stages(texture);
+				material_maps |= 1u << (FF_STAGES + extra);
+			}
+			else
+			{
+				extra_srvs[extra] = 0;
+			}
+		}
 	}
 
 	// Vertex shader key.
@@ -897,6 +915,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 		// The same outputs for every mesh, so that one compiled material shader fits all of them.
 		vs_key.stageCount = 2;
 		vs_key.materialOutputs = 1;
+		vs_key.vertexHook = material.vertexHash;
 	}
 	vs_key.pointSprite = type == D3DPT_POINTLIST && rs[D3DRS_POINTSPRITEENABLE] != FALSE;
 	vs_key.pointScale = vs_key.pointSprite && rs[D3DRS_POINTSCALEENABLE] != FALSE && !rhw;
@@ -922,6 +941,7 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 	{
 		// Most draws use the same keys as the one before; comparing is cheaper than hashing.
 		shaders.vertexKey = &vs_key;
+		shaders.vertexHook = use_material ? material.vertexSource : nullptr;
 		if (!m_lastVertexKeyValid || memcmp(&vs_key, &m_lastVertexKey, sizeof(vs_key)) != 0)
 		{
 			m_lastVertexKey = vs_key;
@@ -1111,6 +1131,37 @@ HRESULT Device::Draw_Geometry(D3DPRIMITIVETYPE type, const D3D12_VERTEX_BUFFER_V
 			bound.tables[FF_STAGES + stage] = sampler_handle.ptr;
 			++m_timingSums.tableChanges;
 		}
+	}
+	for (UINT extra = 0; extra < MATERIAL_EXTRA_TEXTURES; ++extra)
+	{
+		// Only material draws read them; the null view otherwise.
+		const D3D12_GPU_DESCRIPTOR_HANDLE srv_handle = Srv_Gpu_Handle(extra_srvs[extra]);
+		if (bound.tables[2 * FF_STAGES + extra] != srv_handle.ptr)
+		{
+			list->SetGraphicsRootDescriptorTable(ROOT_EXTRA_TEXTURES + extra, srv_handle);
+			bound.tables[2 * FF_STAGES + extra] = srv_handle.ptr;
+			++m_timingSums.tableChanges;
+		}
+	}
+
+	// With D3D8ON12_DRED: what each draw is, for the log when the device is lost. Every draw gets one marker
+	// and the same text is kept on the CPU, as not every system keeps the markers' texts.
+	if (m_dred)
+	{
+		char text[256];
+		_snprintf_s(text, sizeof(text), _TRUNCATE,
+			"%s %s, fvf %X, vs %s, ps %s, %u %s from %u (base %d), vb %u bytes stride %u, ib %u bytes%s%s, viewport %ux%u, depth bias %u, cull %u",
+			shadow_pass ? "shadow map" : "scene", indices != nullptr ? "indexed" : "not indexed",
+			(unsigned)fvf, shader_vs ? "d3d8" : "generated", shader_ps ? "d3d8" : use_material ? "material" : "generated",
+			count, indices != nullptr ? "indices" : "vertices", first, base_vertex, vertices.SizeInBytes, vertices.StrideInBytes,
+			indices != nullptr ? indices->SizeInBytes : 0, indices != nullptr && indices->Format == DXGI_FORMAT_R32_UINT ? " (32 bit)" : "",
+			use_material && material.vertexHash != 0 ? ", material vertex function" : "",
+			(unsigned)vp.Width, (unsigned)vp.Height, (unsigned)rs[D3DRS_ZBIAS], (unsigned)rs[D3DRS_CULLMODE]);
+		wchar_t wide[256];
+		swprintf_s(wide, L"%hs", text);
+		list->SetMarker(0, wide, (UINT)((wcslen(wide) + 1) * sizeof(wchar_t)));
+		m_drawNames.push_back(text);
+		m_lastMarker = use_material ? material.hash : 1;
 	}
 
 	const D3D_PRIMITIVE_TOPOLOGY topology = Get_Topology(type);

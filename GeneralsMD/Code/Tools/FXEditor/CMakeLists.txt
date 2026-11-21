@@ -53,4 +53,7 @@ target_link_libraries(z_fxeditor PRIVATE
 
 if(MSVC)
     target_link_options(z_fxeditor PRIVATE "/NODEFAULTLIB:libci.lib")
+    # The game's manifest: per monitor DPI awareness. Without it Windows scales the window up on
+    # displays above 100% and the editor looks blurrier than the game.
+    target_sources(z_fxeditor PRIVATE ${CMAKE_SOURCE_DIR}/GeneralsMD/Code/Main/app.manifest)
 endif()

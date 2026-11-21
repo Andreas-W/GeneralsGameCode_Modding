@@ -2187,6 +2187,10 @@ AGAIN:
 			if (TheWaterRenderObj && TheGlobalData->m_waterType == 2)
 				TheWaterRenderObj->updateRenderTargetTextures(primaryW3DView->get3DCamera());	//do a render into each texture
 
+			// The ripples of ships and explosions for the Direct3D 12 water, around where the camera looks.
+			if (TheWaterRenderObj)
+				TheWaterRenderObj->updateDisturbance(primaryW3DView->getPosition());
+
 			//Can't render into textures while rendering to screen so these textures need to be updated
 			//before we enter main rendering loop.
 			if (TheW3DProjectedShadowManager)

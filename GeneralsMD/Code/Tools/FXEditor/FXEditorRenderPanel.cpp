@@ -37,6 +37,7 @@
 #include "imgui_internal.h"
 #include "imgui_stdlib.h"
 
+#include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -49,6 +50,7 @@ const ImVec4 COLOR_DIRTY(1.0f, 0.75f, 0.3f, 1.0f);
 const ImVec4 COLOR_ERROR(1.0f, 0.4f, 0.4f, 1.0f);
 const ImVec4 COLOR_DIM(0.6f, 0.6f, 0.6f, 1.0f);
 const ImVec4 COLOR_ACTIVE(0.5f, 0.9f, 0.5f, 1.0f);
+const ImVec4 COLOR_INHERITED(0.55f, 0.75f, 1.0f, 1.0f);	///< a value a Material gets from its Base
 
 enum RenderFieldType { RF_BOOL, RF_INT, RF_REAL, RF_TEXT, RF_ENUM };
 
@@ -90,6 +92,7 @@ const RenderField FIELDS[] =
 	{ "ShadowMap", "DetailCascade", RF_BOOL, "Yes", 0, "a second, sharper map around the middle of the view", nullptr },
 	{ "ShadowMap", "DetailCoverage", RF_REAL, "0.3", 0.005f, "its width as a fraction of the main map's", nullptr },
 	{ "ShadowMap", "DetailSize", RF_INT, "0", 16.0f, "its texels, 0 = Size", nullptr },
+	{ "Material", "Base", RF_TEXT, "", 0, "material to start from (first line); the lines after it change it", nullptr },
 	{ "Material", "Use", RF_ENUM, "Meshes", 0, "what gets the material", MATERIAL_USES },
 	{ "Material", "Textures", RF_TEXT, "", 0, "base textures without extension (Meshes, Particles)", nullptr },
 	{ "Material", "Shader", RF_TEXT, "MAT_Standard", 0, "Data\\Shaders\\Material\\<Shader>.hlsl, else a built-in (MAT_Standard, MAT_Particle, MAT_Terrain, MAT_Water)", nullptr },
@@ -105,6 +108,8 @@ bool s_reorder = false;			///< the order of the passes can be changed
 bool s_autoInputs = true;		///< changes of the list also give the passes the inputs of their place
 AsciiString s_dropReason;		///< why the row under a dragged pass cannot take it, shown by the drag
 Int s_selectedMaterial = -1;
+bool s_showRenderTab = false;	///< selectMaterial: the Direct3D 12 panel comes to the front
+bool s_showMaterialTab = false;	///< and its Materials tab
 Int s_gestureBlock = -1;
 std::string s_gestureText;
 std::string s_newParamName;
@@ -178,12 +183,68 @@ Int parseReals(const std::string &text, float *values, Int max)
 }
 
 //-------------------------------------------------------------------------------------------------
+/** The Material block that a Material's Base line names, -1 for none. Base = its own name (a map.ini
+	that changes the mod's material) is the block of that name before it. */
+//-------------------------------------------------------------------------------------------------
+Int findBaseMaterial(Int index)
+{
+	const IniBlock *block = db().getBlock(index);
+	std::string base;
+	if (!isType(block, "Material") || !IniText::getField(block->text, -1, "Base", base) || base.empty())
+		return -1;
+	if (block->name.compareNoCase(base.c_str()) != 0)
+	{
+		const Int found = db().findTypedBlock("Material", AsciiString(base.c_str()));
+		return found != index ? found : -1;
+	}
+	for (Int i = index - 1; i >= 0; --i)
+	{
+		const IniBlock *b = db().getBlock(i);
+		if (isType(b, "Material") && b->name.compareNoCase(base.c_str()) == 0)
+			return i;
+	}
+	return -1;
+}
+
+/// The Base materials of a Material, nearest first (a chain of Base lines; a loop ends it).
+void getBaseChain(Int index, std::vector<Int> &chain)
+{
+	chain.clear();
+	for (Int base = findBaseMaterial(index); base >= 0 && chain.size() < 16; base = findBaseMaterial(base))
+	{
+		if (base == index || std::find(chain.begin(), chain.end(), base) != chain.end())
+			break;
+		chain.push_back(base);
+	}
+}
+
+/// A field the block does not set but gets from its Base chain: its value and the block it comes from.
+Bool findInheritedField(Int index, const char *key, std::string &value, Int &from)
+{
+	if (_stricmp(key, "Base") == 0)
+		return FALSE;
+	std::vector<Int> chain;
+	getBaseChain(index, chain);
+	for (size_t i = 0; i < chain.size(); ++i)
+	{
+		if (IniText::getField(db().getBlock(chain[i])->text, -1, key, value))
+		{
+			from = chain[i];
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
 void drawField(Int index, const RenderField &field)
 {
 	IniBlock *block = db().getBlock(index);
 	std::string value;
 	const Bool present = IniText::getField(block->text, -1, field.key, value) != FALSE;
-	if (!present)
+	Int from = -1;
+	const Bool inherited = !present && findInheritedField(index, field.key, value, from);
+	if (!present && !inherited)
 		value = field.defaultValue;
 
 	ImGui::PushID(field.key);
@@ -191,10 +252,15 @@ void drawField(Int index, const RenderField &field)
 	if (present)
 		ImGui::TextUnformatted(field.key);
 	else
-		ImGui::TextColored(COLOR_DIM, "%s", field.key);
-	ImGui::SetItemTooltip("%s", field.help);
+		ImGui::TextColored(inherited ? COLOR_INHERITED : COLOR_DIM, "%s", field.key);
+	if (inherited)
+		ImGui::SetItemTooltip("%s\nFrom %s; a change sets it in this material", field.help, db().getBlock(from)->name.str());
+	else
+		ImGui::SetItemTooltip("%s", field.help);
 	ImGui::SameLine(140.0f);
 	ImGui::SetNextItemWidth(-28.0f);
+	if (inherited)
+		ImGui::PushStyleColor(ImGuiCol_Text, COLOR_INHERITED);
 
 	switch (field.type)
 	{
@@ -243,45 +309,161 @@ void drawField(Int index, const RenderField &field)
 			break;
 		}
 	}
+	if (inherited)
+		ImGui::PopStyleColor();
 
 	if (present)
 	{
+		std::string baseValue;
+		Int baseFrom = -1;
+		const Bool overrides = findInheritedField(index, field.key, baseValue, baseFrom);
 		ImGui::SameLine();
 		if (ImGui::SmallButton("x"))
 			applyText(index, IniText::removeField(db().getBlock(index)->text, -1, field.key), TRUE);
-		ImGui::SetItemTooltip("Remove %s (back to its default)", field.key);
+		if (overrides)
+			ImGui::SetItemTooltip("Remove %s (back to %s of %s)", field.key, baseValue.c_str(), db().getBlock(baseFrom)->name.str());
+		else
+			ImGui::SetItemTooltip("Remove %s (back to its default)", field.key);
+	}
+	else if (inherited)
+	{
+		ImGui::SameLine();
+		if (ImGui::SmallButton("+"))
+			applyText(index, IniText::setField(db().getBlock(index)->text, -1, field.key, value), TRUE);
+		ImGui::SetItemTooltip("Set %s in this material, with the value of %s", field.key, db().getBlock(from)->name.str());
 	}
 	ImGui::PopID();
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Param lines: a slider per value. While it is dragged the running pass or material gets the values
-	directly (fast); the text is written when it is let go. Without a running one the text is written
-	on every change. */
+/** The Param lines and their time of day variants (ParamNight = ...), which replace a Param of the
+	same name at that time of day. */
 //-------------------------------------------------------------------------------------------------
-void drawParams(Int index)
+const char *const PARAM_KEYS[] = { "Param", "ParamMorning", "ParamAfternoon", "ParamEvening", "ParamNight" };
+const char *const PARAM_TITLES[] = { "Parameters", "Morning", "Afternoon", "Evening", "Night" };
+const TimeOfDay PARAM_TIMES[] = { TIME_OF_DAY_INVALID, TIME_OF_DAY_MORNING, TIME_OF_DAY_AFTERNOON, TIME_OF_DAY_EVENING, TIME_OF_DAY_NIGHT };
+const Int PARAM_KEY_COUNT = ARRAY_SIZE(PARAM_KEYS);
+Int s_newParamKey = 0;
+
+//-------------------------------------------------------------------------------------------------
+/** The rows of one Param key: the lines of the Base chain (the nearest base wins), then the block's
+	own, which replace an inherited one in its place. Rows are keyed by name, so that a dragged
+	inherited row that becomes the block's own keeps its place and the drag goes on. */
+//-------------------------------------------------------------------------------------------------
+void collectParams(Int index, const char *key, const std::vector<Int>& chain,
+	std::vector<std::string>& names, std::vector<std::string>& values, std::vector<Int>& origins)
+{
+	for (size_t c = 0; c < chain.size(); ++c)
+	{
+		std::vector<std::string> baseNames;
+		std::vector<std::string> baseValues;
+		IniText::getKeyedFields(db().getBlock(chain[c])->text, key, baseNames, baseValues);
+		for (size_t k = 0; k < baseNames.size(); ++k)
+		{
+			size_t row = 0;
+			while (row < names.size() && _stricmp(names[row].c_str(), baseNames[k].c_str()) != 0)
+				++row;
+			if (row == names.size())
+			{
+				names.push_back(baseNames[k]);
+				values.push_back(baseValues[k]);
+				origins.push_back(chain[c]);
+			}
+		}
+	}
+	std::vector<std::string> ownNames;
+	std::vector<std::string> ownValues;
+	IniText::getKeyedFields(db().getBlock(index)->text, key, ownNames, ownValues);
+	for (size_t k = 0; k < ownNames.size(); ++k)
+	{
+		size_t row = 0;
+		while (row < names.size() && _stricmp(names[row].c_str(), ownNames[k].c_str()) != 0)
+			++row;
+		if (row == names.size())
+		{
+			names.push_back(ownNames[k]);
+			values.push_back(ownValues[k]);
+			origins.push_back(index);
+		}
+		else
+		{
+			values[row] = ownValues[k];
+			origins[row] = index;
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The key of the time of day the map runs at, or 0 (Param) without one. */
+//-------------------------------------------------------------------------------------------------
+Int currentParamKey()
+{
+	const TimeOfDay now = TheGlobalData ? TheGlobalData->m_timeOfDay : TIME_OF_DAY_INVALID;
+	for (Int k = 1; k < PARAM_KEY_COUNT; ++k)
+		if (PARAM_TIMES[k] == now)
+			return k;
+	return 0;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A slider per row of one Param key. While it is dragged the running pass or material gets the
+	values directly (fast) when they are the ones it uses now; the text is written when it is let go.
+	Otherwise the text is written on every change. */
+//-------------------------------------------------------------------------------------------------
+void drawParamRows(Int index, Int keyIndex, const std::vector<Int>& chain)
 {
 	IniBlock *block = db().getBlock(index);
 	const Bool material = isType(block, "Material");
 	const Bool pass = isType(block, "PostProcessPass");
-	if (!material && !pass)
-		return;
+	const char *key = PARAM_KEYS[keyIndex];
 
-	ImGui::SeparatorText("Parameters");
 	std::vector<std::string> names;
 	std::vector<std::string> values;
-	IniText::getKeyedFields(block->text, "Param", names, values);
+	std::vector<Int> origins;		// the block a row's value comes from; index for the block's own
+	collectParams(index, key, chain, names, values, origins);
+
+	// What the running pass or material uses now: a line of the map's time of day wins over Param.
+	const Int nowKey = currentParamKey();
+	std::vector<std::string> nowNames;
+	if (keyIndex == 0 && nowKey != 0)
+	{
+		std::vector<std::string> nowValues;
+		std::vector<Int> nowOrigins;
+		collectParams(index, PARAM_KEYS[nowKey], chain, nowNames, nowValues, nowOrigins);
+	}
+
+	ImGui::PushID(key);
 	for (size_t i = 0; i < names.size(); ++i)
 	{
-		ImGui::PushID((int)i);
+		ImGui::PushID(names[i].c_str());
+		const Bool inherited = origins[i] != index;
+		Bool replacedNow = FALSE;
+		for (size_t k = 0; k < nowNames.size(); ++k)
+			if (_stricmp(nowNames[k].c_str(), names[i].c_str()) == 0)
+				replacedNow = TRUE;
 		float v[4] = { 0, 0, 0, 0 };
 		Int count = parseReals(values[i], v, 4);
 		if (count == 0)
 			count = 1;
 		ImGui::AlignTextToFramePadding();
-		ImGui::TextUnformatted(names[i].c_str());
+		if (inherited)
+		{
+			ImGui::TextColored(COLOR_INHERITED, "%s", names[i].c_str());
+			ImGui::SetItemTooltip("From %s; a change sets it in this material", db().getBlock(origins[i])->name.str());
+		}
+		else if (replacedNow)
+		{
+			ImGui::TextColored(COLOR_DIM, "%s", names[i].c_str());
+			ImGui::SetItemTooltip("Replaced by %s at the map's time of day", PARAM_KEYS[nowKey]);
+		}
+		else
+		{
+			ImGui::TextUnformatted(names[i].c_str());
+		}
 		ImGui::SameLine(140.0f);
 		ImGui::SetNextItemWidth(-28.0f);
+		if (inherited)
+			ImGui::PushStyleColor(ImGuiCol_Text, COLOR_INHERITED);
 		bool changed = false;
 		switch (count)
 		{
@@ -290,16 +472,20 @@ void drawParams(Int index)
 			case 3: changed = ImGui::DragFloat3("##p", v, 0.01f, 0.0f, 0.0f, "%.3f"); break;
 			default: changed = ImGui::DragFloat4("##p", v, 0.01f, 0.0f, 0.0f, "%.3f"); break;
 		}
+		if (inherited)
+			ImGui::PopStyleColor();
 		const Bool activated = ImGui::IsItemActivated();
 		const Bool finished = ImGui::IsItemDeactivatedAfterEdit();
 		const Bool active = ImGui::IsItemActive();
 		std::string newValue;
 		for (Int k = 0; k < count; ++k)
 			newValue += (k ? " " : "") + formatReal(v[k]);
-		const std::string newText = IniText::setKeyedField(block->text, "Param", names[i].c_str(), newValue);
+		const std::string newText = IniText::setKeyedField(block->text, key, names[i].c_str(), newValue);
 
+		// Only a value the running one uses now can be set directly; any other is parsed at once.
+		const Bool inUse = keyIndex == 0 ? !replacedNow : keyIndex == nowKey;
 		Bool live = FALSE;
-		if (changed && active)
+		if (changed && active && inUse)
 		{
 			Real r[4] = { v[0], v[1], v[2], v[3] };
 			if (pass && TheW3DPostProcess)
@@ -327,30 +513,112 @@ void drawParams(Int index)
 		}
 
 		ImGui::SameLine();
-		if (ImGui::SmallButton("x"))
-			applyText(index, IniText::removeKeyedField(db().getBlock(index)->text, "Param", names[i].c_str()), TRUE);
-		ImGui::SetItemTooltip("Remove the parameter");
+		if (inherited)
+		{
+			if (ImGui::SmallButton("+"))
+				applyText(index, IniText::setKeyedField(db().getBlock(index)->text, key, names[i].c_str(), values[i]), TRUE);
+			ImGui::SetItemTooltip("Set the parameter in this material, with the value of %s", db().getBlock(origins[i])->name.str());
+		}
+		else
+		{
+			if (ImGui::SmallButton("x"))
+				applyText(index, IniText::removeKeyedField(db().getBlock(index)->text, key, names[i].c_str()), TRUE);
+			Int baseFrom = -1;
+			for (size_t c = 0; c < chain.size() && baseFrom < 0; ++c)
+			{
+				std::vector<std::string> baseNames;
+				std::vector<std::string> baseValues;
+				IniText::getKeyedFields(db().getBlock(chain[c])->text, key, baseNames, baseValues);
+				for (size_t k = 0; k < baseNames.size(); ++k)
+				{
+					if (_stricmp(baseNames[k].c_str(), names[i].c_str()) == 0)
+						baseFrom = chain[c];
+				}
+			}
+			if (baseFrom >= 0)
+				ImGui::SetItemTooltip("Remove the parameter (back to the value of %s)", db().getBlock(baseFrom)->name.str());
+			else
+				ImGui::SetItemTooltip("Remove the parameter");
+		}
 		ImGui::PopID();
 	}
+	ImGui::PopID();
+}
 
+//-------------------------------------------------------------------------------------------------
+/** Param lines, then a section per time of day that has lines (in the block or its Base chain). */
+//-------------------------------------------------------------------------------------------------
+void drawParams(Int index)
+{
+	IniBlock *block = db().getBlock(index);
+	const Bool material = isType(block, "Material");
+	const Bool pass = isType(block, "PostProcessPass");
+	if (!material && !pass)
+		return;
+
+	std::vector<Int> chain;
+	if (material)
+		getBaseChain(index, chain);
+
+	const Int nowKey = currentParamKey();
+	for (Int k = 0; k < PARAM_KEY_COUNT; ++k)
+	{
+		if (k == 0)
+		{
+			ImGui::SeparatorText(PARAM_TITLES[0]);
+			if (!chain.empty())
+			{
+				ImGui::TextColored(COLOR_INHERITED, "Blue: from %s.", db().getBlock(chain[0])->name.str());
+				ImGui::SameLine();
+				ImGui::TextColored(COLOR_DIM, "A change, or +, sets it in this material.");
+			}
+		}
+		else
+		{
+			std::vector<std::string> names;
+			std::vector<std::string> values;
+			std::vector<Int> origins;
+			collectParams(index, PARAM_KEYS[k], chain, names, values, origins);
+			if (names.empty())
+				continue;
+			if (k == nowKey)
+				ImGui::SeparatorText((std::string(PARAM_TITLES[k]) + " (the map's time of day)").c_str());
+			else
+				ImGui::SeparatorText(PARAM_TITLES[k]);
+			ImGui::TextColored(COLOR_DIM, "%s lines replace a Param of the same name at this time of day.", PARAM_KEYS[k]);
+		}
+		drawParamRows(index, k, chain);
+	}
+
+	ImGui::Separator();
+	ImGui::SetNextItemWidth(120.0f);
+	if (ImGui::BeginCombo("##newkey", PARAM_KEYS[s_newParamKey]))
+	{
+		for (Int k = 0; k < PARAM_KEY_COUNT; ++k)
+			if (ImGui::Selectable(PARAM_KEYS[k], k == s_newParamKey))
+				s_newParamKey = k;
+		ImGui::EndCombo();
+	}
+	ImGui::SetItemTooltip("Param, or a time of day variant that replaces a Param of the same name at that time of day");
+	ImGui::SameLine();
 	ImGui::SetNextItemWidth(130.0f);
 	ImGui::InputTextWithHint("##newname", "name", &s_newParamName);
 	ImGui::SameLine();
-	ImGui::SetNextItemWidth(160.0f);
+	ImGui::SetNextItemWidth(140.0f);
 	ImGui::InputTextWithHint("##newvalue", "1 to 4 values", &s_newParamValue);
 	ImGui::SameLine();
 	ImGui::BeginDisabled(s_newParamName.empty() || s_newParamName.find(' ') != std::string::npos);
-	if (ImGui::Button("Add parameter"))
+	if (ImGui::Button("Add"))
 	{
 		const std::string value = s_newParamValue.empty() ? "0" : s_newParamValue;
-		if (applyText(index, IniText::setKeyedField(db().getBlock(index)->text, "Param", s_newParamName.c_str(), value), TRUE))
+		if (applyText(index, IniText::setKeyedField(db().getBlock(index)->text, PARAM_KEYS[s_newParamKey], s_newParamName.c_str(), value), TRUE))
 		{
 			s_newParamName.clear();
 			s_newParamValue.clear();
 		}
 	}
 	ImGui::EndDisabled();
-	ImGui::SetItemTooltip("A variable of the shader's Params cbuffer. Time of day variants (ParamNight ...) are edited in the text.");
+	ImGui::SetItemTooltip("A variable of the shader's Params cbuffer");
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -901,7 +1169,13 @@ void drawMaterialTab()
 			if (!isType(b, "Material") || db().findTypedBlock("Material", b->name) != i)
 				continue;
 			std::string use = "Meshes";
-			IniText::getField(b->text, -1, "Use", use);
+			Int useFrom = -1;
+			if (!IniText::getField(b->text, -1, "Use", use))
+				findInheritedField(i, "Use", use, useFrom);
+			std::string base;
+			std::string shown = use;
+			if (IniText::getField(b->text, -1, "Base", base) && !base.empty())
+				shown = use + ", Base " + base;
 			Int count = -1;
 			for (size_t k = 0; k < names.size(); ++k)
 			{
@@ -910,9 +1184,9 @@ void drawMaterialTab()
 			}
 			char label[200];
 			if (count >= 0 && (_stricmp(use.c_str(), "Meshes") == 0 || _stricmp(use.c_str(), "Particles") == 0))
-				snprintf(label, sizeof(label), "%s  (%s, %d textures)%s", b->name.str(), use.c_str(), count, b->isDirty() ? "  (changed)" : "");
+				snprintf(label, sizeof(label), "%s  (%s, %d textures)%s", b->name.str(), shown.c_str(), count, b->isDirty() ? "  (changed)" : "");
 			else
-				snprintf(label, sizeof(label), "%s  (%s)%s", b->name.str(), use.c_str(), b->isDirty() ? "  (changed)" : "");
+				snprintf(label, sizeof(label), "%s  (%s)%s", b->name.str(), shown.c_str(), b->isDirty() ? "  (changed)" : "");
 			if (!b->error.empty())
 				ImGui::PushStyleColor(ImGuiCol_Text, COLOR_ERROR);
 			else if (b->isDirty())
@@ -950,24 +1224,38 @@ void drawShadowTab()
 } // namespace
 
 //-------------------------------------------------------------------------------------------------
+bool FXEditorPanels::selectMaterial(const char *name)
+{
+	const Int index = db().findTypedBlock("Material", AsciiString(name));
+	if (index < 0)
+		return false;
+	s_selectedMaterial = index;
+	s_showRenderTab = true;
+	s_showMaterialTab = true;
+	return true;
+}
+
+//-------------------------------------------------------------------------------------------------
+bool FXEditorPanels::takeRenderTabRequest()
+{
+	const bool request = s_showRenderTab;
+	s_showRenderTab = false;
+	return request;
+}
+
+//-------------------------------------------------------------------------------------------------
 void FXEditorPanels::drawRender()
 {
-	// A layout saved before this window existed has no place for it: it joins the inspector.
-	if (ImGuiWindow *inspector = ImGui::FindWindowByName(INSPECTOR))
+	if (!ImGui::BeginChild(RENDER))
 	{
-		if (inspector->DockId != 0)
-			ImGui::SetNextWindowDockID(inspector->DockId, ImGuiCond_FirstUseEver);
-	}
-	if (!ImGui::Begin(RENDER))
-	{
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 	IniDatabase &ini = db();
 	if (!ini.isLoaded())
 	{
 		ImGui::TextColored(COLOR_DIM, "Waiting for the preview game...");
-		ImGui::End();
+		ImGui::EndChild();
 		return;
 	}
 
@@ -1002,8 +1290,9 @@ void FXEditorPanels::drawRender()
 			drawPostProcessTab();
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Materials"))
+		if (ImGui::BeginTabItem("Materials", nullptr, s_showMaterialTab ? ImGuiTabItemFlags_SetSelected : 0))
 		{
+			s_showMaterialTab = false;
 			drawMaterialTab();
 			ImGui::EndTabItem();
 		}
@@ -1014,5 +1303,5 @@ void FXEditorPanels::drawRender()
 		}
 		ImGui::EndTabBar();
 	}
-	ImGui::End();
+	ImGui::EndChild();
 }

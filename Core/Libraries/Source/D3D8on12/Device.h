@@ -24,6 +24,8 @@
 #include "Private.h"
 #include "Pipeline.h"
 
+#include <deque>
+#include <string>
 #include <unordered_map>
 
 namespace D3D8On12
@@ -216,6 +218,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE Srv_Cpu_Handle(UINT index) const;
 	D3D12_GPU_DESCRIPTOR_HANDLE Srv_Gpu_Handle(UINT index) const;
 	UINT Prepare_Texture(IDirect3DBaseTexture8* texture, TextureType& type);
+	void Make_Readable_By_All_Stages(IDirect3DBaseTexture8* texture);
 	D3D12_GPU_VIRTUAL_ADDRESS Prepare_Buffer(GpuBuffer& gpu, const unsigned char* data, UINT size, D3D12_RESOURCE_STATES read_state);
 	UINT Get_Sampler(DWORD stage);
 	UINT Find_Sampler(const D3D12_SAMPLER_DESC& desc);
@@ -256,6 +259,7 @@ private:
 		const TranslatedShader* vertexShader;	// translated, or null
 		const TranslatedShader* pixelShader;
 		ID3DBlob* pixelCode;					// a material's compiled pixel shader, or null
+		const std::string* vertexHook;			// a material's source with a vertex function, or null
 		bool pointSprite;
 	};
 	ID3D12PipelineState* Get_Pipeline_State(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology, const ShaderChoice& shaders, const TargetState& targets);
@@ -283,6 +287,8 @@ private:
 	void Flush_Commands();
 	void Wait_For_GPU();
 	void Log_Debug_Messages();
+	void Log_Device_Removed();
+	template <class Node> void Log_Breadcrumbs(const Node* head);
 	HRESULT Read_Back_Buffer(Surface* dest);
 	void Replace_Surface(Surface*& slot, Surface* surface);
 
@@ -346,7 +352,7 @@ private:
 		D3D_PRIMITIVE_TOPOLOGY topology;
 		D3D12_VERTEX_BUFFER_VIEW vertices;
 		D3D12_INDEX_BUFFER_VIEW indices;
-		UINT64 tables[2 * FF_STAGES];	// texture tables, then sampler tables
+		UINT64 tables[2 * FF_STAGES + MATERIAL_EXTRA_TEXTURES];	// texture tables, sampler tables, extra material textures
 		bool materialConstants;			// b2 has been set
 		D3D12_GPU_VIRTUAL_ADDRESS pixelConstants;	// b1, holding m_lastPixelConstants
 	};
@@ -438,6 +444,13 @@ private:
 	UINT m_backBufferIndex;
 	bool m_recording;
 	bool m_deviceRemoved;
+	bool m_dred;			// D3D8ON12_DRED: breadcrumbs and draw markers for Log_Device_Removed
+	UINT64 m_lastMarker;	// the material of the last marker in the command list
+	// With m_dred: the description of each draw of the command list being recorded, and of the last command
+	// lists executed, to name the draw the GPU hung in by the count of markers before it.
+	std::vector<std::string> m_drawNames;
+	std::deque<std::vector<std::string>> m_submittedDrawNames;
+	void Submit_Draw_Names();
 
 	Surface* m_backBufferSurface;
 	Surface* m_autoDepthSurface;

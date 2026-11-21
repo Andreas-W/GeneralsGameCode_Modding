@@ -176,6 +176,10 @@ The pieces build on each other; files live in `worldbuilder_factions\` next to t
 
 The goal behind towns, outposts and cliffs: generate a map from the user's rough mockup in WorldBuilder plus a description naming reference maps or styles. `scripts/worldbuilder-mcp/mapgen/DESIGN.md` holds the agreed design (mockup conventions, plan step, styles, checks, first slice); `mapgen/README.md` the scripts, how the first map was built and the rules learned on it. Read both before working on map generation or on style extraction.
 
+## DX12 water
+
+New water for the Direct3D 12 renderer (`MAT_Ocean`, `WaterRendering`, the water field), branch `feat/dx12-water`. `docs/DX12-Water-Status.md` holds where the code is, the mod's presets, how to build, check shaders offline (`scripts/d3d8on12/check_material_shaders.py`) and tune them live, and the open items; `docs/DX12-GPU-Hang-Investigation.md` the paused hang investigation. Read the status file before working on water or material shaders.
+
 ## Game MCP
 
 A second MCP server drives the running game itself, so features can be tested by playing: start a skirmish as the local player (alone in a sandbox or against AI), pause, step frames, inspect every object and player, give orders, spawn and change things, run scripts, take screenshots. Use its tools (`mcp__game__*`) for that. Full reference: the game section of `scripts/worldbuilder-mcp/README.md`.
@@ -189,7 +193,7 @@ Claude  <-- stdio -->  scripts/worldbuilder-mcp/game_server.py  <-- TCP 127.0.0.
 - The bridge exists only in builds with `RTS_BUILD_OPTION_GAME_MCP` and only listens when the game is started with `-mcp`. Without the flag nothing changes for normal play.
 - `game_launch` uses `generalszh.exe` in the mod folder (`GAME_DIR`; `GAME_EXE` picks another exe name). That exe must be an MCP build: if the game starts but the bridge never answers, the installed exe is older than the feature. After changing engine code, rebuild `z_generals` and copy it there (ask first, keep a `.bak` of the user's exe).
 - One game at a time: `game_launch` fails while a game with the bridge runs; `game_quit` it first. If a tool says "Cannot reach the game", no game runs with `-mcp` (or it hangs in a dialog).
-- The game does not start while any WorldBuilder runs: it shares their single-instance check and exits with code 1 before writing a log. Close every WorldBuilder first.
+- The game and WorldBuilder run side by side: tools lock a single-instance mutex of their own (`ClientInstance::getFirstInstanceName` adds `gAppPrefix`). A WorldBuilder or FX Editor older than that change takes the game's lock, and the game then exits with code 1 before writing a log.
 - A game started by hand works too: `generalszh.exe -mcp -mcpGame "<map>" -mcpPlayers FactionAmerica,FactionChina:hard -mcpStartPaused -win -quickstart -ignoreAsserts`, run from the mod folder.
 
 ### Testing a feature

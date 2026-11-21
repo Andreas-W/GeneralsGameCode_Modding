@@ -97,12 +97,15 @@ const FieldParse PostProcessPassTemplate::s_fieldParseTable[] =
 };
 
 //-------------------------------------------------------------------------------------------------
-void PostProcessPassTemplate::getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const
+/** The parameters with the replacements of a time of day (ParamMorning ...). */
+//-------------------------------------------------------------------------------------------------
+static void getTimeOfDayParameters(const std::vector<PostProcessParameter>& base,
+	const std::vector<PostProcessParameter>* timeOfDay, TimeOfDay time, std::vector<PostProcessParameter>& parameters)
 {
-	parameters = m_parameters;
+	parameters = base;
 	if (time < 0 || time >= TIME_OF_DAY_COUNT)
 		return;
-	const std::vector<PostProcessParameter>& replacements = m_timeOfDayParameters[time];
+	const std::vector<PostProcessParameter>& replacements = timeOfDay[time];
 	for (size_t i = 0; i < replacements.size(); ++i)
 	{
 		size_t j = 0;
@@ -113,6 +116,12 @@ void PostProcessPassTemplate::getParameters(TimeOfDay time, std::vector<PostProc
 		else
 			parameters.push_back(replacements[i]);
 	}
+}
+
+//-------------------------------------------------------------------------------------------------
+void PostProcessPassTemplate::getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const
+{
+	getTimeOfDayParameters(m_parameters, m_timeOfDayParameters, time, parameters);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -291,8 +300,35 @@ MaterialTemplate::MaterialTemplate()
 	m_maps[3] = "None";
 }
 
+/// The material a Material block replaces, while the block is read, so that its Base can name itself.
+static const MaterialTemplate *s_replacedMaterial = nullptr;
+
+//-------------------------------------------------------------------------------------------------
+/** Base = <material>: the block starts as a copy of that material, under its own name, and the lines after it
+	* change it. It may name the block's own material as it was before (a map.ini changing the mod's material). */
+//-------------------------------------------------------------------------------------------------
+static void parseMaterialBase( INI *ini, void *instance, void *store, const void *userData )
+{
+	MaterialTemplate *material = (MaterialTemplate *)instance;
+	AsciiString baseName = ini->getNextToken();
+	const MaterialTemplate *base = nullptr;
+	if (s_replacedMaterial != nullptr && baseName.compareNoCase(material->m_name) == 0)
+		base = s_replacedMaterial;
+	else if (TheMaterialSettings != nullptr && baseName.compareNoCase(material->m_name) != 0)
+		base = TheMaterialSettings->findMaterial(baseName);
+	if (base == nullptr)
+	{
+		DEBUG_CRASH(("Material %s: unknown Base %s", material->m_name.str(), baseName.str()));
+		throw INI_INVALID_DATA;
+	}
+	AsciiString name = material->m_name;
+	*material = *base;
+	material->m_name = name;
+}
+
 const FieldParse MaterialTemplate::s_fieldParseTable[] =
 {
+	{ "Base",			parseMaterialBase,		nullptr,	0 },
 	{ "Use",			INI::parseIndexList,	s_materialUseNames,	offsetof( MaterialTemplate, m_use ) },
 	{ "Textures",		parseInputs,			nullptr,	offsetof( MaterialTemplate, m_textures ) },
 	{ "Shader",			INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_shader ) },
@@ -301,14 +337,44 @@ const FieldParse MaterialTemplate::s_fieldParseTable[] =
 	{ "EmissiveMap",	INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[2] ) },
 	{ "ExtraMap",		INI::parseAsciiString,	nullptr,	offsetof( MaterialTemplate, m_maps[3] ) },
 	{ "Param",			parseParameter,			nullptr,	offsetof( MaterialTemplate, m_parameters ) },
+	{ "ParamMorning",	parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_MORNING] ) },
+	{ "ParamAfternoon",	parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_AFTERNOON] ) },
+	{ "ParamEvening",	parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_EVENING] ) },
+	{ "ParamNight",		parseParameter,			nullptr,	offsetof( MaterialTemplate, m_timeOfDayParameters[TIME_OF_DAY_NIGHT] ) },
 	{ nullptr, nullptr, nullptr, 0 },
 };
 
 //-------------------------------------------------------------------------------------------------
+void MaterialTemplate::getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const
+{
+	getTimeOfDayParameters(m_parameters, m_timeOfDayParameters, time, parameters);
+}
+
+//-------------------------------------------------------------------------------------------------
+UnsignedInt MaterialSettings::s_generation = 1;
+
 MaterialSettings::~MaterialSettings()
 {
 	for (size_t i = 0; i < m_materials.size(); ++i)
 		delete m_materials[i];
+}
+
+//-------------------------------------------------------------------------------------------------
+const MaterialTemplate* MaterialSettings::findMaterial(const AsciiString& name) const
+{
+	for (size_t i = 0; i < m_materials.size(); ++i)
+		if (m_materials[i]->m_name.compareNoCase(name) == 0)
+			return m_materials[i];
+	return nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+MaterialSettings* MaterialSettings::clone() const
+{
+	MaterialSettings *copy = new MaterialSettings;
+	for (size_t i = 0; i < m_materials.size(); ++i)
+		copy->m_materials.push_back(new MaterialTemplate(*m_materials[i]));
+	return copy;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -324,7 +390,8 @@ MaterialTemplate* MaterialSettings::findOrCreateMaterial(const AsciiString& name
 }
 
 //-------------------------------------------------------------------------------------------------
-/** A material defined again (for example by the mod after the defaults) is replaced as a whole. */
+/** A material defined again (for example by the mod after the defaults) is replaced as a whole, unless its
+	* block starts from the old one with Base = <its own name>. */
 //-------------------------------------------------------------------------------------------------
 void INI::parseMaterialDefinition( INI *ini )
 {
@@ -332,10 +399,110 @@ void INI::parseMaterialDefinition( INI *ini )
 		TheMaterialSettings = new MaterialSettings;
 
 	AsciiString name = ini->getNextToken();
+	const Bool existed = TheMaterialSettings->findMaterial(name) != nullptr;
 	MaterialTemplate *material = TheMaterialSettings->findOrCreateMaterial(name);
+	MaterialTemplate replaced = *material;
 	*material = MaterialTemplate();
 	material->m_name = name;
-	ini->initFromINI( material, MaterialTemplate::s_fieldParseTable );
+	s_replacedMaterial = existed ? &replaced : nullptr;
+	try
+	{
+		ini->initFromINI( material, MaterialTemplate::s_fieldParseTable );
+	}
+	catch (...)
+	{
+		s_replacedMaterial = nullptr;
+		throw;
+	}
+	s_replacedMaterial = nullptr;
+	MaterialSettings::changed();
+}
+
+//-------------------------------------------------------------------------------------------------
+/** PolygonMaterial = <material> <polygon name>; the name may have spaces. */
+//-------------------------------------------------------------------------------------------------
+static void parsePolygonMaterial( INI *ini, void *instance, void *store, const void *userData )
+{
+	std::vector<WaterRenderingSettings::PolygonMaterial> *list = (std::vector<WaterRenderingSettings::PolygonMaterial> *)store;
+	WaterRenderingSettings::PolygonMaterial entry;
+	entry.m_material = ini->getNextToken();
+	for (const char *token = ini->getNextTokenOrNull(); token; token = ini->getNextTokenOrNull())
+	{
+		if (entry.m_polygon.isNotEmpty())
+			entry.m_polygon.concat(' ');
+		entry.m_polygon.concat(token);
+	}
+	if (entry.m_polygon.isEmpty())
+		throw INI_INVALID_DATA;
+	for (size_t i = 0; i < list->size(); ++i)
+	{
+		if ((*list)[i].m_polygon.compareNoCase(entry.m_polygon) == 0)
+		{
+			(*list)[i] = entry;
+			return;
+		}
+	}
+	list->push_back(entry);
+}
+
+WaterRenderingSettings* TheWaterRenderingSettings = nullptr;
+
+const char *const WaterRenderingSettings::s_kindNames[] = { "Ocean", "Lake", "River", nullptr };
+
+WaterRenderingSettings::WaterRenderingSettings() :
+	m_oceanMinimumArea(300000.0f),
+	m_gridSpacing(10.0f),
+	m_riverSubdivisions(4),
+	m_refraction(TRUE),
+	m_drawWaterTracks(FALSE),
+	m_shoreFieldResolution(2),
+	m_shoreFieldRange(100.0f),
+	m_shoreFieldSmoothing(10.0f),
+	m_disturbance(TRUE),
+	m_disturbanceRange(1024.0f),
+	m_disturbanceFadeTime(1.0f),
+	m_replaceHeightAmbientLight(TRUE)
+{
+}
+
+const FieldParse WaterRenderingSettings::s_fieldParseTable[] =
+{
+	{ "OceanMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_OCEAN] ) },
+	{ "LakeMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_LAKE] ) },
+	{ "RiverMaterial",			INI::parseAsciiString,	nullptr,	offsetof( WaterRenderingSettings, m_kindMaterials[KIND_RIVER] ) },
+	{ "PolygonMaterial",		parsePolygonMaterial,	nullptr,	offsetof( WaterRenderingSettings, m_polygonMaterials ) },
+	{ "OceanMinimumArea",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_oceanMinimumArea ) },
+	{ "GridSpacing",			INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_gridSpacing ) },
+	{ "RiverSubdivisions",		INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_riverSubdivisions ) },
+	{ "Refraction",				INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_refraction ) },
+	{ "DrawWaterTracks",		INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_drawWaterTracks ) },
+	{ "ShoreFieldResolution",	INI::parseInt,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldResolution ) },
+	{ "ShoreFieldRange",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldRange ) },
+	{ "ShoreFieldSmoothing",	INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_shoreFieldSmoothing ) },
+	{ "Disturbance",			INI::parseBool,			nullptr,	offsetof( WaterRenderingSettings, m_disturbance ) },
+	{ "DisturbanceRange",		INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_disturbanceRange ) },
+	{ "DisturbanceFadeTime",	INI::parseReal,			nullptr,	offsetof( WaterRenderingSettings, m_disturbanceFadeTime ) },
+	{ "ReplaceHeightAmbientLight",	INI::parseBool,		nullptr,	offsetof( WaterRenderingSettings, m_replaceHeightAmbientLight ) },
+	{ nullptr, nullptr, nullptr, 0 },
+};
+
+//-------------------------------------------------------------------------------------------------
+const AsciiString& WaterRenderingSettings::getMaterialName(Kind kind, const AsciiString& polygon) const
+{
+	for (size_t i = 0; i < m_polygonMaterials.size(); ++i)
+		if (m_polygonMaterials[i].m_polygon.compareNoCase(polygon) == 0)
+			return m_polygonMaterials[i].m_material;
+	return m_kindMaterials[kind];
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A later block (a map.ini after Water.ini) changes only the fields it has. */
+//-------------------------------------------------------------------------------------------------
+void INI::parseWaterRenderingDefinition( INI *ini )
+{
+	if (TheWaterRenderingSettings == nullptr)
+		TheWaterRenderingSettings = new WaterRenderingSettings;
+	ini->initFromINI( TheWaterRenderingSettings, WaterRenderingSettings::s_fieldParseTable );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -364,6 +531,9 @@ PostProcessControl ThePostProcessControl;
 PostProcessControl::PostProcessControl() :
 	m_savedPostProcess(nullptr),
 	m_savedShadowMap(nullptr),
+	m_savedMaterials(nullptr),
+	m_savedMaterialGeneration(0),
+	m_savedWaterRendering(nullptr),
 	m_saved(FALSE),
 	m_generation(1),
 	m_darknessFaded(FALSE)
@@ -375,6 +545,8 @@ PostProcessControl::~PostProcessControl()
 {
 	delete m_savedPostProcess;
 	delete m_savedShadowMap;
+	delete m_savedMaterials;
+	delete m_savedWaterRendering;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -385,6 +557,9 @@ void PostProcessControl::beginMap()
 		endGame();
 	m_savedPostProcess = ThePostProcessSettings != nullptr ? ThePostProcessSettings->clone() : nullptr;
 	m_savedShadowMap = TheShadowMapSettings != nullptr ? new ShadowMapSettings(*TheShadowMapSettings) : nullptr;
+	m_savedMaterials = TheMaterialSettings != nullptr ? TheMaterialSettings->clone() : nullptr;
+	m_savedMaterialGeneration = MaterialSettings::getGeneration();
+	m_savedWaterRendering = TheWaterRenderingSettings != nullptr ? new WaterRenderingSettings(*TheWaterRenderingSettings) : nullptr;
 	m_saved = TRUE;
 	clearScriptChanges();
 	++m_generation;
@@ -399,8 +574,23 @@ void PostProcessControl::endGame()
 		ThePostProcessSettings = m_savedPostProcess;
 		delete TheShadowMapSettings;
 		TheShadowMapSettings = m_savedShadowMap;
+		// The materials only come back when the map changed them, as building them again compiles shaders.
+		if (MaterialSettings::getGeneration() != m_savedMaterialGeneration)
+		{
+			delete TheMaterialSettings;
+			TheMaterialSettings = m_savedMaterials;
+			MaterialSettings::changed();
+		}
+		else
+		{
+			delete m_savedMaterials;
+		}
+		delete TheWaterRenderingSettings;
+		TheWaterRenderingSettings = m_savedWaterRendering;
 		m_savedPostProcess = nullptr;
 		m_savedShadowMap = nullptr;
+		m_savedMaterials = nullptr;
+		m_savedWaterRendering = nullptr;
 		m_saved = FALSE;
 	}
 	clearScriptChanges();
@@ -412,10 +602,22 @@ void PostProcessControl::settingsReloaded()
 {
 	delete m_savedPostProcess;
 	delete m_savedShadowMap;
+	delete m_savedMaterials;
+	delete m_savedWaterRendering;
 	m_savedPostProcess = nullptr;
 	m_savedShadowMap = nullptr;
+	m_savedMaterials = nullptr;
+	m_savedWaterRendering = nullptr;
 	m_saved = FALSE;
 	++m_generation;
+}
+
+//-------------------------------------------------------------------------------------------------
+void PostProcessControl::materialsReloaded()
+{
+	delete m_savedMaterials;
+	m_savedMaterials = nullptr;
+	m_savedMaterialGeneration = MaterialSettings::getGeneration();
 }
 
 //-------------------------------------------------------------------------------------------------

@@ -116,6 +116,7 @@ public:
 	Bool getDynamicLODEnabled();
 	Bool getFPSLimitEnabled();
 	Bool getBuildingOcclusionEnabled();
+	Bool getWaterRippleEffects();
 	Int getParticleCap();
 	Int getRenderFpsLimit(); ///< Separate render fps limit, -1 if not set
 

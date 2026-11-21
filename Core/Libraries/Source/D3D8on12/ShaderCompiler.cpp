@@ -75,6 +75,26 @@ HRESULT Compile_Pixel_Shader(const char* source, UINT length, const char* name, 
 	return hr;
 }
 
+HRESULT Preprocess_Shader(const char* source, UINT length, const char* name, const char* header_name, const char* header,
+	ID3DInclude* include, const D3D_SHADER_MACRO* defines, std::string& text, ID3DBlob** errors)
+{
+	if (errors != nullptr)
+		*errors = nullptr;
+	text.clear();
+	IncludeHandler handler(header_name, header, include);
+	ComPtr<ID3DBlob> result;
+	ComPtr<ID3DBlob> messages;
+	const HRESULT hr = D3DPreprocess(source, length, name, defines, &handler, &result, &messages);
+	if (FAILED(hr))
+	{
+		if (errors != nullptr)
+			*errors = messages.Detach();
+		return hr;
+	}
+	text.assign((const char*)result->GetBufferPointer(), strnlen((const char*)result->GetBufferPointer(), result->GetBufferSize()));
+	return hr;
+}
+
 void Reflect_Constant_Buffer(ID3DBlob* code, const char* buffer_name, UINT& size, std::unordered_map<std::string, ShaderVariable>& variables)
 {
 	size = 0;

@@ -38,6 +38,8 @@
 #include "Common/GameType.h"
 #include "Common/Snapshot.h"
 
+#include <vector>
+
 #define INVALID_WATER_HEIGHT 0.0f	///water height guaranteed to be below all terrain.
 
 #define NUM_BUMP_FRAMES 32	///number of animation frames in bump map
@@ -50,6 +52,9 @@
 
 class PolygonTrigger;
 class WaterTracksRenderSystem;
+class W3DWaterField;
+class W3DWaterDisturbance;
+struct Coord3D;
 class Xfer;
 /// Custom render object that draws mirrors, water, and skies.
 /**
@@ -105,6 +110,7 @@ public:
 	void setTimeOfDay(TimeOfDay tod); ///<change sky/water for time of day
 	void toggleCloudLayer(Bool state)	{	m_useCloudLayer=state;}	///<enables/disables the cloud layer
 	void updateRenderTargetTextures(CameraClass *cam);	///< renders into any required textures.
+	void updateDisturbance(const Coord3D& center);	///< the ripples of ships and explosions (Direct3D 12), before the frame
 	void ReleaseResources();	///< Release all dx8 resources so the device can be reset.
 	void ReAcquireResources();  ///< Reacquire all resources after device reset.
 	Real getWaterHeight(Real x, Real y);	///<return water height at given point - for use by WB.
@@ -236,8 +242,31 @@ protected:
 	};
 
 	Setting m_settings[ TIME_OF_DAY_COUNT ];	///< settings for each time of day
-	void drawRiverWater(PolygonTrigger *pTrig);
-	void drawTrapezoidWater(Vector3 points[4]);
+	void drawRiverWater(PolygonTrigger *pTrig, Int material);
+	void drawTrapezoidWater(Vector3 points[4], Int material);
+
+	// Direct3D 12 water materials (WaterRendering): material is a W3DMaterials water index, -1 for none.
+	W3DWaterField *m_waterField;			///< water field and shroud for the materials
+	Bool m_waterFieldReady;					///< set for this frame's water
+	W3DWaterDisturbance *m_disturbance;		///< ripples of ships and explosions for the materials (TheWaterDisturbance)
+	CameraClass *m_renderCamera;			///< the camera of the water being drawn
+	Bool m_vertexMaterialDrawn;				///< a material that moves the vertices drew water this frame
+	Int getWaterMaterial(PolygonTrigger *pTrig);
+	void setWaterMaterialParameters(Int material, Bool river);
+	Int getStandingWaterDiffuse();
+	void drawStandingWaterGrid(PolygonTrigger *pTrig, Int material);
+	/// The world grid cells a standing water area covers, for drawStandingWaterGrid.
+	struct GridMask
+	{
+		Int id;							///< of the water area
+		UnsignedInt hash;				///< of its points, to notice changes
+		Real spacing;
+		Int x0, y0;						///< first cell, in cells from the world origin
+		Int width, height;				///< cells
+		std::vector<UnsignedByte> inside;	///< per cell
+	};
+	std::vector<GridMask> m_gridMasks;
+	const GridMask *getGridMask(PolygonTrigger *pTrig, Real spacing);
 	void loadSetting ( Setting *skySetting, TimeOfDay timeOfDay );	///<init sky/water settings from GDF
 	void renderSky();	///<draw the sky layer (clouds, stars, etc.)
 	void testCurvedWater();	///<draw the sky layer (clouds, stars, etc.)

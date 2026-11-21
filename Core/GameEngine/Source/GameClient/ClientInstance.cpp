@@ -20,6 +20,8 @@
 
 #define GENERALS_GUID "685EAFF2-3216-4265-B047-251C5F4B82F3"
 
+extern const char *gAppPrefix; // Defined by every executable; empty for the game.
+
 namespace rts
 {
 HANDLE ClientInstance::s_mutexHandle = nullptr;
@@ -127,7 +129,19 @@ UnsignedInt ClientInstance::getInstanceId()
 
 const char* ClientInstance::getFirstInstanceName()
 {
-	return GENERALS_GUID;
+	// Tools that link the engine (WorldBuilder, FX Editor ...) take this lock too, through the debug
+	// log. They lock a name of their own, so a running tool never keeps the game from starting.
+	static std::string s_name;
+	if (s_name.empty())
+	{
+		s_name = GENERALS_GUID;
+		if (gAppPrefix != nullptr && gAppPrefix[0] != '\0')
+		{
+			s_name.push_back('-');
+			s_name.append(gAppPrefix);
+		}
+	}
+	return s_name.c_str();
 }
 
 } // namespace rts

@@ -722,6 +722,18 @@ Bool OptionPreferences::getBuildingOcclusionEnabled()
 	return FALSE;
 }
 
+Bool OptionPreferences::getWaterRippleEffects()
+{
+	OptionPreferences::const_iterator it = find("WaterRippleEffects");
+	if (it == end())
+		return TheGlobalData->m_waterRippleEffects;
+
+	if (stricmp(it->second.str(), "yes") == 0) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
 Int OptionPreferences::getParticleCap()
 {
 	OptionPreferences::const_iterator it = find("MaxParticleCount");

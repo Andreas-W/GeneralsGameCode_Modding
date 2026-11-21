@@ -304,6 +304,610 @@ float4 main(MaterialInput input) : SV_Target
 }
 )";
 
+// Ocean: water that moves. The vertex function lifts the surface into waves (a sum of sharp-crested Gerstner
+// waves) that calm down near the shore, in shallow water and far from the camera. The pixel shader sees the
+// scene through the waves (refraction), dims it by the water's depth (absorption, red first) and fills it with
+// the water's own colour lit by the sun and the ambient light; caustics play on the ground below. On top: ripples
+// from normal maps (or built-in noise), the sky and the screen (screen space reflection) reflected by the
+// Fresnel term, sun glints, and at the shore foam and waves that run up to the beach, found in the water field.
+// Only with Refraction 1 (for deep water made for ships) and the scene colour (WaterRendering Refraction); else it
+// is opaque and blends like MAT_Water, so that the shallow water of other maps hides its ground. A value of 0
+// means the default given in the comment; -1 turns off what says so.
+static const char s_oceanShader[] = R"(
+#include "Material.hlsli"
+cbuffer Params : register(b2)
+{
+	float WaveAmplitude;		// world units of the largest wave, 0 = 1.5; -1 = flat
+	float WaveLength;			// world units of the longest wave, 0 = 140
+	float WaveSpeed;			// speed factor, 0 = 1
+	float WaveChoppiness;		// 0..1, how sharp the crests are, 0 = 0.6
+	float2 WaveDirection;		// world xy the waves run to, 0 0 = 1 0.35
+	float WaveFadeDistance;		// camera distance at which the waves are flat, 0 = 1400
+	float ShoreFadeDistance;	// distance from the shore over which the waves grow, 0 = 60
+	float DepthFade;			// water depth over which the waves grow, 0 = 10
+	float NormalStrength;		// strength of the ripples, 0 = 0.35
+	float NormalScale;			// world units one ripple pattern covers, 0 = 90
+	float NormalSpeed;			// world units per second the ripples move, 0 = 6
+	float3 SkyColor;			// reflected sky overhead, 0 0 0 = 0.30 0.45 0.65
+	float Gloss;				// sharpness of the sun glints, 0 = 800
+	float3 HorizonColor;		// reflected sky at the horizon, 0 0 0 = 0.70 0.80 0.90
+	float GlintStrength;		// brightness of the glints, 0 = 1.2; above 1 feeds bloom
+	float3 Absorption;			// how fast red, green, blue fade per world unit of water, 0 0 0 = 0.035 0.012 0.008
+	float Reflection;			// how much is reflected at flat angles, 0 = 0.8
+	float3 ScatterColor;		// the water's own colour, 0 0 0 = 0.06 0.32 0.36
+	float RefractionStrength;	// how much the waves bend what is below, 0 = 1
+	float3 FoamColor;			// 0 0 0 = 0.92 0.95 1.0
+	float UnderwaterAmbient;	// light inside the water, 0 = 1
+	float3 DeepColor;			// without the scene colour: deep water, 0 0 0 = 0.02 0.08 0.12
+	float CausticStrength;		// light lines on the ground below, 0 = 0.5; -1 = none
+	float CausticScale;			// world units of one caustic cell, 0 = 35
+	float CausticSpeed;			// 0 = 1
+	float SSRStrength;			// screen space reflection, 0 = 0.8; -1 = none
+	float SSRMaxDistance;		// world units the reflection is searched, 0 = 400
+	float ShoreDistance;		// water depth over which the edge fades in, 0 = 1
+	float ShoreHardness;		// 0 = a soft foamy edge, 1 = a hard foam line
+	float ShoreWaveLength;		// world units between waves running up the beach, 0 = 28
+	float ShoreWaveSpeed;		// world units per second they run, 0 = 7
+	float ShoreWaveHeight;		// world units they lift the surface, 0 = 0.5; -1 = none
+	float ShoreWaveRange;		// distance from the shore where they form, 0 = 45
+	float FoamDistance;			// water depth with foam along the shore, 0 = 3; -1 = no shore foam
+	float FoamStrength;			// strength of the shore foam, 0 = 0.85
+	float FoamScale;			// world units one repeat of the shore foam pattern (SpecularMap) covers, 0 = 40
+	float FoamSpeed;			// how fast the shore foam pattern drifts, factor, 0 = 1
+	float ShoreFoamWidth;		// distance from the shoreline the shore foam covers, 0 = 6; -1 = by depth only
+	float ShoreFoamMinimum;		// 0..1, a foam line along the shore that is always there, 0 = none
+	float ShoreFoamWindward;	// 0..1, how much the shore foam keeps to coasts facing the waves, 0 = all coasts alike
+	float ShoreFoamMinimumTexture;	// 0..1, how much the foam pattern shows in the minimum line, 0 = 0.5; -1 = flat
+	float ShoreWaveFoamDepth;	// water depth up to which the shore waves carry foam, 0 = 6; -1 = none
+	float ShoreWaveFoam;		// strength of the foam on the shore waves, factor, 0 = 1
+	float CrestFoam;			// strength of the foam on high wave crests, 0 = 0.4; -1 = none
+	float CrestFoamStart;		// wave height where crest foam begins, -1 (trough) .. 1 (highest crest), 0 = 0.45
+	float CrestFoamRange;		// height above the start until the whole foam pattern shows, 0 = 0.4
+	float CrestFoamSoftness;	// how soft the edges of the foam patches are, 0 = 0.15
+	float CrestFoamScale;		// world units one repeat of the crest foam pattern (ExtraMap, else SpecularMap) covers, 0 = FoamScale
+	float CrestFoamSpeed;		// how fast the crest foam pattern drifts, factor, 0 = FoamSpeed
+	float TextureTint;			// how much the map's water texture tints the water, 0 = 0.25; -1 = none
+	float DeepOpacity;			// without the scene colour: how opaque deep water gets, 0 = 0.75
+	float DepthScale;			// without the scene colour: depth until the water is deep, 0 = 40
+	float ViewGlint;			// glints from a light that always stands beyond the water as seen from the camera, factor of GlintStrength, 0 = none
+	float ViewGlintGloss;		// their sharpness, 0 = half of Gloss
+	float ViewGlintHeight;		// degrees above the horizon of that light, 0 = as high as the sun
+	float WaveShading;			// how much the water's own colour is lighter on slopes facing the sun and darker on the others, 0 = none
+	float CrestScatter;			// how much lighter the water's own colour is on crests and darker in troughs, 0 = none
+	float3 CrestScatterColor;	// the water's own colour on high crests, 0 0 0 = ScatterColor
+	float Refraction;			// 1 = see through the water to the ground (deep water), 0 = opaque like MAT_Water
+	float NoiseHeight;			// world units the fractal noise lifts and lowers the surface on top of the waves, 0 = none
+	float NoiseScale;			// world units one repeat of its largest layer covers, 0 = 600
+	float NoiseSpeed;			// world units per second it drifts, 0 = 3
+	float NoiseDetail;			// 0..1, strength of each finer layer against the one before, 0 = 0.5
+	float ShoreOpacityWidth;	// without the scene colour: distance from the shoreline over which the water goes from clear to deep (like DX8), 0 = by depth (DepthScale)
+	float ShoreLift;			// world units the surface rises at the shoreline, over the steps the terrain cuts into it, 0 = 2; -1 = none
+	float ShoreLiftWidth;		// distance from the shoreline into the water over which that rise goes back to 0, 0 = 10
+	float ContactFoam;			// foam where an object (hull, pier, rig leg) cuts the water, 0 = 1; -1 = none
+	float ContactFoamWidth;		// distance behind the surface, along the view, over which it fades out, 0 = 5
+	float ContactFoamTexture;	// 0..1, how much the shore foam pattern breaks it up, 0 = 0.5; -1 = flat
+	float DisturbanceHeight;	// world units the ripples of ships and explosions lift the surface per unit of them, 0 = 3; -1 = none
+	float DisturbanceNormal;	// how much they bend the surface for the light, 0 = 6; -1 = none
+	float DisturbanceFoam;		// the most of their foam that shows, however many wakes overlap, 0 = 1; -1 = none
+	float DisturbanceFoamGain;	// how quickly the foam reaches that: high = one wake already shows nearly all of it, 0 = 4
+	float DisturbanceHighlight;	// how much clearer the water gets over highlighted submerged objects, 0 = 0.7; -1 = none
+	float3 SunDirection;		// set by the game
+	float River;				// set by the game: 1 for rivers (the alpha edge is the extra map)
+	float3 SunColor;			// set by the game
+	float OceanPad0;
+	float3 AmbientColor;		// set by the game
+	float OceanPad1;
+	float4 WaterFieldTransform;	// set by the game: world xy to WaterField uv
+	float4 ShroudTransform;		// set by the game: world xy to ShroudTexture uv; 0 = no shroud here
+	float4 DisturbanceTransform;	// set by the game: 1 / range of the disturbance, the camera's centre x y, the range
+};
+static const float PI2 = 6.2831853;
+float Or(float value, float fallback) { return value != 0 ? value : fallback; }
+float2 Or(float2 value, float2 fallback) { return dot(value, value) > 0 ? value : fallback; }
+float3 Or(float3 value, float3 fallback) { return dot(value, value) > 0 ? value : fallback; }
+
+float3 CameraWorld() { return mul((float3x3)View, -View[3].xyz); }
+// Terrain height, distance to the shore (positive in the water), direction away from the shore.
+float4 Field(float2 world)
+{
+	if (!HasWaterField())
+		return float4(-1e5, 1e4, 0, 0);
+	return WaterField.SampleLevel(LinearClampSampler, world * WaterFieldTransform.xy + WaterFieldTransform.zw, 0);
+}
+// The ripples of ships and explosions (WaterDisturbance, repeating over its range around the camera, so it
+// fades out towards the edge of that range): x = crest, y = trough, z = foam, w = highlight.
+float4 DisturbanceAt(float2 world)
+{
+	if (!HasWaterDisturbance())
+		return float4(0, 0, 0, 0);
+	float edge = 1 - smoothstep(0.35, 0.48, length(world - DisturbanceTransform.yz) * DisturbanceTransform.x);
+	return WaterDisturbance.SampleLevel(LinearWrapSampler, world * DisturbanceTransform.x, 0) * edge;
+}
+
+// One sharp-crested wave: horizontal and vertical offset, and the slope for the normal.
+void Gerstner(float2 p, float2 direction, float wavelength, float amplitude, float steep, float t,
+	inout float3 offset, inout float3 slope)
+{
+	float k = PI2 / wavelength;
+	float speed = sqrt(wavelength) * 1.15 * Or(WaveSpeed, 1);
+	float phase = k * (dot(direction, p) - speed * t);
+	float s, c;
+	sincos(phase, s, c);
+	float q = steep / max(k * amplitude * 4, 1e-4);
+	offset += float3(q * amplitude * direction * c, amplitude * s);
+	slope += float3(direction * k * amplitude * c, q * k * amplitude * s);
+}
+float2 Rotate(float2 v, float angle) { float s, c; sincos(angle, s, c); return float2(v.x * c - v.y * s, v.x * s + v.y * c); }
+
+// Fractal noise on top of the waves (NoiseHeight): three layers of the shared noise texture, each of another
+// size, turned and drifting its own way, so that the pattern does not repeat. Returns the height and its slope
+// (d/dx, d/dy) in world units, the height within about -NoiseHeight .. NoiseHeight.
+static float s_noiseFootprint = 20;	// world units a pixel covers, for the mip level; vertices take the coarse levels
+float3 NoiseLayer(float2 p, float scale, float angle, float2 drift)
+{
+	float s, c;
+	sincos(angle, s, c);
+	float2 uv = (float2(c * p.x - s * p.y, s * p.x + c * p.y) + drift) / scale;
+	float3 n = NoiseTexture.SampleLevel(LinearWrapSampler, uv, log2(max(s_noiseFootprint * 256 / scale, 1))).rgb;
+	// The slope per repeat of the texture, turned back into world directions.
+	float2 g = n.gb / scale;
+	return float3(n.r, c * g.x + s * g.y, c * g.y - s * g.x);
+}
+float3 Noise(float2 p, float t)
+{
+	if (NoiseHeight <= 0 || !HasNoise())
+		return float3(0, 0, 0);
+	float scale = Or(NoiseScale, 600);
+	float drift = Or(NoiseSpeed, 3) * t;
+	float detail = saturate(Or(NoiseDetail, 0.5));
+	float3 n = NoiseLayer(p, scale, 0.3, float2(0.8, 0.6) * drift)
+		+ NoiseLayer(p, scale * 0.43, 2.2, float2(-0.5, 0.87) * drift * 1.4) * detail
+		+ NoiseLayer(p, scale * 0.19, 4.0, float2(-0.6, -0.8) * drift * 1.9) * (detail * detail);
+	return n * (NoiseHeight / (1 + detail + detail * detail));
+}
+// The waves at a point, scaled by fade.
+void Waves(float2 p, float fade, float t, out float3 offset, out float3 slope)
+{
+	offset = float3(0, 0, 0);
+	slope = float3(0, 0, 0);
+	float amplitude = WaveAmplitude < 0 ? 0 : Or(WaveAmplitude, 1.5) * fade;
+	if (amplitude <= 0)
+		return;
+	float2 d = normalize(Or(WaveDirection, float2(1, 0.35)));
+	float wavelength = Or(WaveLength, 140);
+	float steep = saturate(Or(WaveChoppiness, 0.6));
+	Gerstner(p, d, wavelength, amplitude, steep, t, offset, slope);
+	Gerstner(p, Rotate(d, 0.45), wavelength * 0.61, amplitude * 0.55, steep, t, offset, slope);
+	Gerstner(p, Rotate(d, -0.6), wavelength * 0.37, amplitude * 0.33, steep, t, offset, slope);
+	Gerstner(p, Rotate(d, 1.1), wavelength * 0.23, amplitude * 0.2, steep, t, offset, slope);
+	float3 noise = Noise(p, t) * fade;
+	offset.z += noise.x;
+	slope.xy += noise.yz;
+}
+// Waves running up the beach: a band every ShoreWaveLength that moves towards the shore.
+float ShoreWave(float shore, float2 p, float t)
+{
+	float range = Or(ShoreWaveRange, 45);
+	if (shore <= 0 || shore >= range)
+		return 0;
+	float spacing = Or(ShoreWaveLength, 28);
+	float phase = (shore + Or(ShoreWaveSpeed, 7) * t) / spacing + 0.15 * sin(p.x * 0.031 + p.y * 0.027);
+	float crest = pow(saturate(0.5 + 0.5 * sin(PI2 * phase)), 4);
+	return crest * saturate(1 - shore / range) * saturate(shore / 3);
+}
+
+void MaterialVertex(inout MaterialVertexData v)
+{
+	float3 world = v.worldPosition;
+	float4 field = Field(world.xy);
+	float depth = world.z - field.x;
+	float fade = saturate(field.y / Or(ShoreFadeDistance, 60)) * saturate(depth / Or(DepthFade, 10));
+	float camera = length(CameraWorld() - world);
+	fade *= 1 - smoothstep(0.6, 1.0, camera / Or(WaveFadeDistance, 1400));
+	float3 offset, slope;
+	Waves(world.xy, fade, Time, offset, slope);
+	float shoreLift = ShoreWaveHeight < 0 ? 0 : ShoreWave(field.y, world.xy, Time) * Or(ShoreWaveHeight, 0.5) * saturate(depth / 2);
+	// At the shoreline of the water field (smooth) the surface rises over the steps the terrain triangles cut
+	// into the water's edge; the pixel shader fades the water out beyond that shoreline, so its edge is smooth.
+	if (HasWaterField() && ShoreLift >= 0)
+		shoreLift += Or(ShoreLift, 2) * (1 - smoothstep(0, Or(ShoreLiftWidth, 10), field.y));
+	if (DisturbanceHeight >= 0)
+	{
+		float4 disturbance = DisturbanceAt(world.xy);
+		shoreLift += (disturbance.x - disturbance.y) * Or(DisturbanceHeight, 3);
+	}
+	v.worldPosition = world + offset + float3(0, 0, shoreLift);
+	v.worldNormal = normalize(float3(-slope.xy, 1 - slope.z));
+	v.data = float4(fade, offset.z + shoreLift, offset.z / max(Or(WaveAmplitude, 1.5), 1e-3), 0);
+}
+)" R"(
+// Ripples: two scrolling normal maps, or three octaves of value noise.
+float Hash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+float ValueNoise(float2 p)
+{
+	float2 i = floor(p);
+	float2 f = frac(p);
+	float2 u = f * f * (3 - 2 * f);
+	return lerp(lerp(Hash(i), Hash(i + float2(1, 0)), u.x), lerp(Hash(i + float2(0, 1)), Hash(i + float2(1, 1)), u.x), u.y);
+}
+float RippleHeight(float2 p, float t)
+{
+	return ValueNoise(p * 2.0 + float2(t, 0.6 * t)) * 0.55
+		+ ValueNoise(p * 4.3 + float2(-0.7 * t, 1.1 * t)) * 0.3
+		+ ValueNoise(p * 9.1 + float2(1.3 * t, -0.4 * t)) * 0.15;
+}
+// Built-in ripples: small waves in many directions with unrelated lengths, whose slopes are exact and smooth
+// (value noise creases along its lattice, which the sharp sun glints draw as a grid).
+float2 Ripples(float2 p, float t)
+{
+	float2 slope = float2(0, 0);
+	if (HasMap(MAP_NORMAL))
+	{
+		float2 a = NormalMap.Sample(NormalSampler, p + float2(1, 0.6) * t).xy * 2 - 1;
+		float2 b = NormalMap.Sample(NormalSampler, p * 1.7 - float2(0.8, 0.5) * t).xy * 2 - 1;
+		slope = (a + b) * 0.5;
+	}
+	else
+	{
+		const float angles[8] = { 0.3, 1.1, 1.9, 2.6, 3.5, 4.2, 5.0, 5.8 };
+		const float lengths[8] = { 1.0, 0.71, 0.53, 0.43, 0.31, 0.26, 0.19, 0.15 };
+		[unroll] for (int i = 0; i < 8; ++i)
+		{
+			float2 direction = float2(cos(angles[i]), sin(angles[i]));
+			float k = PI2 / lengths[i];
+			float phase = k * (dot(direction, p) - t * sqrt(lengths[i])) + i * 1.7;
+			slope += direction * cos(phase) * 0.16;
+		}
+	}
+	return slope;
+}
+// Bright moving light lines.
+float Caustic(float2 p, float t)
+{
+	float c = 0;
+	float2 q = p;
+	[unroll] for (int i = 0; i < 3; ++i)
+	{
+		q += float2(sin(q.y * 1.7 + t * 0.9 + i), sin(q.x * 1.3 - t * 0.7 + i * 2.1));
+		c += 1 / (1 + 18 * abs(sin(q.x) * sin(q.y)));
+	}
+	return saturate(c / 3 - 0.15);
+}
+// A foam pattern 0..1: the red channel of the extra map (crest foam of standing water; rivers have their edge
+// alpha there) or of the specular map, else built-in noise a quarter of the size of a repeat of the map.
+float FoamPattern(float2 world, float scale, float time, bool extra)
+{
+	float2 uv = (world + float2(0.3, 0.2) * time) / scale;
+	float pattern;
+	if (extra && River <= 0 && HasMap(MAP_EXTRA))
+		pattern = ExtraMap.Sample(ExtraSampler, uv).r;
+	else if (HasMap(MAP_SPECULAR))
+		pattern = SpecularMap.Sample(SpecularSampler, uv).r;
+	else
+		pattern = saturate(RippleHeight(world / (scale * 0.225), time * 0.4) * 1.6 - 0.3);
+	return pattern;
+}
+// Sky in a direction: a latitude-longitude picture in the emissive map, else a gradient.
+float3 Sky(float3 direction)
+{
+	float3 sky = lerp(Or(SkyColor, float3(0.30, 0.45, 0.65)), Or(HorizonColor, float3(0.70, 0.80, 0.90)), pow(1 - saturate(direction.z), 3));
+	if (HasMap(MAP_EMISSIVE))
+	{
+		float2 uv = float2(atan2(direction.y, direction.x) / PI2 + 0.5, acos(clamp(direction.z, -1, 1)) / 3.14159265);
+		sky = EmissiveMap.SampleLevel(EmissiveSampler, uv, 0).rgb;
+	}
+	return sky;
+}
+float2 ProjectToScreen(float3 viewPoint, out bool inside)
+{
+	float4 clip = mul(float4(viewPoint, 1), Projection);
+	float2 ndc = clip.xy / clip.w;
+	inside = clip.w > 0 && all(abs(ndc) <= 1);
+	return NdcToScreenUV(ndc);
+}
+// What the scene shows in a view space direction from a point: steps that grow with the distance through the
+// depth copy, then a binary search between the last step in front and the first behind. Only what stands
+// above the water (surface: world z of the still water) is reflected.
+bool ScreenReflection(float3 viewPosition, float3 viewDirection, float surface, out float3 color, out float weight)
+{
+	color = float3(0, 0, 0);
+	weight = 0;
+	float range = Or(SSRMaxDistance, 400);
+	float before = 0;
+	float distance = 0;
+	bool inside;
+	[loop] for (int i = 1; i <= 24; ++i)
+	{
+		float t = (float)i / 24;
+		distance = range * t * t;
+		float3 p = viewPosition + viewDirection * distance;
+		float2 uv = ProjectToScreen(p, inside);
+		if (!inside)
+			return false;
+		float gap = ViewDistance(p.z) - SceneViewDepth(uv);
+		if (gap > 0)
+		{
+			// Behind something: find where the ray enters it.
+			float low = before, high = distance;
+			[unroll] for (int j = 0; j < 5; ++j)
+			{
+				float middle = (low + high) * 0.5;
+				float3 q = viewPosition + viewDirection * middle;
+				float2 quv = ProjectToScreen(q, inside);
+				if (ViewDistance(q.z) - SceneViewDepth(quv) > 0)
+					high = middle;
+				else
+					low = middle;
+			}
+			float3 hitPoint = viewPosition + viewDirection * high;
+			float2 hitUV = ProjectToScreen(hitPoint, inside);
+			// Too far behind the surface found there: the ray passed behind an object, it did not hit it.
+			float thickness = max(range * 0.03, high - low + 2);
+			if (!inside || ViewDistance(hitPoint.z) - SceneViewDepth(hitUV) > thickness)
+				return false;
+			if (SceneWorldPosition(hitUV).z < surface - 0.5)
+				return false;
+			color = SceneColorAt(hitUV);
+			float2 local = ScreenNdc(hitUV) * 0.5 + 0.5;
+			float2 edge = saturate(min(local, 1 - local) * 10);
+			weight = edge.x * edge.y * (1 - high / range);
+			return true;
+		}
+		before = distance;
+	}
+	return false;
+}
+)" R"(
+float4 main(MaterialInput input) : SV_Target
+{
+	float t = Time;
+	float3 world = WorldPosition(input);
+	float fade = input.materialData.x;
+	float lift = input.materialData.y;
+	float4 field = Field(world.xy);
+	float surface = world.z - lift;				// the still water level
+	float depth = surface - field.x;			// to the terrain, straight down
+	float shore = field.y;
+	bool hasField = HasWaterField();
+	s_noiseFootprint = max(length(ddx(world.xy)), length(ddy(world.xy)));
+
+	// The wave normal, worked out again per pixel (interpolated vertex normals draw the grid into sharp glints),
+	// and the ripples on it, in world space.
+	float3 waveOffset, waveSlope;
+	Waves(world.xy, fade, t, waveOffset, waveSlope);
+	float3 waveNormal = normalize(float3(-waveSlope.xy, 1 - waveSlope.z));
+	float scale = Or(NormalScale, 90);
+	float2 p = River > 0 ? input.tex0.xy * 3 : world.xy / scale;
+	float2 ripple = Ripples(p, River > 0 ? 0 : t * Or(NormalSpeed, 6) / scale) * Or(NormalStrength, 0.35);
+	ripple *= saturate(depth / 0.5 + 0.3);
+	float3 n = normalize(waveNormal + float3(-ripple, 0));
+	// The ripples of ships and explosions bend it too, from the slope of their height.
+	float4 disturbance = DisturbanceAt(world.xy);
+	if (HasWaterDisturbance() && DisturbanceNormal >= 0)
+	{
+		uint disturbanceSize, disturbanceHeight;
+		WaterDisturbance.GetDimensions(disturbanceSize, disturbanceHeight);
+		float texel = DisturbanceTransform.w / disturbanceSize;
+		float4 nextX = DisturbanceAt(world.xy + float2(texel, 0));
+		float4 nextY = DisturbanceAt(world.xy + float2(0, texel));
+		float height = disturbance.x - disturbance.y;
+		float2 slope = float2((nextX.x - nextX.y) - height, (nextY.x - nextY.y) - height) / texel;
+		n = normalize(n + float3(-slope * Or(DisturbanceNormal, 6), 0));
+	}
+	float3 camera = CameraWorld();
+	float3 toEye = normalize(camera - world);
+	float3 toSun = normalize(Or(SunDirection, float3(0.3, 0.3, 0.9)));
+	float3 sunColor = Or(SunColor, float3(0.8, 0.8, 0.8));
+	float3 ambient = Or(AmbientColor, float3(0.4, 0.4, 0.4));
+	float3 daylight = ambient + sunColor * saturate(toSun.z);
+
+	// The shroud: only what the water adds; the scene below was drawn with it already.
+	float3 shroud = float3(1, 1, 1);
+	if (ShroudTransform.x > 0 && HasShroud())
+		shroud = ShroudTexture.Sample(LinearClampSampler, world.xy * ShroudTransform.xy + ShroudTransform.zw).rgb;
+
+	// The map's water texture and colour, as a tint.
+	float4 base = BaseTexture.Sample(BaseSampler, input.tex0.xy + ripple * 0.02);
+	float3 tint = lerp(float3(1, 1, 1), saturate(base.rgb * input.diffuse.rgb * 1.6), TextureTint < 0 ? 0 : Or(TextureTint, 0.25));
+
+	// The water's own colour follows the wave shape, so that deep water does not look flat from the steep camera,
+	// where the reflection hardly changes. The wave height is -1 (trough) .. 1 (highest crest), the noise
+	// included, so that crest foam and colour break up where the noise is low.
+	float waveHeight = waveOffset.z / max((Or(WaveAmplitude, 1.5) * 2.08 + max(NoiseHeight, 0)) * fade, 1e-3);
+	float3 scatterColor = Or(ScatterColor, float3(0.06, 0.32, 0.36));
+	if (CrestScatter > 0)
+	{
+		float3 crestColor = Or(CrestScatterColor, scatterColor);
+		scatterColor = lerp(scatterColor, crestColor, saturate(waveHeight) * saturate(CrestScatter));
+		scatterColor *= max(1 + CrestScatter * waveHeight, 0);
+	}
+	if (WaveShading > 0)
+	{
+		// Lit by the sun from its side but at most 45 degrees high, so that the slopes show at noon too; only the
+		// difference to flat water counts, so that the average brightness stays.
+		float2 sunSide = normalize(Or(toSun.xy, float2(0.6, 0.8)));
+		float height = min(asin(saturate(toSun.z)), 0.785);
+		float3 shadeLight = float3(sunSide * cos(height), sin(height));
+		scatterColor *= max(1 + WaveShading * 2 * (dot(n, shadeLight) - shadeLight.z), 0);
+	}
+
+	float2 uv = ScreenUV(input);
+	float waterDistance = ViewDistance(input.viewPosition.z);
+	// How the surface leans away from flat, on the screen: only that bends what is below.
+	float3 tilt = ViewDirection(n - float3(0, 0, 1));
+	float3 under;					// the water body: what is below, dimmed, and the water's colour
+	float3 throughScene = float3(0, 0, 0);	// the part of it that is the scene, fogged and shrouded already
+	float3 transmit = float3(0, 0, 0);
+	float alpha;
+	if (Refraction > 0 && HasSceneColor() && HasSceneDepth())
+	{
+		// Refraction: bent by the waves, the more the deeper the thing below is, so that hulls stay joined
+		// at the waterline; never to something in front of the water or much nearer to it.
+		float behind = max(SceneViewDepth(uv) - waterDistance, 0);
+		float2 bend = tilt.xy * float2(1, -1) * 0.1 * Or(RefractionStrength, 1) * saturate(behind / 20);
+		float2 refractedUV = uv + bend;
+		float refractedBehind = SceneViewDepth(refractedUV) - waterDistance;
+		if (refractedBehind < 0 || refractedBehind < behind * 0.5)
+			refractedUV = uv;
+		float3 below = SceneColorAt(refractedUV);
+		float3 belowWorld = SceneWorldPosition(refractedUV);
+		float belowDepth = max(surface - belowWorld.z, 0);
+		float path = max(SceneViewDepth(refractedUV) - waterDistance, 0) + belowDepth;
+		transmit = exp(-Or(Absorption, float3(0.035, 0.012, 0.008)) * path);
+		// Over a highlighted submerged object (a submarine) the water lets more of it through.
+		if (DisturbanceHighlight >= 0)
+			transmit = lerp(transmit, float3(1, 1, 1), saturate(disturbance.w) * Or(DisturbanceHighlight, 0.7));
+		if (CausticStrength >= 0)
+		{
+			float caustic = Caustic(belowWorld.xy / Or(CausticScale, 35), t * Or(CausticSpeed, 1));
+			below *= 1 + caustic * Or(CausticStrength, 0.5) * sunColor * saturate(toSun.z) * exp(-belowDepth * 0.06) * saturate(belowDepth);
+		}
+		float3 scatter = scatterColor * tint * (ambient + sunColor * saturate(toSun.z) * 0.6) * Or(UnderwaterAmbient, 1);
+		throughScene = below * transmit;
+		under = throughScene + scatter * (1 - transmit) * shroud;
+		alpha = 1;
+	}
+	else
+	{
+		// Without the scene colour: the map's water blended over the scene, darker and more opaque deep down.
+		float3 up = ViewDirection(float3(0, 0, 1));
+		float sceneDepth = DepthBehind(input) * abs(dot(normalize(input.viewPosition), up));
+		float d = hasField ? depth : sceneDepth;
+		float deep = saturate(d / Or(DepthScale, 40));
+		// Like the DX8 water: fully clear at the shoreline, reaching the full opacity that far out, whatever
+		// the depth (DX8 faded by depth, but only from the waterline, so the edge always was clear).
+		bool byShore = hasField && ShoreOpacityWidth > 0;
+		if (byShore)
+			deep = saturate(shore / ShoreOpacityWidth);
+		// The wave shape shades the deep colour like the scattered colour above.
+		float3 shade = scatterColor / Or(ScatterColor, float3(0.06, 0.32, 0.36));
+		under = lerp(base.rgb * input.diffuse.rgb, Or(DeepColor, float3(0.02, 0.08, 0.12)) * daylight * shade, deep * 0.7);
+		alpha = River > 0 ? base.a : input.diffuse.a;
+		alpha = lerp(alpha, max(alpha, Or(DeepOpacity, 0.75)), deep);
+		if (byShore)
+			alpha *= deep;
+		// Over a highlighted submerged object (a submarine) the water gets see-through.
+		if (DisturbanceHighlight >= 0)
+			alpha *= 1 - saturate(disturbance.w) * Or(DisturbanceHighlight, 0.7);
+		depth = d;
+	}
+	if (River > 0 && HasMap(MAP_EXTRA))
+		alpha *= ExtraMap.Sample(ExtraSampler, input.tex1.xy).a;
+
+	// Reflection: the scene where the screen has it, else the sky; strong at flat angles (Fresnel).
+	float3 reflected = reflect(-toEye, n);
+	float3 reflection = Sky(reflected) * daylight;
+	if (SSRStrength >= 0 && HasSceneColor() && HasSceneDepth())
+	{
+		float3 hit;
+		float weight;
+		if (ScreenReflection(input.viewPosition, normalize(ViewDirection(reflected)), surface, hit, weight))
+			reflection = lerp(reflection, hit, weight * Or(SSRStrength, 0.8));
+	}
+	float facing = saturate(dot(n, toEye));
+	float fresnel = (0.02 + 0.98 * pow(1 - facing, 5)) * Or(Reflection, 0.8);
+
+	// Foam: along the shore (soft, or a hard line), on the shore waves, and on high crests, each with its own
+	// pattern and strength.
+	float foam = 0;
+	float foamScale = Or(FoamScale, 40);
+	float foamSpeed = Or(FoamSpeed, 1);
+	if (FoamDistance >= 0)
+	{
+		float pattern = FoamPattern(world.xy, foamScale, t * foamSpeed, false);
+		// The band by water depth, and by distance from the shoreline so that steep coasts get foam too; on both
+		// sides of it, so that water the field takes for land (it never is for long) does not foam all over.
+		float edge = 1 - saturate(depth / Or(FoamDistance, 3));
+		if (hasField && ShoreFoamWidth >= 0)
+			edge = max(edge, 1 - saturate(abs(shore) / Or(ShoreFoamWidth, 6)));
+		float soft = edge * edge * pattern;
+		float hard = smoothstep(0.75, 0.85, edge) * (0.6 + 0.4 * pattern);
+		float shoreFoam = lerp(soft, hard, saturate(ShoreHardness));
+		// Foam on the waves running up the beach, as far out as ShoreWaveFoamDepth (full up to half of it).
+		if (hasField && ShoreWaveFoamDepth >= 0)
+			shoreFoam += ShoreWave(shore, world.xy, t) * pattern * saturate(1.5 - depth / Or(ShoreWaveFoamDepth, 6)) * Or(ShoreWaveFoam, 1);
+		// Coasts facing the waves: the direction away from the shore runs against the waves there.
+		if (hasField && ShoreFoamWindward > 0)
+		{
+			float facing = saturate(-dot(field.zw, normalize(Or(WaveDirection, float2(1, 0.35)))));
+			shoreFoam *= lerp(1, facing, saturate(ShoreFoamWindward));
+		}
+		float minimumTexture = ShoreFoamMinimumTexture < 0 ? 0 : saturate(Or(ShoreFoamMinimumTexture, 0.5));
+		shoreFoam = max(shoreFoam, saturate(ShoreFoamMinimum) * edge * lerp(1, pattern, minimumTexture));
+		foam = shoreFoam * Or(FoamStrength, 0.85);
+	}
+	// Contact foam: where what the scene drew behind the water (a hull, a pier, the legs of a rig) is close behind
+	// the surface. Not on the terrain, whose shore has the shore foam: the point behind must lie above the ground.
+	if (ContactFoam >= 0 && HasSceneDepth())
+	{
+		float contactBehind = SceneViewDepth(uv) - waterDistance;
+		float3 behindWorld = SceneWorldPosition(uv);
+		float aboveGround = behindWorld.z - Field(behindWorld.xy).x;
+		float contact = (1 - saturate(contactBehind / Or(ContactFoamWidth, 5))) * saturate(aboveGround - 1);
+		if (contact > 0)
+		{
+			float pattern = FoamPattern(world.xy, foamScale, t * foamSpeed, false);
+			float contactTexture = ContactFoamTexture < 0 ? 0 : saturate(Or(ContactFoamTexture, 0.5));
+			foam += contact * lerp(1, pattern, contactTexture) * Or(ContactFoam, 1);
+		}
+	}
+	if (CrestFoam >= 0 && fade > 0.01)
+	{
+		// The wave height at the pixel, -1 .. 1 of the sum of the four waves, decides how much of the foam
+		// pattern shows: low crests only its brightest spots, high crests all of it.
+		float pattern = FoamPattern(world.xy, Or(CrestFoamScale, foamScale), t * Or(CrestFoamSpeed, foamSpeed), true);
+		float amount = saturate((waveHeight - Or(CrestFoamStart, 0.45)) / Or(CrestFoamRange, 0.4));
+		float soft = Or(CrestFoamSoftness, 0.15);
+		foam += smoothstep(1 - amount, 1 - amount + soft, pattern) * amount * Or(CrestFoam, 0.4);
+	}
+	// The foam of wakes and rings, broken up by the foam pattern like the crest foam: where it is strong the whole
+	// pattern shows, where it is weak only the pattern's brightest spots, so a fading wake falls apart into flecks.
+	// The shapes add up where wakes overlap: the curve lets one wake show most of the foam and several only a
+	// little more, instead of a group of ships turning the water white while a single ship shows hardly any.
+	if (DisturbanceFoam >= 0 && disturbance.z > 0.001)
+	{
+		float amount = saturate(Or(DisturbanceFoam, 1) * (1 - exp(-disturbance.z * Or(DisturbanceFoamGain, 4))));
+		float pattern = FoamPattern(world.xy, foamScale * 0.5, t * foamSpeed, false);
+		foam += smoothstep(1 - amount, 1.25 - amount, pattern) * sqrt(amount);
+	}
+	foam = saturate(foam);
+
+	float3 color = lerp(under, reflection * shroud, fresnel);
+	color = lerp(color, Or(FoamColor, float3(0.92, 0.95, 1.0)) * daylight * shroud, foam);
+	float3 halfway = normalize(toSun + toEye);
+	float gloss = Or(Gloss, 800);
+	float glintAmount = pow(saturate(dot(n, halfway)), gloss);
+	// The real sun glints only show when the camera looks towards the sun, and the default camera looks north.
+	// A weaker second light turns with the camera and stands beyond the water, so that some glints show from
+	// every direction; the larger of the two counts, so they do not add up when the camera faces the sun.
+	if (ViewGlint > 0)
+	{
+		// The view looks along view space z in the direction where ViewDistance grows (-z in W3D).
+		float3 forward = mul((float3x3)View, float3(0, 0, sign(Projection._34)));
+		float2 away = Or(forward.xy, float2(0, 1));
+		float height = ViewGlintHeight > 0 ? radians(ViewGlintHeight) : asin(saturate(toSun.z));
+		float3 toLight = float3(normalize(away) * cos(height), sin(height));
+		float viewAmount = pow(saturate(dot(n, normalize(toLight + toEye))), Or(ViewGlintGloss, gloss * 0.5));
+		glintAmount = max(glintAmount, viewAmount * ViewGlint);
+	}
+	float3 glint = glintAmount * Or(GlintStrength, 1.2) * sunColor * shroud * (1 - foam);
+
+	// The edge fades in over ShoreDistance of depth; the foam only over the last bit of it, so that it marks
+	// where the water begins also on a soft edge.
+	float edgeFade = saturate(depth / Or(ShoreDistance, 1));
+	alpha = saturate(max(alpha * edgeFade, foam * saturate(depth / 0.3)));
+	// Nothing at all beyond the shoreline (where the surface rises over the land at the edge), not even depth.
+	clip(alpha - 0.002);
+
+	// Fog: what came through the water is fogged already; only the rest is fogged here.
+	float3 seen = throughScene * (1 - fresnel) * (1 - foam);
+	float3 added = color - seen + glint;
+	float through = dot(transmit, float3(0.333, 0.333, 0.334)) * (1 - fresnel) * (1 - foam);
+	added = lerp(FogColor.rgb * (1 - through), added, saturate(input.fog));
+	return float4(seen + added, alpha);
+}
+)";
+
 // Terrain: the two blended tiles of the terrain texture lit as the game baked it, with bumps from the
 // terrain textures' normal maps (or their brightness), highlights from their specular maps, and the
 // clouds and light map as the game draws them. The low detail terrain (Flat) has one pre-drawn texture
@@ -455,6 +1059,7 @@ static const BuiltInMaterialShader s_builtInShaders[] =
 	{ "MAT_Standard", s_standardShader, sizeof(s_standardShader) - 1 },
 	{ "MAT_Particle", s_particleShader, sizeof(s_particleShader) - 1 },
 	{ "MAT_Water", s_waterShader, sizeof(s_waterShader) - 1 },
+	{ "MAT_Ocean", s_oceanShader, sizeof(s_oceanShader) - 1 },
 	{ "MAT_Terrain", s_terrainShader, sizeof(s_terrainShader) - 1 },
 };
 
@@ -512,26 +1117,115 @@ static std::string baseTextureName(const char *name)
 	return result;
 }
 
+//-------------------------------------------------------------------------------------------------
+/** A water material that wants to see through the water: Param Refraction above 0, at any time of day. */
+//-------------------------------------------------------------------------------------------------
+static Bool asksForRefraction(const MaterialTemplate& settings)
+{
+	for (Int time = -1; time < TIME_OF_DAY_COUNT; ++time)
+	{
+		const std::vector<PostProcessParameter>& parameters = time < 0 ? settings.m_parameters : settings.m_timeOfDayParameters[time];
+		for (size_t i = 0; i < parameters.size(); ++i)
+			if (parameters[i].m_name.compareNoCase("Refraction") == 0 && parameters[i].m_values[0] > 0.0f)
+				return TRUE;
+	}
+	return FALSE;
+}
+
+static const Int NOISE_SIZE = 256;				///< texels of the noise texture per side
+static const UnsignedInt NOISE_SHARED_SLOT = 4;	///< Set_Material_Textures slot of the noise texture, t12
+
+//-------------------------------------------------------------------------------------------------
+static unsigned short toHalfFloat(float value)
+{
+	union { float f; unsigned int u; } bits;
+	bits.f = value;
+	const unsigned int sign = (bits.u >> 16) & 0x8000;
+	const int exponent = (int)((bits.u >> 23) & 0xff) - 127 + 15;
+	const unsigned int mantissa = bits.u & 0x7fffff;
+	if (exponent <= 0)
+		return (unsigned short)sign;
+	if (exponent >= 31)
+		return (unsigned short)(sign | 0x7bff);	// the largest finite half
+	return (unsigned short)(sign | (exponent << 10) | (mantissa >> 13));
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Unit gradients of the period x period lattice points of one noise octave, x and y in turn. */
+//-------------------------------------------------------------------------------------------------
+static void makeNoiseGradients(Int period, UnsignedInt seed, std::vector<float>& gradients)
+{
+	gradients.resize(period * period * 2);
+	for (Int i = 0; i < period * period; ++i)
+	{
+		UnsignedInt hash = (UnsignedInt)i * 0x27d4eb2du ^ seed;
+		hash ^= hash >> 15;
+		hash *= 0x2c1b3c6du;
+		hash ^= hash >> 12;
+		const float angle = (hash & 0xffff) * (6.2831853f / 65536.0f);
+		gradients[i * 2 + 0] = cosf(angle);
+		gradients[i * 2 + 1] = sinf(angle);
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Gradient noise with period cells per repeat at u, v (0..1) that tiles: its value and its slope per
+	* repeat (d/du, d/dv). The quintic fade keeps the slope smooth across the cells. */
+//-------------------------------------------------------------------------------------------------
+static void periodicNoise(float u, float v, Int period, const std::vector<float>& gradients, float& value, float& du, float& dv)
+{
+	const float x = u * period;
+	const float y = v * period;
+	const Int x0 = (Int)floorf(x);
+	const Int y0 = (Int)floorf(y);
+	const float fx = x - x0;
+	const float fy = y - y0;
+	const Int x1 = (x0 + 1) % period;
+	const Int y1 = (y0 + 1) % period;
+	const float *g00 = &gradients[(y0 * period + x0) * 2];
+	const float *g10 = &gradients[(y0 * period + x1) * 2];
+	const float *g01 = &gradients[(y1 * period + x0) * 2];
+	const float *g11 = &gradients[(y1 * period + x1) * 2];
+	const float n00 = g00[0] * fx + g00[1] * fy;
+	const float n10 = g10[0] * (fx - 1) + g10[1] * fy;
+	const float n01 = g01[0] * fx + g01[1] * (fy - 1);
+	const float n11 = g11[0] * (fx - 1) + g11[1] * (fy - 1);
+	const float sx = fx * fx * fx * (fx * (fx * 6 - 15) + 10);
+	const float sy = fy * fy * fy * (fy * (fy * 6 - 15) + 10);
+	const float dsx = 30 * fx * fx * (fx - 1) * (fx - 1);
+	const float dsy = 30 * fy * fy * (fy - 1) * (fy - 1);
+	const float k = n00 - n10 - n01 + n11;
+	value = n00 + sx * (n10 - n00) + sy * (n01 - n00) + sx * sy * k;
+	const float dx = g00[0] + sx * (g10[0] - g00[0]) + sy * (g01[0] - g00[0]) + sx * sy * (g00[0] - g10[0] - g01[0] + g11[0])
+		+ dsx * ((n10 - n00) + sy * k);
+	const float dy = g00[1] + sx * (g10[1] - g00[1]) + sy * (g01[1] - g00[1]) + sx * sy * (g00[1] - g10[1] - g01[1] + g11[1])
+		+ dsy * ((n01 - n00) + sx * k);
+	du = dx * period;
+	dv = dy * period;
+}
+
 #endif // RTS_RENDERER_DX12
 
 //-------------------------------------------------------------------------------------------------
 W3DMaterials::W3DMaterials() :
 	m_materials(nullptr),
 	m_built(FALSE),
+	m_builtGeneration(0),
+	m_builtTimeOfDay(-1),
 	m_enabled(TRUE),
 	m_bound(FALSE),
 	m_collecting(FALSE),
 	m_terrainMaterial(-1),
 	m_waterMaterial(-1),
 	m_particleColor(FALSE),
+	m_noiseTexture(nullptr),
+	m_noiseDevice(nullptr),
 	m_categoryTexture(nullptr),
 	m_categoryBound(FALSE),
 	m_meshOverride(FALSE),
 	m_boundMaterial(-1),
 	m_objectMaterials(0)
 {
-	for (Int i = 0; i < 4; ++i)
-		m_waterMaps[i] = nullptr;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -540,6 +1234,7 @@ W3DMaterials::~W3DMaterials()
 	if (TheMeshMaterialBinder == this)
 		TheMeshMaterialBinder = nullptr;
 	release();
+	releaseNoise();
 	delete TheMaterialSettings;
 	TheMaterialSettings = nullptr;
 }
@@ -569,6 +1264,7 @@ void W3DMaterials::reload()
 {
 	release();
 	loadSettings();
+	ThePostProcessControl.materialsReloaded();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -580,6 +1276,7 @@ Bool W3DMaterials::isAvailable()
 //-------------------------------------------------------------------------------------------------
 Bool W3DMaterials::isRunning()
 {
+	releaseIfOutdated();
 	return m_built && m_enabled && !m_builtMaterials.empty() && m_materials == DX8Wrapper::Get_Materials();
 }
 
@@ -598,8 +1295,9 @@ void W3DMaterials::clearEntries()
 		for (Int i = 0; i < 4; ++i)
 			REF_PTR_RELEASE(it->second.maps[i]);
 	m_objectEntries.clear();
-	for (Int i = 0; i < 4; ++i)
-		REF_PTR_RELEASE(m_waterMaps[i]);
+	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+		for (Int j = 0; j < 4; ++j)
+			REF_PTR_RELEASE(m_builtMaterials[i].waterMaps[j]);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -638,8 +1336,11 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 #ifdef RTS_RENDERER_DX12
 	m_materials = materials;
 	m_built = TRUE;
+	m_builtGeneration = MaterialSettings::getGeneration();
+	m_builtTimeOfDay = TheGlobalData->m_timeOfDay;
 	if (TheMaterialSettings == nullptr)
 		return;
+	createNoise(materials);
 
 	MaterialShaderIncludes includes;
 	std::map<std::string, unsigned int> compiled;
@@ -705,15 +1406,23 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 		built.id = 0;
 		built.textureCount = 0;
 		built.lastHouseColor = 0;
+		built.sceneColor = FALSE;
+		built.vertexFunction = FALSE;
+		for (Int i = 0; i < 4; ++i)
+			built.waterMaps[i] = nullptr;
 		if (FAILED(materials->Create_Material(shader, &built.id)))
 			continue;
 		const Real noColor[3] = { 0.0f, 0.0f, 0.0f };
 		built.houseColor = SUCCEEDED(materials->Set_Material_Parameter(built.id, "HouseColor", noColor, 3));
-		for (size_t i = 0; i < settings->m_parameters.size(); ++i)
+		applyParameters(built, TRUE);
+		if (settings->m_use == MaterialTemplate::USE_WATER)
 		{
-			const PostProcessParameter& parameter = settings->m_parameters[i];
-			if (FAILED(materials->Set_Material_Parameter(built.id, parameter.m_name.str(), parameter.m_values, parameter.m_count)))
-				DEBUG_LOG(("Material %s: the shader has no parameter %s", settings->m_name.str(), parameter.m_name.str()));
+			// The maps are file names.
+			for (Int i = 0; i < 4; ++i)
+				if (settings->m_maps[i].isNotEmpty() && settings->m_maps[i].getCharAt(0) != '_')
+					built.waterMaps[i] = findMap(settings->m_name, settings->m_maps[i]);
+			built.sceneColor = materials->Has_Material_Parameter(built.id, "RefractionStrength") && asksForRefraction(*settings);
+			built.vertexFunction = materials->Has_Vertex_Function(built.id) != FALSE;
 		}
 		m_builtMaterials.push_back(built);
 		const Int builtIndex = (Int)m_builtMaterials.size() - 1;
@@ -730,14 +1439,7 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 			m_terrainMaterial = builtIndex;
 			break;
 		case MaterialTemplate::USE_WATER:
-			// The maps are file names.
 			m_waterMaterial = builtIndex;
-			for (Int i = 0; i < 4; ++i)
-			{
-				REF_PTR_RELEASE(m_waterMaps[i]);
-				if (settings->m_maps[i].isNotEmpty() && settings->m_maps[i].getCharAt(0) != '_')
-					m_waterMaps[i] = findMap(settings->m_name, settings->m_maps[i]);
-			}
 			break;
 		default:
 			for (size_t i = 0; i < settings->m_textures.size(); ++i)
@@ -746,6 +1448,156 @@ void W3DMaterials::build(ID3D8On12Materials *materials)
 		}
 	}
 #endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Makes the noise texture that all materials can read (t12, NoiseTexture): four octaves of gradient
+	* noise that tile, the height in red and its slope per repeat of the texture in green and blue, with
+	* mipmaps. Materials sample it in layers of different size and direction, so that it does not repeat. */
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::createNoise(ID3D8On12Materials *materials)
+{
+#ifdef RTS_RENDERER_DX12
+	// It does not depend on the settings: made once per device, not on every edit of a material.
+	if (m_noiseTexture != nullptr && m_noiseDevice == materials)
+	{
+		IDirect3DBaseTexture8 *const shared = m_noiseTexture;
+		materials->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &shared);
+		return;
+	}
+	releaseNoise();
+	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
+	Int levels = 1;
+	for (Int size = NOISE_SIZE; size > 1; size /= 2)
+		++levels;
+	IDirect3DTexture8 *texture = nullptr;
+	if (device == nullptr || FAILED(device->CreateTexture(NOISE_SIZE, NOISE_SIZE, levels, 0, D3DFMT_A16B16G16R16F_D3D8ON12, D3DPOOL_MANAGED, &texture)))
+	{
+		DEBUG_LOG(("Materials: could not make the noise texture"));
+		return;
+	}
+
+	// Height and slope of every texel: the octaves summed, then scaled to a largest height of 1.
+	const Int count = NOISE_SIZE * NOISE_SIZE;
+	std::vector<float> texels(count * 3, 0.0f);
+	std::vector<float> gradients;
+	Int period = 4;
+	float amplitude = 1.0f;
+	for (Int octave = 0; octave < 4; ++octave)
+	{
+		makeNoiseGradients(period, 0x9e3779b9u * (octave + 1), gradients);
+		for (Int y = 0; y < NOISE_SIZE; ++y)
+		{
+			for (Int x = 0; x < NOISE_SIZE; ++x)
+			{
+				float value, du, dv;
+				periodicNoise((x + 0.5f) / NOISE_SIZE, (y + 0.5f) / NOISE_SIZE, period, gradients, value, du, dv);
+				float *texel = &texels[(y * NOISE_SIZE + x) * 3];
+				texel[0] += value * amplitude;
+				texel[1] += du * amplitude;
+				texel[2] += dv * amplitude;
+			}
+		}
+		period *= 2;
+		amplitude *= 0.5f;
+	}
+	float largest = 1e-6f;
+	for (Int i = 0; i < count; ++i)
+		largest = max(largest, fabsf(texels[i * 3]));
+	for (Int i = 0; i < count * 3; ++i)
+		texels[i] /= largest;
+
+	// Each mip level is the average of 2 x 2 texels of the one above; height and slope average alike.
+	Int size = NOISE_SIZE;
+	for (Int level = 0; level < levels; ++level)
+	{
+		D3DLOCKED_RECT locked;
+		if (FAILED(texture->LockRect(level, &locked, nullptr, 0)))
+		{
+			texture->Release();
+			DEBUG_LOG(("Materials: could not fill the noise texture"));
+			return;
+		}
+		for (Int y = 0; y < size; ++y)
+		{
+			unsigned short *row = (unsigned short *)((unsigned char *)locked.pBits + y * locked.Pitch);
+			for (Int x = 0; x < size; ++x)
+			{
+				const float *texel = &texels[(y * size + x) * 3];
+				row[x * 4 + 0] = toHalfFloat(texel[0]);
+				row[x * 4 + 1] = toHalfFloat(texel[1]);
+				row[x * 4 + 2] = toHalfFloat(texel[2]);
+				row[x * 4 + 3] = 0;
+			}
+		}
+		texture->UnlockRect(level);
+		if (size == 1)
+			break;
+		const Int half = size / 2;
+		std::vector<float> smaller(half * half * 3);
+		for (Int y = 0; y < half; ++y)
+		{
+			for (Int x = 0; x < half; ++x)
+			{
+				for (Int c = 0; c < 3; ++c)
+				{
+					smaller[(y * half + x) * 3 + c] = 0.25f * (texels[((2 * y) * size + 2 * x) * 3 + c] + texels[((2 * y) * size + 2 * x + 1) * 3 + c]
+						+ texels[((2 * y + 1) * size + 2 * x) * 3 + c] + texels[((2 * y + 1) * size + 2 * x + 1) * 3 + c]);
+				}
+			}
+		}
+		texels.swap(smaller);
+		size = half;
+	}
+
+	m_noiseTexture = texture;
+	m_noiseDevice = materials;
+	IDirect3DBaseTexture8 *const shared = texture;
+	materials->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &shared);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::releaseNoise()
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_noiseDevice != nullptr && m_noiseDevice == DX8Wrapper::Get_Materials())
+	{
+		// The renderer keeps only the pointer: it lets go of it first.
+		IDirect3DBaseTexture8 *const none = nullptr;
+		m_noiseDevice->Set_Material_Textures(NOISE_SHARED_SLOT, 1, &none);
+	}
+	if (m_noiseTexture != nullptr)
+		m_noiseTexture->Release();
+	m_noiseTexture = nullptr;
+	m_noiseDevice = nullptr;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The Param values of a material for the current time of day (ParamNight ...). */
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::applyParameters(const Built& built, Bool logUnknown)
+{
+#ifdef RTS_RENDERER_DX12
+	std::vector<PostProcessParameter> parameters;
+	built.settings->getParameters(TheGlobalData->m_timeOfDay, parameters);
+	for (size_t i = 0; i < parameters.size(); ++i)
+	{
+		const PostProcessParameter& parameter = parameters[i];
+		if (FAILED(m_materials->Set_Material_Parameter(built.id, parameter.m_name.str(), parameter.m_values, parameter.m_count)) && logUnknown)
+			DEBUG_LOG(("Material %s: the shader has no parameter %s", built.settings->m_name.str(), parameter.m_name.str()));
+	}
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** The materials were built from settings that are gone (a map's Material blocks came or went). */
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::releaseIfOutdated()
+{
+	if (m_built && m_builtGeneration != MaterialSettings::getGeneration())
+		release();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -807,6 +1659,7 @@ const W3DMaterials::Entry& W3DMaterials::lookup(TextureClass *baseTexture, const
 ID3D8On12Materials *W3DMaterials::prepare()
 {
 #ifdef RTS_RENDERER_DX12
+	releaseIfOutdated();
 	if (!m_enabled || TheMaterialSettings == nullptr)
 		return nullptr;
 	ID3D8On12Materials *materials = DX8Wrapper::Get_Materials();
@@ -814,9 +1667,15 @@ ID3D8On12Materials *W3DMaterials::prepare()
 		return nullptr;
 	if (materials != m_materials || !m_built)
 	{
-		// First use, or the device was created again.
+		// First use, or the device was created again, or the settings changed.
 		release();
 		build(materials);
+	}
+	else if (m_builtTimeOfDay != TheGlobalData->m_timeOfDay)
+	{
+		m_builtTimeOfDay = TheGlobalData->m_timeOfDay;
+		for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+			applyParameters(m_builtMaterials[i], FALSE);
 	}
 	return materials;
 #else
@@ -909,29 +1768,134 @@ bool W3DMaterials::bindTerrain(IDirect3DBaseTexture8 *const *maps)
 //-------------------------------------------------------------------------------------------------
 bool W3DMaterials::bindWater(IDirect3DBaseTexture8 *extraMap)
 {
-#ifdef RTS_RENDERER_DX12
-	if (prepare() == nullptr || m_waterMaterial < 0)
+	if (prepare() == nullptr)
 		return false;
-	const UINT id = m_builtMaterials[m_waterMaterial].id;
-	setSunParameters(id);
+	return bindWater(m_waterMaterial, extraMap);
+}
+
+//-------------------------------------------------------------------------------------------------
+bool W3DMaterials::bindWater(Int material, IDirect3DBaseTexture8 *extraMap)
+{
+#ifdef RTS_RENDERER_DX12
+	if (prepare() == nullptr || material < 0 || material >= (Int)m_builtMaterials.size())
+		return false;
+	Built& built = m_builtMaterials[material];
+	setSunParameters(built.id);
 	IDirect3DBaseTexture8 *maps[4];
 	for (Int i = 0; i < 4; ++i)
 	{
 		maps[i] = nullptr;
-		if (m_waterMaps[i] != nullptr)
+		if (built.waterMaps[i] != nullptr)
 		{
-			if (!m_waterMaps[i]->Is_Initialized())
-				m_waterMaps[i]->Init();
-			maps[i] = m_waterMaps[i]->Peek_D3D_Base_Texture();
+			if (!built.waterMaps[i]->Is_Initialized())
+				built.waterMaps[i]->Init();
+			maps[i] = built.waterMaps[i]->Peek_D3D_Base_Texture();
 		}
 	}
 	if (extraMap != nullptr)
 		maps[3] = extraMap;
-	m_materials->Set_Material(id, maps);
+	m_materials->Set_Material(built.id, maps);
 	m_bound = TRUE;
+	m_boundMaterial = material;
 	return true;
 #else
 	return false;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+Int W3DMaterials::findWaterMaterial(const AsciiString& name)
+{
+	if (prepare() == nullptr)
+		return -1;
+	if (name.isNotEmpty())
+	{
+		for (size_t i = 0; i < m_builtMaterials.size(); ++i)
+			if (m_builtMaterials[i].settings->m_use == MaterialTemplate::USE_WATER && m_builtMaterials[i].settings->m_name.compareNoCase(name) == 0)
+				return (Int)i;
+	}
+	return m_waterMaterial;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setWaterParameter(Int material, const char *name, const Real *values, Int count)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && material >= 0 && material < (Int)m_builtMaterials.size())
+		m_materials->Set_Material_Parameter(m_builtMaterials[material].id, name, values, (UINT)count);
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::waterHasVertexFunction(Int material)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && material >= 0 && material < (Int)m_builtMaterials.size())
+		return m_materials->Has_Vertex_Function(m_builtMaterials[material].id) != FALSE;
+#endif
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::waterHasParameter(Int material, const char *name)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_materials != nullptr && material >= 0 && material < (Int)m_builtMaterials.size())
+		return m_materials->Has_Material_Parameter(m_builtMaterials[material].id, name) != FALSE;
+#endif
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::replacesHeightAmbientLight()
+{
+	if (prepare() == nullptr)
+		return FALSE;
+	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
+	if (settings != nullptr && !settings->m_replaceHeightAmbientLight)
+		return FALSE;
+	return usedWaterRefracts(TRUE);
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Whether a water material the map uses (WaterRendering names it, or it is the default) sees through the water,
+	* and, with vertexFunction, also moves the vertices. WaterRendering Refraction = No turns it off for all. */
+//-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::usedWaterRefracts(Bool vertexFunction)
+{
+	const WaterRenderingSettings *settings = TheWaterRenderingSettings;
+	if (settings != nullptr && !settings->m_refraction)
+		return FALSE;
+	std::vector<Int> used;
+	if (settings == nullptr)
+	{
+		used.push_back(m_waterMaterial);
+	}
+	else
+	{
+		for (Int kind = 0; kind < WaterRenderingSettings::KIND_COUNT; ++kind)
+			used.push_back(findWaterMaterial(settings->m_kindMaterials[kind]));
+		for (size_t i = 0; i < settings->m_polygonMaterials.size(); ++i)
+			used.push_back(findWaterMaterial(settings->m_polygonMaterials[i].m_material));
+	}
+	for (size_t i = 0; i < used.size(); ++i)
+	{
+		if (used[i] < 0 || used[i] >= (Int)m_builtMaterials.size())
+			continue;
+		const Built& built = m_builtMaterials[used[i]];
+		if (built.sceneColor && (!vertexFunction || built.vertexFunction))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DMaterials::setSharedTextures(UnsignedInt first, UnsignedInt count, IDirect3DBaseTexture8 *const *textures)
+{
+#ifdef RTS_RENDERER_DX12
+	ID3D8On12Materials *materials = DX8Wrapper::Get_Materials();
+	if (materials != nullptr)
+		materials->Set_Material_Textures(first, count, textures);
 #endif
 }
 
@@ -972,11 +1936,22 @@ void W3DMaterials::setWaterParameter(const char *name, const Real *values, Int c
 }
 
 //-------------------------------------------------------------------------------------------------
+Bool W3DMaterials::refractsWater()
+{
+#ifdef RTS_RENDERER_DX12
+	return hasWater() && usedWaterRefracts(FALSE);
+#else
+	return FALSE;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
 void W3DMaterials::captureBeforeWater()
 {
 #ifdef RTS_RENDERER_DX12
-	if (hasWater())
-		m_materials->Capture_Scene(FALSE);
+	if (!hasWater())
+		return;
+	m_materials->Capture_Scene(refractsWater());
 #endif
 }
 
@@ -1147,7 +2122,14 @@ Bool W3DMaterials::setParameter(const AsciiString& material, const AsciiString& 
 	for (size_t i = 0; i < m_builtMaterials.size(); ++i)
 	{
 		if (m_builtMaterials[i].settings->m_name.compareNoCase(material) == 0)
-			return SUCCEEDED(m_materials->Set_Material_Parameter(m_builtMaterials[i].id, name.str(), values, (UINT)count));
+		{
+			if (!SUCCEEDED(m_materials->Set_Material_Parameter(m_builtMaterials[i].id, name.str(), values, (UINT)count)))
+				return FALSE;
+			// Live tuning can switch refraction on or off: the scene copy follows.
+			if (name.compareNoCase("Refraction") == 0 && count > 0 && m_builtMaterials[i].settings->m_use == MaterialTemplate::USE_WATER)
+				m_builtMaterials[i].sceneColor = values[0] > 0.0f && m_materials->Has_Material_Parameter(m_builtMaterials[i].id, "RefractionStrength");
+			return TRUE;
+		}
 	}
 #endif
 	return FALSE;
@@ -1157,6 +2139,7 @@ Bool W3DMaterials::setParameter(const AsciiString& material, const AsciiString& 
 void W3DMaterials::getMaterials(std::vector<AsciiString>& names, std::vector<Int>& meshTextures, std::vector<AsciiString>& uses)
 {
 	static const char *const useNames[] = { "meshes", "particles", "terrain", "water" };
+	releaseIfOutdated();
 	names.clear();
 	meshTextures.clear();
 	uses.clear();

@@ -380,6 +380,13 @@ def fx_render_get(type: RenderType, name: str | None = None, text: bool = True) 
 
 
 @mcp.tool()
+def fx_render_select(name: str, type: Literal["Material"] = "Material") -> dict:
+    """Shows a Material in the window's Direct3D 12 panel, as a click in its list does, for
+    fx_capture(with_interface=true). Values a material gets from its Base are shown in blue there."""
+    return fx.call("fx.render_select", type=type, name=name)
+
+
+@mcp.tool()
 def fx_render_set(type: RenderType, name: str | None = None, fields: dict | None = None, params: dict | None = None,
                   text: str | None = None) -> dict:
     """Changes a render block and applies it at once (the renderer builds the chain or materials again).

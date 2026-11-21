@@ -91,6 +91,10 @@
 //	  Shader = MAT_Particle			; MAT_Standard for meshes, MAT_Particle, MAT_Terrain, MAT_Water
 //	End
 //
+//	Material OceanShips
+//	  Base = Ocean					; first line: start as a copy of that material, the lines after change it;
+//	End								; in a map.ini, Material Ocean with Base = Ocean changes only what it lists
+//
 // For Water the maps are file names in Art\Textures (NormalMap = waves, SpecularMap = foam, EmissiveMap =
 // sky); for Terrain the maps come from Art\Terrain\<terrain texture><suffix> (NormalMap, SpecularMap) and
 // the game passes its cloud and light map textures.
@@ -107,6 +111,8 @@
 #include <vector>
 
 class INI;
+class MaterialSettings;
+class WaterRenderingSettings;
 struct FieldParse;
 
 struct PostProcessParameter
@@ -205,6 +211,7 @@ public:
 	void beginMap();				///< before the map.ini is read: keeps the mod's settings
 	void endGame();					///< the mod's settings back, script changes undone
 	void settingsReloaded();		///< the INI files were read again: they are the mod's settings now
+	void materialsReloaded();		///< the same for the Material INI files
 
 	void setParameter(const AsciiString& pass, const AsciiString& name, const Real* values, Int count, Real seconds);
 	void enablePass(const AsciiString& pass, Bool enable);
@@ -247,6 +254,9 @@ private:
 
 	PostProcessSettings* m_savedPostProcess;	///< the mod's settings while a map runs
 	ShadowMapSettings* m_savedShadowMap;
+	MaterialSettings* m_savedMaterials;
+	UnsignedInt m_savedMaterialGeneration;		///< MaterialSettings::getGeneration() at beginMap
+	WaterRenderingSettings* m_savedWaterRendering;
 	Bool m_saved;
 	UnsignedInt m_generation;
 	AsciiString m_chainName;
@@ -272,6 +282,9 @@ public:
 	AsciiString m_shader;
 	AsciiString m_maps[4];				///< normal, specular, emissive, extra
 	std::vector<PostProcessParameter> m_parameters;
+	std::vector<PostProcessParameter> m_timeOfDayParameters[TIME_OF_DAY_COUNT];	///< ParamMorning ...: replace Param then
+
+	void getParameters(TimeOfDay time, std::vector<PostProcessParameter>& parameters) const;	///< Param with the time's replacements
 
 	static const FieldParse s_fieldParseTable[];
 };
@@ -282,8 +295,56 @@ public:
 	~MaterialSettings();
 
 	MaterialTemplate* findOrCreateMaterial(const AsciiString& name);
+	const MaterialTemplate* findMaterial(const AsciiString& name) const;
+	MaterialSettings* clone() const;
 
 	std::vector<MaterialTemplate*> m_materials;
+
+	/// Changes whenever TheMaterialSettings change: a Material block was read (also from a map.ini), or the
+	/// mod's materials came back after a map. The renderer builds its materials again then.
+	static UnsignedInt getGeneration() { return s_generation; }
+	static void changed() { ++s_generation; }
+
+private:
+	static UnsignedInt s_generation;
 };
 
 extern MaterialSettings* TheMaterialSettings;	///< null without Material blocks
+
+/// How the Direct3D 12 renderer draws water with materials (WaterRendering block, usually in Water.ini, also in
+/// a map.ini): which water material each body of water gets, and what the engine prepares for them.
+class WaterRenderingSettings
+{
+public:
+	WaterRenderingSettings();
+
+	enum Kind { KIND_OCEAN, KIND_LAKE, KIND_RIVER, KIND_COUNT };
+
+	struct PolygonMaterial
+	{
+		AsciiString m_polygon;			///< name of the water area
+		AsciiString m_material;
+	};
+
+	AsciiString m_kindMaterials[KIND_COUNT];	///< OceanMaterial, LakeMaterial, RiverMaterial; empty = the last water material
+	std::vector<PolygonMaterial> m_polygonMaterials;	///< PolygonMaterial = <material> <polygon name>, before the kinds
+	Real m_oceanMinimumArea;			///< world units² the bounding box of standing water at the edge needs to be an ocean, else a lake
+	Real m_gridSpacing;					///< world units between the vertices of water whose material moves them
+	Int m_riverSubdivisions;			///< pieces each river quad is cut into across and along for such materials
+	Bool m_refraction;					///< the scene colour is copied before the water for materials that read it
+	Bool m_drawWaterTracks;				///< the map's .wak waves are drawn as well
+	Int m_shoreFieldResolution;			///< texels per terrain cell of the water field
+	Real m_shoreFieldRange;				///< largest distance to the shore the field holds, world units
+	Real m_shoreFieldSmoothing;			///< world units the terrain is smoothed over for the field, so the shoreline it gives is smooth; 0 = not
+	Bool m_disturbance;				///< ships and explosions ripple the water (WaterDisturbance), for materials that read it
+	Real m_disturbanceRange;			///< world units around the camera the disturbance covers
+	Real m_disturbanceFadeTime;		///< seconds in which a disturbance fades to half
+	Bool m_replaceHeightAmbientLight;	///< MapData TerrainHeightAmbientLight is left to the water material
+
+	const AsciiString& getMaterialName(Kind kind, const AsciiString& polygon) const;
+
+	static const FieldParse s_fieldParseTable[];
+	static const char *const s_kindNames[];
+};
+
+extern WaterRenderingSettings* TheWaterRenderingSettings;	///< null without a WaterRendering block

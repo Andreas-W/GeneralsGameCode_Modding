@@ -158,6 +158,7 @@ static const BlockParse theTypeTable[] =
 	{ "Terrain",                        INI::parseTerrainDefinition },
 	{ "Upgrade",                        INI::parseUpgradeDefinition },
 	{ "Video",                          INI::parseVideoDefinition },
+	{ "WaterRendering",                 INI::parseWaterRenderingDefinition },
 	{ "WaterSet",                       INI::parseWaterSettingDefinition },
 	{ "WaterTransparency",              INI::parseWaterTransparencyDefinition },
 	{ "Weapon",                         INI::parseWeaponTemplateDefinition },
@@ -414,7 +415,8 @@ UnsignedInt INI::load( AsciiString filename, INILoadType loadType, Xfer *pXfer, 
 			// shows them too
 			bool skip = (loadType == INI_LOAD_MAPDATA_ONLY) && token && strcmp(token, "MapData") != 0
 				&& strcmp(token, "PostProcess") != 0 && strcmp(token, "PostProcessPass") != 0
-				&& strcmp(token, "PostProcessChain") != 0 && strcmp(token, "ShadowMap") != 0;
+				&& strcmp(token, "PostProcessChain") != 0 && strcmp(token, "ShadowMap") != 0
+				&& strcmp(token, "Material") != 0 && strcmp(token, "WaterRendering") != 0;
 
 			if( token && !skip)
 			{

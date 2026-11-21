@@ -33,6 +33,10 @@ namespace D3D8On12
 
 const unsigned FF_STAGES = 8;
 const unsigned FF_LIGHTS = 8;
+// Textures t8.. of material shaders, visible to their vertex functions too (Set_Material_Textures); in the root
+// signature they follow b2, one table each. Static samplers s8..s11 serve all of them.
+const unsigned MATERIAL_EXTRA_TEXTURES = 5;
+const unsigned MATERIAL_STATIC_SAMPLERS = 4;
 
 struct VertexShaderKey
 {
@@ -56,6 +60,7 @@ struct VertexShaderKey
 		BYTE transformCount;	// D3DTTFF_COUNT*, 0 when the texture transform is off
 		BYTE pad;
 	} stages[FF_STAGES];
+	UINT64 vertexHook;			// hash of a material's vertex function, 0 without (see Generate_Vertex_Shader)
 };
 
 struct PixelShaderKey
@@ -151,6 +156,7 @@ struct FFVertexConstants
 	FFLight lights[FF_LIGHTS];
 	float pointSize[4];			// size, minimum, maximum
 	float pointScale[4];		// A, B, C
+	float view[16];				// for material vertex functions, which work in world space
 };
 
 struct FFPixelConstants
@@ -197,8 +203,12 @@ struct TranslatedShader
 
 UINT64 Hash_Bytes(const void* data, size_t size);
 
-// HLSL of the shaders that emulate the fixed function pipeline for a key.
-std::string Generate_Vertex_Shader(const VertexShaderKey& key);
+// HLSL of the shaders that emulate the fixed function pipeline for a key. hook is the preprocessed source of a
+// material with a vertex function (key.vertexHook is its hash): it replaces the declarations of the
+// constants, and MaterialVertex moves the vertex in world space before it is transformed.
+std::string Generate_Vertex_Shader(const VertexShaderKey& key, const std::string* hook = nullptr);
+// The declaration of the Light struct and the VertexConstants cbuffer (b0), shared with material shaders.
+const char* Get_Vertex_Constants_Hlsl();
 std::string Generate_Geometry_Shader(const VertexShaderKey& key);	// for point sprites
 std::string Generate_Pixel_Shader(const PixelShaderKey& key);
 

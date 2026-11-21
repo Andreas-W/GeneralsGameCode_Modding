@@ -22,6 +22,8 @@
 #include "Device.h"
 #include "PostProcess.h"
 
+#include <ctype.h>
+#include <d3dcompiler.h>
 #include <string.h>
 
 namespace D3D8On12
@@ -29,37 +31,10 @@ namespace D3D8On12
 
 // What every material shader includes. It describes what Draw_Geometry gives a draw with a material:
 // the generated vertex shader's outputs with the view position and normal (VertexShaderKey::materialOutputs),
-// the fixed function constants and the textures of stages 0..5.
+// the fixed function constants and the textures of stages 0..5. It starts with the vertex constants (b0) of
+// the generated vertex shaders, Get_Vertex_Constants_Hlsl (Light: view space; Position.w = 1 point, 2 spot,
+// 3 directional; Direction towards the light, w = range).
 static const char s_header[] = R"(
-struct Light
-{
-	float4 Diffuse;
-	float4 Specular;
-	float4 Ambient;
-	float4 Position;		// view space, w = 1 point, 2 spot, 3 directional
-	float4 Direction;		// view space, towards the light; w = range
-	float4 Attenuation;
-	float4 Spot;
-};
-cbuffer VertexConstants : register(b0)
-{
-	row_major float4x4 World;
-	row_major float4x4 WorldView;
-	row_major float4x4 Projection;
-	row_major float4x4 TexTransform[8];
-	float4 Viewport;
-	float4 GlobalAmbient;
-	float4 MaterialDiffuse;
-	float4 MaterialAmbient;
-	float4 MaterialSpecular;
-	float4 MaterialEmissive;
-	float4 MaterialPower;
-	float4 Fog;
-	int4 LightCount;
-	Light Lights[8];
-	float4 PointSize;
-	float4 PointScale;
-};
 cbuffer PixelConstants : register(b1)
 {
 	float4 TextureFactor;
@@ -87,6 +62,19 @@ Texture2D<float> SceneDepth : register(t6);	// depth drawn before Capture_Scene,
 Texture2D SceneColor : register(t7);		// the scene drawn before Capture_Scene(TRUE)
 SamplerState SceneDepthSampler : register(s6);
 SamplerState SceneColorSampler : register(s7);
+// Set_Material_Textures: textures the engine sets for all materials, readable by vertex functions too (with
+// SampleLevel there). The engine's water sets the first, the water field, and the shroud.
+Texture2D WaterField : register(t8);
+Texture2D ShroudTexture : register(t9);
+Texture2D ShadowTexture : register(t10);
+Texture2D WaterDisturbance : register(t11);
+// Tileable fractal noise (with LinearWrapSampler): r = height -1..1, gb = its slope per repeat of the texture
+// (d/du, d/dv), a = 0. The engine makes it.
+Texture2D NoiseTexture : register(t12);
+SamplerState LinearClampSampler : register(s8);
+SamplerState LinearWrapSampler : register(s9);
+SamplerState PointClampSampler : register(s10);
+SamplerComparisonState ComparisonSampler : register(s11);
 struct MaterialInput
 {
 	float4 position : SV_Position;
@@ -97,7 +85,21 @@ struct MaterialInput
 	float4 tex1 : TEXCOORD1;
 	float3 viewPosition : VIEWPOS;
 	float3 viewNormal : VIEWNORMAL;	// zero for meshes without normals
+	float4 materialData : MATERIALDATA;	// what the material's vertex function wrote, else 0
 };
+// A material may also have a vertex function, void MaterialVertex(inout MaterialVertexData v), which moves
+// the vertex in world space before it is transformed. The same source is compiled once more as part of the
+// generated vertex shaders, with MATERIAL_VERTEX_STAGE defined; main is then not the entry point.
+struct MaterialVertexData
+{
+	float3 worldPosition;	// the vertex in world space; where it is drawn
+	float3 worldNormal;		// its normal in world space (0 0 1 without normals), for lighting and viewNormal
+	float2 tex0;			// its texture coordinates of set 0, read only
+	float4 data;			// passed to the pixel shader as materialData, 0 by default
+};
+#ifdef MATERIAL_VERTEX_STAGE
+#define main MaterialPixelMain
+#endif
 static const uint MAP_BASE = 0;
 static const uint MAP_DETAIL = 1;
 static const uint MAP_NORMAL = 2;
@@ -106,19 +108,41 @@ static const uint MAP_EMISSIVE = 4;
 static const uint MAP_EXTRA = 5;
 static const uint MAP_SCENE_DEPTH = 6;
 static const uint MAP_SCENE_COLOR = 7;
+static const uint MAP_WATER_FIELD = 8;
+static const uint MAP_SHROUD = 9;
+static const uint MAP_SHADOW = 10;
+static const uint MAP_WATER_DISTURBANCE = 11;
+static const uint MAP_NOISE = 12;
 #define Time (MaterialTime.x)
 bool HasMap(uint slot) { return ((uint)MaterialFlags.x >> slot) & 1; }
 bool IsLit() { return MaterialFlags.y != 0; }
 bool HasSceneDepth() { return HasMap(MAP_SCENE_DEPTH); }
 bool HasSceneColor() { return HasMap(MAP_SCENE_COLOR); }
-// Where the pixel is on the screen, 0..1, for SceneDepth and SceneColor.
-float2 ScreenUV(MaterialInput input)
+bool HasWaterField() { return HasMap(MAP_WATER_FIELD); }
+bool HasShroud() { return HasMap(MAP_SHROUD); }
+bool HasWaterDisturbance() { return HasMap(MAP_WATER_DISTURBANCE); }
+bool HasNoise() { return HasMap(MAP_NOISE); }
+// Size in pixels of the screen the scene textures cover.
+float2 ScreenSize()
 {
 	float width, height;
 	SceneColor.GetDimensions(width, height);
 	if (width <= 0)
 		SceneDepth.GetDimensions(width, height);
-	return input.position.xy / max(float2(width, height), 1);
+	return max(float2(width, height), 1);
+}
+// Where the pixel is on the screen, 0..1, for SceneDepth and SceneColor.
+float2 ScreenUV(MaterialInput input) { return input.position.xy / ScreenSize(); }
+// The camera's normalized device coordinates at a screen point and back. The camera's viewport can be a
+// part of the screen (Viewport: x, y, width, height in pixels), the scene textures cover all of it.
+float2 ScreenNdc(float2 uv)
+{
+	float2 local = (uv * ScreenSize() - Viewport.xy) / Viewport.zw;
+	return float2(local.x * 2 - 1, 1 - local.y * 2);
+}
+float2 NdcToScreenUV(float2 ndc)
+{
+	return (Viewport.xy + float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5) * Viewport.zw) / ScreenSize();
 }
 // Distance in front of the camera of a view space point (W3D cameras look down -z, so this follows
 // the projection's w).
@@ -144,6 +168,20 @@ float3 WorldPosition(MaterialInput input)
 }
 // A world direction in view space, for draws whose world transform is the identity.
 float3 ViewDirection(float3 worldDirection) { return mul(worldDirection, (float3x3)WorldView); }
+// The view space position of what was drawn at a screen point before the capture.
+float3 SceneViewPosition(float2 uv)
+{
+	float depth = SceneDepth.SampleLevel(SceneDepthSampler, uv, 0);
+	float viewZ = (Projection._43 - depth * Projection._44) / (depth * Projection._34 - Projection._33);
+	float w = ViewDistance(viewZ);
+	float2 ndc = ScreenNdc(uv);
+	return float3((ndc.x * w - viewZ * Projection._31) / Projection._11, (ndc.y * w - viewZ * Projection._32) / Projection._22, viewZ);
+}
+// Its world position.
+float3 SceneWorldPosition(float2 uv)
+{
+	return mul((float3x3)View, SceneViewPosition(uv) - View[3].xyz);
+}
 
 struct LightSum
 {
@@ -252,6 +290,9 @@ MaterialSystem::MaterialSystem(Device* device)
 		m_linearSampler(0)
 {
 	memset(m_maps, 0, sizeof(m_maps));
+	memset(m_extra, 0, sizeof(m_extra));
+	m_header = Get_Vertex_Constants_Hlsl();
+	m_header += s_header;
 	QueryPerformanceFrequency(&m_frequency);
 	QueryPerformanceCounter(&m_startTime);
 }
@@ -288,12 +329,16 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Create_Shader(const char* source, UINT
 	Shader compiled;
 	compiled.used = true;
 	compiled.paramsSize = 0;
-	const HRESULT hr = Compile_Pixel_Shader(source, length, name, "Material.hlsli", s_header, include, compiled.code, errors);
+	const HRESULT hr = Compile_Pixel_Shader(source, length, name, "Material.hlsli", m_header.c_str(), include, compiled.code, errors);
 	if (FAILED(hr))
 		return hr;
 	Reflect_Constant_Buffer(compiled.code.Get(), "Params", compiled.paramsSize, compiled.variables);
 	// Its own range of hashes, apart from the generated and translated pixel shaders.
 	compiled.hash = Hash_Bytes(compiled.code->GetBufferPointer(), compiled.code->GetBufferSize()) ^ 0x2545f4914f6cdd1dull;
+	compiled.vertexHash = 0;
+	const HRESULT vertex_hr = Prepare_Vertex_Function(compiled, source, length, name, include, errors);
+	if (FAILED(vertex_hr))
+		return vertex_hr;
 
 	for (size_t i = 0; i < m_shaders.size(); ++i)
 	{
@@ -309,6 +354,48 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Create_Shader(const char* source, UINT
 	return D3D_OK;
 }
 
+// A vertex function is found in the preprocessed source, which is kept for the generated vertex shaders; they
+// are compiled when a draw first needs them, so the source is compiled once here for the water's vertex
+// format to report errors now, instead of drawing nothing later.
+HRESULT MaterialSystem::Prepare_Vertex_Function(Shader& shader, const char* source, UINT length, const char* name,
+	ID3DInclude* include, ID3DBlob** errors)
+{
+	// The function may also be in an include, so the source is always preprocessed.
+	const D3D_SHADER_MACRO defines[] = { { "MATERIAL_VERTEX_STAGE", "1" }, { nullptr, nullptr } };
+	std::string text;
+	HRESULT hr = Preprocess_Shader(source, length, name, "Material.hlsli", m_header.c_str(), include, defines, text, errors);
+	if (FAILED(hr))
+		return hr;
+	// The function itself, not only the struct MaterialVertexData of the header.
+	bool found = false;
+	for (size_t at = text.find("MaterialVertex"); at != std::string::npos && !found; at = text.find("MaterialVertex", at + 1))
+	{
+		const char next = at + 14 < text.size() ? text[at + 14] : ' ';
+		found = !(isalnum((unsigned char)next) || next == '_');
+	}
+	if (!found)
+		return D3D_OK;
+
+	shader.vertexSource = text;
+	shader.vertexHash = Hash_Bytes(text.data(), text.size()) | 1;
+
+	VertexShaderKey key;
+	memset(&key, 0, sizeof(key));
+	key.fvf = D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX2;
+	key.stageCount = 2;
+	key.materialOutputs = 1;
+	key.stages[1].coordIndex = 1;
+	key.vertexHook = shader.vertexHash;
+	const std::string hlsl = Generate_Vertex_Shader(key, &shader.vertexSource);
+	ComPtr<ID3DBlob> code;
+	ComPtr<ID3DBlob> messages;
+	hr = D3DCompile(hlsl.data(), hlsl.size(), name, nullptr, nullptr, "main", "vs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0,
+		&code, &messages);
+	if (FAILED(hr) && errors != nullptr)
+		*errors = messages.Detach();
+	return hr;
+}
+
 // Pipelines made with the shader stay in the device's cache; they are keyed by the code's hash.
 void STDMETHODCALLTYPE MaterialSystem::Release_Shader(UINT shader)
 {
@@ -318,6 +405,7 @@ void STDMETHODCALLTYPE MaterialSystem::Release_Shader(UINT shader)
 	released.used = false;
 	released.hash = 0;
 	released.paramsSize = 0;
+	released.vertexHash = 0;
 	m_shaders[shader - 1] = released;
 }
 
@@ -389,6 +477,8 @@ bool MaterialSystem::Current(Binding& binding) const
 	binding.hash = shader.hash;
 	binding.params = &material.params;
 	binding.maps = m_maps;
+	binding.vertexSource = shader.vertexHash != 0 ? &shader.vertexSource : nullptr;
+	binding.vertexHash = shader.vertexHash;
 	return true;
 }
 
@@ -401,6 +491,30 @@ HRESULT STDMETHODCALLTYPE MaterialSystem::Capture_Scene(BOOL color)
 	m_sceneDepth = depth;
 	m_sceneColor = scene;
 	return D3D_OK;
+}
+
+HRESULT STDMETHODCALLTYPE MaterialSystem::Set_Material_Textures(UINT first, UINT count, IDirect3DBaseTexture8* const* textures)
+{
+	if (first + count > D3D8ON12_MATERIAL_EXTRA_TEXTURES)
+		return D3DERR_INVALIDCALL;
+	for (UINT i = 0; i < count; ++i)
+		m_extra[first + i] = textures != nullptr ? textures[i] : nullptr;
+	return D3D_OK;
+}
+
+BOOL STDMETHODCALLTYPE MaterialSystem::Has_Material_Parameter(UINT material, const char* name)
+{
+	if (material == 0 || material > m_materials.size() || !m_materials[material - 1].used || name == nullptr)
+		return FALSE;
+	const Shader& shader = m_shaders[m_materials[material - 1].shader - 1];
+	return shader.variables.find(name) != shader.variables.end();
+}
+
+BOOL STDMETHODCALLTYPE MaterialSystem::Has_Vertex_Function(UINT material)
+{
+	if (material == 0 || material > m_materials.size() || !m_materials[material - 1].used)
+		return FALSE;
+	return m_shaders[m_materials[material - 1].shader - 1].vertexHash != 0;
 }
 
 // Point sampling for the depth (t6), linear for the colour (t7), both clamped.

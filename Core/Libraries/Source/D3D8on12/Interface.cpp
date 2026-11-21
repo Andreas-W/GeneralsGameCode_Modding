@@ -57,7 +57,7 @@ void Log(const char* format, ...)
 	if (!s_checked)
 	{
 		s_checked = true;
-		if (Is_Enabled_In_Environment("D3D8ON12_LOG"))
+		if (Is_Enabled_In_Environment("D3D8ON12_LOG") || Is_Enabled_In_Environment("D3D8ON12_DRED"))
 			s_file = _fsopen("d3d8on12.log", "w", _SH_DENYWR);
 	}
 	if (s_file != nullptr)
@@ -69,13 +69,38 @@ void Log(const char* format, ...)
 
 static void Enable_Debug_Layer()
 {
-	if (!Is_Enabled_In_Environment("D3D8ON12_DEBUG"))
+	// Device Removed Extended Data: which GPU operations had finished when the device was lost (a hang or
+	// a page fault), logged by Log_Device_Removed. Costs a little GPU time, so only on request.
+	if (Is_Enabled_In_Environment("D3D8ON12_DRED"))
+	{
+		ComPtr<ID3D12DeviceRemovedExtendedDataSettings> dred;
+		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&dred))))
+		{
+			dred->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+			dred->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+			// The texts of the markers Draw_Geometry sets are only kept with this.
+			ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> dred1;
+			const bool contexts = SUCCEEDED(dred.As(&dred1));
+			if (contexts)
+				dred1->SetBreadcrumbContextEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+			Log("Direct3D 12 device removed extended data enabled%s", contexts ? ", with marker texts" : "");
+		}
+	}
+	const bool gpu_validation = Is_Enabled_In_Environment("D3D8ON12_GBV");
+	if (!Is_Enabled_In_Environment("D3D8ON12_DEBUG") && !gpu_validation)
 		return;
 	ComPtr<ID3D12Debug> debug;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))
 	{
 		debug->EnableDebugLayer();
 		Log("Direct3D 12 debug layer enabled");
+		// D3D8ON12_GBV: the debug layer also checks on the GPU what shaders read and in which state; slow.
+		ComPtr<ID3D12Debug1> debug1;
+		if (gpu_validation && SUCCEEDED(debug.As(&debug1)))
+		{
+			debug1->SetEnableGPUBasedValidation(TRUE);
+			Log("GPU based validation enabled");
+		}
 	}
 }
 

@@ -46,7 +46,6 @@
 #include "WW3D2/dx8wrapper.h"
 
 #include "imgui.h"
-#include "imgui_internal.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx8.h"
 
@@ -71,6 +70,11 @@ Bool s_imguiReady = FALSE;
 Bool s_hideOverlay = FALSE;
 Bool s_frameBuilt = FALSE;
 std::string s_layoutFile;
+
+/// How far the camera zooms out, in multiples of the game's MaxCameraHeight.
+const Real MAX_ZOOM_OUT = 10.0f;
+/// DrawEntireTerrain of GameData.ini, before the editor turns it on to zoom out (-1: not read yet).
+Int s_gameDrawEntireTerrain = -1;
 
 Int s_pendingWidth = 0;
 Int s_pendingHeight = 0;
@@ -138,28 +142,29 @@ void applyPendingResize()
 }
 
 //-------------------------------------------------------------------------------------------------
-/** The default arrangement: library on the left, inspector on the right, preview and log below. */
+/** The game keeps the camera between MinCameraHeight and MaxCameraHeight of GameData.ini; the
+	editor lets it zoom out much further. The default zoom stays the game's (MaxCameraHeight).
+	Zooming in still stops at MinCameraHeight. */
 //-------------------------------------------------------------------------------------------------
-void buildDefaultLayout(ImGuiID dockspace)
+void unlockZoomOut()
 {
-	ImGuiViewport *viewport = ImGui::GetMainViewport();
-	ImGui::DockBuilderRemoveNode(dockspace);
-	ImGui::DockBuilderAddNode(dockspace, ImGuiDockNodeFlags_DockSpace | ImGuiDockNodeFlags_PassthruCentralNode);
-	ImGui::DockBuilderSetNodeSize(dockspace, viewport->WorkSize);
+	if (TheTacticalView == nullptr)
+		return;
+	TheTacticalView->setZoomLimited(FALSE);
+	const Real height = TheTacticalView->getHeightAboveGround();
+	const Real lowest = TheGlobalData->m_minCameraHeight;
+	const Real highest = TheGlobalData->m_maxCameraHeight * MAX_ZOOM_OUT;
+	if (height < lowest)
+		TheTacticalView->setHeightAboveGround(lowest);
+	else if (height > highest)
+		TheTacticalView->setHeightAboveGround(highest);
 
-	ImGuiID center = dockspace;
-	ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.20f, nullptr, &center);
-	ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.34f, nullptr, &center);
-	ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.30f, nullptr, &center);
-	ImGuiID leftBottom = ImGui::DockBuilderSplitNode(left, ImGuiDir_Down, 0.35f, nullptr, &left);
-
-	ImGui::DockBuilderDockWindow(FXEditorPanels::LIBRARY, left);
-	ImGui::DockBuilderDockWindow(FXEditorPanels::AUDIO, leftBottom);
-	ImGui::DockBuilderDockWindow(FXEditorPanels::RENDER, right);
-	ImGui::DockBuilderDockWindow(FXEditorPanels::INSPECTOR, right);
-	ImGui::DockBuilderDockWindow(FXEditorPanels::LOG, bottom);
-	ImGui::DockBuilderDockWindow(FXEditorPanels::PREVIEW, bottom);
-	ImGui::DockBuilderFinish(dockspace);
+	// The terrain the game draws around the camera is sized for its zoom range: further out, the rest
+	// of the map would stay black, so then all of it is drawn.
+	if (s_gameDrawEntireTerrain < 0)
+		s_gameDrawEntireTerrain = TheGlobalData->m_drawEntireTerrain ? 1 : 0;
+	const Bool farOut = TheTacticalView->getHeightAboveGround() > TheGlobalData->m_maxCameraHeight + 1.0f;
+	TheWritableGlobalData->m_drawEntireTerrain = farOut || s_gameDrawEntireTerrain != 0;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -198,25 +203,8 @@ void drawQuitDialog()
 //-------------------------------------------------------------------------------------------------
 void drawInterface()
 {
-	ImGuiViewport *viewport = ImGui::GetMainViewport();
-	const ImGuiID dockspace = ImGui::GetID("FXEditorDockSpace");
-	static Bool layoutChecked = FALSE;
-	if (!layoutChecked)
-	{
-		layoutChecked = TRUE;
-		if (ImGui::DockBuilderGetNode(dockspace) == nullptr)
-			buildDefaultLayout(dockspace);
-	}
-	ImGui::DockSpaceOverViewport(dockspace, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
-
 	FXEditorPanels::drawMainMenu();
-	FXEditorPanels::drawLibrary();
-	FXEditorPanels::drawInspector();
-	FXEditorPanels::drawPreview();
-	FXEditorPanels::drawAudio();
-	FXEditorPanels::drawLog();
-	if (FXEditorApp::isDX12())
-		FXEditorPanels::drawRender();
+	FXEditorPanels::drawPanels();
 	FXEditorPanels::drawOverlayInfo();
 	drawQuitDialog();
 }
@@ -294,9 +282,9 @@ void FXEditorApp::init()
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 	s_layoutFile = TheGlobalData->getPath_UserData().str();
-	s_layoutFile += "FXEditorLayout.ini";
+	s_layoutFile += "FXEditorPanels.ini";
 	io.IniFilename = s_layoutFile.c_str();
 
 	ImGui::StyleColorsDark();
@@ -494,6 +482,8 @@ void FXEditorApp::update()
 		startPendingMap();
 	if (s_scene)
 		s_scene->update();
+	if (s_scene && s_scene->isReady())
+		unlockZoomOut();
 	// The map the editor was started with.
 	if (s_previewMapKey.isEmpty() && s_scene && s_scene->isReady())
 	{

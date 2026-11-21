@@ -185,4 +185,20 @@ struct ID3D8On12Materials : public IUnknown
 	// Copies what is drawn so far: the depth (always) and the scene colour (with color), which the material
 	// draws after it read as SceneDepth (t6) and SceneColor (t7), until the frame is presented.
 	virtual HRESULT STDMETHODCALLTYPE Capture_Scene(BOOL color) = 0;
+
+	// Textures t8..t12 of all material draws, which vertex functions can read too (with the static samplers
+	// s8 linear clamped, s9 linear wrapped, s10 point clamped, s11 comparison less-equal). They stay set
+	// until changed; null clears a slot. Like the maps of Set_Material they are not referenced: they must be
+	// cleared before they are released. first + count must be at most D3D8ON12_MATERIAL_EXTRA_TEXTURES.
+	virtual HRESULT STDMETHODCALLTYPE Set_Material_Textures(UINT first, UINT count, IDirect3DBaseTexture8* const* textures) = 0;
+
+	// What a material's shader has: a variable of its Params cbuffer, a vertex function (MaterialVertex).
+	virtual BOOL STDMETHODCALLTYPE Has_Material_Parameter(UINT material, const char* name) = 0;
+	virtual BOOL STDMETHODCALLTYPE Has_Vertex_Function(UINT material) = 0;
 };
+
+#define D3D8ON12_MATERIAL_EXTRA_TEXTURES 5
+
+// A 16 bit float RGBA texture format, which only the Direct3D 12 device creates (CreateTexture, LockRect with
+// 8 bytes per texel of half floats), for data textures of materials.
+#define D3DFMT_A16B16G16R16F_D3D8ON12 ((D3DFORMAT)113)

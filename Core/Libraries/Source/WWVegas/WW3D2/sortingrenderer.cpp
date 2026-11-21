@@ -677,6 +677,93 @@ void SortingRendererClass::Flush()
 
 // ----------------------------------------------------------------------------
 
+static bool Uses_Sorting_Buffers(const SortingNodeStruct* state)
+{
+	return (state->sorting_state.index_buffer_type==BUFFER_TYPE_SORTING || state->sorting_state.index_buffer_type==BUFFER_TYPE_DYNAMIC_SORTING) &&
+		(state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_SORTING || state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_DYNAMIC_SORTING);
+}
+
+// The world space box of the vertices a node draws. Lines (SegLineRendererClass) queue their
+// vertices in camera space with identity world and view matrices, so the vertices go into camera
+// space with the node's own matrices and come back with the camera's transform.
+bool SortingRendererClass::Get_World_Box(const SortingNodeStruct* state, const Matrix3D& camera_transform, Vector3& world_min, Vector3& world_max)
+{
+	const SortingVertexBufferClass* vertex_buffer=static_cast<const SortingVertexBufferClass*>(state->sorting_state.vertex_buffers[0]);
+	if (vertex_buffer == nullptr || vertex_buffer->VertexBuffer == nullptr || state->vertex_count == 0)
+		return false;
+	const VertexFormatXYZNDUV2* verts=vertex_buffer->VertexBuffer;
+	verts+=state->sorting_state.vba_offset;
+	verts+=state->sorting_state.index_base_offset;
+	verts+=state->min_vertex_index;
+
+	const D3DXMATRIX m=(const D3DXMATRIX&)state->sorting_state.world*(const D3DXMATRIX&)state->sorting_state.view;
+	for (unsigned i=0;i<state->vertex_count;++i) {
+		const VertexFormatXYZNDUV2& v=verts[i];
+		const Vector3 camera_point(
+			v.x*m._11 + v.y*m._21 + v.z*m._31 + m._41,
+			v.x*m._12 + v.y*m._22 + v.z*m._32 + m._42,
+			v.x*m._13 + v.y*m._23 + v.z*m._33 + m._43);
+		Vector3 p;
+		Matrix3D::Transform_Vector(camera_transform,camera_point,&p);
+		if (i == 0) {
+			world_min=p;
+			world_max=p;
+		} else {
+			world_min.Update_Min(p);
+			world_max.Update_Max(p);
+		}
+	}
+	return true;
+}
+
+void SortingRendererClass::Flush_Submerged(SubmergedTest is_submerged, const Matrix3D& camera_transform)
+{
+	if (is_submerged == nullptr || (sorted_list.empty() && unsorted_list.empty()))
+		return;
+	WWPROFILE("SortingRenderer::Flush_Submerged");
+
+	// Take the submerged nodes out of the lists, keeping their order; the pool sorts their triangles.
+	// Nodes drawn without a depth test (rally point and waypoint lines, which lie on the sea floor
+	// under water) are meant to show over everything and stay for Flush, after the water.
+	SortingNodeStructList* lists[2] = { &sorted_list, &unsorted_list };
+	for (int l=0;l<2;++l) {
+		SortingNodeStructList& list=*lists[l];
+		for (SortingNodeStructList::iterator node=list.begin(); node!=list.end(); ) {
+			SortingNodeStruct* state=*node;
+			Vector3 world_min, world_max;
+			if (overlapping_node_count < MAX_OVERLAPPING_NODES && Uses_Sorting_Buffers(state) &&
+				state->sorting_state.shader.Get_Depth_Compare() != ShaderClass::PASS_ALWAYS &&
+				Get_World_Box(state, camera_transform, world_min, world_max) && is_submerged(world_min, world_max)) {
+				node=list.erase(node);
+				Insert_To_Sorting_Pool(state);
+			} else {
+				++node;
+			}
+		}
+	}
+	if (!overlapping_node_count)
+		return;
+
+	Matrix4x4 old_view;
+	Matrix4x4 old_world;
+	DX8Wrapper::Get_Transform(D3DTS_VIEW,old_view);
+	DX8Wrapper::Get_Transform(D3DTS_WORLD,old_world);
+
+	bool old_enable=DX8Wrapper::_Is_Triangle_Draw_Enabled();
+	DX8Wrapper::_Enable_Triangle_Draw(_EnableTriangleDraw);
+	Flush_Sorting_Pool();
+	DX8Wrapper::_Enable_Triangle_Draw(old_enable);
+
+	// Unlike Flush, the dynamic buffers are not reset: the nodes left in the lists still use them.
+	DX8Wrapper::Set_Index_Buffer(nullptr,0);
+	DX8Wrapper::Set_Vertex_Buffer(nullptr);
+
+	DX8Wrapper::Set_Transform(D3DTS_VIEW,old_view);
+	DX8Wrapper::Set_Transform(D3DTS_WORLD,old_world);
+}
+
+// ----------------------------------------------------------------------------
+
 void SortingRendererClass::Deinit()
 {
 	//

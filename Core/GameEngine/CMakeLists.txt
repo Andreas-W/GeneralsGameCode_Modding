@@ -212,6 +212,7 @@ set(GAMEENGINE_SRC
     Include/GameClient/MetaEvent.h
     Include/GameClient/Module/AnimatedParticleSysBoneClientUpdate.h
     Include/GameClient/Module/BeaconClientUpdate.h
+    Include/GameClient/Module/WaterInteractionClientUpdate.h
     Include/GameClient/Module/DynamicGeometryClientUpdate.h
     Include/GameClient/Module/SwayClientUpdate.h
     Include/GameClient/Mouse.h
@@ -237,6 +238,7 @@ set(GAMEENGINE_SRC
     Include/GameClient/VideoPlayer.h
     Include/GameClient/View.h
     Include/GameClient/Water.h
+    Include/GameClient/WaterDisturbance.h
     Include/GameClient/WindowLayout.h
     Include/GameClient/WindowVideoManager.h
     Include/GameClient/WindowXlat.h
@@ -717,6 +719,7 @@ set(GAMEENGINE_SRC
 #    Source/GameClient/Drawable.cpp
     Source/GameClient/Drawable/Update/AnimatedParticleSysBoneClientUpdate.cpp
     Source/GameClient/Drawable/Update/BeaconClientUpdate.cpp
+    Source/GameClient/Drawable/Update/WaterInteractionClientUpdate.cpp
     Source/GameClient/Drawable/Update/DynamicGeometryClientUpdate.cpp
     Source/GameClient/Drawable/Update/SwayClientUpdate.cpp
     Source/GameClient/DrawGroupInfo.cpp
@@ -858,6 +861,7 @@ set(GAMEENGINE_SRC
     Source/GameClient/VideoStream.cpp
     Source/GameClient/View.cpp
     Source/GameClient/Water.cpp
+    Source/GameClient/WaterDisturbance.cpp
 #    Source/GameLogic/AI/AI.cpp
 #    Source/GameLogic/AI/AIDock.cpp
 #    Source/GameLogic/AI/AIGroup.cpp

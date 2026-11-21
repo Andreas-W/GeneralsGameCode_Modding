@@ -10,8 +10,10 @@ Standard library only. Subcommands:
   yards    Suggests shipyard waypoint positions per player start.
   check    Prints the distance from shore (cells) of world points; -1 = land.
   wak      Shifts the wave positions in a .wak file by the resize world offset.
+  dx8water Writes the DX8 water transparency of ship maps (WaterTransparency block) into map.ini
+           files: given ones, or every map.ini with EnableShips = Yes under a Maps folder.
 """
-import argparse, json, math, os, random, struct, sys, zlib
+import argparse, json, math, os, random, re, shutil, struct, sys, zlib
 
 HS = 0.625   # world units per raw height step
 
@@ -225,6 +227,85 @@ def cmd_wak(a):
     print(json.dumps({"waves": count, "dx": a.dx, "dy": a.dy, "written": a.dst or a.src}))
 
 
+def ini_code(line):
+    """A map.ini line without its comment and surrounding blanks."""
+    return line.split(";", 1)[0].strip()
+
+
+def ships_enabled(lines):
+    return any(re.match(r"(?i)EnableShips\s*=\s*Yes\b", ini_code(l)) for l in lines)
+
+
+def set_water_transparency(text, fields):
+    """Sets fields (ordered (key, value) pairs) inside the top level WaterTransparency block of map.ini
+    text, keeping other lines, inline comments and line endings; appends the block when there is none.
+    Lines that already have the value stay as they are."""
+    nl = "\r\n" if "\r\n" in text else "\n"
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, l in enumerate(lines) if re.fullmatch(r"(?i)WaterTransparency", ini_code(l))), None)
+    if start is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if lines and not lines[-1].endswith(("\n", "\r")):
+            lines[-1] += nl
+        block = ["", "; DX8 Water Settings", "WaterTransparency"]
+        block += ["  %s = %s" % kv for kv in fields]
+        block += ["End"]
+        return "".join(lines) + "".join(l + nl for l in block)
+    end = next((i for i in range(start + 1, len(lines)) if re.fullmatch(r"(?i)End", ini_code(lines[i]))), None)
+    if end is None:
+        raise ValueError("WaterTransparency block without End")
+    for key, value in fields:
+        pattern = re.compile(r"(?i)%s\s*=\s*(.*)" % re.escape(key))
+        found = False
+        for i in range(start + 1, end):
+            m = pattern.fullmatch(ini_code(lines[i]))
+            if not m:
+                continue
+            found = True
+            if m.group(1) == value:
+                continue
+            body = lines[i].rstrip("\r\n")
+            ending = lines[i][len(body):]
+            indent = re.match(r"\s*", body).group(0) or "  "
+            comment = body[len(body.split(";", 1)[0]):]
+            lines[i] = "%s%s = %s%s%s" % (indent, key, value, ("   " + comment) if comment else "", ending)
+        if not found:
+            ending = re.search(r"\r?\n?$", lines[start]).group(0) or nl
+            lines.insert(end, "  %s = %s%s" % (key, value, ending))
+            end += 1
+    return "".join(lines)
+
+
+def cmd_dx8water(a):
+    files = list(a.files)
+    if a.maps:
+        for root, _dirs, names in os.walk(a.maps):
+            for name in names:
+                if name.lower() == "map.ini":
+                    path = os.path.join(root, name)
+                    with open(path, encoding="latin-1", newline="") as f:
+                        if ships_enabled(f.read().splitlines()):
+                            files.append(path)
+    if not files:
+        sys.exit("no map.ini given or found (pass files, or --maps <Maps folder>)")
+    fields = [("TransparentWaterMinOpacity", a.min_opacity), ("TransparentWaterDepth", a.depth)]
+    report = []
+    for path in sorted(set(files)):
+        with open(path, encoding="latin-1", newline="") as f:
+            text = f.read()
+        new = set_water_transparency(text, fields)
+        state = "unchanged" if new == text else ("would change" if a.dry_run else "changed")
+        if new != text and not a.dry_run:
+            backup = path + ".bak-dx8water"
+            if not os.path.exists(backup):
+                shutil.copy2(path, backup)
+            with open(path, "w", encoding="latin-1", newline="") as f:
+                f.write(new)
+        report.append({"file": path, "state": state})
+    print(json.dumps(report, indent=1))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -271,6 +352,14 @@ def main():
     p.add_argument("--dy", type=float, required=True, help="map_resize world_offset.y")
     p.add_argument("--dst", help="output file (default: overwrite src)")
     p.set_defaults(fn=cmd_wak)
+
+    p = sub.add_parser("dx8water")
+    p.add_argument("files", nargs="*", help="map.ini files to write")
+    p.add_argument("--maps", help="Maps folder: also every map.ini below it with EnableShips = Yes")
+    p.add_argument("--min-opacity", default="0.5", help="TransparentWaterMinOpacity")
+    p.add_argument("--depth", default="15.0", help="TransparentWaterDepth")
+    p.add_argument("--dry-run", action="store_true", help="only report what would change")
+    p.set_defaults(fn=cmd_dx8water)
 
     a = ap.parse_args()
     a.fn(a)

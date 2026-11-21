@@ -53,6 +53,12 @@ public:
 	HRESULT STDMETHODCALLTYPE Set_Material_Parameter(UINT material, const char* name, const float* values, UINT count) override;
 	void STDMETHODCALLTYPE Set_Material(UINT material, IDirect3DBaseTexture8* const* maps) override;
 	HRESULT STDMETHODCALLTYPE Capture_Scene(BOOL color) override;
+	HRESULT STDMETHODCALLTYPE Set_Material_Textures(UINT first, UINT count, IDirect3DBaseTexture8* const* textures) override;
+	BOOL STDMETHODCALLTYPE Has_Material_Parameter(UINT material, const char* name) override;
+	BOOL STDMETHODCALLTYPE Has_Vertex_Function(UINT material) override;
+
+	// The textures of Set_Material_Textures, entries may be null.
+	IDirect3DBaseTexture8* Extra_Texture(UINT slot) const { return m_extra[slot]; }
 
 	// What the current material draws with; false for the fixed function pipeline.
 	struct Binding
@@ -61,6 +67,8 @@ public:
 		UINT64 hash;							// of the code, as the pixel shader hash of pipelines
 		const std::vector<unsigned char>* params;	// contents of the Params cbuffer, empty without one
 		IDirect3DBaseTexture8* const* maps;		// textures of stages 2..5, entries may be null
+		const std::string* vertexSource;		// preprocessed source with MaterialVertex, or null
+		UINT64 vertexHash;						// of vertexSource, 0 without
 	};
 	bool Current(Binding& binding) const;
 
@@ -82,7 +90,12 @@ private:
 		UINT64 hash;
 		UINT paramsSize;
 		std::unordered_map<std::string, ShaderVariable> variables;
+		std::string vertexSource;	// for shaders with a vertex function: the source for Generate_Vertex_Shader
+		UINT64 vertexHash;			// 0 without a vertex function
 	};
+
+	HRESULT Prepare_Vertex_Function(Shader& shader, const char* source, UINT length, const char* name, ID3DInclude* include,
+		ID3DBlob** errors);
 
 	struct Material
 	{
@@ -92,10 +105,12 @@ private:
 	};
 
 	Device* m_device;
+	std::string m_header;				// Material.hlsli
 	std::vector<Shader> m_shaders;		// handle = index + 1
 	std::vector<Material> m_materials;	// handle = index + 1
 	UINT m_current;
 	IDirect3DBaseTexture8* m_maps[4];
+	IDirect3DBaseTexture8* m_extra[D3D8ON12_MATERIAL_EXTRA_TEXTURES];
 	UINT m_sceneDepth;
 	UINT m_sceneColor;
 	UINT m_pointSampler;

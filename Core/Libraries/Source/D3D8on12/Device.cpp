@@ -77,6 +77,8 @@ Device::Device(Direct3D* d3d, const AdapterInfo& adapter, UINT adapter_index, D3
 		m_backBufferIndex(0),
 		m_recording(false),
 		m_deviceRemoved(false),
+		m_dred(false),
+		m_lastMarker(0),
 		m_backBufferSurface(nullptr),
 		m_autoDepthSurface(nullptr),
 		m_renderTarget(nullptr),
@@ -245,6 +247,17 @@ HRESULT Device::Init(D3DPRESENT_PARAMETERS* params)
 	{
 		Log("D3D12CreateDevice failed");
 		return D3DERR_NOTAVAILABLE;
+	}
+
+	char dred[8];
+	const DWORD dred_length = GetEnvironmentVariableA("D3D8ON12_DRED", dred, sizeof(dred));
+	m_dred = dred_length > 0 && dred_length < sizeof(dred) && strcmp(dred, "0") != 0;
+	if (m_dred)
+	{
+		ComPtr<ID3D12DeviceRemovedExtendedData1> dred1;
+		ComPtr<ID3D12DeviceRemovedExtendedData> dred0;
+		Log("device removed extended data: %s", SUCCEEDED(m_device.As(&dred1)) ? "breadcrumbs with markers"
+			: SUCCEEDED(m_device.As(&dred0)) ? "breadcrumbs without markers" : "not available");
 	}
 
 	m_device.As(&m_infoQueue);
@@ -604,6 +617,7 @@ void Device::Begin_Frame()
 {
 	if (m_recording)
 		return;
+	m_lastMarker = 0;
 
 	// Post-processing asked for another back buffer format; between frames nothing is bound to it.
 	if (m_hdrRequested != m_hdrScene && m_backBuffers[0] != nullptr)
@@ -688,6 +702,7 @@ void Device::Flush_Commands()
 	m_commandList->Close();
 	ID3D12CommandList* lists[] = { m_commandList.Get() };
 	m_queue->ExecuteCommandLists(1, lists);
+	Submit_Draw_Names();
 	Wait_For_GPU();
 
 	ID3D12CommandAllocator* allocator = m_allocators[m_backBufferIndex].Get();
@@ -777,6 +792,160 @@ void Device::Log_Debug_Messages()
 			Log("debug layer: %s", message->pDescription);
 	}
 	m_infoQueue->ClearStoredMessages();
+}
+
+// Why the device was lost and, with D3D8ON12_DRED, where: per command list the operation that did not finish
+// and those before it (with the markers Draw_Geometry sets when the material changes), and a page fault.
+void Device::Log_Device_Removed()
+{
+	Log("device removed: 0x%08X", m_device->GetDeviceRemovedReason());
+	Log_Debug_Messages();
+
+	if (!m_dred)
+		return;
+	// Windows 10 offers the first versions of the interface; the markers' texts need version 1 (20H1).
+	ComPtr<ID3D12DeviceRemovedExtendedData1> dred1;
+	ComPtr<ID3D12DeviceRemovedExtendedData> dred;
+	if (SUCCEEDED(m_device.As(&dred1)))
+	{
+		D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 breadcrumbs = {};
+		HRESULT hr = dred1->GetAutoBreadcrumbsOutput1(&breadcrumbs);
+		if (SUCCEEDED(hr))
+			Log_Breadcrumbs(breadcrumbs.pHeadAutoBreadcrumbNode);
+		else
+			Log("no breadcrumbs: 0x%08X", hr);
+		D3D12_DRED_PAGE_FAULT_OUTPUT1 fault = {};
+		if (SUCCEEDED(dred1->GetPageFaultAllocationOutput1(&fault)) && fault.PageFaultVA != 0)
+			Log("page fault at GPU address 0x%llX", (unsigned long long)fault.PageFaultVA);
+	}
+	else if (SUCCEEDED(m_device.As(&dred)))
+	{
+		D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT breadcrumbs = {};
+		HRESULT hr = dred->GetAutoBreadcrumbsOutput(&breadcrumbs);
+		if (SUCCEEDED(hr))
+			Log_Breadcrumbs(breadcrumbs.pHeadAutoBreadcrumbNode);
+		else
+			Log("no breadcrumbs: 0x%08X", hr);
+		D3D12_DRED_PAGE_FAULT_OUTPUT fault = {};
+		if (SUCCEEDED(dred->GetPageFaultAllocationOutput(&fault)) && fault.PageFaultVA != 0)
+			Log("page fault at GPU address 0x%llX", (unsigned long long)fault.PageFaultVA);
+	}
+	else
+	{
+		Log("device removed extended data is not available");
+	}
+}
+
+static const char* Breadcrumb_Name(D3D12_AUTO_BREADCRUMB_OP op)
+{
+	static const char* const names[] =
+	{
+		"SetMarker", "BeginEvent", "EndEvent", "DrawInstanced", "DrawIndexedInstanced", "ExecuteIndirect",
+		"Dispatch", "CopyBufferRegion", "CopyTextureRegion", "CopyResource", "CopyTiles", "ResolveSubresource",
+		"ClearRenderTargetView", "ClearUnorderedAccessView", "ClearDepthStencilView", "ResourceBarrier",
+		"ExecuteBundle", "Present", "ResolveQueryData", "BeginSubmission", "EndSubmission",
+	};
+	return (UINT)op < ARRAYSIZE(names) ? names[op] : "?";
+}
+
+static const wchar_t* Breadcrumb_Context(const D3D12_AUTO_BREADCRUMB_NODE1* node, UINT index)
+{
+	for (UINT c = 0; c < node->BreadcrumbContextsCount; ++c)
+		if (node->pBreadcrumbContexts[c].BreadcrumbIndex == index)
+			return node->pBreadcrumbContexts[c].pContextString;
+	return nullptr;
+}
+
+static const wchar_t* Breadcrumb_Context(const D3D12_AUTO_BREADCRUMB_NODE*, UINT)
+{
+	return nullptr;
+}
+
+void Device::Submit_Draw_Names()
+{
+	if (!m_dred)
+		return;
+	m_submittedDrawNames.push_back(std::vector<std::string>());
+	m_submittedDrawNames.back().swap(m_drawNames);
+	while (m_submittedDrawNames.size() > 8)
+		m_submittedDrawNames.pop_front();
+}
+
+// Each command list that did not finish: the operation it stopped at and those before it. When all have
+// finished, the GPU hung outside the recorded command lists; then every list is listed briefly.
+template <class Node>
+void Device::Log_Breadcrumbs(const Node* head)
+{
+	// Every draw follows its own marker, so the markers before the stop count the draws; the command list is
+	// the last one executed with as many draws as it has markers.
+	for (const Node* node = head; node != nullptr; node = node->pNext)
+	{
+		const UINT done = node->pLastBreadcrumbValue != nullptr ? *node->pLastBreadcrumbValue : 0;
+		if (done >= node->BreadcrumbCount)
+			continue;
+		UINT markers = 0;
+		UINT markersBefore = 0;
+		for (UINT i = 0; i < node->BreadcrumbCount; ++i)
+		{
+			if (node->pCommandHistory[i] == D3D12_AUTO_BREADCRUMB_OP_SETMARKER)
+			{
+				if (i < done)
+					++markersBefore;
+				++markers;
+			}
+		}
+		for (size_t list = m_submittedDrawNames.size(); list-- > 0;)
+		{
+			const std::vector<std::string>& names = m_submittedDrawNames[list];
+			if (names.size() != markers || markers == 0)
+				continue;
+			Log("draws of that command list around the stop (%u markers passed of %u):", markersBefore, markers);
+			const UINT current = markersBefore > 0 ? markersBefore - 1 : 0;
+			const UINT from = current > 8 ? current - 8 : 0;
+			// The parts of the frame before that (the "--" markers of Mark_Time), then the draws around the stop.
+			for (UINT i = 0; i < from && i < names.size(); ++i)
+				if (names[i].compare(0, 2, "--") == 0)
+					Log("     %u: %s", i, names[i].c_str());
+			for (UINT i = from; i <= current + 3 && i < names.size(); ++i)
+				Log("  %s %u: %s", i == current ? "->" : "  ", i, names[i].c_str());
+			break;
+		}
+	}
+
+	bool unfinished = false;
+	for (const Node* node = head; node != nullptr; node = node->pNext)
+	{
+		const UINT done = node->pLastBreadcrumbValue != nullptr ? *node->pLastBreadcrumbValue : 0;
+		if (done >= node->BreadcrumbCount)
+			continue;
+		unfinished = true;
+		Log("command list %p (queue %p): %u of %u operations done", node->pCommandList, node->pCommandQueue, done, node->BreadcrumbCount);
+		// The last marker before the stop tells which material drew.
+		for (UINT i = done + 1; i-- > 0;)
+		{
+			const wchar_t* context = i < node->BreadcrumbCount ? Breadcrumb_Context(node, i) : nullptr;
+			if (context != nullptr)
+			{
+				Log("  last marker at %u: %ls", i, context);
+				break;
+			}
+		}
+		// The start of the list (the stops so far were all near it), then the operations around the stop.
+		const UINT first = done > 16 ? done - 16 : 0;
+		for (UINT i = 0; i < first && i < 12; ++i)
+			Log("     %u: %s", i, Breadcrumb_Name(node->pCommandHistory[i]));
+		for (UINT i = first; i <= done + 2 && i < node->BreadcrumbCount; ++i)
+		{
+			const wchar_t* context = Breadcrumb_Context(node, i);
+			Log("  %s %u: %s %ls", i == done ? "->" : "  ", i, Breadcrumb_Name(node->pCommandHistory[i]), context != nullptr ? context : L"");
+		}
+	}
+	if (!unfinished)
+	{
+		Log("all recorded command lists finished:");
+		for (const Node* node = head; node != nullptr; node = node->pNext)
+			Log("  command list %p: %u operations", node->pCommandList, node->BreadcrumbCount);
+	}
 }
 
 void Device::Wait_For_GPU()
@@ -1142,6 +1311,7 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 
 	ID3D12CommandList* lists[] = { m_commandList.Get() };
 	m_queue->ExecuteCommandLists(1, lists);
+	Submit_Draw_Names();
 
 	// D3D8 presents windowed swap chains right away; fullscreen ones follow the presentation interval.
 	UINT sync_interval = 0;
@@ -1158,7 +1328,8 @@ HRESULT STDMETHODCALLTYPE Device::Present(CONST RECT*, CONST RECT*, HWND, CONST 
 
 	if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 	{
-		Log("device removed: 0x%08X", m_device->GetDeviceRemovedReason());
+		if (!m_deviceRemoved)
+			Log_Device_Removed();
 		m_deviceRemoved = true;
 		return D3DERR_DEVICELOST;
 	}
