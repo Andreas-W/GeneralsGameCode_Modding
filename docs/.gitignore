@@ -1,0 +1,8 @@
+# build output
+dist/
+# generated types
+.astro/
+# dependencies
+node_modules/
+# generated in CI by scripts/docs/gen_reference.py
+src/content/docs/reference/generated/
