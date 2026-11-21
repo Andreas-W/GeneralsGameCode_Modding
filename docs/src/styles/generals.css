@@ -96,9 +96,9 @@ h4,
 	letter-spacing: 0.03em;
 }
 
+/* Section headings keep their case: they are mostly module and INI block names (MultiAddOnContain). */
 h1#_top,
 .hero h1,
-.sl-markdown-content h2,
 .site-title {
 	text-transform: uppercase;
 }
