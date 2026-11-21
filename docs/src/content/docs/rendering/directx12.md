@@ -1,4 +1,10 @@
-# Direct3D 12 renderer
+---
+title: "Direct3D 12 renderer"
+description: "Post-processing, shadow maps and HLSL materials with the Direct3D 12 renderer."
+status: unverified
+sidebar:
+  order: 0
+---
 
 Zero Hour normally renders with Direct3D 8. This fork can also render with Direct3D 12. On top of matching
 the old picture, the Direct3D 12 renderer adds effects that mods can configure and extend with their own
@@ -30,7 +36,7 @@ The new INI files and fields are read but ignored, so one mod can ship for both 
 
 Add `-dx12` to the command line, for example in a shortcut:
 
-```
+```ini
 generalszh.exe -dx12
 ```
 

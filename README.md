@@ -54,7 +54,7 @@ project from [GitHub Releases](https://github.com/TheSuperHackers/GeneralsGameCo
 files, and follow the instructions in the [Wiki](https://github.com/TheSuperHackers/GeneralsGameCode/wiki).
 
 *Zero Hour* can also render with Direct3D 12 (`-dx12`), which adds post-processing, shadow maps and HLSL materials
-that mods can configure. See [docs/DirectX12.md](docs/DirectX12.md).
+that mods can configure. See the [Direct3D 12 renderer documentation](https://andreas-w.github.io/GeneralsGameCode_Modding/rendering/directx12/) (source: [docs/src/content/docs/rendering/directx12.md](docs/src/content/docs/rendering/directx12.md)).
 
 
 ## Joining the Community

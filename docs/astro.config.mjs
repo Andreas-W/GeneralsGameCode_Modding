@@ -20,7 +20,16 @@ export default defineConfig({
 			lastUpdated: true,
 			routeMiddleware: './src/routeData.ts',
 			plugins: [starlightLinksValidator()],
-			sidebar: [{ label: 'Start here', items: [{ label: 'Overview', link: '/' }] }],
+			sidebar: [
+				{ label: 'Overview', link: '/' },
+				{ label: 'Changes and bug fixes', link: '/changes/' },
+				{ label: 'Objects', items: [{ autogenerate: { directory: 'objects' } }] },
+				{ label: 'Modules', items: [{ autogenerate: { directory: 'modules' } }] },
+				{ label: 'Systems', items: [{ autogenerate: { directory: 'systems' } }] },
+				{ label: 'INI files', items: [{ autogenerate: { directory: 'ini' } }] },
+				{ label: 'Rendering', items: [{ autogenerate: { directory: 'rendering' } }] },
+				{ label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] },
+			],
 		}),
 	],
 });

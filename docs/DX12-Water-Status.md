@@ -2,7 +2,7 @@
 
 Hand-over notes for the Direct3D 12 water work on the branch `feat/dx12-water`, written so that it can be picked
 up on another machine. As of 2026-11-18. The reference for every parameter and INI field is
-[DirectX12.md](DirectX12.md) (sections Water and `WaterRendering`); the open GPU hang is in
+[directx12.md](src/content/docs/rendering/directx12.md) (sections Water and `WaterRendering`); the open GPU hang is in
 [DX12-GPU-Hang-Investigation.md](DX12-GPU-Hang-Investigation.md).
 
 ## Goal
@@ -259,7 +259,7 @@ author's own). The material looks for `.dds` first, then `.tga`, whatever extens
 
 ## Things to know
 
-- `Param` values of 0 mean the shader's default; −1 turns off the features marked so in DirectX12.md.
+- `Param` values of 0 mean the shader's default; −1 turns off the features marked so in src/content/docs/rendering/directx12.md.
 - With `Param = Refraction 1` (and `WaterRendering Refraction = Yes`, the default) `MAT_Ocean` ignores `DeepColor`,
   `DepthScale` and `DeepOpacity`; `ScatterColor` and `Absorption` do their job. Without it (the default) the reverse.
   `render_materials(material="Ocean", param="Refraction", values=[1])` switches it live.
