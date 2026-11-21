@@ -1,0 +1,67 @@
+name: Docs
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'scripts/docs/**'
+      - 'GeneralsMD/Code/**'
+      - 'Core/**'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'scripts/docs/**'
+      - 'GeneralsMD/Code/**'
+      - 'Core/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # npm prebuild runs scripts/docs/gen_reference.py for the INI field reference.
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Build with Astro
+        uses: withastro/action@a8b97df764791eb61fbf3338ef713b0e61ae05c5 # v6.1.4
+        with:
+          path: docs
+          package-manager: npm
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

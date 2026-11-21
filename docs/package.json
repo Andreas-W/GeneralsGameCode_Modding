@@ -1,0 +1,21 @@
+{
+  "name": "generals-modding-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "gen": "python ../scripts/docs/gen_reference.py",
+    "predev": "npm run gen",
+    "dev": "astro dev",
+    "prebuild": "npm run gen",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.43.1",
+    "astro": "^7.3.6",
+    "sharp": "^0.35.3",
+    "starlight-links-validator": "^0.27.0"
+  }
+}
