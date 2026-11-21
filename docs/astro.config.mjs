@@ -11,6 +11,15 @@ export default defineConfig({
 		starlight({
 			title: 'GeneralsGameCode Modding',
 			description: 'Modding documentation for the GeneralsGameCode_Modding fork of Command & Conquer: Generals Zero Hour.',
+			logo: { src: './src/assets/logo.svg' },
+			customCss: [
+				'@fontsource/oswald/500.css',
+				'@fontsource/oswald/600.css',
+				'./src/styles/generals.css',
+			],
+			expressiveCode: {
+				styleOverrides: { borderRadius: '4px' },
+			},
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/Andreas-W/GeneralsGameCode_Modding' },
 			],

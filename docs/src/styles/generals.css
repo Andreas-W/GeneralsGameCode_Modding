@@ -1,0 +1,365 @@
+/*
+ * Theme in the style of the Command & Conquer Generals Zero Hour menus (colors sampled from the shell
+ * textures and .wnd files): black panels with a dark blue grid and a glowing royal-blue edge, navy
+ * gradient buttons with bright blue borders, cyan details, white text with a black outline, and the
+ * lime-yellow highlight the menus use for hovered text.
+ *
+ * Fonts: the menus' "Generals" font is Arial (the engine maps it in render2dsentence.cpp); titles use
+ * Placard MT Condensed, for which Oswald is the closest freely licensed stand-in.
+ *
+ * Only Starlight's CSS variables and documented class names are styled.
+ */
+
+:root {
+	--sl-font: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+	--gen-font-head: 'Oswald', 'Arial Narrow', Arial, sans-serif;
+
+	/* Zero Hour palette. */
+	--gen-blue: #2f48ff; /* panel edges */
+	--gen-blue-hi: #6f8cff; /* lit edges, button borders */
+	--gen-navy: #1b2478; /* button fill, dark end */
+	--gen-navy-hi: #3a4ccc; /* button fill, lit end */
+	--gen-cyan: #00e3ff; /* small buttons, icons */
+	--gen-lime: #baff0c; /* highlighted text */
+	--gen-grid: rgba(28, 52, 190, 0.22);
+	--gen-panel: linear-gradient(180deg, #050a2c 0%, #02030f 70%);
+	--gen-glow: rgba(47, 72, 255, 0.55);
+	--gen-text-outline: 0 0 2px #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+
+	--sl-color-accent-low: #0b1450;
+	--sl-color-accent: #4f6bff;
+	--sl-color-accent-high: #a9b8ff;
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: #e2e6f5;
+	--sl-color-gray-2: #b4bcdc;
+	--sl-color-gray-3: #7f89b8;
+	--sl-color-gray-4: #48518a;
+	--sl-color-gray-5: #1f2660;
+	--sl-color-gray-6: #0b1032;
+	--sl-color-black: #000005;
+	--sl-color-hairline: rgba(47, 72, 255, 0.35);
+	--sl-color-hairline-light: rgba(47, 72, 255, 0.5);
+}
+
+/* Light mode: the same blue language on a pale background, for readers who want it. */
+:root[data-theme='light'] {
+	--gen-grid: rgba(47, 72, 255, 0.07);
+	--gen-panel: linear-gradient(180deg, #ffffff 0%, #eef1ff 100%);
+	--gen-glow: rgba(47, 72, 255, 0.25);
+	--gen-lime: #2a39d6;
+	--gen-text-outline: none;
+
+	--sl-color-accent-low: #dfe4ff;
+	--sl-color-accent: #2a39d6;
+	--sl-color-accent-high: #121c7a;
+	--sl-color-white: #050a2c;
+	--sl-color-gray-1: #141b4a;
+	--sl-color-gray-2: #2b346e;
+	--sl-color-gray-3: #535c95;
+	--sl-color-gray-4: #8e96c4;
+	--sl-color-gray-5: #c6cbe8;
+	--sl-color-gray-6: #e6e9f8;
+	--sl-color-gray-7: #f1f3fc;
+	--sl-color-black: #f8f9ff;
+	--sl-color-hairline: rgba(47, 72, 255, 0.2);
+	--sl-color-hairline-light: rgba(47, 72, 255, 0.3);
+}
+
+/* ---------- Background: black with the panels' blue grid ---------- */
+
+body {
+	background:
+		linear-gradient(var(--gen-grid) 1px, transparent 1px) 0 0 / 40px 40px,
+		linear-gradient(90deg, var(--gen-grid) 1px, transparent 1px) 0 0 / 40px 40px,
+		radial-gradient(ellipse at 50% -10%, #0a1350 0%, #000005 65%) fixed;
+	background-color: var(--sl-color-black);
+}
+:root[data-theme='light'] body {
+	background:
+		linear-gradient(var(--gen-grid) 1px, transparent 1px) 0 0 / 40px 40px,
+		linear-gradient(90deg, var(--gen-grid) 1px, transparent 1px) 0 0 / 40px 40px,
+		var(--sl-color-black);
+}
+
+/* ---------- Type ---------- */
+
+h1,
+h2,
+h3,
+h4,
+.site-title,
+.sl-markdown-content :is(h1, h2, h3, h4),
+#starlight__sidebar summary .group-label,
+.right-sidebar h2 {
+	font-family: var(--gen-font-head);
+	font-weight: 500;
+	letter-spacing: 0.03em;
+}
+
+h1#_top,
+.hero h1,
+.sl-markdown-content h2,
+.site-title {
+	text-transform: uppercase;
+}
+
+h1#_top,
+.hero h1 {
+	text-shadow: var(--gen-text-outline), 0 0 18px var(--gen-glow);
+}
+
+.sl-markdown-content h2 {
+	padding-bottom: 0.3rem;
+	border-bottom: 2px solid var(--gen-blue);
+	box-shadow: 0 6px 8px -6px var(--gen-glow);
+}
+
+.sl-markdown-content a {
+	color: var(--gen-cyan);
+	text-underline-offset: 3px;
+}
+.sl-markdown-content a:hover {
+	color: var(--gen-lime);
+}
+:root[data-theme='light'] .sl-markdown-content a {
+	color: #1a5fb4;
+}
+
+/* ---------- Header: a menu bar with a glowing lower edge ---------- */
+
+.header {
+	background: linear-gradient(180deg, #0b1450 0%, #02030f 100%);
+	border-bottom: 2px solid var(--gen-blue);
+	box-shadow: 0 2px 14px var(--gen-glow);
+}
+:root[data-theme='light'] .header {
+	background: linear-gradient(180deg, #ffffff, #e6e9ff);
+}
+
+.site-title {
+	font-size: 1.4rem;
+	color: var(--sl-color-white);
+	text-shadow: var(--gen-text-outline);
+}
+
+site-search button[data-open-modal] {
+	border-radius: 4px;
+	border: 1px solid var(--gen-blue);
+	background: rgba(0, 0, 0, 0.55);
+}
+site-search button[data-open-modal]:hover {
+	border-color: var(--gen-cyan);
+	color: var(--gen-lime);
+}
+
+/* ---------- Sidebars ---------- */
+
+.sidebar-pane {
+	background: rgba(1, 3, 18, 0.88);
+	border-inline-end: 2px solid var(--gen-blue);
+	box-shadow: 2px 0 12px -4px var(--gen-glow);
+}
+:root[data-theme='light'] .sidebar-pane {
+	background: rgba(255, 255, 255, 0.9);
+}
+
+#starlight__sidebar summary .group-label {
+	text-transform: uppercase;
+	font-size: 1rem;
+	color: var(--gen-cyan);
+}
+:root[data-theme='light'] #starlight__sidebar summary .group-label {
+	color: #1a5fb4;
+}
+
+#starlight__sidebar a {
+	border-radius: 3px;
+	border: 1px solid transparent;
+}
+#starlight__sidebar a:hover {
+	color: var(--gen-lime);
+	background: rgba(47, 72, 255, 0.15);
+}
+#starlight__sidebar a[aria-current='page'] {
+	background: linear-gradient(90deg, var(--gen-navy), var(--gen-navy-hi));
+	border-color: var(--gen-blue-hi);
+	color: #ffffff;
+	font-weight: 700;
+	text-shadow: var(--gen-text-outline);
+}
+
+.right-sidebar {
+	border-inline-start: 1px solid var(--sl-color-hairline);
+}
+.right-sidebar h2 {
+	text-transform: uppercase;
+	color: var(--gen-cyan);
+}
+.right-sidebar a:hover {
+	color: var(--gen-lime);
+}
+:root[data-theme='light'] .right-sidebar h2 {
+	color: #1a5fb4;
+}
+
+/* ---------- Panels: black with a blue grid and a glowing rounded edge ---------- */
+
+.sl-link-card,
+.card {
+	border-radius: 8px;
+	border: 2px solid var(--gen-blue);
+	background:
+		linear-gradient(var(--gen-grid) 1px, transparent 1px) 0 0 / 20px 20px,
+		linear-gradient(90deg, var(--gen-grid) 1px, transparent 1px) 0 0 / 20px 20px,
+		var(--gen-panel);
+	box-shadow:
+		0 0 10px var(--gen-glow),
+		inset 0 0 12px rgba(47, 72, 255, 0.25);
+}
+
+.sl-link-card {
+	transition: border-color 0.12s, box-shadow 0.12s;
+}
+.sl-link-card:hover {
+	border-color: var(--gen-blue-hi);
+	box-shadow:
+		0 0 18px var(--gen-glow),
+		inset 0 0 18px rgba(47, 72, 255, 0.4);
+}
+.sl-link-card .title {
+	font-family: var(--gen-font-head);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	font-size: 1.25rem;
+	color: var(--sl-color-white);
+	text-shadow: var(--gen-text-outline);
+}
+.sl-link-card:hover .title {
+	color: var(--gen-lime);
+}
+.sl-link-card .icon {
+	color: var(--gen-cyan);
+}
+
+.starlight-aside {
+	border-radius: 6px;
+	border: 2px solid var(--sl-color-asides-border);
+	background: rgba(0, 0, 0, 0.55);
+}
+:root[data-theme='light'] .starlight-aside {
+	background: var(--sl-color-asides-text-accent, transparent);
+	background: rgba(255, 255, 255, 0.7);
+}
+.starlight-aside__title {
+	font-family: var(--gen-font-head);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+/* ---------- Buttons: navy gradient with a bright border, lime text on hover ---------- */
+
+.sl-link-button {
+	border-radius: 3px;
+	border: 2px solid var(--gen-blue-hi);
+	background: linear-gradient(90deg, var(--gen-navy) 0%, var(--gen-navy-hi) 100%);
+	color: #ffffff;
+	font-family: Arial, sans-serif;
+	font-weight: 700;
+	text-shadow: var(--gen-text-outline);
+	box-shadow: 0 0 10px var(--gen-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+	transition: color 0.1s, box-shadow 0.1s;
+}
+.sl-link-button.primary {
+	border-color: var(--gen-cyan);
+}
+.sl-link-button.minimal,
+.sl-link-button.secondary {
+	background: rgba(0, 0, 0, 0.6);
+	padding-inline: 1.25rem;
+}
+.sl-link-button:hover {
+	color: #baff0c;
+	box-shadow: 0 0 16px var(--gen-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- Splash page hero ---------- */
+
+.hero {
+	padding-block: 3rem 2rem;
+}
+.hero h1 {
+	font-size: clamp(2.2rem, 5vw, 3.8rem);
+	line-height: 1.05;
+	color: #ffffff;
+}
+:root[data-theme='light'] .hero h1 {
+	color: var(--sl-color-white);
+}
+.hero .tagline {
+	color: var(--sl-color-gray-2);
+	font-size: 1.15rem;
+}
+.hero img {
+	filter: drop-shadow(0 0 22px var(--gen-glow));
+}
+
+/* ---------- Content details ---------- */
+
+.sl-markdown-content code:not(pre code) {
+	border-radius: 3px;
+	border: 1px solid rgba(47, 72, 255, 0.5);
+	background: rgba(5, 10, 44, 0.85);
+	color: #d7defc;
+}
+:root[data-theme='light'] .sl-markdown-content code:not(pre code) {
+	background: #eef1ff;
+	color: #121c7a;
+}
+
+.sl-markdown-content table {
+	border: 2px solid var(--gen-blue);
+	border-radius: 6px;
+	box-shadow: 0 0 10px var(--gen-glow);
+}
+.sl-markdown-content th {
+	font-family: var(--gen-font-head);
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	background: linear-gradient(90deg, var(--gen-navy), var(--gen-navy-hi));
+	color: #ffffff;
+	text-shadow: var(--gen-text-outline);
+}
+.sl-markdown-content tr:nth-child(even) td {
+	background: rgba(47, 72, 255, 0.06);
+}
+
+/* Banner for pages that are not verified. */
+.sl-banner {
+	background: linear-gradient(90deg, #3a0d0a, #1a0504);
+	color: #ffd9d4;
+	border-bottom: 2px solid #a8372f;
+}
+
+.pagination-links a {
+	border-radius: 6px;
+	border: 2px solid var(--gen-blue);
+	background: var(--gen-panel);
+	box-shadow: 0 0 10px var(--gen-glow);
+}
+.pagination-links a:hover {
+	border-color: var(--gen-blue-hi);
+}
+.pagination-links a:hover .link-title {
+	color: var(--gen-lime);
+}
+.pagination-links .link-title {
+	font-family: var(--gen-font-head);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+::selection {
+	background: var(--gen-blue);
+	color: #ffffff;
+}
