@@ -17,8 +17,22 @@ export default defineConfig({
 				'@fontsource/oswald/600.css',
 				'./src/styles/generals.css',
 			],
+			// Code blocks get their own solid panel so INI snippets stand out from the gridded page.
 			expressiveCode: {
-				styleOverrides: { borderRadius: '4px' },
+				styleOverrides: {
+					borderRadius: '6px',
+					borderWidth: '1px',
+					borderColor: ({ theme }) => (theme.type === 'dark' ? '#3f5cff' : '#9aa8f0'),
+					codeFontSize: '0.9rem',
+					codeLineHeight: '1.6',
+					codePaddingBlock: '0.9rem',
+					frames: {
+						editorTabBarBackground: ({ theme }) => (theme.type === 'dark' ? '#080f30' : '#e4e8ff'),
+						editorActiveTabBackground: ({ theme }) => (theme.type === 'dark' ? '#121e58' : '#f2f4ff'),
+						terminalTitlebarBackground: ({ theme }) => (theme.type === 'dark' ? '#080f30' : '#e4e8ff'),
+						frameBoxShadowCssValue: '0 0 12px rgba(47, 72, 255, 0.35)',
+					},
+				},
 			},
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/Andreas-W/GeneralsGameCode_Modding' },

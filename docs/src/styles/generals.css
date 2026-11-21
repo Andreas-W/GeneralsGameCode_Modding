@@ -363,3 +363,19 @@ site-search button[data-open-modal]:hover {
 	background: var(--gen-blue);
 	color: #ffffff;
 }
+
+/* ---------- Code blocks: a solid, lighter navy panel so INI snippets stand out from the page ---------- */
+
+/* Starlight's Expressive Code preset pins the editor background to its gray-6 / gray-7 and ignores
+   styleOverrides for it, so set Expressive Code's own variables on the frame. Border and tab colors
+   are in astro.config.mjs (expressiveCode). */
+:root .expressive-code .frame {
+	--ec-frm-edBg: #121e58;
+	--ec-frm-trmBg: #121e58;
+	box-shadow: 0 0 12px var(--gen-glow);
+	border-radius: 6px;
+}
+:root[data-theme='light'] .expressive-code .frame {
+	--ec-frm-edBg: #f2f4ff;
+	--ec-frm-trmBg: #f2f4ff;
+}
