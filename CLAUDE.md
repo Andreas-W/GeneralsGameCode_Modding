@@ -104,6 +104,16 @@ Running the game requires an installed copy of retail Generals/Zero Hour (assets
 - `scripts/cpp/` holds maintenance helpers (include-case fixes, whitespace cleanup, refactor scripts).
 - `scripts/docker-build.sh` / `docker-install.sh --detect` for Linux builds + install to a detected game dir.
 
+## Modding documentation
+
+The documentation for modders is a Starlight site in `docs/`, deployed to `https://andreas-w.github.io/GeneralsGameCode_Modding/` by `.github/workflows/docs.yml` (it replaces the old GitHub wiki). Layout and frontmatter: `docs/README.md`.
+
+- **A change that adds or changes something modders write or see** (INI field, module, enum value, default, limit, behavior fix) updates the matching page in `docs/src/content/docs/` in the same commit or PR. Set the page's `status: verified` and `verifiedAt` to the commit it was checked against.
+- Don't invent defaults; write "see source". Document what modders write and see, not C++ internals.
+- The INI field reference (`reference/generated/`) is generated from the `FieldParse` tables by `scripts/docs/gen_reference.py` and never edited by hand. After merging upstream, refresh its "new in this fork" baseline: `python scripts/docs/gen_reference.py --baseline $(git merge-base HEAD TheSuperHackers/main)`.
+- Check: `python scripts/docs/check_fields.py <pages>` (names that exist nowhere in the code), then `cd docs && npm run build` (fails on broken links or anchors).
+- Catching up on changes that were not documented: the `sync-docs` skill.
+
 ## WorldBuilder MCP
 
 An MCP server that drives a running WorldBuilder: it edits the open map, its scripts and teams, and the AI data around them. Use its tools (`mcp__worldbuilder__*`) for map and script work instead of editing `.map` / `.scb` files by hand. Full tool reference: `scripts/worldbuilder-mcp/README.md`; every tool also documents itself.

@@ -1,0 +1,36 @@
+---
+title: GeneralsGameCode Modding
+description: Modding documentation for the GeneralsGameCode_Modding fork of Command & Conquer Generals Zero Hour.
+status: verified
+verifiedAt: 7cdd826c5
+template: splash
+hero:
+  image:
+    file: ../../assets/logo.svg
+  tagline: New modules, INI fields and engine changes for modding Command & Conquer Generals Zero Hour.
+  actions:
+    - text: What changed
+      link: /GeneralsGameCode_Modding/changes/
+      icon: right-arrow
+    - text: Source on GitHub
+      link: https://github.com/Andreas-W/GeneralsGameCode_Modding
+      icon: external
+      variant: minimal
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+This site documents what the [GeneralsGameCode_Modding](https://github.com/Andreas-W/GeneralsGameCode_Modding)
+fork adds to the Zero Hour engine for modders: new modules and INI fields, new enum values, raised
+limits and fixed engine bugs. Everything here is about Zero Hour.
+
+Pages migrated from the old wiki show a banner until they have been checked against the code.
+
+<CardGrid>
+	<LinkCard title="Objects" description="New fields on Object blocks, WeaponSets, ammo pips and ObjectExtend." href="/GeneralsGameCode_Modding/objects/object-definition/" />
+	<LinkCard title="Modules" description="New and changed AI, upgrade, contain, collide, draw and other modules." href="/GeneralsGameCode_Modding/modules/ai-update/" />
+	<LinkCard title="Systems" description="Features that span several modules: shields, drone carriers, naval, bridges, buffs, veterancy, superweapons." href="/GeneralsGameCode_Modding/systems/battle-plans/" />
+	<LinkCard title="INI files" description="Weapon, Locomotor, GameData, MapData, SpecialPower, FXList and the other INI files." href="/GeneralsGameCode_Modding/ini/weapon/" />
+	<LinkCard title="Direct3D 12 renderer" description="Post-processing, soft shadows and HLSL materials." href="/GeneralsGameCode_Modding/rendering/directx12/" />
+	<LinkCard title="Reference" description="New enum values." href="/GeneralsGameCode_Modding/reference/enums/" />
+</CardGrid>
