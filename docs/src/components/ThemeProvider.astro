@@ -1,0 +1,25 @@
+---
+// Replaces Starlight's ThemeProvider to make dark the default: the theme matches the Zero Hour menus.
+// On a first visit (nothing stored) the choice "dark" is stored, so the theme picker shows Dark.
+// Picking Auto stores an empty string, which is kept, so Auto and Light still work afterwards.
+---
+
+{/* Inlined like Starlight's own, so the page never flashes in the wrong theme. */}
+<script is:inline>
+	(() => {
+		const key = 'starlight-theme';
+		let stored = null;
+		try {
+			stored = localStorage.getItem(key);
+			if (stored === null) {
+				localStorage.setItem(key, 'dark');
+				stored = 'dark';
+			}
+		} catch {
+			stored = 'dark';
+		}
+		const theme =
+			stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+	})();
+</script>
