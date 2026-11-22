@@ -402,10 +402,7 @@ void W3DGhostObject::snapShot(int playerIndex)
 		///@todo: We're going to ignore the case where each player index could be
 		//looking at a different geometry info/orientation because ghost objects
 		//are supposed to be used on immobile buildings.
-		m_parentGeometryType = m_parentObject->getGeometryInfo().getGeomType();
-		m_parentGeometryIsSmall = m_parentObject->getGeometryInfo().getIsSmall();
-		m_parentGeometryMajorRadius = m_parentObject->getGeometryInfo().getMajorRadius();
-		m_parentGeometryminorRadius = m_parentObject->getGeometryInfo().getMinorRadius();
+		m_parentGeometry = m_parentObject->getGeometryInfo();
 		m_parentPosition = *m_parentObject->getPosition();
 		m_parentAngle = m_parentObject->getOrientation();
 	}

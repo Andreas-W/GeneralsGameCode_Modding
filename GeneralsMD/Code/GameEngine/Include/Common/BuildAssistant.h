@@ -137,6 +137,14 @@ public:
 												 IterateFootprintFunc func,
 												 void *funcUserData );
 
+	/// iterateFootprint for a geometry with additional shapes
+	void iterateCompoundFootprint( const GeometryInfo& geom,
+																 Real buildOrientation,
+																 const Coord3D *worldPos,
+																 Real sampleResolution,
+																 IterateFootprintFunc func,
+																 void *funcUserData );
+
 	/// create object from a build and put it in the world now
 	virtual Object *buildObjectNow( Object *constructorObject, const ThingTemplate *what,
 																	const Coord3D *pos, Real angle, Player *owningPlayer );

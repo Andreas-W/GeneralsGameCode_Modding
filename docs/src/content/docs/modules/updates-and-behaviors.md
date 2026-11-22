@@ -17,6 +17,8 @@ sources:
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/ChronoDeathBehavior.cpp
   - Core/GameEngine/Source/GameClient/Drawable/Update/DynamicGeometryClientUpdate.cpp
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/ResetSpecialPowerTimerWhileAliveUpdate.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/DynamicGeometryInfoUpdate.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/DamageStateGeometryBehavior.cpp
 sidebar:
   order: 6
 ---
@@ -197,3 +199,31 @@ Example:
     SpecialPowerTemplate = Tank_SuperweaponUniqueUnit  ; a superweapon template with shared synch timer ( like genpowers)
   End
 ```
+
+## DynamicGeometryInfoUpdate
+
+Added a new parameter:
+* `ScaleAdditionalGeometry = No` - (If Yes, the [additional shapes](/GeneralsGameCode_Modding/objects/object-definition/#compound-geometry) grow and shrink with the main shape: offsets and sizes along the object's forward axis follow the major radius, along its side axis the minor radius, heights and Z offsets the height, each as a ratio to the geometry before the first change. Radii of spheres and cylinders, and boxes not turned by a multiple of 90 degrees, use the geometric mean of the forward and side ratios. If No, only the main shape changes.)
+
+## DamageStateGeometryBehavior
+
+**New in this fork.**
+Gives the object another geometry (main shape and [additional shapes](/GeneralsGameCode_Modding/objects/object-definition/#compound-geometry)) while it is damaged, for example a broken tower that no longer blocks. Healing back to undamaged restores the geometry it had before. Collisions, the cells the object covers and the pathfinding footprint follow at once.
+
+* `DamagedGeometry` - (Optional block up to `End` with the geometry in the damaged state, written like on an Object: `Geometry`, `GeometryMajorRadius`, `GeometryMinorRadius`, `GeometryHeight`, `GeometryIsSmall`, `AdditionalGeometry` blocks.)
+* `ReallyDamagedGeometry` - (Optional block, the same for the really damaged state. Without it, the really damaged state uses `DamagedGeometry`.)
+
+```ini
+Behavior = DamageStateGeometryBehavior ModuleTag_21
+  ReallyDamagedGeometry
+    Geometry = BOX
+    GeometryMajorRadius = 40
+    GeometryMinorRadius = 20
+    GeometryHeight = 30
+  End
+End
+```
+
+Notes:
+- Rubble keeps the geometry of the state before, cut down to the rubble height.
+- Only changes of the damage state through damage and healing count; setting health directly (for example from a script) does not switch the geometry.

@@ -247,6 +247,32 @@ PhysicsBehavior::PhysicsBehavior( Thing *thing, const ModuleData* moduleData ) :
 }
 
 //-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+/** For a compound geometry: center and bounding radius of the shape of 'obj' that is nearest
+	* to 'pt', so that a bounce is measured against the shape that was hit, not the bounds of all. */
+static void getNearestShapeBounds(const Object *obj, const Coord3D& pt, Bool is3D, Coord3D& center, Real& radius)
+{
+	GeometryPrimitive prims[MAX_GEOMETRY_SHAPES];
+	Int count = obj->getGeometryInfo().getWorldPrimitives(*obj->getPosition(), obj->getOrientation(), prims);
+	Real bestDistSqr = 0.0f;
+	for (Int i = 0; i < count; ++i)
+	{
+		const GeometryPrimitive& prim = prims[i];
+		Real distSqr = is3D ? prim.getDistanceSqToPoint3D(pt) : prim.getDistanceSqToPoint2D(pt);
+		if (i == 0 || distSqr < bestDistSqr)
+		{
+			bestDistSqr = distSqr;
+			center = prim.position;
+			if (prim.type != GEOMETRY_SPHERE)
+				center.z += prim.height * 0.5f;
+			radius = prim.getBoundingCircleRadius();
+			if (is3D && prim.type != GEOMETRY_SPHERE)
+				radius = sqrtf(sqr(radius) + sqr(prim.height * 0.5f));
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 static ProjectileUpdateInterface* getPui(Object* obj)
 {
 	if (!obj->isKindOf(KINDOF_PROJECTILE))
@@ -1397,24 +1423,38 @@ void PhysicsBehavior::onCollide( Object *other, const Coord3D *loc, const Coord3
 	obj->getGeometryInfo().getCenterPosition(*obj->getPosition(), usCenter);
 	other->getGeometryInfo().getCenterPosition(*other->getPosition(), themCenter);
 
+	Real usRadius, themRadius;
+	Bool is3D = obj->isAboveTerrain();
+	if (is3D)
+	{
+		usRadius = obj->getGeometryInfo().getBoundingSphereRadius();
+		themRadius = other->getGeometryInfo().getBoundingSphereRadius();
+	}
+	else
+	{
+		usRadius = obj->getGeometryInfo().getBoundingCircleRadius();
+		themRadius = other->getGeometryInfo().getBoundingCircleRadius();
+	}
+
+	if (other->getGeometryInfo().isCompound())
+		getNearestShapeBounds(other, usCenter, is3D, themCenter, themRadius);
+	if (obj->getGeometryInfo().isCompound())
+		getNearestShapeBounds(obj, themCenter, is3D, usCenter, usRadius);
+
 	Coord3D delta;
 	delta.x = themCenter.x - usCenter.x;
 	delta.y = themCenter.y - usCenter.y;
 	delta.z = themCenter.z - usCenter.z;
 
-	Real distSqr, usRadius, themRadius;
-	if (obj->isAboveTerrain())
+	Real distSqr;
+	if (is3D)
 	{
 		// do 3d testing.
-		usRadius = obj->getGeometryInfo().getBoundingSphereRadius();
-		themRadius = other->getGeometryInfo().getBoundingSphereRadius();
 		distSqr = sqr(delta.x) + sqr(delta.y) + sqr(delta.z);
 	}
 	else
 	{
 		// do 2d testing.
-		usRadius = obj->getGeometryInfo().getBoundingCircleRadius();
-		themRadius = other->getGeometryInfo().getBoundingCircleRadius();
 		distSqr = sqr(delta.x) + sqr(delta.y);
 		delta.z = 0;
 	}

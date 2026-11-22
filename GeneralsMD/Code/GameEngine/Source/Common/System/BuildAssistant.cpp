@@ -616,6 +616,62 @@ static void checkSampleBuildLocationShipyard(const Coord3D* samplePoint, void* u
 }  // end checkSampleBuildLocation
 
 //-------------------------------------------------------------------------------------------------
+/** iterateFootprint for a compound geometry: samples every shape on its own grid and skips the
+	* points that an earlier shape already covers. */
+//-------------------------------------------------------------------------------------------------
+void BuildAssistant::iterateCompoundFootprint( const GeometryInfo& geom,
+																							 Real buildOrientation,
+																							 const Coord3D *worldPos,
+																							 Real sampleResolution,
+																							 IterateFootprintFunc func,
+																							 void *funcUserData )
+{
+	GeometryPrimitive prims[ MAX_GEOMETRY_SHAPES ];
+	Int count = geom.getWorldPrimitives( *worldPos, buildOrientation, prims );
+
+	for( Int i = 0; i < count; ++i )
+	{
+		const GeometryPrimitive& prim = prims[ i ];
+		Bool isCircle = prim.type != GEOMETRY_BOX;
+		Real halfFootprintHeight = isCircle ? prim.majorRadius : prim.minorRadius;
+		Real halfFootprintWidth = prim.majorRadius;
+		Real c = (Real)Cos( prim.angle );
+		Real s = (Real)Sin( prim.angle );
+
+		for( Real y = -halfFootprintHeight; y < halfFootprintHeight + sampleResolution; y += sampleResolution )
+		{
+			// snap it to the actual extent since we can go over by one sample resolution
+			if( y > halfFootprintHeight )
+				y = halfFootprintHeight;
+
+			for( Real x = -halfFootprintWidth; x < halfFootprintWidth + sampleResolution; x += sampleResolution )
+			{
+				if( x > halfFootprintWidth )
+					x = halfFootprintWidth;
+
+				// for circular shapes we must actually be within the circle
+				if( isCircle && sqr( x ) + sqr( y ) > sqr( halfFootprintWidth ) )
+					continue;
+
+				Coord3D pos;
+				pos.x = prim.position.x + x*c - y*s;
+				pos.y = prim.position.y + x*s + y*c;
+				pos.z = 0.0f;
+
+				Bool covered = FALSE;
+				for( Int j = 0; j < i && !covered; ++j )
+					covered = prims[ j ].isPointInFootprint2D( pos );
+				if( covered )
+					continue;
+
+				pos.z = TheTerrainLogic->getGroundHeight( pos.x, pos.y );
+				func( &pos, funcUserData );
+			}
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
 /** This function will call the user callback at each "sample point" across the footprint
 	* of where this object would be in the world.  The smaller the sample resolution param is
 	* the more samples will be taken across the footprint area */
@@ -631,6 +687,12 @@ void BuildAssistant::iterateFootprint( const ThingTemplate *build,
 	// sanity
 	if( build == nullptr || worldPos == nullptr || func == nullptr )
 		return;
+
+	if( build->getTemplateGeometryInfo().isCompound() )
+	{
+		iterateCompoundFootprint( build->getTemplateGeometryInfo(), buildOrientation, worldPos, sampleResolution, func, funcUserData );
+		return;
+	}
 
 	//
 	// create a transform matrix for the object position at the specified angle, we will
@@ -851,6 +913,8 @@ LegalBuildCode BuildAssistant::isLocationClearOfObjects( const Coord3D *worldPos
 	// Check for overlapping exit areas.
 
 	Real range = 2*(build->getTemplateGeometryInfo().getMajorRadius()+build->getTemplateGeometryInfo().getMinorRadius());
+	if (build->getTemplateGeometryInfo().isCompound())
+		range = std::max(range, 2*build->getTemplateGeometryInfo().getBoundingCircleRadius());
 
 	PartitionFilterAcceptByKindOf f1(MAKE_KINDOF_MASK(KINDOF_STRUCTURE), KINDOFMASK_NONE);
 	PartitionFilter *filters[] = { &f1, nullptr };
@@ -880,6 +944,7 @@ LegalBuildCode BuildAssistant::isLocationClearOfObjects( const Coord3D *worldPos
 		myBounds.setMinorRadius(myBounds.getMinorRadius()+myExtraWidth);
 	}
 	GeometryInfo myGeom = build->getTemplateGeometryInfo();
+	myGeom.clearExtraShapes();
 	if (myGeom.getGeomType() != GEOMETRY_BOX) {
 		myGeom.setMinorRadius(myGeom.getMajorRadius());
 	}
@@ -928,6 +993,7 @@ LegalBuildCode BuildAssistant::isLocationClearOfObjects( const Coord3D *worldPos
 			hisBounds.setMinorRadius(hisBounds.getMinorRadius()+myExtraWidth);
 		}
 		GeometryInfo hisGeom = them->getGeometryInfo();
+		hisGeom.clearExtraShapes();
 		hisGeom.setMajorRadius(themFactoryExitWidth/2.0f);
 		if (hisGeom.getGeomType() != GEOMETRY_BOX) {
 			hisGeom.setMinorRadius(them->getGeometryInfo().getMajorRadius());
@@ -1577,7 +1643,7 @@ Bool BuildAssistant::moveObjectsForConstruction( const ThingTemplate *whatToBuil
 {
 	GeometryInfo gi (GEOMETRY_BOX, false, 10, whatToBuild->getTemplateGeometryInfo().getMajorRadius(),
 		whatToBuild->getTemplateGeometryInfo().getMajorRadius());
-	if (whatToBuild->getTemplateGeometryInfo().getGeomType()==GEOMETRY_BOX) {
+	if (whatToBuild->getTemplateGeometryInfo().getGeomType()==GEOMETRY_BOX || whatToBuild->getTemplateGeometryInfo().isCompound()) {
 		gi = whatToBuild->getTemplateGeometryInfo();
 	}
 	ObjectIterator *iter =
@@ -1588,6 +1654,8 @@ Bool BuildAssistant::moveObjectsForConstruction( const ThingTemplate *whatToBuil
 	MemoryPoolObjectHolder hold( iter );
 
 	Real radius = sqrt(pow(gi.getMajorRadius(), 2) + pow(gi.getMinorRadius(), 2));
+	if (gi.isCompound())
+		radius = gi.getBoundingCircleRadius();
 	radius *= 1.4f;	// Fudge the distance,
 
 	for( Object *them = iter->first(); them; them = iter->next() )

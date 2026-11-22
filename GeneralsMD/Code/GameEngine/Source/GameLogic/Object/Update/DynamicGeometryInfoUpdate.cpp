@@ -51,6 +51,7 @@ DynamicGeometryInfoUpdateModuleData::DynamicGeometryInfoUpdateModuleData()
 
 	m_transitionTime = 1;
 	m_reverseAtTransitionTime = FALSE;
+	m_scaleAdditionalGeometry = FALSE;
 
 }
 
@@ -74,6 +75,7 @@ DynamicGeometryInfoUpdateModuleData::DynamicGeometryInfoUpdateModuleData()
 
 		{ "TransitionTime",				INI::parseDurationUnsignedInt,		nullptr, offsetof(DynamicGeometryInfoUpdateModuleData, m_transitionTime) },
 		{ "ReverseAtTransitionTime", INI::parseBool,	 nullptr, offsetof( DynamicGeometryInfoUpdateModuleData, m_reverseAtTransitionTime ) },
+		{ "ScaleAdditionalGeometry", INI::parseBool,	 nullptr, offsetof( DynamicGeometryInfoUpdateModuleData, m_scaleAdditionalGeometry ) },
 
 		{ nullptr, nullptr, nullptr, 0 }
 
@@ -82,8 +84,10 @@ DynamicGeometryInfoUpdateModuleData::DynamicGeometryInfoUpdateModuleData()
 }
 
 //-------------------------------------------------------------------------------------------------
-DynamicGeometryInfoUpdate::DynamicGeometryInfoUpdate( Thing *thing, const ModuleData* moduleData ) : UpdateModule( thing, moduleData )
+DynamicGeometryInfoUpdate::DynamicGeometryInfoUpdate( Thing *thing, const ModuleData* moduleData ) : UpdateModule( thing, moduleData ),
+	m_baseGeometry( GEOMETRY_SPHERE, FALSE, 0.0f, 0.0f, 0.0f )
 {
+	m_hasBaseGeometry = FALSE;
 	DynamicGeometryInfoUpdateModuleData *modData = (DynamicGeometryInfoUpdateModuleData *)moduleData;
 	m_startingDelayCountdown = modData->m_initialDelay;
 	m_startingDelayCountdown = max( m_startingDelayCountdown, 1u );
@@ -143,8 +147,29 @@ UpdateSleepTime DynamicGeometryInfoUpdate::update()
 	newMinor = m_initialMinorRadius + (ratio * (m_finalMinorRadius - m_initialMinorRadius));
 
 	// make a new geometry info with the new values
-	const GeometryInfo oldGeom = me->getGeometryInfo();
-	GeometryInfo newGeom( oldGeom.getGeomType(), oldGeom.getIsSmall(), newHeight, newMajor, newMinor );
+	// (a copy changed with set() keeps the additional shapes of a compound geometry)
+	GeometryInfo newGeom = me->getGeometryInfo();
+	newGeom.set( newGeom.getGeomType(), newGeom.getIsSmall(), newHeight, newMajor, newMinor );
+
+	if( data->m_scaleAdditionalGeometry )
+	{
+		// the ratios are taken against the geometry from before the first change
+		if( !m_hasBaseGeometry )
+		{
+			m_baseGeometry = me->getGeometryInfo();
+			m_hasBaseGeometry = TRUE;
+		}
+		if( m_baseGeometry.isCompound() )
+		{
+			Real baseHeight = m_baseGeometry.getMaxHeightAbovePosition();
+			Real baseMajor = m_baseGeometry.getMajorRadius();
+			Real baseMinor = m_baseGeometry.getMinorRadius();
+			Real scaleX = ( baseMajor != 0.0f ) ? newMajor / baseMajor : 1.0f;
+			Real scaleY = ( baseMinor != 0.0f ) ? newMinor / baseMinor : 1.0f;
+			Real scaleZ = ( baseHeight != 0.0f ) ? newHeight / baseHeight : 1.0f;
+			newGeom.setScaledExtraShapes( m_baseGeometry, scaleX, scaleY, scaleZ );
+		}
+	}
 	me->setGeometryInfo( newGeom );
 
 	// we've not been active another frame .. increment out counter
@@ -199,13 +224,14 @@ void DynamicGeometryInfoUpdate::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: base geometry for ScaleAdditionalGeometry */
 // ------------------------------------------------------------------------------------------------
 void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -250,6 +276,18 @@ void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )
 
 	// final minor radius
 	xfer->xferReal( &m_finalMinorRadius );
+
+	// base geometry (older saves take it from the object on the next update)
+	if( version >= 2 )
+	{
+		xfer->xferBool( &m_hasBaseGeometry );
+		if( m_hasBaseGeometry )
+			xfer->xferSnapshot( &m_baseGeometry );
+	}
+	else
+	{
+		m_hasBaseGeometry = FALSE;
+	}
 
 }
 

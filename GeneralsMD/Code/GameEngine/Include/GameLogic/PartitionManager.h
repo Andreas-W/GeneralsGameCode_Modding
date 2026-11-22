@@ -403,6 +403,8 @@ private:
 		that the object could possibly occupy.
 	*/
 	Int calcMaxCoiForShape(GeometryType geom, Real majorRadius, Real minorRadius, Bool isSmall);
+	/// like calcMaxCoiForShape, but for all shapes of a (possibly compound) geometry
+	Int calcMaxCoiForGeometry(const GeometryInfo& geom);
 
 	/**
 		Given an object's geometry and size parameters, calculate the maximum number of COIs

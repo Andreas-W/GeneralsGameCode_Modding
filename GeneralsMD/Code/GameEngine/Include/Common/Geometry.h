@@ -79,6 +79,65 @@ static const Real EXTENT_BIG_CHANGE = 10.0f;
 #endif
 
 //-------------------------------------------------------------------------------------------------
+/** Max number of primitive shapes in one geometry, including the primary shape. */
+//-------------------------------------------------------------------------------------------------
+enum { MAX_GEOMETRY_SHAPES = 8 };
+
+//-------------------------------------------------------------------------------------------------
+/** An additional primitive shape of a compound geometry, in the object's local frame
+	* (x = forward, y = left, z = up from the object position). */
+//-------------------------------------------------------------------------------------------------
+struct GeometryShape
+{
+	GeometryType m_type;
+	Real m_height;
+	Real m_majorRadius;
+	Real m_minorRadius;
+	Coord3D m_offset;
+	Real m_angle;							///< yaw relative to the object, radians
+
+	void clear();
+	void normalize();					///< sphere/cylinder: minor = major (sphere: height = major), like GeometryInfo::set
+	Real getBoundingCircleRadius() const;
+	Real getBoundingSphereRadius() const;
+	Real getZDeltaToCenterPosition() const { return (m_type == GEOMETRY_SPHERE) ? 0.0f : (m_height * 0.5f); }
+	Real getMaxHeightAbovePosition() const { return (m_type == GEOMETRY_SPHERE) ? m_majorRadius : m_height; }
+	Real getMaxHeightBelowPosition() const { return (m_type == GEOMETRY_SPHERE) ? m_majorRadius : 0.0f; }
+};
+
+//-------------------------------------------------------------------------------------------------
+/** One primitive shape of a geometry, placed in the world. 'position' is where an object with
+	* only this shape would stand (bottom center; center for a sphere). */
+//-------------------------------------------------------------------------------------------------
+struct GeometryPrimitive
+{
+	GeometryType type;
+	Real height;
+	Real majorRadius;
+	Real minorRadius;
+	Coord3D position;
+	Real angle;
+
+	Real getMaxHeightAbovePosition() const { return (type == GEOMETRY_SPHERE) ? majorRadius : height; }
+	Real getMaxHeightBelowPosition() const { return (type == GEOMETRY_SPHERE) ? majorRadius : 0.0f; }
+	Real getBoundingCircleRadius() const;
+	Bool isPointInFootprint2D(const Coord3D& pt) const;	///< respects the angle
+	Real getDistanceSqToPoint2D(const Coord3D& pt) const;	///< 0 inside
+	Real getDistanceSqToPoint3D(const Coord3D& pt) const;	///< 0 inside
+};
+
+//-------------------------------------------------------------------------------------------------
+/** The additional shapes of a compound geometry. Shared by every copy of a GeometryInfo (the
+	* template and all of its objects) and never changed while shared: a change makes a new list. */
+//-------------------------------------------------------------------------------------------------
+struct GeometryShapeList
+{
+	Int m_refCount;
+	Int m_count;
+	GeometryShape m_shapes[MAX_GEOMETRY_SHAPES - 1];
+};
+
+//-------------------------------------------------------------------------------------------------
 /** Geometry information */
 //-------------------------------------------------------------------------------------------------
 class GeometryInfo : public Snapshot
@@ -93,7 +152,14 @@ private:
 	Real m_boundingCircleRadius;	///< not in INI file -- size of bounding circle (2d)
 	Real m_boundingSphereRadius;	///< not in INI -- size of bounding sphere (3d)
 
+	// Additional shapes of a compound geometry (null: none). The scalars above stay the primary
+	// shape (offset 0, angle 0), so code that only knows one shape keeps working with it.
+	GeometryShapeList *m_extraShapes;
+
 	void calcBoundingStuff();
+	Int getExtraShapeCount() const { return m_extraShapes ? m_extraShapes->m_count : 0; }
+	void setExtraShapes(GeometryShapeList *list);	///< takes a reference on list, releases the old one
+	void setLoadedExtraShapes(const GeometryShape *shapes, Int count);
 
 protected:
 
@@ -110,14 +176,56 @@ public:
 	static void parseGeometryMajorRadius( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ );
 	static void parseGeometryMinorRadius( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ );
 
+	/// parses an "AdditionalGeometry ... End" block into a GeometryShape (store)
+	static void parseGeometryShape( INI* ini, GeometryShape& shape );
+
+	/// parses an "AdditionalGeometry ... End" block and adds it to the GeometryInfo (store)
+	static void parseAdditionalGeometryInto( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ );
+
+	/// parses a whole geometry (Geometry, GeometryMajorRadius, ..., AdditionalGeometry blocks) up to
+	/// "End" into the GeometryInfo (store), replacing what it held; for geometries in module blocks
+	static void parseGeometryBlock( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ );
+
 	GeometryInfo(GeometryType type, Bool isSmall, Real height, Real majorRadius, Real minorRadius)
 	{
 		m_boundingCircleRadius = 0.0f;
 		m_boundingSphereRadius = 0.0f;
+		m_extraShapes = nullptr;
 		set(type, isSmall, height, majorRadius, minorRadius);
 	}
 
+	GeometryInfo(const GeometryInfo& that) : Snapshot(that), m_extraShapes(nullptr) { *this = that; }
+	GeometryInfo& operator=(const GeometryInfo& that);
+	~GeometryInfo() { setExtraShapes(nullptr); }
+
+	/// sets the primary shape; additional shapes are kept
 	void set(GeometryType type, Bool isSmall, Real height, Real majorRadius, Real minorRadius);
+
+	// compound geometry
+	Bool isCompound() const { return m_extraShapes != nullptr; }
+	Int getShapeCount() const { return 1 + getExtraShapeCount(); }
+	const GeometryShape& getExtraShape(Int i) const { return m_extraShapes->m_shapes[i]; }
+	Bool addShape(const GeometryShape& shape);	///< false if full
+	void clearExtraShapes();
+	/// the additional shapes of 'base', offsets scaled per object axis and sizes scaled with them
+	void setScaledExtraShapes(const GeometryInfo& base, Real scaleX, Real scaleY, Real scaleZ);
+	/// shape i (0 = primary) of an object with this geom at 'pos' facing 'angle', in world space
+	void getWorldPrimitive(Int i, const Coord3D& pos, Real angle, GeometryPrimitive& out) const;
+	/// the primary shape in world space (inline: used by every collision test)
+	void getPrimaryPrimitive(const Coord3D& pos, Real angle, GeometryPrimitive& out) const
+	{
+		out.type = m_type;
+		out.height = m_height;
+		out.majorRadius = m_majorRadius;
+		out.minorRadius = m_minorRadius;
+		out.position = pos;
+		out.angle = angle;
+	}
+	/// all shapes at once into out[MAX_GEOMETRY_SHAPES]; returns getShapeCount()
+	Int getWorldPrimitives(const Coord3D& pos, Real angle, GeometryPrimitive *out) const;
+	/// squared 2d/3d distance from 'pt' to the nearest shape of an object at 'pos' facing 'angle' (0 inside)
+	Real getDistanceSqToPoint2D(const Coord3D& pos, Real angle, const Coord3D& pt) const;
+	Real getDistanceSqToPoint3D(const Coord3D& pos, Real angle, const Coord3D& pt) const;
 
 	// bleah, icky but needed for legacy code
 	void setMajorRadius(Real majorRadius)
@@ -134,7 +242,7 @@ public:
 	}
 
 	GeometryType getGeomType() const { return m_type; }
-	Bool getIsSmall() const { return m_isSmall; }
+	Bool getIsSmall() const { return m_isSmall && m_extraShapes == nullptr; }	///< a compound geometry is never small
 	Real getMajorRadius() const { return m_majorRadius; }	// x-axis
 	Real getMinorRadius() const { return m_minorRadius; }	// y-axis
 
@@ -180,6 +288,7 @@ public:
 	Bool isPointInFootprint(const Coord3D& geomCenter, const Coord3D& pt) const;
 
 	// given an object with this geom, SET how far above the object's canonical position its max z should extend.
+	// Additional shapes reaching higher than z are cut down to it.
 	void setMaxHeightAbovePosition(Real z);
 
 #if defined(RTS_DEBUG)

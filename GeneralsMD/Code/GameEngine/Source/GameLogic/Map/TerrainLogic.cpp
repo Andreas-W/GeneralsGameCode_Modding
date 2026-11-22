@@ -2982,9 +2982,82 @@ void TerrainLogic::setActiveBoundary(Int newActiveBoundary)
 // ------------------------------------------------------------------------------------------------
 /** Flatten the terrain beneath a structure. */
 // ------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+/** flattenTerrain for a geometry with additional shapes: one average height for the vertices
+	* under any of the shapes. */
+//-------------------------------------------------------------------------------------------------
+static void flattenCompoundTerrain(TerrainLogic *terrain, Object *obj)
+{
+	const GeometryInfo& geom = obj->getGeometryInfo();
+	const Coord3D *pos = obj->getPosition();
+
+	GeometryPrimitive prims[MAX_GEOMETRY_SHAPES];
+	Int count = geom.getWorldPrimitives(*pos, obj->getOrientation(), prims);
+
+	Region2D bounds;
+	geom.get2DBounds(*pos, obj->getOrientation(), bounds);
+	ICoord2D iMin, iMax;
+	iMin.x = REAL_TO_INT_FLOOR(bounds.lo.x/MAP_XY_FACTOR);
+	iMin.y = REAL_TO_INT_FLOOR(bounds.lo.y/MAP_XY_FACTOR);
+	iMax.x = REAL_TO_INT_FLOOR(bounds.hi.x/MAP_XY_FACTOR);
+	iMax.y = REAL_TO_INT_FLOOR(bounds.hi.y/MAP_XY_FACTOR);
+
+	Int i, j;
+	Real totalHeight = 0;
+	Int numSamples = 0;
+	for (i=iMin.x; i<=iMax.x; i++) {
+		for (j=iMin.y; j<=iMax.y; j++) {
+			Coord3D testPt;
+			testPt.set(i*MAP_XY_FACTOR, j*MAP_XY_FACTOR, 0);
+			for (Int k = 0; k < count; ++k) {
+				if (prims[k].isPointInFootprint2D(testPt)) {
+					totalHeight += terrain->getGroundHeight(testPt.x, testPt.y);
+					numSamples++;
+					break;
+				}
+			}
+		}
+	}
+	if (numSamples == 0) return;
+	Real avgHeight = totalHeight/numSamples;
+	Int rawDataHeight = REAL_TO_INT_FLOOR(0.5f + avgHeight/MAP_HEIGHT_SCALE);
+
+	// Compare to the height at the building's origin, because setRawMapHeight will only lower,
+	// not raise (like the box case of flattenTerrain).
+	Int centerHeight = REAL_TO_INT_FLOOR(terrain->getGroundHeight(pos->x, pos->y)/MAP_HEIGHT_SCALE);
+	if (rawDataHeight>centerHeight) rawDataHeight = centerHeight;
+
+	for (i=iMin.x; i<=iMax.x; i++) {
+		for (j=iMin.y; j<=iMax.y; j++) {
+			Coord3D testPt;
+			testPt.set(i*MAP_XY_FACTOR, j*MAP_XY_FACTOR, 0);
+			Bool match = false;
+			for (Int k = 0; k < count && !match; ++k)
+				match = prims[k].isPointInFootprint2D(testPt);
+			if (!match)
+				continue;
+
+			// a whole 3x3 square around the vertex, like flattenTerrain
+			for (Int dx = -1; dx <= 1; ++dx) {
+				for (Int dy = -1; dy <= 1; ++dy) {
+					ICoord2D gridPos;
+					gridPos.x = i+dx;
+					gridPos.y = j+dy;
+					TheTerrainVisual->setRawMapHeight(&gridPos, rawDataHeight);
+				}
+			}
+		}
+	}
+}
+
 void TerrainLogic::flattenTerrain(Object *obj)
 {
 	if (obj->getGeometryInfo().getIsSmall() || obj->isKindOf(KINDOF_SHIPYARD)) {
+		return;
+	}
+
+	if (obj->getGeometryInfo().isCompound()) {
+		flattenCompoundTerrain(this, obj);
 		return;
 	}
 

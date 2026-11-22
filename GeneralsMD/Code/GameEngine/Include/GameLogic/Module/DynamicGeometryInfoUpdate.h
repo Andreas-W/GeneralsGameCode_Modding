@@ -51,6 +51,7 @@ public:
 	UnsignedInt m_transitionTime;
 
 	Bool m_reverseAtTransitionTime;		///< reverse directions once transition time is reached
+	Bool m_scaleAdditionalGeometry;		///< scale the additional shapes of a compound geometry with the primary shape
 
 	// I will go from initial to final in transitionTime frames, smoothly.
 	// I won't change type until that is actually needed as a task.
@@ -97,5 +98,8 @@ protected:
 	Real m_finalHeight;
 	Real m_finalMajorRadius;
 	Real m_finalMinorRadius;
+
+	GeometryInfo m_baseGeometry;			///< the geometry when the transition started, for ScaleAdditionalGeometry
+	Bool m_hasBaseGeometry;
 
 };

@@ -1627,96 +1627,104 @@ void DrawObject::updateVBWithBoundingBox(MapObject *pMapObj, CameraClass* camera
 		pos.z += TheTerrainRenderObject->getHeightMapHeight(pos.x, pos.y, nullptr);
 	}
 
-	switch (ginfo.getGeomType())
+	// one outline per shape of a compound geometry
+	for (Int shapeIndex = 0; shapeIndex < ginfo.getShapeCount(); ++shapeIndex)
 	{
-		//---------------------------------------------------------------------------------------------
-		case GEOMETRY_BOX:
+		GeometryPrimitive prim;
+		ginfo.getWorldPrimitive(shapeIndex, pos, pMapObj->getAngle(), prim);
+		const Coord3D shapePos = prim.position;
+
+		switch (prim.type)
 		{
-			Real angle = pMapObj->getAngle();
-			Real c = (Real)cos(angle);
-			Real s = (Real)sin(angle);
-			Real exc = ginfo.getMajorRadius()*c;
-			Real eyc = ginfo.getMinorRadius()*c;
-			Real exs = ginfo.getMajorRadius()*s;
-			Real eys = ginfo.getMinorRadius()*s;
-			Coord3D pts[4];
-			pts[0].x = pos.x - exc - eys;
-			pts[0].y = pos.y + eyc - exs;
-			pts[0].z = 0;
-			pts[1].x = pos.x + exc - eys;
-			pts[1].y = pos.y + eyc + exs;
-			pts[1].z = 0;
-			pts[2].x = pos.x + exc + eys;
-			pts[2].y = pos.y - eyc + exs;
-			pts[2].z = 0;
-			pts[3].x = pos.x - exc + eys;
-			pts[3].y = pos.y - eyc - exs;
-			pts[3].z = 0;
-			Real z = pos.z;
-			for (int i = 0; i < 2; i++) {
-				for (int corner = 0; corner < 4; corner++) {
-					ICoord2D start, end;
-					pts[corner].z = z;
-					pts[(corner+1)&3].z = z;
-					bool shouldStart = worldToScreen(&pts[corner], &start, camera);
-					bool shouldEnd = worldToScreen(&pts[(corner+1)&3], &end, camera);
-					if (shouldStart && shouldEnd) {
-						m_lineRenderer->Add_Line(Vector2(start.x, start.y), Vector2(end.x, end.y), BOUNDING_BOX_LINE_WIDTH, color);
+			//---------------------------------------------------------------------------------------------
+			case GEOMETRY_BOX:
+			{
+				Real angle = prim.angle;
+				Real c = (Real)cos(angle);
+				Real s = (Real)sin(angle);
+				Real exc = prim.majorRadius*c;
+				Real eyc = prim.minorRadius*c;
+				Real exs = prim.majorRadius*s;
+				Real eys = prim.minorRadius*s;
+				Coord3D pts[4];
+				pts[0].x = shapePos.x - exc - eys;
+				pts[0].y = shapePos.y + eyc - exs;
+				pts[0].z = 0;
+				pts[1].x = shapePos.x + exc - eys;
+				pts[1].y = shapePos.y + eyc + exs;
+				pts[1].z = 0;
+				pts[2].x = shapePos.x + exc + eys;
+				pts[2].y = shapePos.y - eyc + exs;
+				pts[2].z = 0;
+				pts[3].x = shapePos.x - exc + eys;
+				pts[3].y = shapePos.y - eyc - exs;
+				pts[3].z = 0;
+				Real z = shapePos.z;
+				for (int i = 0; i < 2; i++) {
+					for (int corner = 0; corner < 4; corner++) {
+						ICoord2D start, end;
+						pts[corner].z = z;
+						pts[(corner+1)&3].z = z;
+						bool shouldStart = worldToScreen(&pts[corner], &start, camera);
+						bool shouldEnd = worldToScreen(&pts[(corner+1)&3], &end, camera);
+						if (shouldStart && shouldEnd) {
+							m_lineRenderer->Add_Line(Vector2(start.x, start.y), Vector2(end.x, end.y), BOUNDING_BOX_LINE_WIDTH, color);
+						}
 					}
+
+					z += prim.getMaxHeightAbovePosition();
+				}
+				break;
+			}
+
+			//---------------------------------------------------------------------------------------------
+			case GEOMETRY_SPHERE:	// not quite right, but close enough
+			case GEOMETRY_CYLINDER:
+			{
+				Real angle, inc = PI/4.0f;
+				Real radius = prim.majorRadius;
+				Coord3D pnt, lastPnt;
+				ICoord2D start, end;
+				Real z = shapePos.z;
+
+				bool shouldEnd, shouldStart;
+				// Draw the cylinder.
+				for (int i=0; i<2; i++) {
+					angle = 0.0f;
+					lastPnt.x = shapePos.x + radius * (Real)cos(angle);
+					lastPnt.y = shapePos.y + radius * (Real)sin(angle);
+					lastPnt.z = z;
+					shouldEnd = worldToScreen(&lastPnt, &end, camera);
+
+					for( angle = inc; angle <= 2.0f * PI; angle += inc ) {
+						pnt.x = shapePos.x + radius * (Real)cos(angle);
+						pnt.y = shapePos.y + radius * (Real)sin(angle);
+						pnt.z = z;
+						shouldStart = worldToScreen(&pnt, &start, camera);
+						if (shouldStart && shouldEnd) {
+							m_lineRenderer->Add_Line(Vector2(start.x, start.y), Vector2(end.x, end.y), BOUNDING_BOX_LINE_WIDTH, color);
+						}
+						lastPnt = pnt;
+						end = start;
+						shouldEnd = shouldStart;
+					}
+
+					// Next time around, draw the top of the cylinder.
+					z += prim.getMaxHeightAbovePosition();
 				}
 
-				z += ginfo.getMaxHeightAbovePosition();
-			}
-			break;
-		}
-
-		//---------------------------------------------------------------------------------------------
-		case GEOMETRY_SPHERE:	// not quite right, but close enough
-		case GEOMETRY_CYLINDER:
-		{
-			Real angle, inc = PI/4.0f;
-			Real radius = ginfo.getMajorRadius();
-			Coord3D pnt, lastPnt;
-			ICoord2D start, end;
-			Real z = pos.z;
-
-			bool shouldEnd, shouldStart;
-			// Draw the cylinder.
-			for (int i=0; i<2; i++) {
-				angle = 0.0f;
-				lastPnt.x = pos.x + radius * (Real)cos(angle);
-				lastPnt.y = pos.y + radius * (Real)sin(angle);
-				lastPnt.z = z;
-				shouldEnd = worldToScreen(&lastPnt, &end, camera);
-
-				for( angle = inc; angle <= 2.0f * PI; angle += inc ) {
-					pnt.x = pos.x + radius * (Real)cos(angle);
-					pnt.y = pos.y + radius * (Real)sin(angle);
-					pnt.z = z;
-					shouldStart = worldToScreen(&pnt, &start, camera);
-					if (shouldStart && shouldEnd) {
-						m_lineRenderer->Add_Line(Vector2(start.x, start.y), Vector2(end.x, end.y), BOUNDING_BOX_LINE_WIDTH, color);
-					}
-					lastPnt = pnt;
-					end = start;
-					shouldEnd = shouldStart;
+				// Draw centerline
+				pnt.x = shapePos.x;
+				pnt.y = shapePos.y;
+				pnt.z = shapePos.z;
+				shouldStart = worldToScreen( &pnt, &start, camera);
+				pnt.z = shapePos.z + prim.getMaxHeightAbovePosition();
+				shouldEnd = worldToScreen( &pnt, &end, camera);
+				if (shouldStart && shouldEnd) {
+					m_lineRenderer->Add_Line(Vector2(start.x, start.y), Vector2(end.x, end.y), BOUNDING_BOX_LINE_WIDTH, color);
 				}
-
-				// Next time around, draw the top of the cylinder.
-				z += ginfo.getMaxHeightAbovePosition();
+				break;
 			}
-
-			// Draw centerline
-			pnt.x = pos.x;
-			pnt.y = pos.y;
-			pnt.z = pos.z;
-			shouldStart = worldToScreen( &pnt, &start, camera);
-			pnt.z = pos.z + ginfo.getMaxHeightAbovePosition();
-			shouldEnd = worldToScreen( &pnt, &end, camera);
-			if (shouldStart && shouldEnd) {
-				m_lineRenderer->Add_Line(Vector2(start.x, start.y), Vector2(end.x, end.y), BOUNDING_BOX_LINE_WIDTH, color);
-			}
-			break;
 		}
 	}
 }

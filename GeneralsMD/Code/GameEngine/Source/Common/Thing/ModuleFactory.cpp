@@ -94,6 +94,7 @@
 #include "GameLogic/Module/PoisonedBehavior.h"
 #include "GameLogic/Module/RebuildHoleBehavior.h"
 #include "GameLogic/Module/SupplyWarehouseCripplingBehavior.h"
+#include "GameLogic/Module/DamageStateGeometryBehavior.h"
 #include "GameLogic/Module/TechBuildingBehavior.h"
 #include "GameLogic/Module/MinefieldBehavior.h"
 #include "GameLogic/Module/BattleBusSlowDeathBehavior.h"
@@ -231,6 +232,7 @@
 #include "GameLogic/Module/GrantScienceUpgrade.h"
 #include "GameLogic/Module/PassengersFireUpgrade.h"
 #include "GameLogic/Module/LocomotorSetUpgrade.h"
+#include "GameLogic/Module/GeometryUpgrade.h"
 #include "GameLogic/Module/ObjectCreationUpgrade.h"
 #include "GameLogic/Module/RadarUpgrade.h"
 #include "GameLogic/Module/PowerPlantUpgrade.h"
@@ -418,6 +420,7 @@ void ModuleFactory::init()
 	addModule( PoisonedBehavior );
 	addModule( RebuildHoleBehavior );
 	addModule( SupplyWarehouseCripplingBehavior );
+	addModule( DamageStateGeometryBehavior );
 	addModule( TechBuildingBehavior );
 	addModule( MinefieldBehavior );
 	addModule( BattleBusSlowDeathBehavior );
@@ -564,6 +567,7 @@ void ModuleFactory::init()
 	addModule( PowerPlantUpgrade );
 	addModule( PropagateUpgradeToContainedUpgrade );
 	addModule( LocomotorSetUpgrade );
+	addModule( GeometryUpgrade );
 	addModule( ObjectCreationUpgrade );
 	addModule( ReplaceObjectUpgrade );
 	addModule( ModelConditionUpgrade );

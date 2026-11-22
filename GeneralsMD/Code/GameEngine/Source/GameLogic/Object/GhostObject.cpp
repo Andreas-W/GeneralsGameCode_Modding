@@ -43,9 +43,7 @@ m_parentAngle(0.0f),
 // TheSuperHackers @bugfix tomsons26 26/04/2025 Change initialization of m_parentGeometryIsSmall from 0.0f.
 // Assigning a float to a bool results in the compiler using a random 1 byte value to assign to the bool.
 // @todo Change initialization to 'false' when applicable.
-m_parentGeometryIsSmall(true),
-m_parentGeometryMajorRadius(0.0f),
-m_parentGeometryminorRadius(0.0f),
+m_parentGeometry(GEOMETRY_SPHERE, true, 0.0f, 0.0f, 0.0f),
 m_parentObject(nullptr),
 m_partitionData(nullptr)
 {
@@ -68,12 +66,13 @@ void GhostObject::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer Method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: Whole parent geometry, including additional shapes */
 // ------------------------------------------------------------------------------------------------
 void GhostObject::xfer( Xfer *xfer )
 {
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -95,17 +94,34 @@ void GhostObject::xfer( Xfer *xfer )
 		}
 	}
 
-	// parent geometry type
-	xfer->xferUser( &m_parentGeometryType, sizeof( GeometryType ) );
+	if( version >= 2 )
+	{
+		// parent geometry
+		xfer->xferSnapshot( &m_parentGeometry );
+	}
+	else
+	{
+		GeometryType type = m_parentGeometry.getGeomType();
+		Bool isSmall = m_parentGeometry.getIsSmall();
+		Real majorRadius = m_parentGeometry.getMajorRadius();
+		Real minorRadius = m_parentGeometry.getMinorRadius();
 
-	// parent geometry is small
-	xfer->xferBool( &m_parentGeometryIsSmall );
+		// parent geometry type
+		xfer->xferUser( &type, sizeof( GeometryType ) );
 
-	// parent geometry major radius
-	xfer->xferReal( &m_parentGeometryMajorRadius );
+		// parent geometry is small
+		xfer->xferBool( &isSmall );
 
-	// parent geometry minor radius
-	xfer->xferReal( &m_parentGeometryminorRadius );
+		// parent geometry major radius
+		xfer->xferReal( &majorRadius );
+
+		// parent geometry minor radius
+		xfer->xferReal( &minorRadius );
+
+		// version 1 did not keep the height; the ghost only needs the footprint
+		m_parentGeometry.clearExtraShapes();
+		m_parentGeometry.set( type, isSmall, 0.0f, majorRadius, minorRadius );
+	}
 
 	// parent angle
 	xfer->xferReal( &m_parentAngle );

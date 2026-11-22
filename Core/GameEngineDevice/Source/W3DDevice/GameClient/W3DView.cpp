@@ -1021,37 +1021,35 @@ static void drawContainedDrawable( Object *obj, void *userData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-static void drawDrawableExtents( Drawable *draw, void *userData )
+//-------------------------------------------------------------------------------------------------
+static void drawGeometryPrimitive( const GeometryPrimitive& prim, UnsignedInt color )
 {
-	UnsignedInt color = GameMakeColor( 0, 255, 0, 255 );
-
-	switch( draw->getDrawableGeometryInfo().getGeomType() )
+	switch( prim.type )
 	{
 
 		//---------------------------------------------------------------------------------------------
 		case GEOMETRY_BOX:
 		{
-			Real angle = draw->getOrientation();
-			Real c = (Real)cos(angle);
-			Real s = (Real)sin(angle);
-			Real exc = draw->getDrawableGeometryInfo().getMajorRadius()*c;
-			Real eyc = draw->getDrawableGeometryInfo().getMinorRadius()*c;
-			Real exs = draw->getDrawableGeometryInfo().getMajorRadius()*s;
-			Real eys = draw->getDrawableGeometryInfo().getMinorRadius()*s;
+			Real c = (Real)cos(prim.angle);
+			Real s = (Real)sin(prim.angle);
+			Real exc = prim.majorRadius*c;
+			Real eyc = prim.minorRadius*c;
+			Real exs = prim.majorRadius*s;
+			Real eys = prim.minorRadius*s;
 			Coord3D pts[4];
-			pts[0].x = draw->getPosition()->x - exc - eys;
-			pts[0].y = draw->getPosition()->y + eyc - exs;
+			pts[0].x = prim.position.x - exc - eys;
+			pts[0].y = prim.position.y + eyc - exs;
 			pts[0].z = 0;
-			pts[1].x = draw->getPosition()->x + exc - eys;
-			pts[1].y = draw->getPosition()->y + eyc + exs;
+			pts[1].x = prim.position.x + exc - eys;
+			pts[1].y = prim.position.y + eyc + exs;
 			pts[1].z = 0;
-			pts[2].x = draw->getPosition()->x + exc + eys;
-			pts[2].y = draw->getPosition()->y - eyc + exs;
+			pts[2].x = prim.position.x + exc + eys;
+			pts[2].y = prim.position.y - eyc + exs;
 			pts[2].z = 0;
-			pts[3].x = draw->getPosition()->x - exc + eys;
-			pts[3].y = draw->getPosition()->y - eyc - exs;
+			pts[3].x = prim.position.x - exc + eys;
+			pts[3].y = prim.position.y - eyc - exs;
 			pts[3].z = 0;
-			Real z = draw->getPosition()->z;
+			Real z = prim.position.z;
 			for( int i = 0; i < 2; i++ )
 			{
 
@@ -1065,7 +1063,7 @@ static void drawDrawableExtents( Drawable *draw, void *userData )
 					TheDisplay->drawLine(start.x, start.y, end.x, end.y, 1.0f, color);
 				}
 
-				z += draw->getDrawableGeometryInfo().getMaxHeightAbovePosition();
+				z += prim.getMaxHeightAbovePosition();
 
 			}
 
@@ -1077,8 +1075,8 @@ static void drawDrawableExtents( Drawable *draw, void *userData )
 		case GEOMETRY_SPHERE:	// not quite right, but close enough
 		case GEOMETRY_CYLINDER:
 		{
-      Coord3D center = *draw->getPosition();
-      const Real radius = draw->getDrawableGeometryInfo().getMajorRadius();
+      Coord3D center = prim.position;
+      const Real radius = prim.majorRadius;
 
 			// draw cylinder
 			for( int i=0; i<2; i++ )
@@ -1086,14 +1084,14 @@ static void drawDrawableExtents( Drawable *draw, void *userData )
         drawDebugCircle( center, radius, 1.0f, color );
 
         // next time 'round, draw the top of the cylinder
-        center.z += draw->getDrawableGeometryInfo().getMaxHeightAbovePosition();
+        center.z += prim.getMaxHeightAbovePosition();
 			}
 
 			// draw centerline
       ICoord2D start, end;
-      center = *draw->getPosition();
+      center = prim.position;
       TheTacticalView->worldToScreen( &center, &start );
-      center.z += draw->getDrawableGeometryInfo().getMaxHeightAbovePosition();
+      center.z += prim.getMaxHeightAbovePosition();
       TheTacticalView->worldToScreen( &center, &end );
 			TheDisplay->drawLine( start.x, start.y, end.x, end.y, 1.0f, color );
 
@@ -1101,6 +1099,22 @@ static void drawDrawableExtents( Drawable *draw, void *userData )
 
 		}
 
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+static void drawDrawableExtents( Drawable *draw, void *userData )
+{
+	UnsignedInt color = GameMakeColor( 0, 255, 0, 255 );
+	UnsignedInt extraColor = GameMakeColor( 0, 200, 255, 255 );
+
+	const GeometryInfo& geom = draw->getDrawableGeometryInfo();
+	for( Int shape = 0; shape < geom.getShapeCount(); ++shape )
+	{
+		GeometryPrimitive prim;
+		geom.getWorldPrimitive( shape, *draw->getPosition(), draw->getOrientation(), prim );
+		drawGeometryPrimitive( prim, shape == 0 ? color : extraColor );
 	}
 
 	// draw any extents for things that are contained by this

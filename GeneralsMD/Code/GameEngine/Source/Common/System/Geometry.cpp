@@ -32,6 +32,7 @@
 
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 #include "Common/Geometry.h"
+#include "Common/GameState.h"
 #include "Common/INI.h"
 #include "Common/RandomValue.h"
 #include "Common/Xfer.h"
@@ -76,6 +77,347 @@
 	((GeometryInfo*)store)->calcBoundingStuff();
 }
 
+//=============================================================================
+static const FieldParse s_geometryShapeFieldParse[] =
+{
+	{ "Type",					INI::parseIndexList,	GeometryNames,	offsetof( GeometryShape, m_type ) },
+	{ "MajorRadius",	INI::parseReal,				nullptr,				offsetof( GeometryShape, m_majorRadius ) },
+	{ "MinorRadius",	INI::parseReal,				nullptr,				offsetof( GeometryShape, m_minorRadius ) },
+	{ "Height",				INI::parseReal,				nullptr,				offsetof( GeometryShape, m_height ) },
+	{ "Offset",				INI::parseCoord3D,		nullptr,				offsetof( GeometryShape, m_offset ) },
+	{ "Angle",				INI::parseAngleReal,	nullptr,				offsetof( GeometryShape, m_angle ) },
+	{ nullptr, nullptr, nullptr, 0 }
+};
+
+//=============================================================================
+/*static*/ void GeometryInfo::parseGeometryShape( INI* ini, GeometryShape& shape )
+{
+	static_assert(sizeof(GeometryType) == sizeof(Int), "parseIndexList stores an Int");
+	shape.clear();
+	ini->initFromINI(&shape, s_geometryShapeFieldParse);
+	shape.normalize();
+}
+
+//=============================================================================
+/*static*/ void GeometryInfo::parseAdditionalGeometryInto( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ )
+{
+	GeometryShape shape;
+	parseGeometryShape(ini, shape);
+	if (!((GeometryInfo*)store)->addShape(shape))
+	{
+		DEBUG_CRASH(("A geometry has more than %d shapes", (Int)MAX_GEOMETRY_SHAPES));
+		throw INI_INVALID_DATA;
+	}
+}
+
+//=============================================================================
+static const FieldParse s_geometryBlockFieldParse[] =
+{
+	{ "Geometry",							GeometryInfo::parseGeometryType,						nullptr, 0 },
+	{ "GeometryMajorRadius",	GeometryInfo::parseGeometryMajorRadius,			nullptr, 0 },
+	{ "GeometryMinorRadius",	GeometryInfo::parseGeometryMinorRadius,			nullptr, 0 },
+	{ "GeometryHeight",				GeometryInfo::parseGeometryHeight,					nullptr, 0 },
+	{ "GeometryIsSmall",			GeometryInfo::parseGeometryIsSmall,					nullptr, 0 },
+	{ "AdditionalGeometry",		GeometryInfo::parseAdditionalGeometryInto,	nullptr, 0 },
+	{ nullptr, nullptr, nullptr, 0 }
+};
+
+//=============================================================================
+/*static*/ void GeometryInfo::parseGeometryBlock( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ )
+{
+	GeometryInfo* geom = (GeometryInfo*)store;
+	geom->clearExtraShapes();
+	geom->set(GEOMETRY_SPHERE, FALSE, 0.0f, 0.0f, 0.0f);
+	ini->initFromINI(geom, s_geometryBlockFieldParse);
+}
+
+//=============================================================================
+void GeometryShape::clear()
+{
+	m_type = GEOMETRY_BOX;
+	m_height = 0.0f;
+	m_majorRadius = 0.0f;
+	m_minorRadius = 0.0f;
+	m_offset.zero();
+	m_angle = 0.0f;
+}
+
+//=============================================================================
+void GeometryShape::normalize()
+{
+	switch (m_type)
+	{
+		case GEOMETRY_SPHERE:
+			m_minorRadius = m_majorRadius;
+			m_height = m_majorRadius;
+			break;
+		case GEOMETRY_CYLINDER:
+			m_minorRadius = m_majorRadius;
+			break;
+		default:
+			break;
+	}
+}
+
+//=============================================================================
+Real GeometryShape::getBoundingCircleRadius() const
+{
+	if (m_type == GEOMETRY_BOX)
+		return sqrt(sqr(m_majorRadius) + sqr(m_minorRadius));
+	return m_majorRadius;
+}
+
+//=============================================================================
+Real GeometryShape::getBoundingSphereRadius() const
+{
+	switch (m_type)
+	{
+		case GEOMETRY_SPHERE:
+			return m_majorRadius;
+		case GEOMETRY_CYLINDER:
+			return (m_height * 0.5f > m_majorRadius) ? m_height * 0.5f : m_majorRadius;
+		default:
+			return sqrt(sqr(m_majorRadius) + sqr(m_minorRadius) + sqr(m_height * 0.5f));
+	}
+}
+
+//=============================================================================
+Real GeometryPrimitive::getBoundingCircleRadius() const
+{
+	if (type == GEOMETRY_BOX)
+		return sqrt(sqr(majorRadius) + sqr(minorRadius));
+	return majorRadius;
+}
+
+//=============================================================================
+// squared distance in the xy plane from 'pt' to the footprint, 0 inside
+Real GeometryPrimitive::getDistanceSqToPoint2D(const Coord3D& pt) const
+{
+	Real dx = pt.x - position.x;
+	Real dy = pt.y - position.y;
+	if (type == GEOMETRY_BOX)
+	{
+		Real c = (Real)Cos(-angle);
+		Real s = (Real)Sin(-angle);
+		Real lx = (Real)fabs(dx*c - dy*s) - majorRadius;
+		Real ly = (Real)fabs(dx*s + dy*c) - minorRadius;
+		if (lx < 0.0f) lx = 0.0f;
+		if (ly < 0.0f) ly = 0.0f;
+		return sqr(lx) + sqr(ly);
+	}
+	Real d = sqrt(sqr(dx) + sqr(dy)) - majorRadius;
+	return (d > 0.0f) ? sqr(d) : 0.0f;
+}
+
+//=============================================================================
+Real GeometryPrimitive::getDistanceSqToPoint3D(const Coord3D& pt) const
+{
+	if (type == GEOMETRY_SPHERE)
+	{
+		Real d = sqrt(sqr(pt.x - position.x) + sqr(pt.y - position.y) + sqr(pt.z - position.z)) - majorRadius;
+		return (d > 0.0f) ? sqr(d) : 0.0f;
+	}
+	Real dz = 0.0f;
+	if (pt.z < position.z)
+		dz = position.z - pt.z;
+	else if (pt.z > position.z + height)
+		dz = pt.z - (position.z + height);
+	return getDistanceSqToPoint2D(pt) + sqr(dz);
+}
+
+//=============================================================================
+Bool GeometryPrimitive::isPointInFootprint2D(const Coord3D& pt) const
+{
+	return getDistanceSqToPoint2D(pt) <= 0.0f;
+}
+
+//=============================================================================
+void GeometryInfo::setExtraShapes(GeometryShapeList *list)
+{
+	if (list)
+		++list->m_refCount;
+	if (m_extraShapes && --m_extraShapes->m_refCount == 0)
+		delete m_extraShapes;
+	m_extraShapes = list;
+}
+
+//=============================================================================
+GeometryInfo& GeometryInfo::operator=(const GeometryInfo& that)
+{
+	m_type = that.m_type;
+	m_isSmall = that.m_isSmall;
+	m_height = that.m_height;
+	m_majorRadius = that.m_majorRadius;
+	m_minorRadius = that.m_minorRadius;
+	m_boundingCircleRadius = that.m_boundingCircleRadius;
+	m_boundingSphereRadius = that.m_boundingSphereRadius;
+	setExtraShapes(that.m_extraShapes);
+	return *this;
+}
+
+//=============================================================================
+Bool GeometryInfo::addShape(const GeometryShape& shape)
+{
+	Int count = getExtraShapeCount();
+	if (count >= MAX_GEOMETRY_SHAPES - 1)
+		return false;
+
+	// the list may be shared, so the new shape goes into a new list
+	GeometryShapeList *list = NEW GeometryShapeList;
+	list->m_refCount = 0;
+	list->m_count = count + 1;
+	for (Int i = 0; i < count; ++i)
+		list->m_shapes[i] = m_extraShapes->m_shapes[i];
+	list->m_shapes[count] = shape;
+	setExtraShapes(list);
+
+	// a compound geometry covers more than one partition cell
+	m_isSmall = false;
+	calcBoundingStuff();
+	return true;
+}
+
+//=============================================================================
+void GeometryInfo::clearExtraShapes()
+{
+	setExtraShapes(nullptr);
+	calcBoundingStuff();
+}
+
+//=============================================================================
+/** Offsets are scaled per object axis. A box keeps its edges on the object axes when its angle is
+	* a multiple of 90 degrees (so x/y scale its radii, swapped at 90 and 270); other boxes and the
+	* radius of spheres and cylinders scale by sqrt(scaleX * scaleY). Heights scale by scaleZ. */
+void GeometryInfo::setScaledExtraShapes(const GeometryInfo& base, Real scaleX, Real scaleY, Real scaleZ)
+{
+	Int count = base.getExtraShapeCount();
+	if (count == 0)
+	{
+		clearExtraShapes();
+		return;
+	}
+
+	Real scaleXY = (Real)sqrt(fabs(scaleX * scaleY));
+	GeometryShape shapes[MAX_GEOMETRY_SHAPES - 1];
+	for (Int i = 0; i < count; ++i)
+	{
+		GeometryShape& s = shapes[i];
+		s = base.m_extraShapes->m_shapes[i];
+		s.m_offset.x *= scaleX;
+		s.m_offset.y *= scaleY;
+		s.m_offset.z *= scaleZ;
+		s.m_height *= scaleZ;
+		if (s.m_type == GEOMETRY_BOX)
+		{
+			Real c = (Real)fabs(Cos(s.m_angle));
+			Real sn = (Real)fabs(Sin(s.m_angle));
+			if (sn < 0.01f)
+			{
+				s.m_majorRadius *= scaleX;
+				s.m_minorRadius *= scaleY;
+			}
+			else if (c < 0.01f)
+			{
+				s.m_majorRadius *= scaleY;
+				s.m_minorRadius *= scaleX;
+			}
+			else
+			{
+				s.m_majorRadius *= scaleXY;
+				s.m_minorRadius *= scaleXY;
+			}
+		}
+		else
+		{
+			s.m_majorRadius *= scaleXY;
+		}
+		s.normalize();
+	}
+
+	setLoadedExtraShapes(shapes, count);
+	m_isSmall = false;
+	calcBoundingStuff();
+}
+
+//=============================================================================
+Int GeometryInfo::getWorldPrimitives(const Coord3D& pos, Real angle, GeometryPrimitive *out) const
+{
+	getPrimaryPrimitive(pos, angle, out[0]);
+	Int count = getExtraShapeCount();
+	if (count == 0)
+		return 1;
+
+	Real c = (Real)Cos(angle);
+	Real s = (Real)Sin(angle);
+	for (Int i = 0; i < count; ++i)
+	{
+		const GeometryShape& shape = m_extraShapes->m_shapes[i];
+		GeometryPrimitive& prim = out[i + 1];
+		prim.type = shape.m_type;
+		prim.height = shape.m_height;
+		prim.majorRadius = shape.m_majorRadius;
+		prim.minorRadius = shape.m_minorRadius;
+		prim.position.x = pos.x + shape.m_offset.x*c - shape.m_offset.y*s;
+		prim.position.y = pos.y + shape.m_offset.x*s + shape.m_offset.y*c;
+		prim.position.z = pos.z + shape.m_offset.z;
+		prim.angle = angle + shape.m_angle;
+	}
+	return count + 1;
+}
+
+//=============================================================================
+void GeometryInfo::getWorldPrimitive(Int i, const Coord3D& pos, Real angle, GeometryPrimitive& out) const
+{
+	if (i <= 0)
+	{
+		getPrimaryPrimitive(pos, angle, out);
+		return;
+	}
+
+	DEBUG_ASSERTCRASH(i <= getExtraShapeCount(), ("geometry shape index out of range"));
+	const GeometryShape& shape = m_extraShapes->m_shapes[i - 1];
+	Real c = (Real)Cos(angle);
+	Real s = (Real)Sin(angle);
+	out.type = shape.m_type;
+	out.height = shape.m_height;
+	out.majorRadius = shape.m_majorRadius;
+	out.minorRadius = shape.m_minorRadius;
+	out.position.x = pos.x + shape.m_offset.x*c - shape.m_offset.y*s;
+	out.position.y = pos.y + shape.m_offset.x*s + shape.m_offset.y*c;
+	out.position.z = pos.z + shape.m_offset.z;
+	out.angle = angle + shape.m_angle;
+}
+
+//=============================================================================
+Real GeometryInfo::getDistanceSqToPoint2D(const Coord3D& pos, Real angle, const Coord3D& pt) const
+{
+	GeometryPrimitive prims[MAX_GEOMETRY_SHAPES];
+	Int count = getWorldPrimitives(pos, angle, prims);
+	Real best = 0.0f;
+	for (Int i = 0; i < count; ++i)
+	{
+		Real d = prims[i].getDistanceSqToPoint2D(pt);
+		if (i == 0 || d < best)
+			best = d;
+	}
+	return best;
+}
+
+//=============================================================================
+Real GeometryInfo::getDistanceSqToPoint3D(const Coord3D& pos, Real angle, const Coord3D& pt) const
+{
+	GeometryPrimitive prims[MAX_GEOMETRY_SHAPES];
+	Int count = getWorldPrimitives(pos, angle, prims);
+	Real best = 0.0f;
+	for (Int i = 0; i < count; ++i)
+	{
+		Real d = prims[i].getDistanceSqToPoint3D(pt);
+		if (i == 0 || d < best)
+			best = d;
+	}
+	return best;
+}
+
 //-----------------------------------------------------------------------------
 void GeometryInfo::set(GeometryType type, Bool isSmall, Real height, Real majorRadius, Real minorRadius)
 {
@@ -102,6 +444,9 @@ void GeometryInfo::set(GeometryType type, Bool isSmall, Real height, Real majorR
 			m_height = height;
 			break;
 	};
+
+	if (isCompound())
+		m_isSmall = false;
 
 	calcBoundingStuff();
 }
@@ -202,6 +547,30 @@ void GeometryInfo::setMaxHeightAbovePosition(Real z)
 			break;
 	};
 
+	if (m_extraShapes)
+	{
+		Int count = m_extraShapes->m_count;
+		GeometryShape shapes[MAX_GEOMETRY_SHAPES - 1];
+		for (Int i = 0; i < count; ++i)
+		{
+			GeometryShape& s = shapes[i];
+			s = m_extraShapes->m_shapes[i];
+			if (s.m_offset.z + s.getMaxHeightAbovePosition() > z)
+			{
+				Real h = z - s.m_offset.z;
+				if (h < 0.0f)
+					h = 0.0f;
+				if (s.m_type == GEOMETRY_SPHERE)
+					s.m_majorRadius = h;
+				else
+					s.m_height = h;
+				s.normalize();
+			}
+		}
+		// keeps the list when nothing was cut
+		setLoadedExtraShapes(shapes, count);
+	}
+
 	calcBoundingStuff();
 }
 
@@ -209,34 +578,56 @@ void GeometryInfo::setMaxHeightAbovePosition(Real z)
 // given an object with this geom, how far above the object's canonical position does its max z extend?
 Real GeometryInfo::getMaxHeightAbovePosition() const
 {
+	Real result = 0.0f;
 	switch(m_type)
 	{
 		case GEOMETRY_SPHERE:
-			return m_majorRadius;
+			result = m_majorRadius;
+			break;
 
 		case GEOMETRY_BOX:
 		case GEOMETRY_CYLINDER:
-			return m_height;
+			result = m_height;
+			break;
 	};
 
-	return 0.0f;
+	for (Int i = 0; i < getExtraShapeCount(); ++i)
+	{
+		const GeometryShape& shape = m_extraShapes->m_shapes[i];
+		Real z = shape.m_offset.z + shape.getMaxHeightAbovePosition();
+		if (z > result)
+			result = z;
+	}
+
+	return result;
 }
 
 //=============================================================================
 // given an object with this geom, how far below the object's canonical position does its max z extend?
 Real GeometryInfo::getMaxHeightBelowPosition() const
 {
+	Real result = 0.0f;
 	switch(m_type)
 	{
 		case GEOMETRY_SPHERE:
-			return m_majorRadius;
+			result = m_majorRadius;
+			break;
 
 		case GEOMETRY_BOX:
 		case GEOMETRY_CYLINDER:
-			return 0.0f;
+			result = 0.0f;
+			break;
 	};
 
-	return 0.0f;
+	for (Int i = 0; i < getExtraShapeCount(); ++i)
+	{
+		const GeometryShape& shape = m_extraShapes->m_shapes[i];
+		Real z = shape.getMaxHeightBelowPosition() - shape.m_offset.z;
+		if (z > result)
+			result = z;
+	}
+
+	return result;
 }
 
 //=============================================================================
@@ -263,7 +654,8 @@ void GeometryInfo::expandFootprint(Real radius)
 }
 
 //=============================================================================
-void GeometryInfo::get2DBounds(const Coord3D& geomCenter, Real angle, Region2D& bounds) const
+static void calcPrimitive2DBounds(GeometryType m_type, Real m_majorRadius, Real m_minorRadius,
+	const Coord3D& geomCenter, Real angle, Region2D& bounds)
 {
 	switch(m_type)
 	{
@@ -316,6 +708,27 @@ void GeometryInfo::get2DBounds(const Coord3D& geomCenter, Real angle, Region2D& 
 
 			break;
 		}
+	}
+}
+
+//=============================================================================
+void GeometryInfo::get2DBounds(const Coord3D& geomCenter, Real angle, Region2D& bounds) const
+{
+	calcPrimitive2DBounds(m_type, m_majorRadius, m_minorRadius, geomCenter, angle, bounds);
+
+	if (!isCompound())
+		return;
+	GeometryPrimitive prims[MAX_GEOMETRY_SHAPES];
+	Int count = getWorldPrimitives(geomCenter, angle, prims);
+	for (Int i = 1; i < count; ++i)
+	{
+		const GeometryPrimitive& prim = prims[i];
+		Region2D b;
+		calcPrimitive2DBounds(prim.type, prim.majorRadius, prim.minorRadius, prim.position, prim.angle, b);
+		if (b.lo.x < bounds.lo.x) bounds.lo.x = b.lo.x;
+		if (b.lo.y < bounds.lo.y) bounds.lo.y = b.lo.y;
+		if (b.hi.x > bounds.hi.x) bounds.hi.x = b.hi.x;
+		if (b.hi.y > bounds.hi.y) bounds.hi.y = b.hi.y;
 	}
 }
 
@@ -511,6 +924,25 @@ void GeometryInfo::calcBoundingStuff()
 			break;
 		}
 	};
+
+	// grow the bounds around the object position (circle) and the primary center (sphere)
+	// so that they enclose the additional shapes too
+	if (isCompound())
+	{
+		Real primaryCenterZ = getZDeltaToCenterPosition();
+		for (Int i = 0; i < getExtraShapeCount(); ++i)
+		{
+			const GeometryShape& shape = m_extraShapes->m_shapes[i];
+			Real circle = sqrt(sqr(shape.m_offset.x) + sqr(shape.m_offset.y)) + shape.getBoundingCircleRadius();
+			if (circle > m_boundingCircleRadius)
+				m_boundingCircleRadius = circle;
+
+			Real dz = shape.m_offset.z + shape.getZDeltaToCenterPosition() - primaryCenterZ;
+			Real sphere = sqrt(sqr(shape.m_offset.x) + sqr(shape.m_offset.y) + sqr(dz)) + shape.getBoundingSphereRadius();
+			if (sphere > m_boundingSphereRadius)
+				m_boundingSphereRadius = sphere;
+		}
+	}
 }
 
 #if defined(RTS_DEBUG)
@@ -543,9 +975,54 @@ AsciiString GeometryInfo::getDescriptiveString() const
 {
 	AsciiString msg;
 	msg.format("%d/%d(%g %g %g)", (Int)m_type, (Int)m_isSmall, m_majorRadius, m_minorRadius, m_height);
+	for (Int i = 0; i < getExtraShapeCount(); ++i)
+	{
+		const GeometryShape& shape = m_extraShapes->m_shapes[i];
+		AsciiString tmp;
+		tmp.format(" +%d(%g %g %g @%g,%g,%g %g)", (Int)shape.m_type, shape.m_majorRadius, shape.m_minorRadius, shape.m_height,
+			shape.m_offset.x, shape.m_offset.y, shape.m_offset.z, shape.m_angle);
+		msg.concat(tmp);
+	}
 	return msg;
 }
 #endif
+
+// ------------------------------------------------------------------------------------------------
+static Bool isSameShape( const GeometryShape& a, const GeometryShape& b )
+{
+	return a.m_type == b.m_type && a.m_height == b.m_height && a.m_majorRadius == b.m_majorRadius &&
+		a.m_minorRadius == b.m_minorRadius && a.m_offset.x == b.m_offset.x && a.m_offset.y == b.m_offset.y &&
+		a.m_offset.z == b.m_offset.z && a.m_angle == b.m_angle;
+}
+
+// ------------------------------------------------------------------------------------------------
+/** After loading: keeps the shared list when the saved shapes are the ones this geometry already
+	* has (an object made from its template), so loaded objects do not each get a copy. */
+// ------------------------------------------------------------------------------------------------
+void GeometryInfo::setLoadedExtraShapes( const GeometryShape *shapes, Int count )
+{
+	if( count == 0 )
+	{
+		setExtraShapes( nullptr );
+		return;
+	}
+
+	if( getExtraShapeCount() == count )
+	{
+		Bool same = TRUE;
+		for( Int i = 0; i < count && same; ++i )
+			same = isSameShape( shapes[ i ], m_extraShapes->m_shapes[ i ] );
+		if( same )
+			return;
+	}
+
+	GeometryShapeList *list = NEW GeometryShapeList;
+	list->m_refCount = 0;
+	list->m_count = count;
+	for( Int i = 0; i < count; ++i )
+		list->m_shapes[ i ] = shapes[ i ];
+	setExtraShapes( list );
+}
 
 // ------------------------------------------------------------------------------------------------
 /** CRC */
@@ -558,13 +1035,14 @@ void GeometryInfo::crc( Xfer *xfer )
 // ------------------------------------------------------------------------------------------------
 /** Xfer method
 	* Version Info:
-	* 1: Initial version */
+	* 1: Initial version
+	* 2: Additional shapes of a compound geometry */
 // ------------------------------------------------------------------------------------------------
 void GeometryInfo::xfer( Xfer *xfer )
 {
 
 	// version
-	XferVersion currentVersion = 1;
+	XferVersion currentVersion = 2;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -588,6 +1066,39 @@ void GeometryInfo::xfer( Xfer *xfer )
 
 	// bounding sphere radius
 	xfer->xferReal( &m_boundingSphereRadius );
+
+	// additional shapes
+	if( version >= 2 )
+	{
+		Int count = getExtraShapeCount();
+		xfer->xferInt( &count );
+		if( count < 0 || count > MAX_GEOMETRY_SHAPES - 1 )
+		{
+			DEBUG_CRASH(( "GeometryInfo::xfer - invalid shape count %d", count ));
+			throw SC_INVALID_DATA;
+		}
+
+		GeometryShape shapes[ MAX_GEOMETRY_SHAPES - 1 ];
+		for( Int i = 0; i < count; ++i )
+		{
+			GeometryShape& shape = shapes[ i ];
+			if( xfer->getXferMode() != XFER_LOAD )
+				shape = m_extraShapes->m_shapes[ i ];
+			xfer->xferUser( &shape.m_type, sizeof( GeometryType ) );
+			xfer->xferReal( &shape.m_height );
+			xfer->xferReal( &shape.m_majorRadius );
+			xfer->xferReal( &shape.m_minorRadius );
+			xfer->xferCoord3D( &shape.m_offset );
+			xfer->xferReal( &shape.m_angle );
+		}
+
+		if( xfer->getXferMode() == XFER_LOAD )
+			setLoadedExtraShapes( shapes, count );
+	}
+	else
+	{
+		setExtraShapes( nullptr );
+	}
 
 }
 
