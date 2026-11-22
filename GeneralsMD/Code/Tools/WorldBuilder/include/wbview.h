@@ -64,6 +64,7 @@ protected:
 	WorldHeightMapEdit *getTrackingHeightMap();
 
 	static Bool					m_snapToGrid;
+	static Int					m_gridSizeIndex;	///< Index into the grid sizes, see getGridStep().
 
  	Bool					m_showObjects;			  ///< Flag whether object icons are drawn in the 2d and 3d view.
  	Bool					m_showModels;					///< Flag whether models are drawn in the 2d and 3d view.
@@ -145,7 +146,15 @@ public:
 public:
 	CWorldBuilderDoc *WbDoc() { return ((CWorldBuilderDoc*)GetDocument()); }
 
-	void snapPoint(Coord3D *thePt) {if (m_snapToGrid || m_lockAngle) {thePt->x = MAP_XY_FACTOR*floor(thePt->x/MAP_XY_FACTOR+0.5); thePt->y = MAP_XY_FACTOR*floor(thePt->y/MAP_XY_FACTOR+0.5);};};
+	void snapPoint(Coord3D *thePt) {if (m_snapToGrid || m_lockAngle) {Real step = getGridStep(); thePt->x = step*floor(thePt->x/step+0.5); thePt->y = step*floor(thePt->y/step+0.5);};};
+
+	enum { GRID_SIZE_COUNT = 5, GRID_SIZE_DEFAULT = 2 };
+	/// Spacing of the snap grid and the drawn grid in world units: 0.25, 0.5, 1, 2 or 4 cells.
+	static Real getGridStep();
+	static Int getGridSizeIndex() { return m_gridSizeIndex; }
+	static void setGridSizeIndex(Int index);
+	static Bool isSnapToGrid() { return m_snapToGrid; }
+	static void setSnapToGrid(Bool snap);
 
 	virtual TPickedStatus picked(MapObject *pObj, Coord3D docPt);
 	virtual MapObject *picked3dObjectInView(CPoint viewPt) {return nullptr;};
@@ -203,6 +212,8 @@ protected:
 	afx_msg void OnUpdateEditPaste(CCmdUI* pCmdUI);
 	afx_msg void OnViewSnaptogrid();
 	afx_msg void OnUpdateViewSnaptogrid(CCmdUI* pCmdUI);
+	afx_msg void OnViewGridSize(UINT nID);
+	afx_msg void OnUpdateViewGridSize(CCmdUI* pCmdUI);
 	afx_msg void OnViewShowObjects();
 	afx_msg void OnUpdateViewShowObjects(CCmdUI* pCmdUI);
 	afx_msg void OnEditSelectdup();

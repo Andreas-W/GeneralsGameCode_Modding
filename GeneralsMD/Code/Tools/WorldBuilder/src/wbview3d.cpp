@@ -427,6 +427,15 @@ WbView3d::WbView3d() :
 	m_showWeaponRanges(false),
 	m_highlightTestArt(false),
 	m_showLetterbox(false),
+	m_showGrid(false),
+	m_gridOnTop(false),
+	m_showRuler(false),
+	m_rulerRect(true),
+	m_rulerAngular(false),
+	m_rulerDiagonals(false),
+	m_rulerOnTop(false),
+	m_rulerSizeIndex(RULER_SIZE_DEFAULT),
+	m_rulerMajorIndex(RULER_MAJOR_DEFAULT),
   m_showSoundCircles(false),
 	m_labelFont(nullptr)
 {
@@ -2239,6 +2248,9 @@ void WbView3d::redraw()
 			m_showWaypoints || WaypointTool::isActive(),
 			m_showPolygonTriggers || PolygonTool::isActive(),
       m_showBoundingBoxes, m_showSightRanges, m_showWeaponRanges, m_showSoundCircles, m_highlightTestArt, m_showLetterbox);
+		m_drawObject->setDrawGrid(m_showGrid, m_gridOnTop, WbView::getGridStep());
+		m_drawObject->setDrawRuler(m_showRuler, m_rulerRect, m_rulerAngular, m_rulerDiagonals, m_rulerOnTop);
+		m_drawObject->setRulerSpacing(getRulerSizeValue(m_rulerSizeIndex), getRulerMajorValue(m_rulerMajorIndex));
 	}
 
 	WW3D::Update_Logic_Frame_Time(TheFramePacer->getLogicTimeStepMilliseconds());
@@ -2415,6 +2427,24 @@ BEGIN_MESSAGE_MAP(WbView3d, WbView)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOWAMBIENTSOUNDS, OnUpdateViewShowAmbientSounds)
   ON_COMMAND(ID_VIEW_SHOW_SOUND_CIRCLES, OnViewShowSoundCircles)
   ON_UPDATE_COMMAND_UI(ID_VIEW_SHOW_SOUND_CIRCLES, OnUpdateViewShowSoundCircles)
+	ON_COMMAND(IDM_ShowGrid, OnViewShowGrid)
+	ON_UPDATE_COMMAND_UI(IDM_ShowGrid, OnUpdateViewShowGrid)
+	ON_COMMAND(ID_VIEW_GRID_ONTOP, OnViewGridOnTop)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_GRID_ONTOP, OnUpdateViewGridOnTop)
+	ON_COMMAND(ID_VIEW_SHOW_RULER, OnViewShowRuler)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOW_RULER, OnUpdateViewShowRuler)
+	ON_COMMAND(ID_VIEW_RULER_RECT, OnViewRulerRect)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_RULER_RECT, OnUpdateViewRulerRect)
+	ON_COMMAND(ID_VIEW_RULER_ANGULAR, OnViewRulerAngular)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_RULER_ANGULAR, OnUpdateViewRulerAngular)
+	ON_COMMAND(ID_VIEW_RULER_DIAGONALS, OnViewRulerDiagonals)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_RULER_DIAGONALS, OnUpdateViewRulerDiagonals)
+	ON_COMMAND(ID_VIEW_RULER_ONTOP, OnViewRulerOnTop)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_RULER_ONTOP, OnUpdateViewRulerOnTop)
+	ON_COMMAND_RANGE(ID_VIEW_RULERSIZE_10, ID_VIEW_RULERSIZE_200, OnViewRulerSize)
+	ON_UPDATE_COMMAND_UI_RANGE(ID_VIEW_RULERSIZE_10, ID_VIEW_RULERSIZE_200, OnUpdateViewRulerSize)
+	ON_COMMAND_RANGE(ID_VIEW_RULERMAJOR_2, ID_VIEW_RULERMAJOR_10, OnViewRulerMajor)
+	ON_UPDATE_COMMAND_UI_RANGE(ID_VIEW_RULERMAJOR_2, ID_VIEW_RULERMAJOR_10, OnUpdateViewRulerMajor)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -2568,6 +2598,17 @@ int WbView3d::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	m_showMapBoundaries = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowMapBoundaries", 0);
 	m_showAmbientSounds = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowAmbientSounds", 0);
   m_showSoundCircles = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowSoundCircles", 0);
+	m_showGrid = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowGrid", 0) != 0;
+	m_gridOnTop = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "GridOnTop", 0) != 0;
+	m_showRuler = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowRuler", 0) != 0;
+	m_rulerRect = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "RulerRect", 1) != 0;
+	m_rulerAngular = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "RulerAngular", 0) != 0;
+	m_rulerDiagonals = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "RulerDiagonals", 0) != 0;
+	m_rulerOnTop = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "RulerOnTop", 0) != 0;
+	m_rulerSizeIndex = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "RulerSize", RULER_SIZE_DEFAULT);
+	m_rulerMajorIndex = AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "RulerMajorEvery", RULER_MAJOR_DEFAULT);
+	if (m_rulerSizeIndex < 0 || m_rulerSizeIndex >= RULER_SIZE_COUNT) m_rulerSizeIndex = RULER_SIZE_DEFAULT;
+	if (m_rulerMajorIndex < 0 || m_rulerMajorIndex >= RULER_MAJOR_COUNT) m_rulerMajorIndex = RULER_MAJOR_DEFAULT;
 
 	DrawObject::setDoBoundaryFeedback(m_showMapBoundaries);
 	DrawObject::setDoAmbientSoundFeedback(m_showAmbientSounds);
@@ -3562,5 +3603,145 @@ void WbView3d::OnViewShowSoundCircles()
 void WbView3d::OnUpdateViewShowSoundCircles(CCmdUI* pCmdUI)
 {
   pCmdUI->SetCheck(m_showSoundCircles ? 1 : 0);
+}
+
+void WbView3d::setShowGrid(Bool show, Bool onTop)
+{
+	m_showGrid = show;
+	m_gridOnTop = onTop;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowGrid", m_showGrid ? 1 : 0);
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "GridOnTop", m_gridOnTop ? 1 : 0);
+	Invalidate(false);
+}
+
+void WbView3d::setShowRuler(Bool show, Bool rect, Bool angular, Bool diagonals, Bool onTop)
+{
+	m_showRuler = show;
+	m_rulerRect = rect;
+	m_rulerAngular = angular;
+	m_rulerDiagonals = diagonals;
+	m_rulerOnTop = onTop;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "ShowRuler", m_showRuler ? 1 : 0);
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "RulerRect", m_rulerRect ? 1 : 0);
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "RulerAngular", m_rulerAngular ? 1 : 0);
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "RulerDiagonals", m_rulerDiagonals ? 1 : 0);
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "RulerOnTop", m_rulerOnTop ? 1 : 0);
+	Invalidate(false);
+}
+
+void WbView3d::OnViewShowGrid()
+{
+	setShowGrid(!m_showGrid, m_gridOnTop);
+}
+
+void WbView3d::OnUpdateViewShowGrid(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_showGrid ? 1 : 0);
+}
+
+void WbView3d::OnViewGridOnTop()
+{
+	setShowGrid(m_showGrid, !m_gridOnTop);
+}
+
+void WbView3d::OnUpdateViewGridOnTop(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_gridOnTop ? 1 : 0);
+}
+
+void WbView3d::OnViewShowRuler()
+{
+	setShowRuler(!m_showRuler, m_rulerRect, m_rulerAngular, m_rulerDiagonals, m_rulerOnTop);
+}
+
+void WbView3d::OnUpdateViewShowRuler(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_showRuler ? 1 : 0);
+}
+
+void WbView3d::OnViewRulerRect()
+{
+	setShowRuler(m_showRuler, !m_rulerRect, m_rulerAngular, m_rulerDiagonals, m_rulerOnTop);
+}
+
+void WbView3d::OnUpdateViewRulerRect(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_rulerRect ? 1 : 0);
+}
+
+void WbView3d::OnViewRulerAngular()
+{
+	setShowRuler(m_showRuler, m_rulerRect, !m_rulerAngular, m_rulerDiagonals, m_rulerOnTop);
+}
+
+void WbView3d::OnUpdateViewRulerAngular(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_rulerAngular ? 1 : 0);
+}
+
+void WbView3d::OnViewRulerDiagonals()
+{
+	setShowRuler(m_showRuler, m_rulerRect, m_rulerAngular, !m_rulerDiagonals, m_rulerOnTop);
+}
+
+void WbView3d::OnUpdateViewRulerDiagonals(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_rulerDiagonals ? 1 : 0);
+}
+
+void WbView3d::OnViewRulerOnTop()
+{
+	setShowRuler(m_showRuler, m_rulerRect, m_rulerAngular, m_rulerDiagonals, !m_rulerOnTop);
+}
+
+void WbView3d::OnUpdateViewRulerOnTop(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_rulerOnTop ? 1 : 0);
+}
+
+static const Real s_rulerSizes[WbView3d::RULER_SIZE_COUNT] = { 10.0f, 20.0f, 25.0f, 50.0f, 100.0f, 200.0f };
+static const Int s_rulerMajors[WbView3d::RULER_MAJOR_COUNT] = { 2, 4, 5, 10 };
+
+Real WbView3d::getRulerSizeValue(Int index)
+{
+	return s_rulerSizes[(index >= 0 && index < RULER_SIZE_COUNT) ? index : RULER_SIZE_DEFAULT];
+}
+
+Int WbView3d::getRulerMajorValue(Int index)
+{
+	return s_rulerMajors[(index >= 0 && index < RULER_MAJOR_COUNT) ? index : RULER_MAJOR_DEFAULT];
+}
+
+void WbView3d::setRulerSize(Int sizeIndex, Int majorIndex)
+{
+	if (sizeIndex >= 0 && sizeIndex < RULER_SIZE_COUNT) {
+		m_rulerSizeIndex = sizeIndex;
+	}
+	if (majorIndex >= 0 && majorIndex < RULER_MAJOR_COUNT) {
+		m_rulerMajorIndex = majorIndex;
+	}
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "RulerSize", m_rulerSizeIndex);
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "RulerMajorEvery", m_rulerMajorIndex);
+	Invalidate(false);
+}
+
+void WbView3d::OnViewRulerSize(UINT nID)
+{
+	setRulerSize((Int)(nID - ID_VIEW_RULERSIZE_10), m_rulerMajorIndex);
+}
+
+void WbView3d::OnUpdateViewRulerSize(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio((Int)(pCmdUI->m_nID - ID_VIEW_RULERSIZE_10) == m_rulerSizeIndex);
+}
+
+void WbView3d::OnViewRulerMajor(UINT nID)
+{
+	setRulerSize(m_rulerSizeIndex, (Int)(nID - ID_VIEW_RULERMAJOR_2));
+}
+
+void WbView3d::OnUpdateViewRulerMajor(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio((Int)(pCmdUI->m_nID - ID_VIEW_RULERMAJOR_2) == m_rulerMajorIndex);
 }
 

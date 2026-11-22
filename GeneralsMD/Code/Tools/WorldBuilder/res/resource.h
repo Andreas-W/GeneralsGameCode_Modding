@@ -725,6 +725,27 @@
 #define ID_VIEW_RELOADRENDERING         33348
 #define ID_TOOLS_REBLENDALLTILES        33349
 #define ID_HEIGHT_PICKER_TOOL           33350
+#define ID_VIEW_GRIDSIZE_025            33351
+#define ID_VIEW_GRIDSIZE_05             33352
+#define ID_VIEW_GRIDSIZE_1              33353
+#define ID_VIEW_GRIDSIZE_2              33354
+#define ID_VIEW_GRIDSIZE_4              33355
+#define ID_VIEW_RULER_ANGULAR           33356
+#define ID_VIEW_RULER_DIAGONALS         33357
+#define ID_VIEW_SHOW_RULER              33358
+#define ID_VIEW_RULER_RECT              33359
+#define ID_VIEW_GRID_ONTOP              33360
+#define ID_VIEW_RULER_ONTOP             33361
+#define ID_VIEW_RULERSIZE_10            33362
+#define ID_VIEW_RULERSIZE_20            33363
+#define ID_VIEW_RULERSIZE_25            33364
+#define ID_VIEW_RULERSIZE_50            33365
+#define ID_VIEW_RULERSIZE_100           33366
+#define ID_VIEW_RULERSIZE_200           33367
+#define ID_VIEW_RULERMAJOR_2            33368
+#define ID_VIEW_RULERMAJOR_4            33369
+#define ID_VIEW_RULERMAJOR_5            33370
+#define ID_VIEW_RULERMAJOR_10           33371
 #define IDS_NEW                         61446
 #define IDS_RESIZE                      61447
 #define IDS_REMOVING_INUSE_TEAM         61448
@@ -773,7 +794,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        242
-#define _APS_NEXT_COMMAND_VALUE         33351
+#define _APS_NEXT_COMMAND_VALUE         33372
 #define _APS_NEXT_CONTROL_VALUE         1387
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

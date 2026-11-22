@@ -25,8 +25,10 @@
 #include "WW3D2/dx8indexbuffer.h"
 #include "WW3D2/shader.h"
 #include "WW3D2/vertmaterial.h"
+#include "WW3D2/dx8fvf.h"
 #include "Lib/BaseType.h"
 #include "Common/AsciiString.h"
+#include <vector>
 
 // The draw objects draw a circle of diameter 1.0 cells.
 #define THE_RADIUS (0.8f*MAP_XY_FACTOR)
@@ -82,7 +84,13 @@ public:
 	int initData();
 
   void setDrawObjects(Bool val, Bool waypoints, Bool poly, Bool bounding, Bool sight, Bool weapon, Bool sound, Bool testart, Bool letterbox) { m_drawObjects = val; m_drawWaypoints=waypoints; m_drawPolygonAreas = poly; m_drawBoundingBoxes = bounding; m_drawSightRanges = sight; m_drawWeaponRanges = weapon; m_drawSoundRanges = sound; m_drawTestArtHighlight = testart, m_drawLetterbox = letterbox;}
-	static void setDoBrushFeedback(Bool val) { m_toolWantsFeedback = val; m_meshFeedback=false;}
+	/// Snap grid on the terrain; step is its spacing. onTop draws it over water and objects.
+	void setDrawGrid(Bool grid, Bool onTop, Real step) { m_drawGrid = grid; m_gridOnTop = onTop; m_gridStep = step; }
+	/// Ruler centered on the map: lines parallel to the edges, rings and sectors, 45 degree lines.
+	void setDrawRuler(Bool ruler, Bool rect, Bool angular, Bool diagonals, Bool onTop) { m_drawRuler = ruler; m_rulerRect = rect; m_rulerAngular = angular; m_rulerDiagonals = diagonals; m_rulerOnTop = onTop; }
+	/// Ruler lines and rings every minor world units from the map center; every majorEvery-th is a major one.
+	void setRulerSpacing(Real minor, Int majorEvery) { m_rulerMinor = minor; m_rulerMajorEvery = majorEvery; }
+	static void setDoBrushFeedback(Bool val){ m_toolWantsFeedback = val; m_meshFeedback=false;}
 	static void setDoMeshFeedback(Bool val) { m_meshFeedback = val; }
 	static void setDoRampFeedback(Bool val) { m_rampFeedback = val; }
 	static void setDoBoundaryFeedback(Bool val) { m_boundaryFeedback = val; }
@@ -134,6 +142,33 @@ protected:
 	Bool											m_drawTestArtHighlight;
 	Bool											m_drawLetterbox;
 
+	Bool											m_drawGrid;
+	Bool											m_gridOnTop;
+	Real											m_gridStep;
+	Bool											m_drawRuler;
+	Bool											m_rulerRect;
+	Bool											m_rulerAngular;
+	Bool											m_rulerDiagonals;
+	Bool											m_rulerOnTop;
+	Real											m_rulerMinor;
+	Int												m_rulerMajorEvery;
+	DX8IndexBufferClass				*m_gridIndexBuffer;	///< Static quad indices for the grid lines.
+	Bool											m_gridBlocksReady;	///< m_gridBlocks is set up for this frame.
+	std::vector<VertexFormatXYZNDUV2>	m_gridVerts;	///< Grid quads waiting to be drawn.
+
+	/// Per frame state of one block of GRID_BLOCK_CELLS x GRID_BLOCK_CELLS cells.
+	struct GridBlock
+	{
+		Bool	visible;
+		Real	pixelsPerUnit;	///< Screen pixels one world unit covers here.
+		Real	unitsPerPixel;
+		Real	lift;			///< Lines are raised this much above the terrain so they don't fight it in the depth buffer.
+	};
+	std::vector<GridBlock>		m_gridBlocks;
+	Int												m_gridBlocksX;
+	Int												m_gridBlocksY;
+	Real											m_gridMinX, m_gridMinY, m_gridMaxX, m_gridMaxY;	///< Extent of the height map in world units.
+
 	DX8VertexBufferClass			*m_vertexFeedback;	///< Vertex buffer for brush feedback.
 	DX8IndexBufferClass				*m_indexFeedback;	///< indices defining a triangle strip for the feedback on terrain
 	Int												m_feedbackIndexCount;
@@ -184,6 +219,14 @@ protected:
 	void updateVBWithTestArtHighlight(MapObject *pMapObj, CameraClass* camera);
   void updateVBWithSoundRanges(MapObject *pMapObj, CameraClass* camera);
 	bool worldToScreen(const Coord3D *w, ICoord2D *s, CameraClass* camera);
+
+	void renderGrid(RenderInfoClass & rinfo, Bool onTop);
+	Bool setupGridBlocks(RenderInfoClass & rinfo);
+	const GridBlock *gridBlockAt(Real x, Real y) const;
+	void addBlockLines(Int i, Int j, Real originX, Real originY, Real spacing, Int skipEvery, unsigned long color, Real widthPixels);
+	void addGridLine(Real x0, Real y0, Real x1, Real y1, unsigned long color, Real widthPixels);
+	void addGridSegment(Real x0, Real y0, Real x1, Real y1, unsigned long color, Real widthPixels, Real lodSpacing, Int lodIndex);
+	void flushGrid();
 
 };
 

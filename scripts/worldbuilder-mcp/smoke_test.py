@@ -82,6 +82,22 @@ def main() -> int:
         capped = wb.call("roads.add", type=roads[0], points=[[50, 800], [300, 800]], end_caps=True)
         assert wb.call("objects.get", id=capped["point_ids"][0])["end_cap"] is True
 
+    # Grid and ruler: sizes and toggles round trip and the view still renders with every part of them on.
+    # The state is the user's (kept in the registry), so it is put back afterwards.
+    grid_before = wb.call("view.grid")
+    ruler_before = wb.call("view.ruler")
+    grid = wb.call("view.grid", show=True, size=0.5, on_top=False)
+    assert grid["show"] and not grid["on_top"] and grid["size"] == 0.5 and abs(grid["step"] - 5) < 0.01, grid
+    ruler = wb.call("view.ruler", show=True, rectangular=True, angular=True, diagonals=True, on_top=True, size=25, major_every=5)
+    assert ruler["show"] and ruler["rectangular"] and ruler["angular"] and ruler["diagonals"] and ruler["on_top"], ruler
+    assert ruler["size"] == 25 and ruler["major_every"] == 5, ruler
+    for size in (0.25, 1, 2, 4):
+        assert wb.call("view.grid", size=size)["size"] == size
+    wb.call("view.screenshot", path=os.path.join(tempfile.gettempdir(), "mcp_smoke_grid.jpg"), x=300, y=300, reset=True)
+    wb.call("view.grid", show=grid_before["show"], size=grid_before["size"], on_top=grid_before["on_top"],
+            snap=grid_before["snap"])
+    wb.call("view.ruler", **ruler_before)
+
     # Start positions: two players land on the diagonal, replacing the existing start; then undo.
     wp_before = len(wb.call("waypoints.list")["waypoints"])
     gs = wb.call("map.generate_starts", players=2, base_radius=150)

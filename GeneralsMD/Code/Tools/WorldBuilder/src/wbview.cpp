@@ -26,6 +26,7 @@
 #include "WorldBuilder.h"
 #include "WorldBuilderDoc.h"
 #include "wbview.h"
+#include "wbview3d.h"
 #include "WHeightMapEdit.h"
 #include "MainFrm.h"
 #include "Common/Debug.h"
@@ -37,6 +38,35 @@
 #include "LayersList.h"
 
 Bool WbView::m_snapToGrid = false;
+Int WbView::m_gridSizeIndex = WbView::GRID_SIZE_DEFAULT;
+
+static const Real s_gridSizeCells[WbView::GRID_SIZE_COUNT] = { 0.25f, 0.5f, 1.0f, 2.0f, 4.0f };
+
+Real WbView::getGridStep()
+{
+	return MAP_XY_FACTOR * s_gridSizeCells[m_gridSizeIndex];
+}
+
+void WbView::setGridSizeIndex(Int index)
+{
+	if (index < 0 || index >= GRID_SIZE_COUNT) {
+		index = GRID_SIZE_DEFAULT;
+	}
+	m_gridSizeIndex = index;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "GridSize", m_gridSizeIndex);
+	// The drawn grid follows the size.
+	CWorldBuilderDoc *pDoc = CWorldBuilderDoc::GetActiveDoc();
+	WbView3d *pView = pDoc ? pDoc->Get3DView() : nullptr;
+	if (pView) {
+		pView->Invalidate(false);
+	}
+}
+
+void WbView::setSnapToGrid(Bool snap)
+{
+	m_snapToGrid = snap;
+	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "SnapToGrid", m_snapToGrid?1:0);
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // WbView
@@ -62,6 +92,10 @@ WbView::WbView() :
 	m_showNames = (showNames!=0);
 	Int snapToGrid = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "SnapToGrid", 0);
 	m_snapToGrid = (snapToGrid!=0);
+	m_gridSizeIndex = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "GridSize", GRID_SIZE_DEFAULT);
+	if (m_gridSizeIndex < 0 || m_gridSizeIndex >= GRID_SIZE_COUNT) {
+		m_gridSizeIndex = GRID_SIZE_DEFAULT;
+	}
 	Int showTerrain = ::AfxGetApp()->GetProfileInt(MAIN_FRAME_SECTION, "ShowTerrain", 1);
 	m_showTerrain = (showTerrain!=0);
 }
@@ -92,6 +126,8 @@ BEGIN_MESSAGE_MAP(WbView, CView)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_PASTE, OnUpdateEditPaste)
 	ON_COMMAND(ID_VIEW_SNAPTOGRID, OnViewSnaptogrid)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SNAPTOGRID, OnUpdateViewSnaptogrid)
+	ON_COMMAND_RANGE(ID_VIEW_GRIDSIZE_025, ID_VIEW_GRIDSIZE_4, OnViewGridSize)
+	ON_UPDATE_COMMAND_UI_RANGE(ID_VIEW_GRIDSIZE_025, ID_VIEW_GRIDSIZE_4, OnUpdateViewGridSize)
 	ON_COMMAND(ID_VIEW_SHOW_OBJECTS, OnViewShowObjects)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SHOW_OBJECTS, OnUpdateViewShowObjects)
 	ON_COMMAND(ID_EDIT_SELECTDUP, OnEditSelectdup)
@@ -626,13 +662,22 @@ void WbView::OnUpdateEditPaste(CCmdUI* pCmdUI)
 
 void WbView::OnViewSnaptogrid()
 {
-	m_snapToGrid = !m_snapToGrid;
-	::AfxGetApp()->WriteProfileInt(MAIN_FRAME_SECTION, "SnapToGrid", m_snapToGrid?1:0);
+	setSnapToGrid(!m_snapToGrid);
 }
 
 void WbView::OnUpdateViewSnaptogrid(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_snapToGrid?1:0);
+}
+
+void WbView::OnViewGridSize(UINT nID)
+{
+	setGridSizeIndex((Int)(nID - ID_VIEW_GRIDSIZE_025));
+}
+
+void WbView::OnUpdateViewGridSize(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetRadio((Int)(pCmdUI->m_nID - ID_VIEW_GRIDSIZE_025) == m_gridSizeIndex);
 }
 
 void WbView::OnEditSelectdup()

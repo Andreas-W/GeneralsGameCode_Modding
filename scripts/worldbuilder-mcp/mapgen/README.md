@@ -61,6 +61,13 @@ The design, agreed with the user, is in `DESIGN.md`: read the mockup, write a pl
 | `examples/snake_islands_build.py` | A2 | The eleventh map: gentle relief (lowland kept above the water), new map with one sea, starts, the user's drawbridges with their z set to meet the quays, wooden bridges from cliff edge to cliff edge |
 | `examples/snake_islands_paint.py` | B | The eleventh map's land textures by role in the user's tropical palette (grasses, grassy sand toward the beaches, rocky plateau rims, cliffs, sandy ramps, dirt under starts, cobblestone quays) |
 | `examples/snake_islands_trees.py` | C | Tropical plants by ground: jungle groves, bamboo at cliff feet, beach palms, islet palms, thin scatter |
+| `examples/desert_forest_stage_a.py` | A | The twelfth map's terrain: the template's lower-left half mirrored across the anti-diagonal (heights, starts, drawbridges), beaches where the template has a shelf, plateau ramps mirrored, stage A run once per half with its own cliff recipe and blended over a wandering seam, a smoothed waterline and the navy skill's sine seabed, puddles behind beaches filled, drawbridge quays |
+| `examples/desert_forest_build.py` | A2 | The twelfth map: relief per half (low dunes, rolling hills) blended, new map with eight starts, one sea, drawbridges; map.ini with the navy skill's see-through water (`WaterRendering`, `WaterTransparency`) |
+| `examples/desert_forest_roads.py` | D | Per team a ring of routed roads (bases, drawbridge quays, plateau ramps, islet crossings), mirrored, each half in its reference's road types |
+| `examples/desert_forest_trees.py` | C | Plants per half: a few palms and bushes in the desert, woods of dogwood and spruce on the European forest floor plus copses and scatter; clear of starts, roads, bridges, ramps |
+| `examples/desert_forest_europe_mirror.py` | after hand edits | Redoes the European half from the user's refined desert half: objects and roads mirrored with European templates and road types, the user's height and texture edits copied (textures mapped), ponds mirrored, woods cleared off the new layout; saves under a new name |
+| `examples/desert_forest_grow.py` | last | Grows the finished map by plan `grow.cells` per side with the same border, so the old border becomes playable |
+| `examples/desert_forest_paint.py` | B | Textures by role per half: Cairo Commandos on the desert half, Leipzig Lowlands plus forest floor on the European half |
 | `examples/northern_island_ai_markers.py` | E | AI paths, then per player three shipyards off its own shore, a naval perimeter in front of them and naval paths along both coasts, for a map without symmetry |
 | `map_lighting.py <map> [--blend FROM TO T [--dir D] [--brighter]]` | any | Reads a map's global lighting, or blends one time of day toward another (no bridge command sets lighting); writes the map uncompressed, WorldBuilder compresses it on its next save |
 
@@ -228,6 +235,55 @@ The user's template `Templates/4PSnakeIslands.map` (399 x 499 cells), read from 
 
 **Not done**: AI and naval markers, Tech, supplies and towns (not asked), no test in the game. The south island has fewer trees than the others (lower grove noise there). Backups `v1` (first version), `stage_a`, `stage_b` (both of the first version) in the map's folder.
 
+## Twelfth map: DesertForestGen
+
+The user's template `Templates/8pContinents4.map` (449 x 449 cells; the user's WorldBuilder was not on the bridge, so the saved file was used), generated into `DesertForestGen\DesertForestGen.map`. Prompt: eight players, 4 vs 4, naval; mirror the lower-left half diagonally, then generate from the heights; the lower left Arabic / desert, the upper right European / forest; height and terrain only. The template: an L-shaped continent at 62.5 with a plateau at 125 and a mountain block at 156 in the corner, a gentle shelf (25 to 58) along its inner coast, two islets on the diagonal joined to it by drawbridges, four starts (two on the plateau).
+
+1. **References** (`style_scan.py`, `texture_roles.py`): Cairo Commandos for the desert half (Golden Oasis scanned too), Leipzig Lowlands for the European half (Forgotten Forest, Green Pastures, Alpine Assault, Heartland Shield scanned), its forest floor from Forgotten Forest.
+2. **A** (`examples/desert_forest_stage_a.py`):
+   - The mirror maps vertex (ix, iy) to (N - iy, N - ix) beyond the anti-diagonal. The islets straddle it and stay whole, each joining both teams through its two drawbridges.
+   - Beaches where the template's shelf lies in front of the coast: 64 at the coast rising to the main land (76) over 400. Other coasts are cliffs.
+   - Three plateau ramps as road hints, mirrored. The first set put one ramp in the border, since the plateau runs into the map edge.
+   - Stage A runs twice, with a rocky desert recipe (face 4, bend 15) and a rounded one (face 2.6, bend 40). The two are blended over 300 across a wandering seam.
+   - The beach strips left 30 small pockets below the water behind the beaches; pockets not joined to the sea are filled.
+3. **A2** (`examples/desert_forest_build.py`): relief per half (low dunes in the desert, rolling hills in Europe), blended the same way.
+4. **B** (`examples/desert_forest_paint.py`, then `northern_island_sea.py` with plan `beach_by_mask`): each half's roles as its reference paints them; forest floor in large blobs on the European half for woods later. Beaches are SandType4 and SandMediumType6.
+5. **F**: all eight starts joined through the islets. Flat buildable cells within 600 of the starts: 8,945 to 10,065, each mirrored pair within 4 %. Cut off: the corner mountain tops. Cliff report: none unmapped or outside.
+
+6. **Second version** (user: smooth the shoreline, paint the seafloor for navy; the first kept as `v1`):
+   - **Waterline**: follows a smoothed outline (4 cells on beaches, 2 on cliffs so they keep their shape); beaches ease down to the water over 160.
+   - **Seabed**: the navy skill's profile from that line, depth * sin(min(d / ramp, 1) * 90 degrees) down to 2, with a ramp of 45 cells off beaches and 30 off cliffs. Stage A had reached full depth within 10 to 20 cells. Now it is 7 deep near the shore, 31 at 10 to 20 cells and full by 30 to 45.
+   - **Water drawn opaque**: the map.ini lacked the see-through water of the updated skill (`WaterRendering` with `OceanShips`, and the DX8 `WaterTransparency` block from `navy_tool.py dx8water`). The build now writes both.
+   - Flat buildable cells within 600 of the starts: 8,586 to 9,928; player 8 is 7 % below its mirror, player 4.
+
+7. **Third version** (user: HeightMapScale 1.0, lowering the corner peaks if needed): at 1.2 only the two corner mountains, up to 186, were above 159.4, the top at scale 1.0. Mountain rise and relief went from 45 and 30 to 25 and 12: the highest point is 153 and nothing is clipped. The corners are now reachable high ground some 33 above the plateaus. Flat buildable cells within 600: 9,272 to 10,270, each mirrored pair within 4 %.
+
+8. **Fourth version** (user: the shoreline still too jagged). The v2 outline was a smoothed mask thresholded at 0.5 and measured again by distance, so it still stepped from cell to cell. The beaches also lay flat at the waterline (smoothstep), where height rounding made the line wander. Now the land's signed distance itself is smoothed as a continuous field (8 cells on beaches, 4 on cliffs), and beaches leave the water with an ease-out (t * (2 - t)). Flat buildable cells within 600: 9,291 to 10,245, each mirrored pair within 3 %.
+
+9. **Roads** (`examples/desert_forest_roads.py`, user: fitting roads connecting the player areas and bridges): per team a ring, routed over the terrain (`roads.route`), team 1's laid out and mirrored, then routed again for team 2:
+   - each main-land base to its drawbridge's quay, and a coast road from quay to quay;
+   - each plateau base to its main-land neighbour over a plateau ramp, and the two plateau bases to each other;
+   - on each islet, a road from each drawbridge to the middle.
+
+   Types per half after the references: desert `TwoLaneOld` / `DirtRoad` (Golden Oasis), Europe `TwoLaneDarkDotted` / `DirtRoad2` (Leipzig Lowlands, Heartland Shield). A hub between the quays, placed at the main land nearest their middle, sat in the bay's corner and bent the coast road into a 3,100-long detour. A spur from the middle ramp ran along the plateau edge. Both were dropped: 16 routes, none failed.
+10. **Trees** (`examples/desert_forest_trees.py`, user: matching trees per land, fewer in the desert), after the references' densities (`map.usage`: Golden Oasis 17 plants per million square units, Leipzig and Heartland 57):
+    - **Desert**, 155: Golden Oasis's palms in groves by the water and along the beaches, a thin scatter of palms and bushes.
+    - **Europe**, 1,310: Leipzig's dogwoods with Heartland's spruces on the forest floor the painter laid (read back with `terrain.export_mask`), more spruce on the plateau, a fringe around each wood and copses on open ground (the forest floor alone left the main land bare).
+    - **Kept clear**: starts, roads, drawbridges, ramps and steep ground.
+
+11. **Grown** (`examples/desert_forest_grow.py`, user: the whole map becomes the playable area). The old border was real terrain, since the continents run off the old edges. The map grows by 30 cells per side with the border kept at 30: playable 509 x 509 cells (0 to 5090), 570 vertices. Objects, starts and roads move by +300, and the whole-map water area refits. Equal growth keeps the mirror. The new border continues the old edges as stripes, off the map. The work files stay in the old layout; a rebuild runs this step last.
+
+12. **European half redone from the user's desert half** (`examples/desert_forest_europe_mirror.py`). The user refined the lower left by hand in `DesertForestGen3.map`: Tech, supplies and docks, roads with sidewalks, outposts, a small Arabic town, height and texture edits, and a pond. They also saved part of it over `DesertForestGen.map`, so the generated state was rebuilt from `v5` and grown again to tell the edits apart.
+    - **Objects**: everything but plants mirrored across the anti-diagonal. Arabic templates are swapped by footprint for German town houses, pubs, cottage and chalet; garages become barns, the hangar a barn coop, the gas station `GasStation`, market and junk stands haystacks, `StoneWall06` becomes `StoneWall01`. A footprint lying the other way is turned 90 degrees.
+    - **Roads and pond**: road types swapped (`TwoLaneDarkDotted`, `DirtRoad2`, `Sidewalk`); the pond mirrored.
+    - **Terrain**: the user's height edits copied to the mirrored cells, feathered; their repaints in the European counterparts.
+    - **Plants**: the European woods kept off the new layout (332 trees removed).
+
+    Saved as `DesertForestGen4.map`; per half 61 buildings and props, 14 Tech, 24 supply objects, 210 road points.
+    - **Seeing a mirrored half**: the anti-diagonal mirror swaps the axes. To compare a spot with its mirror in WorldBuilder, turn the camera by 90 degrees (angle_deg 90 against 0).
+
+**Not done**: AI and naval markers (not asked), no test in the game. Backups `v1` to `v5` (`v5` is the last before growing), `roads` (before the trees) and `stage_a` (first version) in the map's folder; the user's `DesertForestGen2/3.map` untouched.
+
 ## Learned (rules now in the scripts)
 
 ### Terrain shape
@@ -261,6 +317,9 @@ The user's template `Templates/4PSnakeIslands.map` (399 x 499 cells), read from 
 - **The shore under water is steep**: rules that look for cliffs (plants at a cliff foot, distance from cliffs) must count only steep dry ground.
 - **Low land wants its own beach profile**: stage A's beach suits land well above the water. For lowland a few units above it, rebuild the shore: a long gentle sand rise, a shallow shelf, then the seabed.
 - **Thin water shows everything**: under gentle beaches, paint the cells next to land (the nearest land texture), and keep vertices off the exact water height, or they flicker as dashed lines.
+- **Two styles on one map**: run stage A and relief once per style on the same mockup and blend the heights over a wandering seam through the sea. Levels and ramps stay where the mockup puts them, so the blend only mixes the noise.
+- **Smooth a waterline as a field, not a mask**: smoothing a land mask and thresholding it leaves cell steps. Smooth the signed distance itself and take its zero line. Let the ground cross the water level at a definite slope, or height rounding makes the line wander.
+- **Water pockets behind beaches**: after stage A, ground below the water that is not joined to the sea must be filled, or it shows as puddles.
 - **The farthest water is a map corner**: islets and other things placed by distance from land need a margin from the map edge.
 - **A template's gentle terraces stay slopes** in stage A; to get cliffs, snap them to a hard step first and give the ramps as road hints (`road_point` pairs crossing the step, not built as roads).
 

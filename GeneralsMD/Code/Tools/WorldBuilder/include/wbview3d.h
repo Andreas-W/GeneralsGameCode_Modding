@@ -159,6 +159,24 @@ protected:
 	afx_msg void OnUpdateViewShowAmbientSounds(CCmdUI* pCmdUI);
   afx_msg void OnViewShowSoundCircles();
   afx_msg void OnUpdateViewShowSoundCircles(CCmdUI* pCmdUI);
+	afx_msg void OnViewShowGrid();
+	afx_msg void OnUpdateViewShowGrid(CCmdUI* pCmdUI);
+	afx_msg void OnViewGridOnTop();
+	afx_msg void OnUpdateViewGridOnTop(CCmdUI* pCmdUI);
+	afx_msg void OnViewShowRuler();
+	afx_msg void OnUpdateViewShowRuler(CCmdUI* pCmdUI);
+	afx_msg void OnViewRulerRect();
+	afx_msg void OnUpdateViewRulerRect(CCmdUI* pCmdUI);
+	afx_msg void OnViewRulerAngular();
+	afx_msg void OnUpdateViewRulerAngular(CCmdUI* pCmdUI);
+	afx_msg void OnViewRulerDiagonals();
+	afx_msg void OnUpdateViewRulerDiagonals(CCmdUI* pCmdUI);
+	afx_msg void OnViewRulerOnTop();
+	afx_msg void OnUpdateViewRulerOnTop(CCmdUI* pCmdUI);
+	afx_msg void OnViewRulerSize(UINT nID);
+	afx_msg void OnUpdateViewRulerSize(CCmdUI* pCmdUI);
+	afx_msg void OnViewRulerMajor(UINT nID);
+	afx_msg void OnUpdateViewRulerMajor(CCmdUI* pCmdUI);
   //}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 
@@ -225,6 +243,15 @@ private:
 	Bool										m_showWeaponRanges;
 	Bool										m_highlightTestArt;
 	Bool										m_showLetterbox;
+	Bool										m_showGrid;					///< Draws the snap grid on the terrain.
+	Bool										m_gridOnTop;				///< The snap grid is drawn over water and objects.
+	Bool										m_showRuler;				///< Draws the ruler: a visual aid centered on the map, independent of the snap grid.
+	Bool										m_rulerRect;				///< Ruler: lines parallel to the map edges.
+	Bool										m_rulerAngular;			///< Ruler: rings and sectors.
+	Bool										m_rulerDiagonals;		///< Ruler: 45 degree lines.
+	Bool										m_rulerOnTop;				///< The ruler is drawn over water and objects.
+	Int											m_rulerSizeIndex;		///< Index into the ruler's minor steps.
+	Int											m_rulerMajorIndex;	///< Index into how many minor steps make a major one.
 
 
 	ID3DXFont*							m3DFont;
@@ -344,6 +371,21 @@ public:
 	Bool getHighlightTestArt() { return m_highlightTestArt;}
 	void setShowLetterbox(Bool toggle) {m_showLetterbox = toggle;}
 	Bool getShowLetterbox() { return m_showLetterbox;}
+	void setShowGrid(Bool show, Bool onTop);
+	Bool getShowGrid() { return m_showGrid;}
+	Bool getGridOnTop() { return m_gridOnTop;}
+	void setShowRuler(Bool show, Bool rect, Bool angular, Bool diagonals, Bool onTop);
+	Bool getShowRuler() { return m_showRuler;}
+	Bool getRulerRect() { return m_rulerRect;}
+	Bool getRulerAngular() { return m_rulerAngular;}
+	Bool getRulerDiagonals() { return m_rulerDiagonals;}
+	Bool getRulerOnTop() { return m_rulerOnTop;}
+	enum { RULER_SIZE_COUNT = 6, RULER_SIZE_DEFAULT = 3, RULER_MAJOR_COUNT = 4, RULER_MAJOR_DEFAULT = 1 };
+	static Real getRulerSizeValue(Int index);	///< Minor step in world units.
+	static Int getRulerMajorValue(Int index);	///< Minor steps per major step.
+	void setRulerSize(Int sizeIndex, Int majorIndex);
+	Int getRulerSizeIndex() { return m_rulerSizeIndex;}
+	Int getRulerMajorIndex() { return m_rulerMajorIndex;}
 };
 
 inline UINT WbView3d::getLastDrawTime() { return m_time; }

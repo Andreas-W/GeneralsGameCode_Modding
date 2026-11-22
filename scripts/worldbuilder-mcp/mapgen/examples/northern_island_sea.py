@@ -43,6 +43,9 @@ layers = [("SandMediumType9blue4", sea & (dn >= 2)), ("SandMediumType9blue3", se
           # Grey shingle: SandMediumType9Snow looked orange on NorthernIslandGen and was swapped for this one afterwards. Plan
           # "beach_texture" sets another (TropicTrefoilGen: the user's light sand).
           (plan.get("beach_texture", "DirtSnowType1"), beach)]
+# Plan "beach_by_mask": [{"texture", "mask" (cells npy in the work dir)}], a beach texture per region (DesertForestGen: one per half).
+for bm in plan.get("beach_by_mask", []):
+    layers.append((bm["texture"], beach & np.load(os.path.join(work, bm["mask"]))))
 out = os.path.join(work, "stageB_sea")
 os.makedirs(out, exist_ok=True)
 paths = []

@@ -89,6 +89,38 @@ const Real HANDLE_SIZE = (2.0f) * LINE_THICKNESS;
 	ShaderClass::ALPHATEST_DISABLE, ShaderClass::CULL_MODE_DISABLE, \
 	ShaderClass::DETAILCOLOR_DISABLE, ShaderClass::DETAILALPHA_DISABLE) )
 
+// No texturing, zbuffer test without write, vertex color, alpha blending: grid lines hidden behind terrain and objects.
+#define SC_GRID ( SHADE_CNST(ShaderClass::PASS_LEQUAL, ShaderClass::DEPTH_WRITE_DISABLE, ShaderClass::COLOR_WRITE_ENABLE, ShaderClass::SRCBLEND_SRC_ALPHA, \
+	ShaderClass::DSTBLEND_ONE_MINUS_SRC_ALPHA, ShaderClass::FOG_DISABLE, ShaderClass::GRADIENT_MODULATE, ShaderClass::SECONDARY_GRADIENT_DISABLE, ShaderClass::TEXTURING_DISABLE, \
+	ShaderClass::ALPHATEST_DISABLE, ShaderClass::CULL_MODE_DISABLE, \
+	ShaderClass::DETAILCOLOR_DISABLE, ShaderClass::DETAILALPHA_DISABLE) )
+
+// The same without zbuffer test: lines drawn over water and objects.
+#define SC_GRID_ON_TOP ( SHADE_CNST(ShaderClass::PASS_ALWAYS, ShaderClass::DEPTH_WRITE_DISABLE, ShaderClass::COLOR_WRITE_ENABLE, ShaderClass::SRCBLEND_SRC_ALPHA, \
+	ShaderClass::DSTBLEND_ONE_MINUS_SRC_ALPHA, ShaderClass::FOG_DISABLE, ShaderClass::GRADIENT_MODULATE, ShaderClass::SECONDARY_GRADIENT_DISABLE, ShaderClass::TEXTURING_DISABLE, \
+	ShaderClass::ALPHATEST_DISABLE, ShaderClass::CULL_MODE_DISABLE, \
+	ShaderClass::DETAILCOLOR_DISABLE, ShaderClass::DETAILALPHA_DISABLE) )
+
+// Grid and ruler drawing.
+static const Int GRID_BATCH_QUADS = 4096;				///< Quads per draw call (16384 vertices fit 16 bit indices).
+static const Int GRID_BLOCK_CELLS = 16;					///< Culling and level of detail work on blocks of this many cells.
+static const Real GRID_SAMPLE_LENGTH = MAP_XY_FACTOR/2;	///< Lines are cut into pieces this long to follow the terrain.
+static const Real GRID_MIN_PIXELS = 6.0f;				///< Lines closer than this on screen are thinned out.
+static const Real GRID_MAX_STEP = 64*MAP_XY_FACTOR;
+static const unsigned long GRID_COLOR = 0x80FFFFFF;			// White.
+static const Real GRID_LINE_PIXELS = 1.0f;
+static const Real RULER_MINOR_MIN_PIXELS = 8.0f;			///< Minor lines closer than this on screen are left out.
+static const Int RULER_SECTORS = 24;						///< A sector line every 15 degrees,
+static const Int RULER_SECTORS_PER_MAJOR = 3;				///< a major one every 45 degrees.
+static const unsigned long RULER_RECT_MAJOR_COLOR = 0xD0FFD040;		// Yellow.
+static const unsigned long RULER_RECT_MINOR_COLOR = 0x58FFD040;
+static const unsigned long RULER_ANGULAR_MAJOR_COLOR = 0xD040D0FF;	// Cyan.
+static const unsigned long RULER_ANGULAR_MINOR_COLOR = 0x5840D0FF;
+static const unsigned long RULER_DIAGONAL_COLOR = 0xE0FF50FF;			// Magenta, apart from the orange map boundaries.
+static const Real RULER_MAJOR_LINE_PIXELS = 1.5f;
+static const Real RULER_MINOR_LINE_PIXELS = 1.0f;
+static const Real RULER_DIAGONAL_LINE_PIXELS = 2.0f;
+
 
 Int DrawObject::m_feedbackShape = BRUSH_SHAPE_CIRCLE;
 Int	DrawObject::m_brushWidth = 3;
@@ -151,7 +183,22 @@ DrawObject::DrawObject() :
 	m_indexWater(nullptr),
 	m_moldMesh(nullptr),
 	m_lineRenderer(nullptr),
-  m_drawSoundRanges(false)
+  m_drawSoundRanges(false),
+	m_drawGrid(false),
+	m_gridOnTop(false),
+	m_gridStep(MAP_XY_FACTOR),
+	m_drawRuler(false),
+	m_rulerRect(false),
+	m_rulerAngular(false),
+	m_rulerDiagonals(false),
+	m_rulerOnTop(false),
+	m_rulerMinor(5*MAP_XY_FACTOR),
+	m_rulerMajorEvery(4),
+	m_gridIndexBuffer(nullptr),
+	m_gridBlocksReady(false),
+	m_gridBlocksX(0),
+	m_gridBlocksY(0),
+	m_gridMinX(0), m_gridMinY(0), m_gridMaxX(0), m_gridMaxY(0)
 {
 	m_feedbackPoint.x = 20;
 	m_feedbackPoint.y = 20;
@@ -228,6 +275,7 @@ Int DrawObject::freeMapResources()
 	REF_PTR_RELEASE(m_indexFeedback);
 	REF_PTR_RELEASE(m_indexWater);
 	REF_PTR_RELEASE(m_moldMesh);
+	REF_PTR_RELEASE(m_gridIndexBuffer);
 
 	delete m_lineRenderer;
 	m_lineRenderer = nullptr;
@@ -272,6 +320,23 @@ Int DrawObject::initData()
 
 	m_vertexFeedback=NEW_REF(DX8VertexBufferClass,(DX8_FVF_XYZDUV1,NUM_FEEDBACK_VERTEX,DX8VertexBufferClass::USAGE_DYNAMIC));
 	m_indexFeedback=NEW_REF(DX8IndexBufferClass,(NUM_FEEDBACK_INDEX,DX8IndexBufferClass::USAGE_DYNAMIC));
+
+	// Grid lines are quads of two triangles: 0,1,2 and 2,1,3.
+	m_gridIndexBuffer=NEW_REF(DX8IndexBufferClass,(GRID_BATCH_QUADS*6,DX8IndexBufferClass::USAGE_DYNAMIC));
+	{
+		DX8IndexBufferClass::WriteLockClass lockGridIdx(m_gridIndexBuffer, D3DLOCK_DISCARD);
+		UnsignedShort *gib=lockGridIdx.Get_Index_Array();
+		for (i=0; i<GRID_BATCH_QUADS; i++) {
+			UnsignedShort base = (UnsignedShort)(i*4);
+			gib[0]=base;
+			gib[1]=base+1;
+			gib[2]=base+2;
+			gib[3]=base+2;
+			gib[4]=base+1;
+			gib[5]=base+3;
+			gib+=6;
+		}
+	}
 
 	//go with a preset material for now.
 	m_vertexMaterialClass=VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE);
@@ -2422,6 +2487,9 @@ if (pMapObj->isSelected()) {
 	DX8Wrapper::Set_Vertex_Buffer(nullptr);	//release reference to vertex buffer
 	DX8Wrapper::Set_Index_Buffer(nullptr,0);	//release reference to vertex buffer
 
+	// Grid and ruler: before the water, so lines under water are seen through it, unless drawn over everything.
+	m_gridBlocksReady = (m_drawGrid || m_drawRuler) && TheTerrainRenderObject && m_gridIndexBuffer && setupGridBlocks(rinfo);
+	renderGrid(rinfo, false);
 
 	if (m_ambientSoundFeedback) {
 		updateAmbientSoundVB();
@@ -2443,6 +2511,8 @@ if (pMapObj->isSelected()) {
 		m_waterDrawObject->renderWater();
 	}
 
+	renderGrid(rinfo, true);
+
 	if (m_drawLetterbox) {
 		int w = m_winSize.x;
 		int h = m_winSize.y;
@@ -2461,6 +2531,379 @@ if (pMapObj->isSelected()) {
 		// Clear the old lines.
 		m_lineRenderer->Reset();
 	}
+}
+
+
+/** Finds the visible blocks of the height map and how far from the camera each is. False if nothing to draw. */
+Bool DrawObject::setupGridBlocks(RenderInfoClass & rinfo)
+{
+	CWorldBuilderDoc *pDoc = CWorldBuilderDoc::GetActiveDoc();
+	WorldHeightMapEdit *pMap = pDoc ? pDoc->GetHeightMap() : nullptr;
+	if (!pMap) {
+		return false;
+	}
+	const Int xCells = pMap->getXExtent() - 1;
+	const Int yCells = pMap->getYExtent() - 1;
+	const Int border = pMap->getBorderSizeInline();
+	if (xCells <= 0 || yCells <= 0) {
+		return false;
+	}
+	m_gridMinX = -border*MAP_XY_FACTOR;
+	m_gridMinY = -border*MAP_XY_FACTOR;
+	m_gridMaxX = (xCells-border)*MAP_XY_FACTOR;
+	m_gridMaxY = (yCells-border)*MAP_XY_FACTOR;
+	m_gridBlocksX = (xCells + GRID_BLOCK_CELLS - 1) / GRID_BLOCK_CELLS;
+	m_gridBlocksY = (yCells + GRID_BLOCK_CELLS - 1) / GRID_BLOCK_CELLS;
+	m_gridBlocks.resize(m_gridBlocksX*m_gridBlocksY);
+
+	CameraClass &camera = rinfo.Camera;
+	const Vector3 camPos = camera.Get_Position();
+	const Real viewHeight = (m_winSize.y > 0) ? (Real)m_winSize.y : 600.0f;
+	const Real tanHalfFov = (Real)tan(camera.Get_Vertical_FOV()*0.5f);
+	Bool anyVisible = false;
+
+	for (Int j = 0; j < m_gridBlocksY; j++) {
+		for (Int i = 0; i < m_gridBlocksX; i++) {
+			GridBlock &block = m_gridBlocks[j*m_gridBlocksX + i];
+			const Int x0 = i*GRID_BLOCK_CELLS;
+			const Int y0 = j*GRID_BLOCK_CELLS;
+			const Int x1 = min(x0 + GRID_BLOCK_CELLS, xCells);
+			const Int y1 = min(y0 + GRID_BLOCK_CELLS, yCells);
+			Int minHeight = pMap->getHeight(x0, y0);
+			Int maxHeight = minHeight;
+			for (Int y = y0; y <= y1; y++) {
+				for (Int x = x0; x <= x1; x++) {
+					Int h = pMap->getHeight(x, y);
+					if (h < minHeight) minHeight = h;
+					if (h > maxHeight) maxHeight = h;
+				}
+			}
+			// A margin for the lift above the terrain.
+			Vector3 minPt((x0-border)*MAP_XY_FACTOR, (y0-border)*MAP_XY_FACTOR, minHeight*MAP_HEIGHT_SCALE - 1.0f);
+			Vector3 maxPt((x1-border)*MAP_XY_FACTOR, (y1-border)*MAP_XY_FACTOR, maxHeight*MAP_HEIGHT_SCALE + 5.0f);
+			AABoxClass box;
+			box.Init_Min_Max(minPt, maxPt);
+			block.visible = !camera.Cull_Box(box);
+			if (!block.visible) {
+				continue;
+			}
+			anyVisible = true;
+
+			// Distance from the camera to the nearest point of the block decides how fine it is drawn.
+			Vector3 nearest(
+				max(minPt.X, min(camPos.X, maxPt.X)),
+				max(minPt.Y, min(camPos.Y, maxPt.Y)),
+				max(minPt.Z, min(camPos.Z, maxPt.Z)));
+			Real dist = (nearest - camPos).Length();
+			if (dist < 1.0f) {
+				dist = 1.0f;
+			}
+			block.pixelsPerUnit = viewHeight / (2.0f*dist*tanHalfFov);
+			block.unitsPerPixel = 1.0f / block.pixelsPerUnit;
+			block.lift = 0.3f + dist*0.002f;
+		}
+	}
+	return anyVisible;
+}
+
+/** Spacing at which lines that are spacing apart are drawn: doubled while they would be too close on screen,
+		so the lines drawn are always a subset of the full set. */
+static Real gridLodSpacing(Real spacing, Real pixelsPerUnit)
+{
+	while (spacing*pixelsPerUnit < GRID_MIN_PIXELS && spacing < GRID_MAX_STEP) {
+		spacing *= 2;
+	}
+	return spacing;
+}
+
+/** The grid block at a world position; null outside the height map. */
+const DrawObject::GridBlock *DrawObject::gridBlockAt(Real x, Real y) const
+{
+	if (x < m_gridMinX || y < m_gridMinY || x > m_gridMaxX || y > m_gridMaxY) {
+		return nullptr;
+	}
+	const Real blockSize = GRID_BLOCK_CELLS*MAP_XY_FACTOR;
+	Int i = (Int)((x - m_gridMinX) / blockSize);
+	Int j = (Int)((y - m_gridMinY) / blockSize);
+	if (i >= m_gridBlocksX) i = m_gridBlocksX-1;
+	if (j >= m_gridBlocksY) j = m_gridBlocksY-1;
+	if (i < 0 || j < 0) {
+		return nullptr;
+	}
+	return &m_gridBlocks[j*m_gridBlocksX + i];
+}
+
+/** Adds one flat quad lying on the terrain. With lodSpacing > 0 the segment belongs to a ring at
+		lodIndex*lodSpacing from the center: a minor ring (lodIndex < 0) is left out where rings that far apart
+		are too close on screen, a major ring where the block's level of detail skips it. */
+void DrawObject::addGridSegment(Real x0, Real y0, Real x1, Real y1, unsigned long color, Real widthPixels, Real lodSpacing, Int lodIndex)
+{
+	const GridBlock *block = gridBlockAt((x0+x1)*0.5f, (y0+y1)*0.5f);
+	if (!block || !block->visible) {
+		return;
+	}
+	if (lodSpacing > 0) {
+		if (lodIndex < 0) {
+			if (lodSpacing*block->pixelsPerUnit < RULER_MINOR_MIN_PIXELS) {
+				return;
+			}
+		} else {
+			Int mul = REAL_TO_INT(gridLodSpacing(lodSpacing, block->pixelsPerUnit) / lodSpacing);
+			if (mul > 1 && (lodIndex % mul) != 0) {
+				return;
+			}
+		}
+	}
+	Real dx = x1 - x0;
+	Real dy = y1 - y0;
+	Real len = (Real)sqrt(dx*dx + dy*dy);
+	if (len < 0.001f) {
+		return;
+	}
+	const Real halfWidth = 0.5f * widthPixels * block->unitsPerPixel;
+	const Real nx = -dy/len*halfWidth;
+	const Real ny = dx/len*halfWidth;
+	const Real z0 = TheTerrainRenderObject->getHeightMapHeight(x0, y0, nullptr) + block->lift;
+	const Real z1 = TheTerrainRenderObject->getHeightMapHeight(x1, y1, nullptr) + block->lift;
+
+	VertexFormatXYZNDUV2 v;
+	memset(&v, 0, sizeof(v));
+	v.nz = 1.0f;
+	v.diffuse = color;
+	v.x = x0-nx; v.y = y0-ny; v.z = z0; m_gridVerts.push_back(v);
+	v.x = x0+nx; v.y = y0+ny; v.z = z0; m_gridVerts.push_back(v);
+	v.x = x1-nx; v.y = y1-ny; v.z = z1; m_gridVerts.push_back(v);
+	v.x = x1+nx; v.y = y1+ny; v.z = z1; m_gridVerts.push_back(v);
+
+	if ((Int)m_gridVerts.size() >= GRID_BATCH_QUADS*4) {
+		flushGrid();
+	}
+}
+
+/** Adds a straight line, cut into short pieces that follow the terrain. */
+void DrawObject::addGridLine(Real x0, Real y0, Real x1, Real y1, unsigned long color, Real widthPixels)
+{
+	Real dx = x1 - x0;
+	Real dy = y1 - y0;
+	Real len = (Real)sqrt(dx*dx + dy*dy);
+	Int count = (Int)ceil(len / GRID_SAMPLE_LENGTH);
+	if (count < 1) {
+		count = 1;
+	}
+	Real prevX = x0;
+	Real prevY = y0;
+	for (Int i = 1; i <= count; i++) {
+		Real t = (Real)i / count;
+		Real x = x0 + dx*t;
+		Real y = y0 + dy*t;
+		addGridSegment(prevX, prevY, x, y, color, widthPixels, 0, -1);
+		prevX = x;
+		prevY = y;
+	}
+}
+
+/** Adds the lines at originX + k*spacing and originY + k*spacing that lie in one block, leaving out
+		every skipEvery-th line (counted from the origin) when skipEvery > 0. A line on the edge between two
+		blocks belongs to the block above or right of it; the map's last edge to the last block. */
+void DrawObject::addBlockLines(Int i, Int j, Real originX, Real originY, Real spacing, Int skipEvery, unsigned long color, Real widthPixels)
+{
+	const Real blockSize = GRID_BLOCK_CELLS*MAP_XY_FACTOR;
+	const Real bx0 = m_gridMinX + i*blockSize;
+	const Real by0 = m_gridMinY + j*blockSize;
+	const Real bx1 = min(bx0 + blockSize, m_gridMaxX);
+	const Real by1 = min(by0 + blockSize, m_gridMaxY);
+	const Bool lastX = (i == m_gridBlocksX-1);
+	const Bool lastY = (j == m_gridBlocksY-1);
+	for (Int k = (Int)ceil((bx0-originX)/spacing - 0.001f); ; k++) {
+		Real x = originX + k*spacing;
+		if (x > bx1 + 0.001f || (!lastX && x > bx1 - 0.001f)) {
+			break;
+		}
+		if (skipEvery > 0 && ((k % skipEvery) + skipEvery) % skipEvery == 0) {
+			continue;
+		}
+		addGridLine(x, by0, x, by1, color, widthPixels);
+	}
+	for (Int k = (Int)ceil((by0-originY)/spacing - 0.001f); ; k++) {
+		Real y = originY + k*spacing;
+		if (y > by1 + 0.001f || (!lastY && y > by1 - 0.001f)) {
+			break;
+		}
+		if (skipEvery > 0 && ((k % skipEvery) + skipEvery) % skipEvery == 0) {
+			continue;
+		}
+		addGridLine(bx0, y, bx1, y, color, widthPixels);
+	}
+}
+
+/** Draws the quads gathered so far. */
+void DrawObject::flushGrid()
+{
+	Int quads = (Int)m_gridVerts.size() / 4;
+	if (quads <= 0) {
+		return;
+	}
+	DynamicVBAccessClass vbAccess(BUFFER_TYPE_DYNAMIC_DX8, dynamic_fvf_type, quads*4);
+	{
+		DynamicVBAccessClass::WriteLockClass lock(&vbAccess);
+		VertexFormatXYZNDUV2 *verts = lock.Get_Formatted_Vertex_Array();
+		memcpy(verts, &m_gridVerts[0], quads*4*sizeof(VertexFormatXYZNDUV2));
+	}
+	DX8Wrapper::Set_Vertex_Buffer(vbAccess);
+	DX8Wrapper::Set_Index_Buffer(m_gridIndexBuffer, 0);
+	DX8Wrapper::Draw_Triangles(0, quads*2, 0, quads*4);
+	m_gridVerts.clear();
+}
+
+/** Draws the snap grid and the ruler on the terrain. Called twice per frame: before the water for what is
+		hidden by terrain, objects and water (onTop false), and after it for what is drawn over everything. */
+void DrawObject::renderGrid(RenderInfoClass & rinfo, Bool onTop)
+{
+	const Bool drawGrid = m_drawGrid && m_gridOnTop == onTop && m_gridStep > 0;
+	const Bool drawRuler = m_drawRuler && m_rulerOnTop == onTop && (m_rulerRect || m_rulerAngular || m_rulerDiagonals)
+		&& m_rulerMinor > 0 && m_rulerMajorEvery > 0;
+	if (!m_gridBlocksReady || (!drawGrid && !drawRuler)) {
+		return;
+	}
+
+	DX8Wrapper::Set_Material(m_vertexMaterialClass);
+	DX8Wrapper::Set_Shader(onTop ? ShaderClass(SC_GRID_ON_TOP) : ShaderClass(SC_GRID));
+	DX8Wrapper::Set_Texture(0, nullptr);
+	DX8Wrapper::Set_Texture(1, nullptr);
+	DX8Wrapper::Set_Transform(D3DTS_WORLD, Matrix3D(true));
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_FILLMODE, D3DFILL_SOLID);
+	DX8Wrapper::Set_DX8_Render_State(D3DRS_LIGHTING, FALSE);
+	m_gridVerts.clear();
+
+	// The snap grid, block by block so each block can thin out its lines. Lines lie on multiples of the
+	// block's spacing, counted from the lower left of the playable area, so they match the snapped positions.
+	if (drawGrid) {
+		for (Int j = 0; j < m_gridBlocksY; j++) {
+			for (Int i = 0; i < m_gridBlocksX; i++) {
+				const GridBlock &block = m_gridBlocks[j*m_gridBlocksX + i];
+				if (block.visible) {
+					addBlockLines(i, j, 0, 0, gridLodSpacing(m_gridStep, block.pixelsPerUnit), 0, GRID_COLOR, GRID_LINE_PIXELS);
+				}
+			}
+		}
+	}
+
+	if (drawRuler) {
+		// The ruler is centered on the playable area, which is also the center of the height map.
+		const Real centerX = (m_gridMinX + m_gridMaxX) * 0.5f;
+		const Real centerY = (m_gridMinY + m_gridMaxY) * 0.5f;
+		const Real majorSpacing = m_rulerMinor*m_rulerMajorEvery;
+
+		if (m_rulerRect) {
+			for (Int j = 0; j < m_gridBlocksY; j++) {
+				for (Int i = 0; i < m_gridBlocksX; i++) {
+					const GridBlock &block = m_gridBlocks[j*m_gridBlocksX + i];
+					if (!block.visible) {
+						continue;
+					}
+					if (m_rulerMinor*block.pixelsPerUnit >= RULER_MINOR_MIN_PIXELS) {
+						addBlockLines(i, j, centerX, centerY, m_rulerMinor, m_rulerMajorEvery, RULER_RECT_MINOR_COLOR, RULER_MINOR_LINE_PIXELS);
+					}
+					addBlockLines(i, j, centerX, centerY, gridLodSpacing(majorSpacing, block.pixelsPerUnit), 0, RULER_RECT_MAJOR_COLOR, RULER_MAJOR_LINE_PIXELS);
+				}
+			}
+		}
+
+		// Distance from the center to the map edge in a direction.
+		struct RayToEdge {
+			static Real length(Real cx, Real cy, Real dx, Real dy, Real minX, Real minY, Real maxX, Real maxY) {
+				Real t = 1e9f;
+				if (dx > 0.0001f) t = min(t, (maxX-cx)/dx);
+				if (dx < -0.0001f) t = min(t, (minX-cx)/dx);
+				if (dy > 0.0001f) t = min(t, (maxY-cy)/dy);
+				if (dy < -0.0001f) t = min(t, (minY-cy)/dy);
+				return t;
+			}
+		};
+
+		if (m_rulerAngular) {
+			// Only rings that can reach the visible blocks, and only as fine as the finest visible block needs.
+			const Real blockSize = GRID_BLOCK_CELLS*MAP_XY_FACTOR;
+			Real visMinX = m_gridMaxX, visMinY = m_gridMaxY, visMaxX = m_gridMinX, visMaxY = m_gridMinY;
+			Real maxPixelsPerUnit = 0;
+			for (Int j = 0; j < m_gridBlocksY; j++) {
+				for (Int i = 0; i < m_gridBlocksX; i++) {
+					const GridBlock &block = m_gridBlocks[j*m_gridBlocksX + i];
+					if (!block.visible) {
+						continue;
+					}
+					visMinX = min(visMinX, m_gridMinX + i*blockSize);
+					visMinY = min(visMinY, m_gridMinY + j*blockSize);
+					visMaxX = max(visMaxX, min(m_gridMinX + (i+1)*blockSize, m_gridMaxX));
+					visMaxY = max(visMaxY, min(m_gridMinY + (j+1)*blockSize, m_gridMaxY));
+					maxPixelsPerUnit = max(maxPixelsPerUnit, block.pixelsPerUnit);
+				}
+			}
+			Real nearX = max(visMinX, min(centerX, visMaxX)) - centerX;
+			Real nearY = max(visMinY, min(centerY, visMaxY)) - centerY;
+			Real farX = max(fabs(visMinX-centerX), fabs(visMaxX-centerX));
+			Real farY = max(fabs(visMinY-centerY), fabs(visMaxY-centerY));
+			Real minDist = (Real)sqrt(nearX*nearX + nearY*nearY);
+			Real maxDist = (Real)sqrt(farX*farX + farY*farY);
+
+			// Rings are counted in minor steps; every m_rulerMajorEvery-th is a major ring.
+			Int ringStep = 1;
+			if (m_rulerMinor*maxPixelsPerUnit < RULER_MINOR_MIN_PIXELS) {
+				ringStep = m_rulerMajorEvery * REAL_TO_INT(gridLodSpacing(majorSpacing, maxPixelsPerUnit) / majorSpacing);
+			}
+			Int firstRing = max(1, (Int)floor(minDist/m_rulerMinor));
+			firstRing = ((firstRing + ringStep - 1) / ringStep) * ringStep;
+			Int lastRing = (Int)ceil(maxDist/m_rulerMinor);
+
+			for (Int ring = firstRing; ring <= lastRing; ring += ringStep) {
+				const Bool major = (ring % m_rulerMajorEvery) == 0;
+				const unsigned long color = major ? RULER_ANGULAR_MAJOR_COLOR : RULER_ANGULAR_MINOR_COLOR;
+				const Real width = major ? RULER_MAJOR_LINE_PIXELS : RULER_MINOR_LINE_PIXELS;
+				const Real lodSpacing = major ? majorSpacing : m_rulerMinor;
+				const Int lodIndex = major ? ring / m_rulerMajorEvery : -1;
+				const Real radius = ring*m_rulerMinor;
+				Int count = (Int)ceil(2*PI*radius / (2*GRID_SAMPLE_LENGTH));
+				count = max(32, min(count, 8192));
+				const Real cosStep = (Real)cos(2*PI/count);
+				const Real sinStep = (Real)sin(2*PI/count);
+				Real dx = radius;
+				Real dy = 0;
+				for (Int s = 0; s < count; s++) {
+					Real ndx = dx*cosStep - dy*sinStep;
+					Real ndy = dx*sinStep + dy*cosStep;
+					addGridSegment(centerX+dx, centerY+dy, centerX+ndx, centerY+ndy, color, width, lodSpacing, lodIndex);
+					dx = ndx;
+					dy = ndy;
+				}
+			}
+
+			for (Int sector = 0; sector < RULER_SECTORS; sector++) {
+				const Bool major = (sector % RULER_SECTORS_PER_MAJOR) == 0;
+				const Real angle = sector * 2*PI / RULER_SECTORS;
+				const Real dx = (Real)cos(angle);
+				const Real dy = (Real)sin(angle);
+				Real len = RayToEdge::length(centerX, centerY, dx, dy, m_gridMinX, m_gridMinY, m_gridMaxX, m_gridMaxY);
+				addGridLine(centerX, centerY, centerX + dx*len, centerY + dy*len,
+					major ? RULER_ANGULAR_MAJOR_COLOR : RULER_ANGULAR_MINOR_COLOR,
+					major ? RULER_MAJOR_LINE_PIXELS : RULER_MINOR_LINE_PIXELS);
+			}
+		}
+
+		if (m_rulerDiagonals) {
+			for (Int quadrant = 0; quadrant < 4; quadrant++) {
+				const Real angle = PI/4 + quadrant*PI/2;
+				const Real dx = (Real)cos(angle);
+				const Real dy = (Real)sin(angle);
+				Real len = RayToEdge::length(centerX, centerY, dx, dy, m_gridMinX, m_gridMinY, m_gridMaxX, m_gridMaxY);
+				addGridLine(centerX, centerY, centerX + dx*len, centerY + dy*len, RULER_DIAGONAL_COLOR, RULER_DIAGONAL_LINE_PIXELS);
+			}
+		}
+	}
+
+	flushGrid();
+
+	DX8Wrapper::Set_Vertex_Buffer(nullptr);
+	DX8Wrapper::Set_Index_Buffer(nullptr, 0);
 }
 
 

@@ -474,6 +474,94 @@ static McpJson cmdRender(const McpJson &args)
 	return result;
 }
 
+/// The grid drawn on the terrain and the snap grid, as in View > Show Grid and Grid Options.
+static McpJson cmdGrid(const McpJson &args)
+{
+	WbView3d *view = CWorldBuilderDoc::GetActive3DView();
+	if (view == nullptr) {
+		mcpFail("No 3D view.");
+	}
+	static const double sizes[WbView::GRID_SIZE_COUNT] = { 0.25, 0.5, 1, 2, 4 };
+	if (args.has("size")) {
+		const double size = mcpArgNumber(args, "size");
+		Int found = -1;
+		for (Int i = 0; i < WbView::GRID_SIZE_COUNT; i++) {
+			if (fabs(size - sizes[i]) < 0.001) {
+				found = i;
+			}
+		}
+		if (found < 0) {
+			mcpFail("size must be 0.25, 0.5, 1, 2 or 4 (cells).");
+		}
+		WbView::setGridSizeIndex(found);
+	}
+	if (args.has("snap")) {
+		WbView::setSnapToGrid(mcpArgBool(args, "snap", false));
+	}
+	if (args.has("show") || args.has("on_top")) {
+		view->setShowGrid(mcpArgBool(args, "show", view->getShowGrid() != 0),
+			mcpArgBool(args, "on_top", view->getGridOnTop() != 0));
+	}
+	view->redraw();
+	return McpJson::makeObject()
+		.set("show", view->getShowGrid() != 0)
+		.set("on_top", view->getGridOnTop() != 0)
+		.set("snap", WbView::isSnapToGrid() != 0)
+		.set("size", sizes[WbView::getGridSizeIndex()])
+		.set("step", (double)WbView::getGridStep());
+}
+
+static McpJson cmdRuler(const McpJson &args)
+{
+	WbView3d *view = CWorldBuilderDoc::GetActive3DView();
+	if (view == nullptr) {
+		mcpFail("No 3D view.");
+	}
+	view->setShowRuler(mcpArgBool(args, "show", view->getShowRuler() != 0),
+		mcpArgBool(args, "rectangular", view->getRulerRect() != 0),
+		mcpArgBool(args, "angular", view->getRulerAngular() != 0),
+		mcpArgBool(args, "diagonals", view->getRulerDiagonals() != 0),
+		mcpArgBool(args, "on_top", view->getRulerOnTop() != 0));
+	Int sizeIndex = view->getRulerSizeIndex();
+	Int majorIndex = view->getRulerMajorIndex();
+	if (args.has("size")) {
+		const double size = mcpArgNumber(args, "size");
+		sizeIndex = -1;
+		for (Int i = 0; i < WbView3d::RULER_SIZE_COUNT; i++) {
+			if (fabs(size - WbView3d::getRulerSizeValue(i)) < 0.001) {
+				sizeIndex = i;
+			}
+		}
+		if (sizeIndex < 0) {
+			mcpFail("size must be 10, 20, 25, 50, 100 or 200 (world units).");
+		}
+	}
+	if (args.has("major_every")) {
+		const double every = mcpArgNumber(args, "major_every");
+		majorIndex = -1;
+		for (Int i = 0; i < WbView3d::RULER_MAJOR_COUNT; i++) {
+			if (fabs(every - WbView3d::getRulerMajorValue(i)) < 0.001) {
+				majorIndex = i;
+			}
+		}
+		if (majorIndex < 0) {
+			mcpFail("major_every must be 2, 4, 5 or 10.");
+		}
+	}
+	if (args.has("size") || args.has("major_every")) {
+		view->setRulerSize(sizeIndex, majorIndex);
+	}
+	view->redraw();
+	return McpJson::makeObject()
+		.set("show", view->getShowRuler() != 0)
+		.set("rectangular", view->getRulerRect() != 0)
+		.set("angular", view->getRulerAngular() != 0)
+		.set("diagonals", view->getRulerDiagonals() != 0)
+		.set("on_top", view->getRulerOnTop() != 0)
+		.set("size", (double)WbView3d::getRulerSizeValue(view->getRulerSizeIndex()))
+		.set("major_every", (double)WbView3d::getRulerMajorValue(view->getRulerMajorIndex()));
+}
+
 void mcpRegisterMapCommands()
 {
 	mcpRegisterCommand("map.info", cmdMapInfo, "Map size, borders, world extents, counts, name, weather.");
@@ -485,5 +573,7 @@ void mcpRegisterMapCommands()
 	mcpRegisterCommand("edit.redo", cmdRedo, "{count?} Redoes undone edits.");
 	mcpRegisterCommand("view.set_camera", cmdSetCamera, "{x?,y?,angle_deg?,pitch?,zoom?,reset?} Moves the 3D camera. pitch: 1 default, larger = more top-down. zoom: wheel offset, negative zooms out.");
 	mcpRegisterCommand("view.render", cmdRender, "{post_processing?,materials?,shadow_maps?,shadow_debug?,reload?} Turns the Direct3D 12 renderer's post-processing, materials and shadow maps on or off (start WorldBuilder with -dx12) and returns their state; shadow_debug 1 shows the amount of shadow as grey, 2 also the detail cascade; reload reads the INI files, shaders and the map's map.ini again.");
+	mcpRegisterCommand("view.grid", cmdGrid, "{show?,size?:0.25|0.5|1|2|4,snap?,on_top?} The snap grid on the terrain (View > Show Grid, Grid Options) and Snap To Grid. size in cells is the snap and grid spacing; on_top draws it over water and objects. Returns the state; step is the spacing in world units.");
+	mcpRegisterCommand("view.ruler", cmdRuler, "{show?,rectangular?,angular?,diagonals?,on_top?,size?:10|20|25|50|100|200,major_every?:2|4|5|10} The ruler (View > Show Ruler, Ruler Settings), a visual aid centered on the map: rectangular lines and angular rings every size world units (minor), every major_every-th one a major one; 15 degree sectors (major every 45), 45 degree diagonals. on_top draws it over water and objects. Returns the state.");
 	mcpRegisterCommand("view.screenshot", cmdScreenshot, "{path?,format?:jpg|png,max_width?,quality?,x?,y?,angle_deg?,pitch?,zoom?,reset?} Renders the 3D view to an image.");
 }

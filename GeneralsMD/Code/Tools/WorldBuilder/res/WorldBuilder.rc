@@ -237,7 +237,6 @@ BEGIN
     END
     POPUP "&View"
     BEGIN
-        MENUITEM "Show Grid\tCtrl+G",           IDM_ShowGrid
         MENUITEM "Show Texture\tCtrl+T",        ID_VIEW_SHOWTEXTURE
         MENUITEM SEPARATOR
         MENUITEM "Show Terrain",                ID_VIEW_SHOW_TERRAIN
@@ -288,6 +287,46 @@ BEGIN
         MENUITEM "Change Time Of Day\tCtrl+D",  ID_VIEW_TIME_OF_DAY
         MENUITEM SEPARATOR
         MENUITEM "Snap To Grid\tCtrl+Shft+G",   ID_VIEW_SNAPTOGRID
+        MENUITEM "Show Grid\tCtrl+G",           IDM_ShowGrid
+        POPUP "Grid Options"
+        BEGIN
+            POPUP "Grid Size"
+            BEGIN
+                MENUITEM "0.25x (2.5 units)",           ID_VIEW_GRIDSIZE_025
+                MENUITEM "0.5x (5 units)",              ID_VIEW_GRIDSIZE_05
+                MENUITEM "1x (10 units, one cell)",     ID_VIEW_GRIDSIZE_1
+                MENUITEM "2x (20 units)",               ID_VIEW_GRIDSIZE_2
+                MENUITEM "4x (40 units)",               ID_VIEW_GRIDSIZE_4
+            END
+            MENUITEM SEPARATOR
+            MENUITEM "Draw Over Water and Objects", ID_VIEW_GRID_ONTOP
+        END
+        MENUITEM "Show Ruler",                  ID_VIEW_SHOW_RULER
+        POPUP "Ruler Settings"
+        BEGIN
+            MENUITEM "Rectangular",                 ID_VIEW_RULER_RECT
+            MENUITEM "Angular",                     ID_VIEW_RULER_ANGULAR
+            MENUITEM "Diagonal Lines",              ID_VIEW_RULER_DIAGONALS
+            MENUITEM SEPARATOR
+            POPUP "Ruler Size"
+            BEGIN
+                MENUITEM "10 units (1 cell)",           ID_VIEW_RULERSIZE_10
+                MENUITEM "20 units",                    ID_VIEW_RULERSIZE_20
+                MENUITEM "25 units",                    ID_VIEW_RULERSIZE_25
+                MENUITEM "50 units",                    ID_VIEW_RULERSIZE_50
+                MENUITEM "100 units",                   ID_VIEW_RULERSIZE_100
+                MENUITEM "200 units",                   ID_VIEW_RULERSIZE_200
+            END
+            POPUP "Major Line Every"
+            BEGIN
+                MENUITEM "2nd Line",                    ID_VIEW_RULERMAJOR_2
+                MENUITEM "4th Line",                    ID_VIEW_RULERMAJOR_4
+                MENUITEM "5th Line",                    ID_VIEW_RULERMAJOR_5
+                MENUITEM "10th Line",                   ID_VIEW_RULERMAJOR_10
+            END
+            MENUITEM SEPARATOR
+            MENUITEM "Draw Over Water and Objects", ID_VIEW_RULER_ONTOP
+        END
         MENUITEM SEPARATOR
         MENUITEM "Show Brush Feedback",         ID_VIEW_BRUSHFEEDBACK
         MENUITEM SEPARATOR
