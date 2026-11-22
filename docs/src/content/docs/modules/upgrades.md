@@ -2,7 +2,7 @@
 title: "Upgrade modules"
 description: "New and changed upgrade modules."
 status: verified
-verifiedAt: 7cdd826c5
+verifiedAt: 1501b9d26
 sources:
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/WeaponSetUpgrade.cpp
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/ArmorUpgrade.cpp

@@ -2,7 +2,7 @@
 title: "Update and behavior modules"
 description: "Other new and changed update and behavior modules."
 status: verified
-verifiedAt: 7cdd826c5
+verifiedAt: 1501b9d26
 sources:
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Update/ArmorDamageScalarUpdate.cpp
   - GeneralsMD/Code/GameEngine/Include/GameLogic/Module/LifetimeUpdate.h

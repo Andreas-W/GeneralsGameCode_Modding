@@ -2,7 +2,7 @@
 title: "Object definition"
 description: "New fields on Object blocks and ObjectExtend."
 status: verified
-verifiedAt: 7cdd826c5
+verifiedAt: 1501b9d26
 sources:
   - GeneralsMD/Code/GameEngine/Source/Common/Thing/ThingTemplate.cpp
   - GeneralsMD/Code/GameEngine/Include/Common/ThingTemplate.h
