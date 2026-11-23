@@ -3107,7 +3107,7 @@ Real WbView3d::getCurrentZoom()
 }
 
 // ----------------------------------------------------------------------------
-void WbView3d::OnTimer(UINT nIDEvent)
+void WbView3d::OnTimer(UINT_PTR nIDEvent)
 {
 	// A stroke normally finishes on mouse up, which never arrives if the capture was lost.
 	if (m_heightStrokePending && GetCapture() != this) {

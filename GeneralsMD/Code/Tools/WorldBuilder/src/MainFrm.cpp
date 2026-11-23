@@ -548,7 +548,7 @@ void CMainFrame::OnSize(UINT nType, int cx, int cy)
 	ScheduleAdjustViewAfterResize();
 }
 
-void CMainFrame::OnTimer(UINT nIDEvent)
+void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 {
 	if (nIDEvent == ADJUST_VIEW_TIMER) {
 		KillTimer(ADJUST_VIEW_TIMER);
