@@ -2982,6 +2982,7 @@ void TerrainLogic::setActiveBoundary(Int newActiveBoundary)
 // ------------------------------------------------------------------------------------------------
 /** Flatten the terrain beneath a structure. */
 // ------------------------------------------------------------------------------------------------
+#ifdef USE_ADVANCED_COLLISION
 //-------------------------------------------------------------------------------------------------
 /** flattenTerrain for a geometry with additional shapes: one average height for the vertices
 	* under any of the shapes. */
@@ -3050,17 +3051,20 @@ static void flattenCompoundTerrain(TerrainLogic *terrain, Object *obj)
 	}
 }
 
+#endif
 void TerrainLogic::flattenTerrain(Object *obj)
 {
 	if (obj->getGeometryInfo().getIsSmall() || obj->isKindOf(KINDOF_SHIPYARD)) {
 		return;
 	}
 
+#ifdef USE_ADVANCED_COLLISION
 	if (obj->getGeometryInfo().isCompound()) {
 		flattenCompoundTerrain(this, obj);
 		return;
 	}
 
+#endif
 	const Coord3D *pos = obj->getPosition();
 	switch(obj->getGeometryInfo().getGeomType())
 	{

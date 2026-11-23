@@ -22,6 +22,7 @@
 
 #pragma once
 
+#ifdef USE_ADVANCED_COLLISION
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "Common/Geometry.h"
 #include "GameLogic/Module/DamageModule.h"
@@ -78,3 +79,4 @@ protected:
 	Bool m_usesDamageGeometry;					///< the object has a damage state geometry now
 
 };
+#endif // USE_ADVANCED_COLLISION

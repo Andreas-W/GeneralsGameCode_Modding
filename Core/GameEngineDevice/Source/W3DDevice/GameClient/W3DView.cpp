@@ -1021,6 +1021,7 @@ static void drawContainedDrawable( Object *obj, void *userData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
+#ifdef USE_ADVANCED_COLLISION
 //-------------------------------------------------------------------------------------------------
 static void drawGeometryPrimitive( const GeometryPrimitive& prim, UnsignedInt color )
 {
@@ -1116,6 +1117,89 @@ static void drawDrawableExtents( Drawable *draw, void *userData )
 		geom.getWorldPrimitive( shape, *draw->getPosition(), draw->getOrientation(), prim );
 		drawGeometryPrimitive( prim, shape == 0 ? color : extraColor );
 	}
+#else
+static void drawDrawableExtents( Drawable *draw, void *userData )
+{
+	UnsignedInt color = GameMakeColor( 0, 255, 0, 255 );
+
+	switch( draw->getDrawableGeometryInfo().getGeomType() )
+	{
+
+		//---------------------------------------------------------------------------------------------
+		case GEOMETRY_BOX:
+		{
+			Real angle = draw->getOrientation();
+			Real c = (Real)cos(angle);
+			Real s = (Real)sin(angle);
+			Real exc = draw->getDrawableGeometryInfo().getMajorRadius()*c;
+			Real eyc = draw->getDrawableGeometryInfo().getMinorRadius()*c;
+			Real exs = draw->getDrawableGeometryInfo().getMajorRadius()*s;
+			Real eys = draw->getDrawableGeometryInfo().getMinorRadius()*s;
+			Coord3D pts[4];
+			pts[0].x = draw->getPosition()->x - exc - eys;
+			pts[0].y = draw->getPosition()->y + eyc - exs;
+			pts[0].z = 0;
+			pts[1].x = draw->getPosition()->x + exc - eys;
+			pts[1].y = draw->getPosition()->y + eyc + exs;
+			pts[1].z = 0;
+			pts[2].x = draw->getPosition()->x + exc + eys;
+			pts[2].y = draw->getPosition()->y - eyc + exs;
+			pts[2].z = 0;
+			pts[3].x = draw->getPosition()->x - exc + eys;
+			pts[3].y = draw->getPosition()->y - eyc - exs;
+			pts[3].z = 0;
+			Real z = draw->getPosition()->z;
+			for( int i = 0; i < 2; i++ )
+			{
+
+				for (int corner = 0; corner < 4; corner++)
+				{
+					ICoord2D start, end;
+					pts[corner].z = z;
+					pts[(corner+1)&3].z = z;
+					TheTacticalView->worldToScreen(&pts[corner], &start);
+					TheTacticalView->worldToScreen(&pts[(corner+1)&3], &end);
+					TheDisplay->drawLine(start.x, start.y, end.x, end.y, 1.0f, color);
+				}
+
+				z += draw->getDrawableGeometryInfo().getMaxHeightAbovePosition();
+
+			}
+
+			break;
+
+		}
+
+		//---------------------------------------------------------------------------------------------
+		case GEOMETRY_SPHERE:	// not quite right, but close enough
+		case GEOMETRY_CYLINDER:
+		{
+      Coord3D center = *draw->getPosition();
+      const Real radius = draw->getDrawableGeometryInfo().getMajorRadius();
+
+			// draw cylinder
+			for( int i=0; i<2; i++ )
+			{
+        drawDebugCircle( center, radius, 1.0f, color );
+
+        // next time 'round, draw the top of the cylinder
+        center.z += draw->getDrawableGeometryInfo().getMaxHeightAbovePosition();
+			}
+
+			// draw centerline
+      ICoord2D start, end;
+      center = *draw->getPosition();
+      TheTacticalView->worldToScreen( &center, &start );
+      center.z += draw->getDrawableGeometryInfo().getMaxHeightAbovePosition();
+      TheTacticalView->worldToScreen( &center, &end );
+			TheDisplay->drawLine( start.x, start.y, end.x, end.y, 1.0f, color );
+
+			break;
+
+		}
+
+	}
+#endif
 
 	// draw any extents for things that are contained by this
 	Object *obj = draw->getObject();

@@ -615,6 +615,7 @@ static void checkSampleBuildLocationShipyard(const Coord3D* samplePoint, void* u
 
 }  // end checkSampleBuildLocation
 
+#ifdef USE_ADVANCED_COLLISION
 //-------------------------------------------------------------------------------------------------
 /** iterateFootprint for a compound geometry: samples every shape on its own grid and skips the
 	* points that an earlier shape already covers. */
@@ -671,6 +672,7 @@ void BuildAssistant::iterateCompoundFootprint( const GeometryInfo& geom,
 	}
 }
 
+#endif
 //-------------------------------------------------------------------------------------------------
 /** This function will call the user callback at each "sample point" across the footprint
 	* of where this object would be in the world.  The smaller the sample resolution param is
@@ -688,12 +690,14 @@ void BuildAssistant::iterateFootprint( const ThingTemplate *build,
 	if( build == nullptr || worldPos == nullptr || func == nullptr )
 		return;
 
+#ifdef USE_ADVANCED_COLLISION
 	if( build->getTemplateGeometryInfo().isCompound() )
 	{
 		iterateCompoundFootprint( build->getTemplateGeometryInfo(), buildOrientation, worldPos, sampleResolution, func, funcUserData );
 		return;
 	}
 
+#endif
 	//
 	// create a transform matrix for the object position at the specified angle, we will
 	// iterate the object footprints in "local object extent space" and transform those
@@ -913,8 +917,10 @@ LegalBuildCode BuildAssistant::isLocationClearOfObjects( const Coord3D *worldPos
 	// Check for overlapping exit areas.
 
 	Real range = 2*(build->getTemplateGeometryInfo().getMajorRadius()+build->getTemplateGeometryInfo().getMinorRadius());
+#ifdef USE_ADVANCED_COLLISION
 	if (build->getTemplateGeometryInfo().isCompound())
 		range = std::max(range, 2*build->getTemplateGeometryInfo().getBoundingCircleRadius());
+#endif
 
 	PartitionFilterAcceptByKindOf f1(MAKE_KINDOF_MASK(KINDOF_STRUCTURE), KINDOFMASK_NONE);
 	PartitionFilter *filters[] = { &f1, nullptr };
@@ -944,7 +950,9 @@ LegalBuildCode BuildAssistant::isLocationClearOfObjects( const Coord3D *worldPos
 		myBounds.setMinorRadius(myBounds.getMinorRadius()+myExtraWidth);
 	}
 	GeometryInfo myGeom = build->getTemplateGeometryInfo();
+#ifdef USE_ADVANCED_COLLISION
 	myGeom.clearExtraShapes();
+#endif
 	if (myGeom.getGeomType() != GEOMETRY_BOX) {
 		myGeom.setMinorRadius(myGeom.getMajorRadius());
 	}
@@ -993,7 +1001,9 @@ LegalBuildCode BuildAssistant::isLocationClearOfObjects( const Coord3D *worldPos
 			hisBounds.setMinorRadius(hisBounds.getMinorRadius()+myExtraWidth);
 		}
 		GeometryInfo hisGeom = them->getGeometryInfo();
+#ifdef USE_ADVANCED_COLLISION
 		hisGeom.clearExtraShapes();
+#endif
 		hisGeom.setMajorRadius(themFactoryExitWidth/2.0f);
 		if (hisGeom.getGeomType() != GEOMETRY_BOX) {
 			hisGeom.setMinorRadius(them->getGeometryInfo().getMajorRadius());
@@ -1643,7 +1653,11 @@ Bool BuildAssistant::moveObjectsForConstruction( const ThingTemplate *whatToBuil
 {
 	GeometryInfo gi (GEOMETRY_BOX, false, 10, whatToBuild->getTemplateGeometryInfo().getMajorRadius(),
 		whatToBuild->getTemplateGeometryInfo().getMajorRadius());
+#ifdef USE_ADVANCED_COLLISION
 	if (whatToBuild->getTemplateGeometryInfo().getGeomType()==GEOMETRY_BOX || whatToBuild->getTemplateGeometryInfo().isCompound()) {
+#else
+	if (whatToBuild->getTemplateGeometryInfo().getGeomType()==GEOMETRY_BOX) {
+#endif
 		gi = whatToBuild->getTemplateGeometryInfo();
 	}
 	ObjectIterator *iter =
@@ -1654,8 +1668,10 @@ Bool BuildAssistant::moveObjectsForConstruction( const ThingTemplate *whatToBuil
 	MemoryPoolObjectHolder hold( iter );
 
 	Real radius = sqrt(pow(gi.getMajorRadius(), 2) + pow(gi.getMinorRadius(), 2));
+#ifdef USE_ADVANCED_COLLISION
 	if (gi.isCompound())
 		radius = gi.getBoundingCircleRadius();
+#endif
 	radius *= 1.4f;	// Fudge the distance,
 
 	for( Object *them = iter->first(); them; them = iter->next() )

@@ -211,7 +211,9 @@ static PoolSizeRec PoolSizes[] =
 	{ "AllBattlePlansUpdate", 32, 32 },
 	{ "LifetimeUpdate", 32, 32 },
 	{ "LocomotorSetUpgrade", 512, 128 },
+#ifdef USE_ADVANCED_COLLISION
 	{ "GeometryUpgrade", 32, 32 },
+#endif
 	{ "LockWeaponCreate", 64, 128 },
 	{ "AutoDepositUpdate", 256, 32 },
 	{ "NeutronMissileUpdate", 512, 32 },
@@ -234,7 +236,9 @@ static PoolSizeRec PoolSizes[] =
 	{ "RadarUpgrade", 16, 16 },
 	{ "AnimationSteeringUpdate", 1024, 32 },
 	{ "SupplyWarehouseCripplingBehavior", 16, 16 },
+#ifdef USE_ADVANCED_COLLISION
 	{ "DamageStateGeometryBehavior", 32, 32 },
+#endif
 	{ "CostModifierUpgrade", 32, 32 },
 	{ "ProductionTimeModifierUpgrade", 32, 32 },
 	{ "UnitProductionBonusUpgrade", 64, 32 },

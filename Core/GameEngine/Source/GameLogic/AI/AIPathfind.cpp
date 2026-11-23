@@ -4443,6 +4443,7 @@ void Pathfinder::internal_classifyObjectFootprint( Object *obj, Bool insert )
 	cellBounds.hi = cellBounds.lo;
 #endif
 
+#ifdef USE_ADVANCED_COLLISION
 	// every shape of a compound geometry blocks its own cells
 	const GeometryInfo& geomInfo = obj->getGeometryInfo();
 	for (Int shapeIndex = 0; shapeIndex < geomInfo.getShapeCount(); ++shapeIndex)
@@ -4597,6 +4598,153 @@ void Pathfinder::internal_classifyObjectFootprint( Object *obj, Bool insert )
 			break;
 		}
 	}
+#else
+	switch(obj->getGeometryInfo().getGeomType())
+	{
+		case GEOMETRY_BOX:
+		{
+			m_zoneManager.markZonesDirty();
+			Real angle = obj->getOrientation();
+
+			Real halfsizeX = obj->getGeometryInfo().getMajorRadius();
+			Real halfsizeY = obj->getGeometryInfo().getMinorRadius();
+
+			Real c = (Real)Cos(angle);
+			Real s = (Real)Sin(angle);
+
+			const Real STEP_SIZE = PATHFIND_CELL_SIZE_F * 0.5f;	// in theory, should be PATHFIND_CELL_SIZE_F exactly, but needs to be smaller to avoid aliasing problems
+			Real ydx = s * STEP_SIZE;
+			Real ydy = -c * STEP_SIZE;
+			Real xdx = c * STEP_SIZE;
+			Real xdy = s * STEP_SIZE;
+
+			Int numStepsX = REAL_TO_INT_CEIL(2.0f * halfsizeX / STEP_SIZE);
+			Int numStepsY = REAL_TO_INT_CEIL(2.0f * halfsizeY / STEP_SIZE);
+
+			Real tl_x = pos->x - halfsizeX*c - halfsizeY*s;
+			Real tl_y = pos->y + halfsizeY*c - halfsizeX*s;
+
+			for (Int iy = 0; iy < numStepsY; ++iy, tl_x += ydx, tl_y += ydy)
+			{
+				Real x = tl_x;
+				Real y = tl_y;
+				for (Int ix = 0; ix < numStepsX; ++ix, x += xdx, y += xdy)
+				{
+					Int cx = REAL_TO_INT_FLOOR((x + 0.5f)/PATHFIND_CELL_SIZE_F);
+					Int cy = REAL_TO_INT_FLOOR((y + 0.5f)/PATHFIND_CELL_SIZE_F);
+
+#if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
+					if (cx >= 0 && cy >= 0 && cx < m_extent.hi.x && cy < m_extent.hi.y)
+					{
+						if (insert) {
+							ICoord2D pos;
+							pos.x = cx;
+							pos.y = cy;
+							m_map[cx][cy].setTypeAsObstacle( obj, false, pos );
+						}
+						else
+							m_map[cx][cy].removeObstacle(obj);
+					}
+#else
+					if (cx >= 0 && cy >= 0 && cx < m_extent.hi.x && cy < m_extent.hi.y)
+					{
+						if (insert) {
+							ICoord2D pos;
+							pos.x = cx;
+							pos.y = cy;
+							if (m_map[cx][cy].setTypeAsObstacle( obj, false, pos )) {
+ 								m_map[cx][cy].setZone(PathfindZoneManager::UNINITIALIZED_ZONE);
+							}
+						}
+						else {
+							if (m_map[cx][cy].removeObstacle(obj)) {
+ 								m_map[cx][cy].setZone(PathfindZoneManager::UNINITIALIZED_ZONE);
+							}
+						}
+ 						if (cellBounds.lo.x>cx) cellBounds.lo.x = cx;
+ 						if (cellBounds.lo.y>cy) cellBounds.lo.y = cy;
+ 						if (cellBounds.hi.x<cx) cellBounds.hi.x = cx;
+ 						if (cellBounds.hi.y<cy) cellBounds.hi.y = cy;
+					}
+#endif
+				}
+			}
+		}
+		break;
+
+		case GEOMETRY_SPHERE:	// not quite right, but close enough
+		case GEOMETRY_CYLINDER:
+		{
+			m_zoneManager.markZonesDirty();
+			// fill in all cells that overlap as obstacle cells
+			/// @todo This is a very inefficient circle-rasterizer
+			ICoord2D topLeft, bottomRight;
+			Coord2D center, delta;
+			Real radius = obj->getGeometryInfo().getMajorRadius();
+			Real r2, size;
+
+			topLeft.x = REAL_TO_INT_FLOOR(0.5f + (pos->x - radius)/PATHFIND_CELL_SIZE_F)-1;
+			topLeft.y = REAL_TO_INT_FLOOR(0.5f + (pos->y - radius)/PATHFIND_CELL_SIZE_F)-1;
+			size = (radius/PATHFIND_CELL_SIZE_F);
+			center.x = (pos->x/PATHFIND_CELL_SIZE_F);
+			center.y = (pos->y/PATHFIND_CELL_SIZE_F);
+
+			size += 0.4f;
+			r2 = size*size;
+
+			bottomRight.x = topLeft.x + 2*size + 2;
+			bottomRight.y = topLeft.y + 2*size + 2;
+
+			for( int j = topLeft.y; j < bottomRight.y; j++ )
+			{
+				for( int i = topLeft.x; i < bottomRight.x; i++ )
+				{
+					delta.x = i+0.5f - center.x;
+					delta.y = j+0.5f - center.y;
+
+					if (delta.x*delta.x + delta.y*delta.y <= r2)
+					{
+#if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
+						if (i >= 0 && j >= 0 && i < m_extent.hi.x && j < m_extent.hi.y)
+						{
+							if (insert)	{
+								ICoord2D pos;
+								pos.x = i;
+								pos.y = j;
+								m_map[i][j].setTypeAsObstacle( obj, false, pos );
+							}
+							else
+								m_map[i][j].removeObstacle( obj );
+						}
+#else
+						if (i >= 0 && j >= 0 && i < m_extent.hi.x && j < m_extent.hi.y)
+						{
+							if (insert) {
+								ICoord2D pos;
+								pos.x = i;
+								pos.y = j;
+								if (m_map[i][j].setTypeAsObstacle( obj, false, pos )) {
+ 									m_map[i][j].setZone(PathfindZoneManager::UNINITIALIZED_ZONE);
+								}
+							}
+							else {
+								if (m_map[i][j].removeObstacle(obj)) {
+ 									m_map[i][j].setZone(PathfindZoneManager::UNINITIALIZED_ZONE);
+								}
+							}
+ 							if (cellBounds.lo.x>i) cellBounds.lo.x = i;
+ 							if (cellBounds.lo.y>j) cellBounds.lo.y = j;
+ 							if (cellBounds.hi.x<i) cellBounds.hi.x = i;
+ 							if (cellBounds.hi.y<j) cellBounds.hi.y = j;
+						}
+#endif
+					}
+				}
+			}
+		}
+		break;
+	}
+#endif
 
 #if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
 	Region2D bounds;

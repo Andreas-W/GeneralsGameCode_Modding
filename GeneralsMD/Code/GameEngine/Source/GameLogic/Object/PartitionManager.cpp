@@ -127,6 +127,7 @@ struct ThreatValueParms
 	UnsignedInt threatOrValue;
 };
 
+#ifdef USE_ADVANCED_COLLISION
 // One primitive shape as seen by the collide tests. It answers the same questions as GeometryInfo
 // does for its primary shape, but never includes the additional shapes of a compound geometry,
 // and is cheap to copy.
@@ -147,9 +148,11 @@ public:
 	void setMinorRadius(Real r) { m_minorRadius = r; }
 };
 
+#endif
 struct CollideInfo
 {
 	Coord3D position;
+#ifdef USE_ADVANCED_COLLISION
 	CollideGeom geom;
 	Real angle;
 
@@ -174,6 +177,12 @@ private:
 		geom.m_minorRadius = prim.minorRadius;
 		geom.m_height = prim.height;
 	}
+#else
+	GeometryInfo geom;
+	Real angle;
+
+	CollideInfo(const Coord3D* p, const GeometryInfo& g, Real a) : position(*p), geom(g), angle(a) { }
+#endif
 };
 
 struct CellValueProcParms
@@ -842,6 +851,7 @@ static Bool distCalcProc_CenterAndCenter_2D(
 	return abDistSqr < maxDistSqr;
 }
 
+#ifdef USE_ADVANCED_COLLISION
 //-----------------------------------------------------------------------------
 static Bool isCompoundObject(const Object *obj)
 {
@@ -983,6 +993,7 @@ static Bool distCalcProc_Shapes(
 	return abDistSqr < maxDistSqr;
 }
 
+#endif
 //-----------------------------------------------------------------------------
 static Bool distCalcProc_BoundaryAndBoundary_2D(
 	const Coord3D *posA,
@@ -994,9 +1005,11 @@ static Bool distCalcProc_BoundaryAndBoundary_2D(
 	Real maxDistSqr
 )
 {
+#ifdef USE_ADVANCED_COLLISION
 	if (isCompoundObject(objA) || isCompoundObject(objB))
 		return distCalcProc_Shapes(posA, objA, posB, objB, abDistSqr, abVec, maxDistSqr, false);
 
+#endif
 	Coord3D diff;
 	diff.x = posB->x - posA->x;
 	diff.y = posB->y - posA->y;
@@ -1081,9 +1094,11 @@ static Bool distCalcProc_BoundaryAndBoundary_3D(
 	Real maxDistSqr
 )
 {
+#ifdef USE_ADVANCED_COLLISION
 	if (isCompoundObject(objA) || isCompoundObject(objB))
 		return distCalcProc_Shapes(posA, objA, posB, objB, abDistSqr, abVec, maxDistSqr, true);
 
+#endif
 	const GeometryInfo* geomA = objA ? &objA->getGeometryInfo() : nullptr;
 	const GeometryInfo* geomB = objB ? &objB->getGeometryInfo() : nullptr;
 
@@ -1162,6 +1177,7 @@ static CollideTestProc theCollideTestProcs[] =
 	collideTest_Box_Box
 };
 
+#ifdef USE_ADVANCED_COLLISION
 //-----------------------------------------------------------------------------
 enum CollideZRule
 {
@@ -1239,6 +1255,7 @@ static Bool collideGeometries(
 	return false;
 }
 
+#endif
 //-----------------------------------------------------------------------------
 //         Public Data
 //-----------------------------------------------------------------------------
@@ -2277,10 +2294,38 @@ Bool PartitionData::collidesWith(const PartitionData *that, CollideLocAndNormal 
 	if( thisObj->isKindOf( KINDOF_NO_COLLIDE )  ||  thatObj->isKindOf( KINDOF_NO_COLLIDE ) )
 		return FALSE; // A collision extent of zero size is still a point and can collide, but we don't always want to.
 
+#ifdef USE_ADVANCED_COLLISION
 	return collideGeometries(
 		thisObj->getPosition(), thisObj->getGeometryInfo(), thisObj->getOrientation(),
 		thatObj->getPosition(), thatObj->getGeometryInfo(), thatObj->getOrientation(),
 		COLLIDE_Z_ABOVE_AND_BELOW, cinfo);
+#else
+	CollideInfo thisInfo(thisObj->getPosition(), thisObj->getGeometryInfo(), thisObj->getOrientation());
+	CollideInfo thatInfo(thatObj->getPosition(), thatObj->getGeometryInfo(), thatObj->getOrientation());
+
+	// invariant for all geometries: first do z collision check.
+	Real thisTop = thisInfo.position.z + thisInfo.geom.getMaxHeightAbovePosition();
+	Real thisBot = thisInfo.position.z - thisInfo.geom.getMaxHeightBelowPosition();
+	Real thatTop = thatInfo.position.z + thatInfo.geom.getMaxHeightAbovePosition();
+	Real thatBot = thatInfo.position.z - thatInfo.geom.getMaxHeightBelowPosition();
+	if (thisTop >= thatBot && thisBot <= thatTop)
+	{
+		GeometryType thisGeom = thisObj->getGeometryInfo().getGeomType();
+		GeometryType thatGeom = thatObj->getGeometryInfo().getGeomType();
+
+		//
+		// NOTE: This assumes geometry enumerations that start at GEOMETRY_FIRST AND depends on the
+		// order in which they appear in the enum list
+		//
+		CollideTestProc collideProc = theCollideTestProcs[ (thisGeom - GEOMETRY_FIRST) * GEOMETRY_NUM_TYPES + (thatGeom - GEOMETRY_FIRST) ];
+		return (*collideProc)(&thisInfo, &thatInfo, cinfo);
+	}
+	else
+	{
+		// no z-intersection -> no collision.
+		return false;
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2292,8 +2337,34 @@ Bool PartitionManager::geomCollidesWithGeom(const Coord3D* pos1,
 		const GeometryInfo& geom2,
 		Real angle2) const
 {
+#ifdef USE_ADVANCED_COLLISION
 	CollideLocAndNormal cloc;
 	return collideGeometries(pos1, geom1, angle1, pos2, geom2, angle2, COLLIDE_Z_ABOVE_ONLY, &cloc);
+#else
+	CollideInfo thisInfo(pos1, geom1, angle1);
+	CollideInfo thatInfo(pos2, geom2, angle2);
+
+	// invariant for all geometries: first do z collision check.
+	if (thisInfo.position.z + thisInfo.geom.getMaxHeightAbovePosition() >= thatInfo.position.z &&
+			thisInfo.position.z <= thatInfo.position.z + thatInfo.geom.getMaxHeightAbovePosition())
+	{
+		GeometryType thisGeom = geom1.getGeomType();
+		GeometryType thatGeom = geom2.getGeomType();
+
+		//
+		// NOTE: This assumes geometry enumerations that start at GEOMETRY_FIRST AND depends on the
+		// order in which they appear in the enum list
+		//
+		CollideTestProc collideProc = theCollideTestProcs[ (thisGeom - GEOMETRY_FIRST) * GEOMETRY_NUM_TYPES + (thatGeom - GEOMETRY_FIRST) ];
+		CollideLocAndNormal cloc;
+		return (*collideProc)(&thisInfo, &thatInfo, &cloc);
+	}
+	else
+	{
+		// no z-intersection -> no collision.
+		return false;
+	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2303,7 +2374,9 @@ void PartitionData::updateCellsTouched()
 	Bool isSmall;
 	Coord3D pos;
 	Real angle,majorRadius,minorRadius;
+#ifdef USE_ADVANCED_COLLISION
 	const GeometryInfo *geomInfo;
+#endif
 
 
 	Object *obj = getObject();
@@ -2311,7 +2384,9 @@ void PartitionData::updateCellsTouched()
 	if (obj)
 	{
 		//we have no object using this PartitionData but we still have a GhostObject so copy its data.
+#ifdef USE_ADVANCED_COLLISION
 		geomInfo = &obj->getGeometryInfo();
+#endif
 		geom = obj->getGeometryInfo().getGeomType();
 		isSmall = obj->getGeometryInfo().getIsSmall();
 		pos = *(obj->getPosition());
@@ -2321,7 +2396,9 @@ void PartitionData::updateCellsTouched()
 	}
 	else if (m_ghostObject)
 	{
+#ifdef USE_ADVANCED_COLLISION
 		geomInfo = &m_ghostObject->getParentGeometry();
+#endif
 		geom = m_ghostObject->getGeometryType();
 		isSmall = m_ghostObject->getGeometrySmall();
 		pos = *m_ghostObject->getParentPosition();
@@ -2336,6 +2413,7 @@ void PartitionData::updateCellsTouched()
 	}
 
 	removeAllTouchedCells();
+#ifdef USE_ADVANCED_COLLISION
 	if (geomInfo->isCompound())
 	{
 		// the union of the cells of all shapes; addSubPixToCoverage skips cells already covered
@@ -2351,6 +2429,9 @@ void PartitionData::updateCellsTouched()
 		}
 	}
 	else if (isSmall)
+#else
+	if (isSmall)
+#endif
 	{
 		doSmallFill(pos.x, pos.y, majorRadius);
 	}
@@ -2480,6 +2561,7 @@ Int PartitionData::calcMaxCoiForShape(GeometryType geom, Real majorRadius, Real 
 	return result;
 }
 
+#ifdef USE_ADVANCED_COLLISION
 //-----------------------------------------------------------------------------
 Int PartitionData::calcMaxCoiForGeometry(const GeometryInfo& geom)
 {
@@ -2499,16 +2581,27 @@ Int PartitionData::calcMaxCoiForGeometry(const GeometryInfo& geom)
 	return result;
 }
 
+#endif
 //-----------------------------------------------------------------------------
 Int PartitionData::calcMaxCoiForObject()
 {
 	Object *obj = getObject();
 	DEBUG_ASSERTCRASH(obj != nullptr, ("must be attached to an Object here 2"));
 
+#ifndef USE_ADVANCED_COLLISION
+	GeometryType geom = obj->getGeometryInfo().getGeomType();
+	Real majorRadius = obj->getGeometryInfo().getMajorRadius();
+	Real minorRadius = obj->getGeometryInfo().getMinorRadius();
+	Bool isSmall = obj->getGeometryInfo().getIsSmall();
+#endif
 #if defined(RTS_DEBUG)
 theObjName = obj->getTemplate()->getName();
 #endif
+#ifdef USE_ADVANCED_COLLISION
 	return calcMaxCoiForGeometry(obj->getGeometryInfo());
+#else
+	return calcMaxCoiForShape(geom, majorRadius, minorRadius, isSmall);
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2628,7 +2721,11 @@ void PartitionData::attachToGhostObject(GhostObject* object)
 	DEBUG_ASSERTCRASH(m_coiInUseCount == 0, ("hmm, coi count mismatch"));
 	freeCoiArray();
 
+#ifdef USE_ADVANCED_COLLISION
 	m_coiArrayCount = calcMaxCoiForGeometry(object->getParentGeometry());
+#else
+	m_coiArrayCount = calcMaxCoiForShape(object->getGeometryType(), object->getGeometryMajorRadius(), object->getGeometryMinorRadius(),object->getGeometrySmall());
+#endif
 	m_coiArray = MSGNEW("PartitionManager_COI") CellAndObjectIntersection[m_coiArrayCount];	// may throw!
 	m_coiInUseCount = 0;
 	makeDirty(true);
@@ -5571,11 +5668,39 @@ PartitionFilterWouldCollide::PartitionFilterWouldCollide(const Coord3D& pos, con
 
 Bool PartitionFilterWouldCollide::allow(Object *objOther)
 {
+#ifdef USE_ADVANCED_COLLISION
 	CollideLocAndNormal cinfo;
 	Bool doesCollide = collideGeometries(
 		&m_position, m_geom, m_angle,
 		objOther->getPosition(), objOther->getGeometryInfo(), objOther->getOrientation(),
 		COLLIDE_Z_ABOVE_ONLY, &cinfo);
+#else
+	CollideInfo thisInfo(&m_position, m_geom, m_angle);
+	CollideInfo thatInfo(objOther->getPosition(), objOther->getGeometryInfo(), objOther->getOrientation());
+
+  Bool doesCollide;
+
+	// invariant for all geometries: first do z collision check.
+	if (thisInfo.position.z + thisInfo.geom.getMaxHeightAbovePosition() >= thatInfo.position.z &&
+			thisInfo.position.z <= thatInfo.position.z + thatInfo.geom.getMaxHeightAbovePosition())
+	{
+		GeometryType thisGeom = m_geom.getGeomType();
+		GeometryType thatGeom = objOther->getGeometryInfo().getGeomType();
+
+		//
+		// NOTE: This assumes geometry enumerations that start at GEOMETRY_FIRST AND depends on the
+		// order in which they appear in the enum list
+		//
+		CollideTestProc collideProc = theCollideTestProcs[ (thisGeom - GEOMETRY_FIRST) * GEOMETRY_NUM_TYPES + (thatGeom - GEOMETRY_FIRST) ];
+		CollideLocAndNormal cinfo;
+		doesCollide = (*collideProc)(&thisInfo, &thatInfo, &cinfo);
+	}
+	else
+	{
+		// no z-intersection -> no collision.
+		doesCollide = false;
+	}
+#endif
 
   return doesCollide == m_desiredCollisionResult;
 }

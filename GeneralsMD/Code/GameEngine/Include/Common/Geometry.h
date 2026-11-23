@@ -78,6 +78,7 @@ enum ExtentModType CPP_11(: Int)
 static const Real EXTENT_BIG_CHANGE = 10.0f;
 #endif
 
+#ifdef USE_ADVANCED_COLLISION
 //-------------------------------------------------------------------------------------------------
 /** Max number of primitive shapes in one geometry, including the primary shape. */
 //-------------------------------------------------------------------------------------------------
@@ -137,6 +138,7 @@ struct GeometryShapeList
 	GeometryShape m_shapes[MAX_GEOMETRY_SHAPES - 1];
 };
 
+#endif
 //-------------------------------------------------------------------------------------------------
 /** Geometry information */
 //-------------------------------------------------------------------------------------------------
@@ -152,14 +154,18 @@ private:
 	Real m_boundingCircleRadius;	///< not in INI file -- size of bounding circle (2d)
 	Real m_boundingSphereRadius;	///< not in INI -- size of bounding sphere (3d)
 
+#ifdef USE_ADVANCED_COLLISION
 	// Additional shapes of a compound geometry (null: none). The scalars above stay the primary
 	// shape (offset 0, angle 0), so code that only knows one shape keeps working with it.
 	GeometryShapeList *m_extraShapes;
 
+#endif
 	void calcBoundingStuff();
+#ifdef USE_ADVANCED_COLLISION
 	Int getExtraShapeCount() const { return m_extraShapes ? m_extraShapes->m_count : 0; }
 	void setExtraShapes(GeometryShapeList *list);	///< takes a reference on list, releases the old one
 	void setLoadedExtraShapes(const GeometryShape *shapes, Int count);
+#endif
 
 protected:
 
@@ -176,6 +182,7 @@ public:
 	static void parseGeometryMajorRadius( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ );
 	static void parseGeometryMinorRadius( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ );
 
+#ifdef USE_ADVANCED_COLLISION
 	/// parses an "AdditionalGeometry ... End" block into a GeometryShape (store)
 	static void parseGeometryShape( INI* ini, GeometryShape& shape );
 
@@ -186,21 +193,27 @@ public:
 	/// "End" into the GeometryInfo (store), replacing what it held; for geometries in module blocks
 	static void parseGeometryBlock( INI* ini, void * /*instance*/, void *store, const void* /*userData*/ );
 
+#endif
 	GeometryInfo(GeometryType type, Bool isSmall, Real height, Real majorRadius, Real minorRadius)
 	{
 		m_boundingCircleRadius = 0.0f;
 		m_boundingSphereRadius = 0.0f;
+#ifdef USE_ADVANCED_COLLISION
 		m_extraShapes = nullptr;
+#endif
 		set(type, isSmall, height, majorRadius, minorRadius);
 	}
 
+#ifdef USE_ADVANCED_COLLISION
 	GeometryInfo(const GeometryInfo& that) : Snapshot(that), m_extraShapes(nullptr) { *this = that; }
 	GeometryInfo& operator=(const GeometryInfo& that);
 	~GeometryInfo() { setExtraShapes(nullptr); }
 
 	/// sets the primary shape; additional shapes are kept
+#endif
 	void set(GeometryType type, Bool isSmall, Real height, Real majorRadius, Real minorRadius);
 
+#ifdef USE_ADVANCED_COLLISION
 	// compound geometry
 	Bool isCompound() const { return m_extraShapes != nullptr; }
 	Int getShapeCount() const { return 1 + getExtraShapeCount(); }
@@ -227,6 +240,7 @@ public:
 	Real getDistanceSqToPoint2D(const Coord3D& pos, Real angle, const Coord3D& pt) const;
 	Real getDistanceSqToPoint3D(const Coord3D& pos, Real angle, const Coord3D& pt) const;
 
+#endif
 	// bleah, icky but needed for legacy code
 	void setMajorRadius(Real majorRadius)
 	{
@@ -242,7 +256,11 @@ public:
 	}
 
 	GeometryType getGeomType() const { return m_type; }
+#ifdef USE_ADVANCED_COLLISION
 	Bool getIsSmall() const { return m_isSmall && m_extraShapes == nullptr; }	///< a compound geometry is never small
+#else
+	Bool getIsSmall() const { return m_isSmall; }
+#endif
 	Real getMajorRadius() const { return m_majorRadius; }	// x-axis
 	Real getMinorRadius() const { return m_minorRadius; }	// y-axis
 
@@ -288,7 +306,9 @@ public:
 	Bool isPointInFootprint(const Coord3D& geomCenter, const Coord3D& pt) const;
 
 	// given an object with this geom, SET how far above the object's canonical position its max z should extend.
+#ifdef USE_ADVANCED_COLLISION
 	// Additional shapes reaching higher than z are cut down to it.
+#endif
 	void setMaxHeightAbovePosition(Real z);
 
 #if defined(RTS_DEBUG)

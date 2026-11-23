@@ -246,6 +246,7 @@ PhysicsBehavior::PhysicsBehavior( Thing *thing, const ModuleData* moduleData ) :
 #endif
 }
 
+#ifdef USE_ADVANCED_COLLISION
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 /** For a compound geometry: center and bounding radius of the shape of 'obj' that is nearest
@@ -272,6 +273,7 @@ static void getNearestShapeBounds(const Object *obj, const Coord3D& pt, Bool is3
 	}
 }
 
+#endif
 //-------------------------------------------------------------------------------------------------
 static ProjectileUpdateInterface* getPui(Object* obj)
 {
@@ -1423,6 +1425,7 @@ void PhysicsBehavior::onCollide( Object *other, const Coord3D *loc, const Coord3
 	obj->getGeometryInfo().getCenterPosition(*obj->getPosition(), usCenter);
 	other->getGeometryInfo().getCenterPosition(*other->getPosition(), themCenter);
 
+#ifdef USE_ADVANCED_COLLISION
 	Real usRadius, themRadius;
 	Bool is3D = obj->isAboveTerrain();
 	if (is3D)
@@ -1458,6 +1461,29 @@ void PhysicsBehavior::onCollide( Object *other, const Coord3D *loc, const Coord3
 		distSqr = sqr(delta.x) + sqr(delta.y);
 		delta.z = 0;
 	}
+#else
+	Coord3D delta;
+	delta.x = themCenter.x - usCenter.x;
+	delta.y = themCenter.y - usCenter.y;
+	delta.z = themCenter.z - usCenter.z;
+
+	Real distSqr, usRadius, themRadius;
+	if (obj->isAboveTerrain())
+	{
+		// do 3d testing.
+		usRadius = obj->getGeometryInfo().getBoundingSphereRadius();
+		themRadius = other->getGeometryInfo().getBoundingSphereRadius();
+		distSqr = sqr(delta.x) + sqr(delta.y) + sqr(delta.z);
+	}
+	else
+	{
+		// do 2d testing.
+		usRadius = obj->getGeometryInfo().getBoundingCircleRadius();
+		themRadius = other->getGeometryInfo().getBoundingCircleRadius();
+		distSqr = sqr(delta.x) + sqr(delta.y);
+		delta.z = 0;
+	}
+#endif
 
 	if (distSqr > sqr(usRadius + themRadius))
 	{

@@ -51,7 +51,9 @@ DynamicGeometryInfoUpdateModuleData::DynamicGeometryInfoUpdateModuleData()
 
 	m_transitionTime = 1;
 	m_reverseAtTransitionTime = FALSE;
+#ifdef USE_ADVANCED_COLLISION
 	m_scaleAdditionalGeometry = FALSE;
+#endif
 
 }
 
@@ -75,7 +77,9 @@ DynamicGeometryInfoUpdateModuleData::DynamicGeometryInfoUpdateModuleData()
 
 		{ "TransitionTime",				INI::parseDurationUnsignedInt,		nullptr, offsetof(DynamicGeometryInfoUpdateModuleData, m_transitionTime) },
 		{ "ReverseAtTransitionTime", INI::parseBool,	 nullptr, offsetof( DynamicGeometryInfoUpdateModuleData, m_reverseAtTransitionTime ) },
+#ifdef USE_ADVANCED_COLLISION
 		{ "ScaleAdditionalGeometry", INI::parseBool,	 nullptr, offsetof( DynamicGeometryInfoUpdateModuleData, m_scaleAdditionalGeometry ) },
+#endif
 
 		{ nullptr, nullptr, nullptr, 0 }
 
@@ -84,10 +88,16 @@ DynamicGeometryInfoUpdateModuleData::DynamicGeometryInfoUpdateModuleData()
 }
 
 //-------------------------------------------------------------------------------------------------
+#ifdef USE_ADVANCED_COLLISION
 DynamicGeometryInfoUpdate::DynamicGeometryInfoUpdate( Thing *thing, const ModuleData* moduleData ) : UpdateModule( thing, moduleData ),
 	m_baseGeometry( GEOMETRY_SPHERE, FALSE, 0.0f, 0.0f, 0.0f )
+#else
+DynamicGeometryInfoUpdate::DynamicGeometryInfoUpdate( Thing *thing, const ModuleData* moduleData ) : UpdateModule( thing, moduleData )
+#endif
 {
+#ifdef USE_ADVANCED_COLLISION
 	m_hasBaseGeometry = FALSE;
+#endif
 	DynamicGeometryInfoUpdateModuleData *modData = (DynamicGeometryInfoUpdateModuleData *)moduleData;
 	m_startingDelayCountdown = modData->m_initialDelay;
 	m_startingDelayCountdown = max( m_startingDelayCountdown, 1u );
@@ -147,6 +157,7 @@ UpdateSleepTime DynamicGeometryInfoUpdate::update()
 	newMinor = m_initialMinorRadius + (ratio * (m_finalMinorRadius - m_initialMinorRadius));
 
 	// make a new geometry info with the new values
+#ifdef USE_ADVANCED_COLLISION
 	// (a copy changed with set() keeps the additional shapes of a compound geometry)
 	GeometryInfo newGeom = me->getGeometryInfo();
 	newGeom.set( newGeom.getGeomType(), newGeom.getIsSmall(), newHeight, newMajor, newMinor );
@@ -170,6 +181,10 @@ UpdateSleepTime DynamicGeometryInfoUpdate::update()
 			newGeom.setScaledExtraShapes( m_baseGeometry, scaleX, scaleY, scaleZ );
 		}
 	}
+#else
+	const GeometryInfo oldGeom = me->getGeometryInfo();
+	GeometryInfo newGeom( oldGeom.getGeomType(), oldGeom.getIsSmall(), newHeight, newMajor, newMinor );
+#endif
 	me->setGeometryInfo( newGeom );
 
 	// we've not been active another frame .. increment out counter
@@ -222,16 +237,26 @@ void DynamicGeometryInfoUpdate::crc( Xfer *xfer )
 }
 
 // ------------------------------------------------------------------------------------------------
+#ifdef USE_ADVANCED_COLLISION
 /** Xfer method
 	* Version Info:
 	* 1: Initial version
 	* 2: base geometry for ScaleAdditionalGeometry */
+#else
+/** Xfer method
+	* Version Info:
+	* 1: Initial version */
+#endif
 // ------------------------------------------------------------------------------------------------
 void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )
 {
 
 	// version
+#ifdef USE_ADVANCED_COLLISION
 	XferVersion currentVersion = 2;
+#else
+	XferVersion currentVersion = 1;
+#endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -277,6 +302,7 @@ void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )
 	// final minor radius
 	xfer->xferReal( &m_finalMinorRadius );
 
+#ifdef USE_ADVANCED_COLLISION
 	// base geometry (older saves take it from the object on the next update)
 	if( version >= 2 )
 	{
@@ -289,6 +315,7 @@ void DynamicGeometryInfoUpdate::xfer( Xfer *xfer )
 		m_hasBaseGeometry = FALSE;
 	}
 
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------

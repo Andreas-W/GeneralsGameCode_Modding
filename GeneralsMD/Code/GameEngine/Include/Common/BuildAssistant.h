@@ -137,6 +137,7 @@ public:
 												 IterateFootprintFunc func,
 												 void *funcUserData );
 
+#ifdef USE_ADVANCED_COLLISION
 	/// iterateFootprint for a geometry with additional shapes
 	void iterateCompoundFootprint( const GeometryInfo& geom,
 																 Real buildOrientation,
@@ -145,6 +146,7 @@ public:
 																 IterateFootprintFunc func,
 																 void *funcUserData );
 
+#endif
 	/// create object from a build and put it in the world now
 	virtual Object *buildObjectNow( Object *constructorObject, const ThingTemplate *what,
 																	const Coord3D *pos, Real angle, Player *owningPlayer );

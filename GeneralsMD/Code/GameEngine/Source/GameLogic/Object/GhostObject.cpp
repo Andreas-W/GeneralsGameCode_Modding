@@ -43,7 +43,13 @@ m_parentAngle(0.0f),
 // TheSuperHackers @bugfix tomsons26 26/04/2025 Change initialization of m_parentGeometryIsSmall from 0.0f.
 // Assigning a float to a bool results in the compiler using a random 1 byte value to assign to the bool.
 // @todo Change initialization to 'false' when applicable.
+#ifdef USE_ADVANCED_COLLISION
 m_parentGeometry(GEOMETRY_SPHERE, true, 0.0f, 0.0f, 0.0f),
+#else
+m_parentGeometryIsSmall(true),
+m_parentGeometryMajorRadius(0.0f),
+m_parentGeometryminorRadius(0.0f),
+#endif
 m_parentObject(nullptr),
 m_partitionData(nullptr)
 {
@@ -64,15 +70,25 @@ void GhostObject::crc( Xfer *xfer )
 }
 
 // ------------------------------------------------------------------------------------------------
+#ifdef USE_ADVANCED_COLLISION
 /** Xfer Method
 	* Version Info:
 	* 1: Initial version
 	* 2: Whole parent geometry, including additional shapes */
+#else
+/** Xfer Method
+	* Version Info:
+	* 1: Initial version */
+#endif
 // ------------------------------------------------------------------------------------------------
 void GhostObject::xfer( Xfer *xfer )
 {
 	// version
+#ifdef USE_ADVANCED_COLLISION
 	XferVersion currentVersion = 2;
+#else
+	XferVersion currentVersion = 1;
+#endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -94,6 +110,7 @@ void GhostObject::xfer( Xfer *xfer )
 		}
 	}
 
+#ifdef USE_ADVANCED_COLLISION
 	if( version >= 2 )
 	{
 		// parent geometry
@@ -122,6 +139,19 @@ void GhostObject::xfer( Xfer *xfer )
 		m_parentGeometry.clearExtraShapes();
 		m_parentGeometry.set( type, isSmall, 0.0f, majorRadius, minorRadius );
 	}
+#else
+	// parent geometry type
+	xfer->xferUser( &m_parentGeometryType, sizeof( GeometryType ) );
+
+	// parent geometry is small
+	xfer->xferBool( &m_parentGeometryIsSmall );
+
+	// parent geometry major radius
+	xfer->xferReal( &m_parentGeometryMajorRadius );
+
+	// parent geometry minor radius
+	xfer->xferReal( &m_parentGeometryminorRadius );
+#endif
 
 	// parent angle
 	xfer->xferReal( &m_parentAngle );

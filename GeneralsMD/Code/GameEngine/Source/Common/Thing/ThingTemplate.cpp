@@ -251,7 +251,9 @@ const FieldParse ThingTemplate::s_objectFieldParseTable[] =
 	{ "GeometryMinorRadius",	GeometryInfo::parseGeometryMinorRadius,	nullptr,		offsetof( ThingTemplate, m_geometryInfo ) },
 	{ "GeometryHeight",				GeometryInfo::parseGeometryHeight,			nullptr,		offsetof( ThingTemplate, m_geometryInfo ) },
 	{ "GeometryIsSmall",			GeometryInfo::parseGeometryIsSmall,			nullptr,		offsetof( ThingTemplate, m_geometryInfo ) },
+#ifdef USE_ADVANCED_COLLISION
 	{ "AdditionalGeometry",		ThingTemplate::parseAdditionalGeometry,	nullptr,		0 },
+#endif
 	{ "Shadow",								INI::parseBitString8,		TheShadowNames,		offsetof( ThingTemplate, m_shadowType ) },
 	{ "ShadowSizeX",					INI::parseReal,						nullptr,	offsetof(ThingTemplate, m_shadowSizeX) },
 	{ "ShadowSizeY",					INI::parseReal,						nullptr,	offsetof(ThingTemplate, m_shadowSizeY) },
@@ -298,7 +300,9 @@ const FieldParse ThingTemplate::s_objectReskinFieldParseTable[] =
 	{ "GeometryMinorRadius",	GeometryInfo::parseGeometryMinorRadius,	nullptr,		offsetof( ThingTemplate, m_geometryInfo ) },
 	{ "GeometryHeight",				GeometryInfo::parseGeometryHeight,			nullptr,		offsetof( ThingTemplate, m_geometryInfo ) },
 	{ "GeometryIsSmall",			GeometryInfo::parseGeometryIsSmall,			nullptr,		offsetof( ThingTemplate, m_geometryInfo ) },
+#ifdef USE_ADVANCED_COLLISION
 	{ "AdditionalGeometry",		ThingTemplate::parseAdditionalGeometry,	nullptr,		0 },
+#endif
 	{ "FenceWidth",						INI::parseReal,													nullptr,		offsetof( ThingTemplate, m_fenceWidth ) },
 	{ "FenceXOffset",					INI::parseReal,													nullptr,		offsetof( ThingTemplate, m_fenceXOffset ) },
 
@@ -1008,6 +1012,7 @@ void ThingTemplate::parseArmorTemplateSet( INI* ini, void *instance, void * /*st
 	self->m_armorTemplateSetFinder.clear();
 }
 
+#ifdef USE_ADVANCED_COLLISION
 //-------------------------------------------------------------------------------------------------
 void ThingTemplate::parseAdditionalGeometry( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ )
 {
@@ -1029,6 +1034,7 @@ void ThingTemplate::parseAdditionalGeometry( INI* ini, void *instance, void * /*
 	}
 }
 
+#endif
 //-------------------------------------------------------------------------------------------------
 void ThingTemplate::parseWeaponTemplateSet( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ )
 {
@@ -1151,7 +1157,9 @@ ThingTemplate::ThingTemplate() :
 	m_isBuildFacility = FALSE;
 	m_isPrerequisite = FALSE;
 	m_prereqsCopiedFromExtended = FALSE;
+#ifdef USE_ADVANCED_COLLISION
 	m_geometryCopiedFromDefault = FALSE;
+#endif
 	m_placementViewAngle = 0.0f;
 	m_factoryExitWidth = 0.0f;
 	m_factoryExtraBibWidth = 0.0f;
@@ -1369,7 +1377,9 @@ void ThingTemplate::setCopiedFromDefault()
 {
 	m_armorCopiedFromDefault = true;
 	m_weaponsCopiedFromDefault = true;
+#ifdef USE_ADVANCED_COLLISION
 	m_geometryCopiedFromDefault = true;
+#endif
 	m_behaviorModuleInfo.setCopiedFromDefault(true);
 	m_drawModuleInfo.setCopiedFromDefault(true);
 	m_clientUpdateModuleInfo.setCopiedFromDefault(true);
@@ -1383,7 +1393,9 @@ void ThingTemplate::setCopiedFromDefaultExtended()
 	m_armorCopiedFromDefault = true;
 	m_weaponsCopiedFromDefault = true;
 	m_prereqsCopiedFromExtended = true;
+#ifdef USE_ADVANCED_COLLISION
 	m_geometryCopiedFromDefault = true;
+#endif
 	//m_behaviorModuleInfo.setCopiedFromDefault(true);
 	//m_drawModuleInfo.setCopiedFromDefault(true);
 	//m_clientUpdateModuleInfo.setCopiedFromDefault(true);

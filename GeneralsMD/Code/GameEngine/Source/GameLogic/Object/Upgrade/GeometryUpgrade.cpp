@@ -23,6 +23,7 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#ifdef USE_ADVANCED_COLLISION
 #include "Common/Xfer.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Module/DamageStateGeometryBehavior.h"
@@ -112,3 +113,4 @@ void GeometryUpgrade::loadPostProcess()
 	UpgradeModule::loadPostProcess();
 
 }
+#endif // USE_ADVANCED_COLLISION

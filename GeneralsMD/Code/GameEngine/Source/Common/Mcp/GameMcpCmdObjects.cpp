@@ -156,6 +156,19 @@ McpJson describeGeometry(const Object *object)
 	result.set("max_height_above", geom.getMaxHeightAbovePosition());
 	result.set("max_height_below", geom.getMaxHeightBelowPosition());
 	McpJson shapes = McpJson::makeArray();
+#ifndef USE_ADVANCED_COLLISION
+	// without compound geometry an object has only its primary shape
+	{
+		const Int type = (Int)geom.getGeomType();
+		shapes.push(McpJson::makeObject()
+			.set("type", type >= 0 && type < GEOMETRY_NUM_TYPES ? TYPE_NAMES[type] : "?")
+			.set("major_radius", geom.getMajorRadius())
+			.set("minor_radius", geom.getMinorRadius())
+			.set("height", geom.getMaxHeightAbovePosition())
+			.set("position", gameMcpCoord(*object->getPosition()))
+			.set("angle", object->getOrientation() * 180.0f / PI));
+	}
+#else
 	for (Int i = 0; i < geom.getShapeCount(); ++i) {
 		GeometryPrimitive prim;
 		geom.getWorldPrimitive(i, *object->getPosition(), object->getOrientation(), prim);
@@ -168,6 +181,7 @@ McpJson describeGeometry(const Object *object)
 			.set("position", gameMcpCoord(prim.position))
 			.set("angle", prim.angle * 180.0f / PI));
 	}
+#endif
 	result.set("shapes", shapes);
 	return result;
 }

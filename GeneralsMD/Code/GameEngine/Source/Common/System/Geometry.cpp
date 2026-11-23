@@ -32,7 +32,9 @@
 
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 #include "Common/Geometry.h"
+#ifdef USE_ADVANCED_COLLISION
 #include "Common/GameState.h"
+#endif
 #include "Common/INI.h"
 #include "Common/RandomValue.h"
 #include "Common/Xfer.h"
@@ -77,6 +79,7 @@
 	((GeometryInfo*)store)->calcBoundingStuff();
 }
 
+#ifdef USE_ADVANCED_COLLISION
 //=============================================================================
 static const FieldParse s_geometryShapeFieldParse[] =
 {
@@ -418,6 +421,7 @@ Real GeometryInfo::getDistanceSqToPoint3D(const Coord3D& pos, Real angle, const 
 	return best;
 }
 
+#endif
 //-----------------------------------------------------------------------------
 void GeometryInfo::set(GeometryType type, Bool isSmall, Real height, Real majorRadius, Real minorRadius)
 {
@@ -445,9 +449,11 @@ void GeometryInfo::set(GeometryType type, Bool isSmall, Real height, Real majorR
 			break;
 	};
 
+#ifdef USE_ADVANCED_COLLISION
 	if (isCompound())
 		m_isSmall = false;
 
+#endif
 	calcBoundingStuff();
 }
 
@@ -547,6 +553,7 @@ void GeometryInfo::setMaxHeightAbovePosition(Real z)
 			break;
 	};
 
+#ifdef USE_ADVANCED_COLLISION
 	if (m_extraShapes)
 	{
 		Int count = m_extraShapes->m_count;
@@ -571,6 +578,7 @@ void GeometryInfo::setMaxHeightAbovePosition(Real z)
 		setLoadedExtraShapes(shapes, count);
 	}
 
+#endif
 	calcBoundingStuff();
 }
 
@@ -578,6 +586,7 @@ void GeometryInfo::setMaxHeightAbovePosition(Real z)
 // given an object with this geom, how far above the object's canonical position does its max z extend?
 Real GeometryInfo::getMaxHeightAbovePosition() const
 {
+#ifdef USE_ADVANCED_COLLISION
 	Real result = 0.0f;
 	switch(m_type)
 	{
@@ -600,12 +609,26 @@ Real GeometryInfo::getMaxHeightAbovePosition() const
 	}
 
 	return result;
+#else
+	switch(m_type)
+	{
+		case GEOMETRY_SPHERE:
+			return m_majorRadius;
+
+		case GEOMETRY_BOX:
+		case GEOMETRY_CYLINDER:
+			return m_height;
+	};
+
+	return 0.0f;
+#endif
 }
 
 //=============================================================================
 // given an object with this geom, how far below the object's canonical position does its max z extend?
 Real GeometryInfo::getMaxHeightBelowPosition() const
 {
+#ifdef USE_ADVANCED_COLLISION
 	Real result = 0.0f;
 	switch(m_type)
 	{
@@ -628,6 +651,19 @@ Real GeometryInfo::getMaxHeightBelowPosition() const
 	}
 
 	return result;
+#else
+	switch(m_type)
+	{
+		case GEOMETRY_SPHERE:
+			return m_majorRadius;
+
+		case GEOMETRY_BOX:
+		case GEOMETRY_CYLINDER:
+			return 0.0f;
+	};
+
+	return 0.0f;
+#endif
 }
 
 //=============================================================================
@@ -654,8 +690,12 @@ void GeometryInfo::expandFootprint(Real radius)
 }
 
 //=============================================================================
+#ifdef USE_ADVANCED_COLLISION
 static void calcPrimitive2DBounds(GeometryType m_type, Real m_majorRadius, Real m_minorRadius,
 	const Coord3D& geomCenter, Real angle, Region2D& bounds)
+#else
+void GeometryInfo::get2DBounds(const Coord3D& geomCenter, Real angle, Region2D& bounds) const
+#endif
 {
 	switch(m_type)
 	{
@@ -711,6 +751,7 @@ static void calcPrimitive2DBounds(GeometryType m_type, Real m_majorRadius, Real 
 	}
 }
 
+#ifdef USE_ADVANCED_COLLISION
 //=============================================================================
 void GeometryInfo::get2DBounds(const Coord3D& geomCenter, Real angle, Region2D& bounds) const
 {
@@ -732,6 +773,7 @@ void GeometryInfo::get2DBounds(const Coord3D& geomCenter, Real angle, Region2D& 
 	}
 }
 
+#endif
 //=============================================================================
 void GeometryInfo::clipPointToFootprint(const Coord3D& geomCenter, Coord3D& ptToClip) const
 {
@@ -924,6 +966,7 @@ void GeometryInfo::calcBoundingStuff()
 			break;
 		}
 	};
+#ifdef USE_ADVANCED_COLLISION
 
 	// grow the bounds around the object position (circle) and the primary center (sphere)
 	// so that they enclose the additional shapes too
@@ -943,6 +986,7 @@ void GeometryInfo::calcBoundingStuff()
 				m_boundingSphereRadius = sphere;
 		}
 	}
+#endif
 }
 
 #if defined(RTS_DEBUG)
@@ -975,6 +1019,7 @@ AsciiString GeometryInfo::getDescriptiveString() const
 {
 	AsciiString msg;
 	msg.format("%d/%d(%g %g %g)", (Int)m_type, (Int)m_isSmall, m_majorRadius, m_minorRadius, m_height);
+#ifdef USE_ADVANCED_COLLISION
 	for (Int i = 0; i < getExtraShapeCount(); ++i)
 	{
 		const GeometryShape& shape = m_extraShapes->m_shapes[i];
@@ -983,10 +1028,12 @@ AsciiString GeometryInfo::getDescriptiveString() const
 			shape.m_offset.x, shape.m_offset.y, shape.m_offset.z, shape.m_angle);
 		msg.concat(tmp);
 	}
+#endif
 	return msg;
 }
 #endif
 
+#ifdef USE_ADVANCED_COLLISION
 // ------------------------------------------------------------------------------------------------
 static Bool isSameShape( const GeometryShape& a, const GeometryShape& b )
 {
@@ -1024,6 +1071,7 @@ void GeometryInfo::setLoadedExtraShapes( const GeometryShape *shapes, Int count 
 	setExtraShapes( list );
 }
 
+#endif
 // ------------------------------------------------------------------------------------------------
 /** CRC */
 // ------------------------------------------------------------------------------------------------
@@ -1033,16 +1081,26 @@ void GeometryInfo::crc( Xfer *xfer )
 }
 
 // ------------------------------------------------------------------------------------------------
+#ifdef USE_ADVANCED_COLLISION
 /** Xfer method
 	* Version Info:
 	* 1: Initial version
 	* 2: Additional shapes of a compound geometry */
+#else
+/** Xfer method
+	* Version Info:
+	* 1: Initial version */
+#endif
 // ------------------------------------------------------------------------------------------------
 void GeometryInfo::xfer( Xfer *xfer )
 {
 
 	// version
+#ifdef USE_ADVANCED_COLLISION
 	XferVersion currentVersion = 2;
+#else
+	XferVersion currentVersion = 1;
+#endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -1067,6 +1125,7 @@ void GeometryInfo::xfer( Xfer *xfer )
 	// bounding sphere radius
 	xfer->xferReal( &m_boundingSphereRadius );
 
+#ifdef USE_ADVANCED_COLLISION
 	// additional shapes
 	if( version >= 2 )
 	{
@@ -1100,6 +1159,7 @@ void GeometryInfo::xfer( Xfer *xfer )
 		setExtraShapes( nullptr );
 	}
 
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------

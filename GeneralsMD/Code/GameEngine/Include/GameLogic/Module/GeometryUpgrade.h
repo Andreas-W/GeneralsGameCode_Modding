@@ -22,6 +22,7 @@
 
 #pragma once
 
+#ifdef USE_ADVANCED_COLLISION
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "Common/Geometry.h"
 #include "GameLogic/Module/UpgradeModule.h"
@@ -58,3 +59,4 @@ protected:
 	virtual Bool isSubObjectsUpgrade() override { return false; }
 
 };
+#endif // USE_ADVANCED_COLLISION
