@@ -2,7 +2,7 @@
 title: "Object definition"
 description: "New fields on Object blocks and ObjectExtend."
 status: verified
-verifiedAt: 7cdd826c5
+verifiedAt: 1501b9d26
 sources:
   - GeneralsMD/Code/GameEngine/Source/Common/Thing/ThingTemplate.cpp
   - GeneralsMD/Code/GameEngine/Include/Common/ThingTemplate.h
@@ -12,6 +12,10 @@ sources:
   - GeneralsMD/Code/GameEngine/Include/GameLogic/AI.h
   - GeneralsMD/Code/GameEngine/Source/GameClient/Drawable.cpp
   - Core/GameEngine/Source/GameLogic/AI/AIPathfind.cpp
+  - GeneralsMD/Code/GameEngine/Source/Common/System/Geometry.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/PartitionManager.cpp
+  - GeneralsMD/Code/GameEngine/Source/Common/System/BuildAssistant.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Body/ActiveBody.cpp
 sidebar:
   order: 0
 ---
@@ -63,6 +67,52 @@ Note: This parameter might be moved to individual weapons in the future, to allo
 
 * `MaxPathfindingCellRadius = 2` - (Upper limit, in pathfinding cells, for the radius the pathfinder uses for this object. Retail always caps it at 2; raise it for very large units such as big ships so they path around obstacles according to their real size.)
 * `RequiredBridgeHeight = 0` - (Minimum clearance this object needs to pass under bridges, see [Bridges](/GeneralsGameCode_Modding/systems/bridges/#thingtemplate).)
+
+### Compound geometry
+
+An object can have up to 7 shapes in addition to its normal geometry (8 shapes in total), so L-shaped bases, long ships or gates no longer need one big box. Each `AdditionalGeometry` block adds one shape. The `Geometry`, `GeometryMajorRadius`, `GeometryMinorRadius` and `GeometryHeight` fields stay the main shape at the object's position.
+
+* `Type = BOX` - (`BOX`, `SPHERE` or `CYLINDER`, as for `Geometry`.)
+* `MajorRadius = 0` - (Half length along the shape's forward axis; the radius of a sphere or cylinder.)
+* `MinorRadius = 0` - (Half width of a box. Ignored for spheres and cylinders.)
+* `Height = 0` - (Height of a box or cylinder. Ignored for spheres.)
+* `Offset = X:0 Y:0 Z:0` - (Position of the shape relative to the object's position: X forward, Y to the left, Z up. A box or cylinder stands on this point; a sphere is centered on it. The offset turns with the object.)
+* `Angle = 0` - (Rotation of the shape relative to the object, in degrees, counterclockwise.)
+
+```ini
+Object MyLShapedFactory
+  Geometry            = BOX
+  GeometryMajorRadius = 40
+  GeometryMinorRadius = 20
+  GeometryHeight      = 30
+  AdditionalGeometry
+    Type        = BOX
+    MajorRadius = 15
+    MinorRadius = 30
+    Height      = 20
+    Offset      = X:25 Y:50 Z:0
+  End
+End
+```
+
+The shapes are used by:
+
+* Collisions between units and objects, and the "would this collide" checks (crushing, placing objects).
+* The partition cells the object covers, and so fog of war and the ghost image of fogged structures.
+* The pathfinding footprint of structures, building placement (overlap, terrain flatness, the area cleared of units) and the terrain flattening under a new structure.
+* Weapon range and the radius of area damage: the distance is measured to the nearest shape instead of an enclosing circle or sphere.
+* The collision extents debug view (`ShowCollisionExtents`, extra shapes drawn in light blue) and the object outline in WorldBuilder.
+
+The bounding circle and sphere that the rest of the game uses enclose all shapes. Everything else only uses the main shape: random points in the footprint (EMP, special abilities), minefields, garrison fire points, structure collapse effects, faction bibs and water wakes. A compound geometry is never `GeometryIsSmall`.
+
+At runtime:
+
+* Modules that resize the geometry (`DynamicGeometryInfoUpdate`, gates of `CheckpointUpdate`) change only the main shape, unless `DynamicGeometryInfoUpdate` has `ScaleAdditionalGeometry = Yes`.
+* [`GeometryUpgrade`](/GeneralsGameCode_Modding/modules/upgrades/#geometryupgrade) and [`DamageStateGeometryBehavior`](/GeneralsGameCode_Modding/modules/updates-and-behaviors/#damagestategeometrybehavior) replace the whole geometry, additional shapes included.
+* When a structure turns to rubble, every shape that reaches higher than the rubble height is cut down to it.
+* An open drawbridge has no shapes; closed, it gets its template geometry back.
+
+An object that inherits from another one (`ObjectReskin`, `ObjectExtend`) keeps the parent's additional shapes until it defines its own: the first `AdditionalGeometry` block replaces all inherited ones.
 
 ## Misc Improvements
 

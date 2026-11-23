@@ -127,13 +127,62 @@ struct ThreatValueParms
 	UnsignedInt threatOrValue;
 };
 
+#ifdef USE_ADVANCED_COLLISION
+// One primitive shape as seen by the collide tests. It answers the same questions as GeometryInfo
+// does for its primary shape, but never includes the additional shapes of a compound geometry,
+// and is cheap to copy.
+class CollideGeom
+{
+public:
+	GeometryType m_type;
+	Real m_height;
+	Real m_majorRadius;
+	Real m_minorRadius;
+
+	GeometryType getGeomType() const { return m_type; }
+	Real getMajorRadius() const { return m_majorRadius; }
+	Real getMinorRadius() const { return m_minorRadius; }
+	Real getMaxHeightAbovePosition() const { return (m_type == GEOMETRY_SPHERE) ? m_majorRadius : m_height; }
+	Real getMaxHeightBelowPosition() const { return (m_type == GEOMETRY_SPHERE) ? m_majorRadius : 0.0f; }
+	void setMajorRadius(Real r) { m_majorRadius = r; }
+	void setMinorRadius(Real r) { m_minorRadius = r; }
+};
+
+#endif
 struct CollideInfo
 {
 	Coord3D position;
+#ifdef USE_ADVANCED_COLLISION
+	CollideGeom geom;
+	Real angle;
+
+	// the primary shape of 'g'
+	CollideInfo(const Coord3D* p, const GeometryInfo& g, Real a) : position(*p), angle(a)
+	{
+		GeometryPrimitive prim;
+		g.getPrimaryPrimitive(*p, a, prim);
+		setFrom(prim);
+	}
+
+	CollideInfo(const GeometryPrimitive& prim) : position(prim.position), angle(prim.angle)
+	{
+		setFrom(prim);
+	}
+
+private:
+	void setFrom(const GeometryPrimitive& prim)
+	{
+		geom.m_type = prim.type;
+		geom.m_majorRadius = prim.majorRadius;
+		geom.m_minorRadius = prim.minorRadius;
+		geom.m_height = prim.height;
+	}
+#else
 	GeometryInfo geom;
 	Real angle;
 
 	CollideInfo(const Coord3D* p, const GeometryInfo& g, Real a) : position(*p), geom(g), angle(a) { }
+#endif
 };
 
 struct CellValueProcParms
@@ -802,6 +851,149 @@ static Bool distCalcProc_CenterAndCenter_2D(
 	return abDistSqr < maxDistSqr;
 }
 
+#ifdef USE_ADVANCED_COLLISION
+//-----------------------------------------------------------------------------
+static Bool isCompoundObject(const Object *obj)
+{
+	return obj && obj->getGeometryInfo().isCompound();
+}
+
+//-----------------------------------------------------------------------------
+/** Squared distance between the world shapes 'prims' and a sphere (3d) or circle (2d) around
+	* 'center' with 'radius'. */
+static Real calcShapesToSphereDistSqr(const GeometryPrimitive *prims, Int count,
+	const Coord3D& center, Real radius, Bool is3D)
+{
+	Real best = 0.0f;
+	for (Int i = 0; i < count; ++i)
+	{
+		Real dSqr = is3D ? prims[i].getDistanceSqToPoint3D(center) : prims[i].getDistanceSqToPoint2D(center);
+		if (i == 0 || dSqr < best)
+			best = dSqr;
+	}
+	Real d = sqrtf(best) - radius;
+	return (d > 0.0f) ? sqr(d) : 0.0f;
+}
+
+//-----------------------------------------------------------------------------
+/** Bounding center and radius of a whole object, as the bounding-sphere distance uses them. */
+static void getBounds(const Coord3D *pos, const Object *obj, Bool is3D, Coord3D& center, Real& radius)
+{
+	center = *pos;
+	radius = 0.0f;
+	if (obj)
+	{
+		const GeometryInfo& geom = obj->getGeometryInfo();
+		if (is3D)
+		{
+			center.z += geom.getZDeltaToCenterPosition();
+			radius = geom.getBoundingSphereRadius();
+		}
+		else
+		{
+			radius = geom.getBoundingCircleRadius();
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+/** Boundary distance when at least one object has a compound geometry: measured to the nearest
+	* of its shapes instead of its bounding circle/sphere. A plain object (or a missing one) is
+	* still its bounding circle/sphere; of two compound objects, the shapes of A are taken as
+	* spheres. abVec keeps the center-to-center direction. */
+static Bool distCalcProc_Shapes(
+	const Coord3D *posA,
+	const Object *objA,
+	const Coord3D *posB,
+	const Object *objB,
+	Real& abDistSqr,
+	Coord3D& abVec,
+	Real maxDistSqr,
+	Bool is3D
+)
+{
+	Coord3D diff;
+	diff.x = posB->x - posA->x;
+	diff.y = posB->y - posA->y;
+	diff.z = is3D ? (posB->z - posA->z) : 0.0f;
+
+	// The bounding circles/spheres enclose all shapes, so their distance is never more than the
+	// shape distance: most objects out of range stop here, without touching the shapes.
+	{
+		Coord3D centerA, centerB;
+		Real radiusA, radiusB;
+		getBounds(posA, objA, is3D, centerA, radiusA);
+		getBounds(posB, objB, is3D, centerB, radiusB);
+		Real centerDistSqr = sqr(centerB.x - centerA.x) + sqr(centerB.y - centerA.y) + (is3D ? sqr(centerB.z - centerA.z) : 0.0f);
+		Real lowerBound = sqrtf(centerDistSqr) - radiusA - radiusB;
+		if (lowerBound > 0.0f && sqr(lowerBound) >= maxDistSqr)
+		{
+			// the outputs are undefined when returning false
+			abDistSqr = sqr(lowerBound);
+			abVec = diff;
+			return false;
+		}
+	}
+
+	const Object *compound = isCompoundObject(objB) ? objB : objA;
+	const Object *other = (compound == objB) ? objA : objB;
+	const Coord3D *compoundPos = (compound == objB) ? posB : posA;
+	const Coord3D *otherPos = (compound == objB) ? posA : posB;
+
+	GeometryPrimitive prims[MAX_GEOMETRY_SHAPES];
+	Int count = compound->getGeometryInfo().getWorldPrimitives(*compoundPos, compound->getOrientation(), prims);
+
+	Real distSqr;
+	if (isCompoundObject(other))
+	{
+		// test every shape of 'other' as a sphere against the shapes of 'compound'
+		GeometryPrimitive otherPrims[MAX_GEOMETRY_SHAPES];
+		Int otherCount = other->getGeometryInfo().getWorldPrimitives(*otherPos, other->getOrientation(), otherPrims);
+		distSqr = 0.0f;
+		for (Int i = 0; i < otherCount; ++i)
+		{
+			const GeometryPrimitive& prim = otherPrims[i];
+			Coord3D center = prim.position;
+			Real radius;
+			if (is3D)
+			{
+				if (prim.type != GEOMETRY_SPHERE)
+					center.z += prim.height * 0.5f;
+				radius = (prim.type == GEOMETRY_BOX)
+					? sqrtf(sqr(prim.majorRadius) + sqr(prim.minorRadius) + sqr(prim.height * 0.5f))
+					: ((prim.type == GEOMETRY_CYLINDER && prim.height * 0.5f > prim.majorRadius) ? prim.height * 0.5f : prim.majorRadius);
+			}
+			else
+			{
+				radius = prim.getBoundingCircleRadius();
+			}
+			Real d = calcShapesToSphereDistSqr(prims, count, center, radius, is3D);
+			if (i == 0 || d < distSqr)
+				distSqr = d;
+		}
+	}
+	else
+	{
+		Coord3D center;
+		Real radius;
+		getBounds(otherPos, other, is3D, center, radius);
+		distSqr = calcShapesToSphereDistSqr(prims, count, center, radius, is3D);
+	}
+
+	Real actualDistSqr = sqr(diff.x) + sqr(diff.y) + sqr(diff.z);
+	if (distSqr > actualDistSqr)
+		distSqr = actualDistSqr;
+	Real shrinkFactor = (actualDistSqr > 0.0f) ? sqrtf(distSqr / actualDistSqr) : 0.0f;
+	diff.x *= shrinkFactor;
+	diff.y *= shrinkFactor;
+	diff.z *= shrinkFactor;
+
+	abDistSqr = distSqr;
+	abVec = diff;
+	return abDistSqr < maxDistSqr;
+}
+
+#endif
 //-----------------------------------------------------------------------------
 static Bool distCalcProc_BoundaryAndBoundary_2D(
 	const Coord3D *posA,
@@ -813,6 +1005,11 @@ static Bool distCalcProc_BoundaryAndBoundary_2D(
 	Real maxDistSqr
 )
 {
+#ifdef USE_ADVANCED_COLLISION
+	if (isCompoundObject(objA) || isCompoundObject(objB))
+		return distCalcProc_Shapes(posA, objA, posB, objB, abDistSqr, abVec, maxDistSqr, false);
+
+#endif
 	Coord3D diff;
 	diff.x = posB->x - posA->x;
 	diff.y = posB->y - posA->y;
@@ -897,6 +1094,11 @@ static Bool distCalcProc_BoundaryAndBoundary_3D(
 	Real maxDistSqr
 )
 {
+#ifdef USE_ADVANCED_COLLISION
+	if (isCompoundObject(objA) || isCompoundObject(objB))
+		return distCalcProc_Shapes(posA, objA, posB, objB, abDistSqr, abVec, maxDistSqr, true);
+
+#endif
 	const GeometryInfo* geomA = objA ? &objA->getGeometryInfo() : nullptr;
 	const GeometryInfo* geomB = objB ? &objB->getGeometryInfo() : nullptr;
 
@@ -975,6 +1177,85 @@ static CollideTestProc theCollideTestProcs[] =
 	collideTest_Box_Box
 };
 
+#ifdef USE_ADVANCED_COLLISION
+//-----------------------------------------------------------------------------
+enum CollideZRule
+{
+	COLLIDE_Z_ABOVE_AND_BELOW,	///< z ranges include the height below the position (spheres)
+	COLLIDE_Z_ABOVE_ONLY				///< z ranges start at the position
+};
+
+//-----------------------------------------------------------------------------
+static Bool collidePrimitives(const CollideInfo& a, const CollideInfo& b, CollideZRule zRule, CollideLocAndNormal *cinfo)
+{
+	// invariant for all geometries: first do z collision check.
+	Bool zOverlap;
+	if (zRule == COLLIDE_Z_ABOVE_AND_BELOW)
+	{
+		Real aTop = a.position.z + a.geom.getMaxHeightAbovePosition();
+		Real aBot = a.position.z - a.geom.getMaxHeightBelowPosition();
+		Real bTop = b.position.z + b.geom.getMaxHeightAbovePosition();
+		Real bBot = b.position.z - b.geom.getMaxHeightBelowPosition();
+		zOverlap = (aTop >= bBot && aBot <= bTop);
+	}
+	else
+	{
+		zOverlap = (a.position.z + a.geom.getMaxHeightAbovePosition() >= b.position.z &&
+			a.position.z <= b.position.z + b.geom.getMaxHeightAbovePosition());
+	}
+
+	if (!zOverlap)
+	{
+		// no z-intersection -> no collision.
+		return false;
+	}
+
+	//
+	// NOTE: This assumes geometry enumerations that start at GEOMETRY_FIRST AND depends on the
+	// order in which they appear in the enum list
+	//
+	CollideTestProc collideProc = theCollideTestProcs[ (a.geom.getGeomType() - GEOMETRY_FIRST) * GEOMETRY_NUM_TYPES + (b.geom.getGeomType() - GEOMETRY_FIRST) ];
+	return (*collideProc)(&a, &b, cinfo);
+}
+
+//-----------------------------------------------------------------------------
+/** Collides two geometries with all of their shapes. The first colliding pair of shapes
+	* fills cinfo. */
+static Bool collideGeometries(
+	const Coord3D* posA, const GeometryInfo& geomA, Real angleA,
+	const Coord3D* posB, const GeometryInfo& geomB, Real angleB,
+	CollideZRule zRule, CollideLocAndNormal *cinfo)
+{
+	if (!geomA.isCompound() && !geomB.isCompound())
+	{
+		CollideInfo a(posA, geomA, angleA);
+		CollideInfo b(posB, geomB, angleB);
+		return collidePrimitives(a, b, zRule, cinfo);
+	}
+
+	// the bounding circles enclose all shapes
+	Real touchDist = geomA.getBoundingCircleRadius() + geomB.getBoundingCircleRadius();
+	if (sqr(posA->x - posB->x) + sqr(posA->y - posB->y) > sqr(touchDist))
+		return false;
+
+	GeometryPrimitive primsA[MAX_GEOMETRY_SHAPES];
+	GeometryPrimitive primsB[MAX_GEOMETRY_SHAPES];
+	Int countA = geomA.getWorldPrimitives(*posA, angleA, primsA);
+	Int countB = geomB.getWorldPrimitives(*posB, angleB, primsB);
+	for (Int i = 0; i < countA; ++i)
+	{
+		CollideInfo a(primsA[i]);
+		for (Int j = 0; j < countB; ++j)
+		{
+			CollideInfo b(primsB[j]);
+			if (collidePrimitives(a, b, zRule, cinfo))
+				return true;
+		}
+	}
+	return false;
+}
+
+#endif
 //-----------------------------------------------------------------------------
 //         Public Data
 //-----------------------------------------------------------------------------
@@ -2013,6 +2294,12 @@ Bool PartitionData::collidesWith(const PartitionData *that, CollideLocAndNormal 
 	if( thisObj->isKindOf( KINDOF_NO_COLLIDE )  ||  thatObj->isKindOf( KINDOF_NO_COLLIDE ) )
 		return FALSE; // A collision extent of zero size is still a point and can collide, but we don't always want to.
 
+#ifdef USE_ADVANCED_COLLISION
+	return collideGeometries(
+		thisObj->getPosition(), thisObj->getGeometryInfo(), thisObj->getOrientation(),
+		thatObj->getPosition(), thatObj->getGeometryInfo(), thatObj->getOrientation(),
+		COLLIDE_Z_ABOVE_AND_BELOW, cinfo);
+#else
 	CollideInfo thisInfo(thisObj->getPosition(), thisObj->getGeometryInfo(), thisObj->getOrientation());
 	CollideInfo thatInfo(thatObj->getPosition(), thatObj->getGeometryInfo(), thatObj->getOrientation());
 
@@ -2038,6 +2325,7 @@ Bool PartitionData::collidesWith(const PartitionData *that, CollideLocAndNormal 
 		// no z-intersection -> no collision.
 		return false;
 	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2049,6 +2337,10 @@ Bool PartitionManager::geomCollidesWithGeom(const Coord3D* pos1,
 		const GeometryInfo& geom2,
 		Real angle2) const
 {
+#ifdef USE_ADVANCED_COLLISION
+	CollideLocAndNormal cloc;
+	return collideGeometries(pos1, geom1, angle1, pos2, geom2, angle2, COLLIDE_Z_ABOVE_ONLY, &cloc);
+#else
 	CollideInfo thisInfo(pos1, geom1, angle1);
 	CollideInfo thatInfo(pos2, geom2, angle2);
 
@@ -2072,6 +2364,7 @@ Bool PartitionManager::geomCollidesWithGeom(const Coord3D* pos1,
 		// no z-intersection -> no collision.
 		return false;
 	}
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2081,6 +2374,9 @@ void PartitionData::updateCellsTouched()
 	Bool isSmall;
 	Coord3D pos;
 	Real angle,majorRadius,minorRadius;
+#ifdef USE_ADVANCED_COLLISION
+	const GeometryInfo *geomInfo;
+#endif
 
 
 	Object *obj = getObject();
@@ -2088,6 +2384,9 @@ void PartitionData::updateCellsTouched()
 	if (obj)
 	{
 		//we have no object using this PartitionData but we still have a GhostObject so copy its data.
+#ifdef USE_ADVANCED_COLLISION
+		geomInfo = &obj->getGeometryInfo();
+#endif
 		geom = obj->getGeometryInfo().getGeomType();
 		isSmall = obj->getGeometryInfo().getIsSmall();
 		pos = *(obj->getPosition());
@@ -2097,6 +2396,9 @@ void PartitionData::updateCellsTouched()
 	}
 	else if (m_ghostObject)
 	{
+#ifdef USE_ADVANCED_COLLISION
+		geomInfo = &m_ghostObject->getParentGeometry();
+#endif
 		geom = m_ghostObject->getGeometryType();
 		isSmall = m_ghostObject->getGeometrySmall();
 		pos = *m_ghostObject->getParentPosition();
@@ -2111,7 +2413,25 @@ void PartitionData::updateCellsTouched()
 	}
 
 	removeAllTouchedCells();
+#ifdef USE_ADVANCED_COLLISION
+	if (geomInfo->isCompound())
+	{
+		// the union of the cells of all shapes; addSubPixToCoverage skips cells already covered
+		GeometryPrimitive prims[MAX_GEOMETRY_SHAPES];
+		Int count = geomInfo->getWorldPrimitives(pos, angle, prims);
+		for (Int i = 0; i < count; ++i)
+		{
+			const GeometryPrimitive& prim = prims[i];
+			if (prim.type == GEOMETRY_BOX)
+				doRectFill(prim.position.x, prim.position.y, prim.majorRadius, prim.minorRadius, prim.angle);
+			else
+				doCircleFillPrecise(prim.position.x, prim.position.y, prim.majorRadius);
+		}
+	}
+	else if (isSmall)
+#else
 	if (isSmall)
+#endif
 	{
 		doSmallFill(pos.x, pos.y, majorRadius);
 	}
@@ -2241,20 +2561,47 @@ Int PartitionData::calcMaxCoiForShape(GeometryType geom, Real majorRadius, Real 
 	return result;
 }
 
+#ifdef USE_ADVANCED_COLLISION
+//-----------------------------------------------------------------------------
+Int PartitionData::calcMaxCoiForGeometry(const GeometryInfo& geom)
+{
+	if (!geom.isCompound())
+		return calcMaxCoiForShape(geom.getGeomType(), geom.getMajorRadius(), geom.getMinorRadius(), geom.getIsSmall());
+
+	// the shapes may share cells, so the sum is more than needed
+	Int result = 0;
+	Coord3D zero;
+	zero.zero();
+	for (Int i = 0; i < geom.getShapeCount(); ++i)
+	{
+		GeometryPrimitive prim;
+		geom.getWorldPrimitive(i, zero, 0.0f, prim);
+		result += calcMaxCoiForShape(prim.type, prim.majorRadius, prim.minorRadius, false);
+	}
+	return result;
+}
+
+#endif
 //-----------------------------------------------------------------------------
 Int PartitionData::calcMaxCoiForObject()
 {
 	Object *obj = getObject();
 	DEBUG_ASSERTCRASH(obj != nullptr, ("must be attached to an Object here 2"));
 
+#ifndef USE_ADVANCED_COLLISION
 	GeometryType geom = obj->getGeometryInfo().getGeomType();
 	Real majorRadius = obj->getGeometryInfo().getMajorRadius();
 	Real minorRadius = obj->getGeometryInfo().getMinorRadius();
 	Bool isSmall = obj->getGeometryInfo().getIsSmall();
+#endif
 #if defined(RTS_DEBUG)
 theObjName = obj->getTemplate()->getName();
 #endif
+#ifdef USE_ADVANCED_COLLISION
+	return calcMaxCoiForGeometry(obj->getGeometryInfo());
+#else
 	return calcMaxCoiForShape(geom, majorRadius, minorRadius, isSmall);
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -2374,7 +2721,11 @@ void PartitionData::attachToGhostObject(GhostObject* object)
 	DEBUG_ASSERTCRASH(m_coiInUseCount == 0, ("hmm, coi count mismatch"));
 	freeCoiArray();
 
+#ifdef USE_ADVANCED_COLLISION
+	m_coiArrayCount = calcMaxCoiForGeometry(object->getParentGeometry());
+#else
 	m_coiArrayCount = calcMaxCoiForShape(object->getGeometryType(), object->getGeometryMajorRadius(), object->getGeometryMinorRadius(),object->getGeometrySmall());
+#endif
 	m_coiArray = MSGNEW("PartitionManager_COI") CellAndObjectIntersection[m_coiArrayCount];	// may throw!
 	m_coiInUseCount = 0;
 	makeDirty(true);
@@ -5317,6 +5668,13 @@ PartitionFilterWouldCollide::PartitionFilterWouldCollide(const Coord3D& pos, con
 
 Bool PartitionFilterWouldCollide::allow(Object *objOther)
 {
+#ifdef USE_ADVANCED_COLLISION
+	CollideLocAndNormal cinfo;
+	Bool doesCollide = collideGeometries(
+		&m_position, m_geom, m_angle,
+		objOther->getPosition(), objOther->getGeometryInfo(), objOther->getOrientation(),
+		COLLIDE_Z_ABOVE_ONLY, &cinfo);
+#else
 	CollideInfo thisInfo(&m_position, m_geom, m_angle);
 	CollideInfo thatInfo(objOther->getPosition(), objOther->getGeometryInfo(), objOther->getOrientation());
 
@@ -5342,6 +5700,7 @@ Bool PartitionFilterWouldCollide::allow(Object *objOther)
 		// no z-intersection -> no collision.
 		doesCollide = false;
 	}
+#endif
 
   return doesCollide == m_desiredCollisionResult;
 }

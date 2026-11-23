@@ -260,7 +260,7 @@ def objects_list(player: str | None = None, template: str | None = None, name: s
                      x=x, y=y, radius=radius, x0=x0, y0=y0, x1=x1, y1=y1, include_dead=include_dead or None, limit=limit)
 
 
-ObjectSection = Literal["kindof", "model", "ai", "weapons", "upgrades", "bonuses", "special_powers", "production", "contain", "modules"]
+ObjectSection = Literal["kindof", "model", "ai", "weapons", "upgrades", "bonuses", "special_powers", "production", "contain", "modules", "geometry"]
 
 
 @mcp.tool()
@@ -270,7 +270,8 @@ def objects_get(ids: list[int], sections: list[ObjectSection] | None = None) -> 
     model (model conditions), ai (state, goal), weapons (per slot: status, ammo, range, reload),
     upgrades, bonuses (weapon bonus conditions, weapon and armor set flags, armor damage scalar,
     vision and shroud clearing range, speed multiplier), special_powers (ready, percent),
-    production queue, contain (passengers) and modules (behavior modules with their INI tags).
+    production queue, contain (passengers), modules (behavior modules with their INI tags) and
+    geometry (bounding radii, heights and every collision shape in world space, angles in degrees).
     sections limits the optional parts (default all)."""
     return game.call("objects.get", ids=ids, sections=sections)
 
@@ -391,10 +392,13 @@ def objects_destroy(ids: list[int], how: Literal["kill", "remove"] = "kill") -> 
 def objects_set(ids: list[int], health: float | None = None, health_percent: float | None = None,
                 max_health: float | None = None, x: float | None = None, y: float | None = None,
                 angle: float | None = None, veterancy: int | str | None = None, upgrade: str | None = None,
-                set_status: str | None = None, clear_status: str | None = None) -> dict:
+                set_status: str | None = None, clear_status: str | None = None, as_damage: bool = False) -> dict:
     """Changes objects directly: health (0 kills), max health, position, angle, veterancy (0..3 or
-    REGULAR, VETERAN, ELITE, HEROIC), gives an object upgrade, sets or clears a status flag."""
-    return game.call("objects.set", ids=ids, health=health, health_percent=health_percent, max_health=max_health,
+    REGULAR, VETERAN, ELITE, HEROIC), gives an object upgrade, sets or clears a status flag.
+    as_damage=true changes health as unresistable damage or healing, so damage modules react to the
+    new damage state (damage FX, damage state geometry); otherwise health is set silently."""
+    return game.call("objects.set", ids=ids, health=health, health_percent=health_percent, as_damage=as_damage or None,
+                     max_health=max_health,
                      x=x, y=y, angle=angle, veterancy=veterancy, upgrade=upgrade, set_status=set_status,
                      clear_status=clear_status)
 

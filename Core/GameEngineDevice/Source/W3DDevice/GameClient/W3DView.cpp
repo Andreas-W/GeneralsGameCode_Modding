@@ -1021,6 +1021,103 @@ static void drawContainedDrawable( Object *obj, void *userData )
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
+#ifdef USE_ADVANCED_COLLISION
+//-------------------------------------------------------------------------------------------------
+static void drawGeometryPrimitive( const GeometryPrimitive& prim, UnsignedInt color )
+{
+	switch( prim.type )
+	{
+
+		//---------------------------------------------------------------------------------------------
+		case GEOMETRY_BOX:
+		{
+			Real c = (Real)cos(prim.angle);
+			Real s = (Real)sin(prim.angle);
+			Real exc = prim.majorRadius*c;
+			Real eyc = prim.minorRadius*c;
+			Real exs = prim.majorRadius*s;
+			Real eys = prim.minorRadius*s;
+			Coord3D pts[4];
+			pts[0].x = prim.position.x - exc - eys;
+			pts[0].y = prim.position.y + eyc - exs;
+			pts[0].z = 0;
+			pts[1].x = prim.position.x + exc - eys;
+			pts[1].y = prim.position.y + eyc + exs;
+			pts[1].z = 0;
+			pts[2].x = prim.position.x + exc + eys;
+			pts[2].y = prim.position.y - eyc + exs;
+			pts[2].z = 0;
+			pts[3].x = prim.position.x - exc + eys;
+			pts[3].y = prim.position.y - eyc - exs;
+			pts[3].z = 0;
+			Real z = prim.position.z;
+			for( int i = 0; i < 2; i++ )
+			{
+
+				for (int corner = 0; corner < 4; corner++)
+				{
+					ICoord2D start, end;
+					pts[corner].z = z;
+					pts[(corner+1)&3].z = z;
+					TheTacticalView->worldToScreen(&pts[corner], &start);
+					TheTacticalView->worldToScreen(&pts[(corner+1)&3], &end);
+					TheDisplay->drawLine(start.x, start.y, end.x, end.y, 1.0f, color);
+				}
+
+				z += prim.getMaxHeightAbovePosition();
+
+			}
+
+			break;
+
+		}
+
+		//---------------------------------------------------------------------------------------------
+		case GEOMETRY_SPHERE:	// not quite right, but close enough
+		case GEOMETRY_CYLINDER:
+		{
+      Coord3D center = prim.position;
+      const Real radius = prim.majorRadius;
+
+			// draw cylinder
+			for( int i=0; i<2; i++ )
+			{
+        drawDebugCircle( center, radius, 1.0f, color );
+
+        // next time 'round, draw the top of the cylinder
+        center.z += prim.getMaxHeightAbovePosition();
+			}
+
+			// draw centerline
+      ICoord2D start, end;
+      center = prim.position;
+      TheTacticalView->worldToScreen( &center, &start );
+      center.z += prim.getMaxHeightAbovePosition();
+      TheTacticalView->worldToScreen( &center, &end );
+			TheDisplay->drawLine( start.x, start.y, end.x, end.y, 1.0f, color );
+
+			break;
+
+		}
+
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+static void drawDrawableExtents( Drawable *draw, void *userData )
+{
+	UnsignedInt color = GameMakeColor( 0, 255, 0, 255 );
+	UnsignedInt extraColor = GameMakeColor( 0, 200, 255, 255 );
+
+	const GeometryInfo& geom = draw->getDrawableGeometryInfo();
+	for( Int shape = 0; shape < geom.getShapeCount(); ++shape )
+	{
+		GeometryPrimitive prim;
+		geom.getWorldPrimitive( shape, *draw->getPosition(), draw->getOrientation(), prim );
+		drawGeometryPrimitive( prim, shape == 0 ? color : extraColor );
+	}
+#else
 static void drawDrawableExtents( Drawable *draw, void *userData )
 {
 	UnsignedInt color = GameMakeColor( 0, 255, 0, 255 );
@@ -1102,6 +1199,7 @@ static void drawDrawableExtents( Drawable *draw, void *userData )
 		}
 
 	}
+#endif
 
 	// draw any extents for things that are contained by this
 	Object *obj = draw->getObject();

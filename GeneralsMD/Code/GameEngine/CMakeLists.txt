@@ -353,6 +353,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/LifetimeUpdate.h
     Include/GameLogic/Module/LockWeaponCreate.h
     Include/GameLogic/Module/LocomotorSetUpgrade.h
+    Include/GameLogic/Module/GeometryUpgrade.h
     Include/GameLogic/Module/MaxHealthUpgrade.h
     Include/GameLogic/Module/MinefieldBehavior.h
     Include/GameLogic/Module/MissileAIUpdate.h
@@ -452,6 +453,7 @@ set(GAMEENGINE_SRC
     Include/GameLogic/Module/SupplyTruckAIUpdate.h
     Include/GameLogic/Module/SupplyWarehouseCreate.h
     Include/GameLogic/Module/SupplyWarehouseCripplingBehavior.h
+    Include/GameLogic/Module/DamageStateGeometryBehavior.h
     Include/GameLogic/Module/SupplyWarehouseDockUpdate.h
     Include/GameLogic/Module/TechBuildingBehavior.h
     Include/GameLogic/Module/TempWeaponBonusHelper.h
@@ -874,6 +876,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Behavior/SlowDeathBehavior.cpp
     Source/GameLogic/Object/Behavior/SpawnBehavior.cpp
     Source/GameLogic/Object/Behavior/SupplyWarehouseCripplingBehavior.cpp
+    Source/GameLogic/Object/Behavior/DamageStateGeometryBehavior.cpp
     Source/GameLogic/Object/Behavior/TechBuildingBehavior.cpp
     Source/GameLogic/Object/Body/ActiveBody.cpp
     Source/GameLogic/Object/Body/BodyModule.cpp
@@ -1062,6 +1065,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/Object/Upgrade/ExperienceScalarUpgrade.cpp
     Source/GameLogic/Object/Upgrade/GrantScienceUpgrade.cpp
     Source/GameLogic/Object/Upgrade/LocomotorSetUpgrade.cpp
+    Source/GameLogic/Object/Upgrade/GeometryUpgrade.cpp
     Source/GameLogic/Object/Upgrade/MaxHealthUpgrade.cpp
     Source/GameLogic/Object/Upgrade/ModelConditionUpgrade.cpp
     Source/GameLogic/Object/Upgrade/ObjectCreationUpgrade.cpp

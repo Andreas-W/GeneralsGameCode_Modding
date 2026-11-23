@@ -128,8 +128,10 @@ McpJson cmdSpawn(const McpJson &args)
 		object->setPosition(&pos);
 		if (object->isKindOf(KINDOF_BLAST_CRATER)) {
 			TheTerrainLogic->createCraterInTerrain(object);
-			TheAI->pathfinder()->addObjectToPathfindMap(object);
 		}
+		// like objects placed on the map: structures block the pathfinder
+		// (the pathfinder ignores what is not a structure)
+		TheAI->pathfinder()->addObjectToPathfindMap(object);
 		if (args.has("name") && count == 1) {
 			object->setName(gameMcpArgString(args, "name").c_str());
 			TheScriptEngine->addObjectToCache(object);
@@ -174,7 +176,23 @@ McpJson cmdSet(const McpJson &args)
 				object->kill();
 				continue;
 			}
-			body->internalChangeHealth(min(health, body->getMaxHealth()) - body->getHealth());
+			const Real delta = min(health, body->getMaxHealth()) - body->getHealth();
+			if (gameMcpArgBool(args, "as_damage", false)) {
+				// real damage or healing: damage modules see the damage state change
+				DamageInfo info;
+				info.in.m_damageType = (delta < 0) ? DAMAGE_UNRESISTABLE : DAMAGE_HEALING;
+				info.in.m_amount = (Real)fabs(delta);
+				if (delta < 0)
+					body->attemptDamage(&info);
+				else if (delta > 0)
+					body->attemptHealing(&info);
+			} else {
+				body->internalChangeHealth(delta);
+			}
+		}
+		const bool moves = args.has("x") || args.has("y") || args.has("angle");
+		if (moves) {
+			TheAI->pathfinder()->removeObjectFromPathfindMap(object);
 		}
 		if (args.has("x") || args.has("y")) {
 			Coord3D pos = *object->getPosition();
@@ -185,6 +203,9 @@ McpJson cmdSet(const McpJson &args)
 		}
 		if (args.has("angle")) {
 			object->setOrientation((Real)(gameMcpArgNumber(args, "angle") * PI / 180.0));
+		}
+		if (moves) {
+			TheAI->pathfinder()->addObjectToPathfindMap(object);
 		}
 		if (args.has("veterancy") && object->getExperienceTracker()) {
 			object->getExperienceTracker()->setVeterancyLevel(requireVeterancy(args.get("veterancy")));
@@ -263,7 +284,7 @@ void gameMcpRegisterCheatCommands()
 		"{template, player?, team?, x, y, z?, angle=0, count=1, spacing=20, name?} Creates objects for a player (default: the local one).");
 	gameMcpRegisterCommand("objects.destroy", cmdDestroy, "{ids, how=kill|remove} Kills objects (they die normally) or removes them silently.");
 	gameMcpRegisterCommand("objects.set", cmdSet,
-		"{ids, health? | health_percent?, max_health?, x?, y?, z?, angle?, veterancy?, upgrade?, set_status? | clear_status?} Changes objects.");
+		"{ids, health? | health_percent?, as_damage=false, max_health?, x?, y?, z?, angle?, veterancy?, upgrade?, set_status? | clear_status?} Changes objects.");
 	gameMcpRegisterCommand("players.set", cmdPlayerSet,
 		"{player?, money?, add_money?, rank?, add_skill_points?, add_science_points?, sciences?, all_sciences?, upgrades?, "
 		"instant_build?, special_power_delays?} Changes a player.");
