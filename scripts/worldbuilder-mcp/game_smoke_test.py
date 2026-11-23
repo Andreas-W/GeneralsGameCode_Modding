@@ -106,6 +106,8 @@ def main() -> int:
         check(len(spawned) == 2, "two units spawned")
         unit = bridge.call("objects.get", ids=[spawned[0]], sections=["ai", "weapons"])["objects"][0]
         check(abs(unit["position"]["x"] - 500) < 40, "spawned near the position")
+        geometry = bridge.call("objects.get", ids=[spawned[0]], sections=["geometry"])["objects"][0]["geometry"]
+        check(len(geometry["shapes"]) >= 1 and geometry["bounding_circle_radius"] > 0, "objects.get describes the geometry")
         bridge.call("objects.set", ids=[spawned[0]], health_percent=50)
         unit = bridge.call("objects.get", ids=[spawned[0]], sections=[])["objects"][0]
         check(abs(unit["health"] - unit["max_health"] / 2) < 1, "health set to half")

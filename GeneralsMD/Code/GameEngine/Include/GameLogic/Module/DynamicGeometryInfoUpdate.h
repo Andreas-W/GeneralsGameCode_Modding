@@ -51,6 +51,9 @@ public:
 	UnsignedInt m_transitionTime;
 
 	Bool m_reverseAtTransitionTime;		///< reverse directions once transition time is reached
+#ifdef USE_ADVANCED_COLLISION
+	Bool m_scaleAdditionalGeometry;		///< scale the additional shapes of a compound geometry with the primary shape
+#endif
 
 	// I will go from initial to final in transitionTime frames, smoothly.
 	// I won't change type until that is actually needed as a task.
@@ -98,4 +101,9 @@ protected:
 	Real m_finalMajorRadius;
 	Real m_finalMinorRadius;
 
+#ifdef USE_ADVANCED_COLLISION
+	GeometryInfo m_baseGeometry;			///< the geometry when the transition started, for ScaleAdditionalGeometry
+	Bool m_hasBaseGeometry;
+
+#endif
 };

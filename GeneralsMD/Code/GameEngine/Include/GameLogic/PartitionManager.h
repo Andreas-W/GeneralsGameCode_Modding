@@ -403,6 +403,10 @@ private:
 		that the object could possibly occupy.
 	*/
 	Int calcMaxCoiForShape(GeometryType geom, Real majorRadius, Real minorRadius, Bool isSmall);
+#ifdef USE_ADVANCED_COLLISION
+	/// like calcMaxCoiForShape, but for all shapes of a (possibly compound) geometry
+	Int calcMaxCoiForGeometry(const GeometryInfo& geom);
+#endif
 
 	/**
 		Given an object's geometry and size parameters, calculate the maximum number of COIs

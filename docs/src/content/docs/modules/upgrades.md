@@ -2,7 +2,7 @@
 title: "Upgrade modules"
 description: "New and changed upgrade modules."
 status: verified
-verifiedAt: 7cdd826c5
+verifiedAt: 1501b9d26
 sources:
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/WeaponSetUpgrade.cpp
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/ArmorUpgrade.cpp
@@ -18,6 +18,7 @@ sources:
   - GeneralsMD/Code/GameEngine/Include/GameLogic/Module/DelayedUpgradeBehavior.h
   - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Behavior/DelayedUpgradeBehavior.cpp
   - GeneralsMD/Code/GameEngine/Source/Common/RTS/Player.cpp
+  - GeneralsMD/Code/GameEngine/Source/GameLogic/Object/Upgrade/GeometryUpgrade.cpp
 sidebar:
   order: 2
 ---
@@ -212,3 +213,33 @@ Notes:
 - With `TriggerAfterTime = 0` (the default) nothing is triggered or removed.
 - It triggers once; it can trigger again only after the triggering upgrade was removed and given again.
 - An unknown upgrade name throws an INI error when the delay ends.
+
+## GeometryUpgrade
+
+**New in this fork.**
+Replaces the object's whole geometry when the upgrade is given: the main shape and all [additional shapes](/GeneralsGameCode_Modding/objects/object-definition/#compound-geometry). Collisions, the cells the object covers and the pathfinding footprint follow at once.
+
+* `Geometry` - (A block up to `End` with the new geometry, written like on an Object: `Geometry`, `GeometryMajorRadius`, `GeometryMinorRadius`, `GeometryHeight`, `GeometryIsSmall` and any number of `AdditionalGeometry` blocks. A field left out takes its default, not the object's value.)
+
+```ini
+Behavior = GeometryUpgrade ModuleTag_20
+  TriggeredBy = Upgrade_MyBaseExtension
+  Geometry
+    Geometry = BOX
+    GeometryMajorRadius = 40
+    GeometryMinorRadius = 20
+    GeometryHeight = 30
+    AdditionalGeometry
+      Type        = BOX
+      MajorRadius = 15
+      MinorRadius = 30
+      Height      = 20
+      Offset      = X:25 Y:50 Z:0
+    End
+  End
+End
+```
+
+Notes:
+- Removing the upgrade does not bring the old geometry back; a second `GeometryUpgrade` with the old geometry does.
+- With a `DamageStateGeometryBehavior` on the object, a damage state geometry in use stays until the object is healed; the upgraded geometry then becomes the undamaged one.

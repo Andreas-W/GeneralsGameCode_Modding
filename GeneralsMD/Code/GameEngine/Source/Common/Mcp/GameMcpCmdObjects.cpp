@@ -144,6 +144,48 @@ McpJson describeAI(const Object *object)
 	return result;
 }
 
+McpJson describeGeometry(const Object *object)
+{
+	static const char *const TYPE_NAMES[] = { "SPHERE", "CYLINDER", "BOX" };
+	static_assert(ARRAY_SIZE(TYPE_NAMES) == GEOMETRY_NUM_TYPES, "geometry names");
+	const GeometryInfo &geom = object->getGeometryInfo();
+	McpJson result = McpJson::makeObject();
+	result.set("is_small", geom.getIsSmall() != FALSE);
+	result.set("bounding_circle_radius", geom.getBoundingCircleRadius());
+	result.set("bounding_sphere_radius", geom.getBoundingSphereRadius());
+	result.set("max_height_above", geom.getMaxHeightAbovePosition());
+	result.set("max_height_below", geom.getMaxHeightBelowPosition());
+	McpJson shapes = McpJson::makeArray();
+#ifndef USE_ADVANCED_COLLISION
+	// without compound geometry an object has only its primary shape
+	{
+		const Int type = (Int)geom.getGeomType();
+		shapes.push(McpJson::makeObject()
+			.set("type", type >= 0 && type < GEOMETRY_NUM_TYPES ? TYPE_NAMES[type] : "?")
+			.set("major_radius", geom.getMajorRadius())
+			.set("minor_radius", geom.getMinorRadius())
+			.set("height", geom.getMaxHeightAbovePosition())
+			.set("position", gameMcpCoord(*object->getPosition()))
+			.set("angle", object->getOrientation() * 180.0f / PI));
+	}
+#else
+	for (Int i = 0; i < geom.getShapeCount(); ++i) {
+		GeometryPrimitive prim;
+		geom.getWorldPrimitive(i, *object->getPosition(), object->getOrientation(), prim);
+		const Int type = (Int)prim.type;
+		shapes.push(McpJson::makeObject()
+			.set("type", type >= 0 && type < GEOMETRY_NUM_TYPES ? TYPE_NAMES[type] : "?")
+			.set("major_radius", prim.majorRadius)
+			.set("minor_radius", prim.minorRadius)
+			.set("height", prim.height)
+			.set("position", gameMcpCoord(prim.position))
+			.set("angle", prim.angle * 180.0f / PI));
+	}
+#endif
+	result.set("shapes", shapes);
+	return result;
+}
+
 McpJson describeModules(const Object *object)
 {
 	McpJson modules = McpJson::makeArray();
@@ -313,6 +355,9 @@ McpJson describeFull(Object *object, const McpJson &sections)
 	if (wants(sections, "modules")) {
 		result.set("modules", describeModules(object));
 	}
+	if (wants(sections, "geometry")) {
+		result.set("geometry", describeGeometry(object));
+	}
 	return result;
 }
 
@@ -401,7 +446,7 @@ void gameMcpRegisterObjectCommands()
 		"Objects in the game: id, template, owner, position, angle (degrees), health.");
 	gameMcpRegisterCommand("objects.get", cmdGet,
 		"{ids | id, sections?} Everything about objects: status, disabled, kindof, veterancy, ai, weapons, upgrades, bonuses, "
-		"special_powers, production, contain, modules, model (sections limits the optional parts).");
+		"special_powers, production, contain, modules, model, geometry (sections limits the optional parts).");
 	gameMcpRegisterCommand("objects.templates", cmdTemplates, "{contains?, side?, kindof?, limit=300} Object templates that can be spawned.");
 }
 

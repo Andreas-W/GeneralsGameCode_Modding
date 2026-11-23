@@ -52,7 +52,7 @@ Zero Hour targets are prefixed `z_` (Generals uses `g_`):
 
 ### Key build options (`cmake/config-build.cmake`)
 
-`RTS_BUILD_ZEROHOUR` (default ON), `RTS_BUILD_GENERALS` (turn OFF to skip original Generals), `RTS_BUILD_OPTION_DEBUG`, `RTS_BUILD_OPTION_PROFILE`, `RTS_DEBUG_LOGGING`, `RTS_DEBUG_CRASHING`, `RTS_DEBUG_STACKTRACE`, `RTS_BUILD_OPTION_FFMPEG`, `RTS_BUILD_OPTION_GAME_MCP` (default ON; the game MCP bridge, see below). Debug defines: `RTS_DEBUG WWDEBUG DEBUG`; Release: `RTS_RELEASE NDEBUG`.
+`RTS_BUILD_ZEROHOUR` (default ON), `RTS_BUILD_GENERALS` (turn OFF to skip original Generals), `RTS_BUILD_OPTION_DEBUG`, `RTS_BUILD_OPTION_PROFILE`, `RTS_DEBUG_LOGGING`, `RTS_DEBUG_CRASHING`, `RTS_DEBUG_STACKTRACE`, `RTS_BUILD_OPTION_FFMPEG`, `RTS_BUILD_OPTION_GAME_MCP` (default ON; the game MCP bridge, see below), `RTS_BUILD_OPTION_ADVANCED_COLLISION` (default ON; defines `USE_ADVANCED_COLLISION`, the compound collision geometry: `AdditionalGeometry`, `GeometryUpgrade`, `DamageStateGeometryBehavior`; OFF builds the original collision code, with `#else` branches holding it unchanged). Debug defines: `RTS_DEBUG WWDEBUG DEBUG`; Release: `RTS_RELEASE NDEBUG`.
 
 ## Architecture
 

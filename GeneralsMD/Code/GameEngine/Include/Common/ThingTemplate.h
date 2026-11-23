@@ -691,6 +691,9 @@ protected:
 
 	static void parseArmorTemplateSet( INI* ini, void *instance, void *store, const void* /*userData*/ );
 	static void parseWeaponTemplateSet( INI* ini, void *instance, void *store, const void* /*userData*/ );
+#ifdef USE_ADVANCED_COLLISION
+	static void parseAdditionalGeometry( INI* ini, void *instance, void *store, const void* /*userData*/ );
+#endif
 	static void parsePrerequisites( INI* ini, void *instance, void * /*store*/, const void* /*userData*/ );
 	static void parseModuleName(INI* ini, void *instance, void* /*store*/, const void* userData);
 	static void parseIntList(INI* ini, void *instance, void* store, const void* userData);
@@ -818,6 +821,9 @@ private:
 	Bool					m_armorCopiedFromDefault;
 	Bool					m_weaponsCopiedFromDefault;
 	Bool					m_prereqsCopiedFromExtended;	///< prerequisites came with ObjectExtend; the object's own replace them
+#ifdef USE_ADVANCED_COLLISION
+	Bool					m_geometryCopiedFromDefault;	///< additional geometry shapes are inherited; the object's own replace them
+#endif
 
 	// ---- Byte-sized things
 	Byte					m_radarPriority;						///< does object appear on radar, and if so at what priority

@@ -31,12 +31,17 @@
 
 #include "Lib/BaseType.h"
 #include "Common/Snapshot.h"
+#ifdef USE_ADVANCED_COLLISION
+#include "Common/Geometry.h"
+#endif
 
 // #define DEBUG_FOG_MEMORY	///< this define is used to force object snapshots for all players, not just local player.
 
 class Object;
 class PartitionData;
+#ifndef USE_ADVANCED_COLLISION
 enum GeometryType CPP_11(: Int);
+#endif
 enum ObjectID CPP_11(: Int);
 
 class GhostObject : public Snapshot
@@ -48,10 +53,18 @@ public:
 	virtual void updateParentObject(Object *object, PartitionData *mod)=0;
 	virtual void freeSnapShot(int playerIndex)=0;
 	PartitionData *friend_getPartitionData() const {return m_partitionData;}
+#ifdef USE_ADVANCED_COLLISION
+	const GeometryInfo& getParentGeometry() const {return m_parentGeometry;}
+	GeometryType getGeometryType() const {return m_parentGeometry.getGeomType();}
+	Bool getGeometrySmall() const {return m_parentGeometry.getIsSmall();}
+	Real getGeometryMajorRadius() const {return m_parentGeometry.getMajorRadius();}
+	Real getGeometryMinorRadius() const {return m_parentGeometry.getMinorRadius();}
+#else
 	GeometryType getGeometryType() const {return m_parentGeometryType;}
 	Bool getGeometrySmall() const {return m_parentGeometryIsSmall;}
 	Real getGeometryMajorRadius() const {return m_parentGeometryMajorRadius;}
 	Real getGeometryMinorRadius() const {return m_parentGeometryminorRadius;}
+#endif
 	Real getParentAngle() const {return m_parentAngle;}
 	const Coord3D *getParentPosition() const {return &m_parentPosition;}
 
@@ -61,10 +74,14 @@ protected:
 	virtual void loadPostProcess() override;
 
 	Object *m_parentObject;		///< object which we are ghosting
+#ifdef USE_ADVANCED_COLLISION
+	GeometryInfo m_parentGeometry;		///< copy of the parent's geometry, including additional shapes
+#else
 	GeometryType m_parentGeometryType;
 	Bool m_parentGeometryIsSmall;
 	Real m_parentGeometryMajorRadius;
 	Real m_parentGeometryminorRadius;
+#endif
 	Real m_parentAngle;
 	Coord3D m_parentPosition;
 	PartitionData	*m_partitionData;	///< our PartitionData

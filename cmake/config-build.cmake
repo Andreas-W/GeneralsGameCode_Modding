@@ -11,6 +11,7 @@ option(RTS_BUILD_OPTION_VC6_FULL_DEBUG "Build VC6 with full debug info." OFF)
 option(RTS_BUILD_OPTION_FFMPEG "Enable FFmpeg support" OFF)
 option(RTS_BUILD_OPTION_GAME_MCP "Build the game with the MCP bridge that tools can drive it through (-mcp)." ON)
 option(RTS_BUILD_OPTION_DX12 "Build the Direct3D 12 renderer, used with -dx12." OFF)
+option(RTS_BUILD_OPTION_ADVANCED_COLLISION "Build compound collision geometry (AdditionalGeometry, GeometryUpgrade, DamageStateGeometryBehavior). OFF builds the original collision code." ON)
 
 if(NOT RTS_BUILD_ZEROHOUR AND NOT RTS_BUILD_GENERALS)
     set(RTS_BUILD_ZEROHOUR TRUE)
@@ -28,6 +29,7 @@ add_feature_info(Vc6FullDebug RTS_BUILD_OPTION_VC6_FULL_DEBUG "Building VC6 with
 add_feature_info(FFmpegSupport RTS_BUILD_OPTION_FFMPEG "Building with FFmpeg support")
 add_feature_info(GameMcp RTS_BUILD_OPTION_GAME_MCP "Building the game with the MCP bridge")
 add_feature_info(DX12 RTS_BUILD_OPTION_DX12 "Building the Direct3D 12 renderer")
+add_feature_info(AdvancedCollision RTS_BUILD_OPTION_ADVANCED_COLLISION "Building compound collision geometry")
 
 set(RTS_BUILD_OUTPUT_SUFFIX "" CACHE STRING "Suffix appended to output names of installable targets")
 
@@ -87,6 +89,10 @@ endif()
 
 if(RTS_BUILD_OPTION_DX12)
     target_compile_definitions(core_config INTERFACE RTS_RENDERER_DX12)
+endif()
+
+if(RTS_BUILD_OPTION_ADVANCED_COLLISION)
+    target_compile_definitions(core_config INTERFACE USE_ADVANCED_COLLISION)
 endif()
 
 # Define a dummy Tracy target when the build option is disabled.
