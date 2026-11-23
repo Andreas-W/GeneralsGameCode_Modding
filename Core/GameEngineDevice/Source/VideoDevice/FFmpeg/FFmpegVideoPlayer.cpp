@@ -51,6 +51,10 @@ extern "C" {
 #include "OpenALAudioDevice/OpenALAudioStream.h"
 #endif
 
+#ifdef RTS_MOVIE_AUDIO_MINIAUDIO
+#include "MilesMiniaudioPcm.h"
+#endif
+
 #include <chrono>
 
 //----------------------------------------------------------------------------
@@ -335,6 +339,9 @@ FFmpegVideoStream::FFmpegVideoStream(FFmpegFile* file)
 
 FFmpegVideoStream::~FFmpegVideoStream()
 {
+#ifdef RTS_MOVIE_AUDIO_MINIAUDIO
+	MilesMiniaudio_ClosePcmStream(m_movieAudio);
+#endif
 	av_freep(&m_audioBuffer);
 	av_frame_free(&m_frame);
 	sws_freeContext(m_swsContext);
@@ -384,8 +391,69 @@ void FFmpegVideoStream::onFrame(AVFrame *frame, int stream_idx, int stream_type,
 		ALenum format = OpenALAudioManager::getALFormat(frame->ch_layout.nb_channels, bytesPerSample * 8);
 		audioStream->bufferData(frameData, frameSize, format, frame->sample_rate);
 	}
+#elif defined(RTS_MOVIE_AUDIO_MINIAUDIO)
+	else if (stream_type == AVMEDIA_TYPE_AUDIO) {
+		videoStream->queueMovieAudio(frame);
+	}
 #endif
 }
+
+#ifdef RTS_MOVIE_AUDIO_MINIAUDIO
+//============================================================================
+// FFmpegVideoStream::queueMovieAudio
+// Converts a decoded audio frame to interleaved float and queues it on the movie's audio stream.
+//============================================================================
+
+void FFmpegVideoStream::queueMovieAudio(AVFrame *frame)
+{
+	const int channels = frame->ch_layout.nb_channels;
+	const int samples = frame->nb_samples;
+	if (channels <= 0 || samples <= 0)
+		return;
+
+	if (m_movieAudio == nullptr)
+	{
+		m_movieAudio = MilesMiniaudio_OpenPcmStream(frame->sample_rate, channels);
+		if (m_movieAudio == nullptr)
+			return;
+		// Movies played Bink audio at 80% of the speech volume.
+		MilesMiniaudio_SetPcmVolume(m_movieAudio, TheAudio->getVolume(AudioAffect_Speech) * 0.8f);
+	}
+
+	const AVSampleFormat format = static_cast<AVSampleFormat>(frame->format);
+	const AVSampleFormat packedFormat = av_get_packed_sample_fmt(format);
+	const bool planar = av_sample_fmt_is_planar(format) != 0;
+	const int bytesPerSample = av_get_bytes_per_sample(format);
+
+	m_audioBuffer = static_cast<UnsignedByte*>(av_realloc(m_audioBuffer, (size_t)samples * channels * sizeof(float)));
+	if (m_audioBuffer == nullptr)
+		return;
+	float *out = reinterpret_cast<float*>(m_audioBuffer);
+
+	for (int s = 0; s < samples; ++s)
+	{
+		for (int c = 0; c < channels; ++c)
+		{
+			const uint8_t *src = planar
+				? frame->extended_data[c] + (size_t)s * bytesPerSample
+				: frame->extended_data[0] + ((size_t)s * channels + c) * bytesPerSample;
+			float value;
+			switch (packedFormat)
+			{
+				case AV_SAMPLE_FMT_FLT: value = *reinterpret_cast<const float*>(src); break;
+				case AV_SAMPLE_FMT_DBL: value = (float)*reinterpret_cast<const double*>(src); break;
+				case AV_SAMPLE_FMT_S16: value = *reinterpret_cast<const int16_t*>(src) / 32768.0f; break;
+				case AV_SAMPLE_FMT_S32: value = *reinterpret_cast<const int32_t*>(src) / 2147483648.0f; break;
+				case AV_SAMPLE_FMT_U8: value = (*src - 128) / 128.0f; break;
+				default: return;
+			}
+			out[(size_t)s * channels + c] = value;
+		}
+	}
+
+	MilesMiniaudio_WritePcm(m_movieAudio, out, (unsigned)samples);
+}
+#endif
 
 
 //============================================================================

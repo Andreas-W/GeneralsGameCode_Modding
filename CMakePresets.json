@@ -128,7 +128,7 @@
         },
         {
             "name": "win64-modding-zh",
-            "inherits": "default",
+            "inherits": "default-vcpkg",
             "hidden": false,
             "displayName": "Windows 64bit Release (Modding) ZH",
             "binaryDir": "${sourceDir}/build/win64",
@@ -144,7 +144,9 @@
                 "RTS_DEBUG_STACKTRACE": "ON",
                 "RTS_DEBUG_CRASHING": "ON",
                 "RTS_BUILD_OPTION_GAME_MCP": "ON",
-                "RTS_BUILD_OPTION_DX12": "ON"
+                "RTS_BUILD_OPTION_DX12": "ON",
+                "RTS_BUILD_OPTION_FFMPEG": "ON",
+                "VCPKG_TARGET_TRIPLET": "x64-windows"
             }
         },
         {

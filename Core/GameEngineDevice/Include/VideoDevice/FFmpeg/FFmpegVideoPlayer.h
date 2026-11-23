@@ -41,6 +41,9 @@
 class FFmpegFile;
 struct AVFrame;
 struct SwsContext;
+#ifdef RTS_MOVIE_AUDIO_MINIAUDIO
+struct MilesMiniaudioPcmStream;
+#endif
 
 //----------------------------------------------------------------------------
 //           Type Defines
@@ -63,6 +66,10 @@ class FFmpegVideoStream : public VideoStream
 		Char			*m_memFile;				///< Pointer to memory resident file
 		UnsignedInt64	m_startTime = 0;		///< Time the stream started
 		UnsignedByte *	m_audioBuffer = nullptr;///< Audio buffer for the stream
+#ifdef RTS_MOVIE_AUDIO_MINIAUDIO
+		MilesMiniaudioPcmStream *m_movieAudio = nullptr;	///< Where the movie's sound plays
+		void queueMovieAudio(AVFrame *frame);
+#endif
 
 		FFmpegVideoStream(FFmpegFile* file);																///< only BinkVideoPlayer can create these
 		virtual ~FFmpegVideoStream();

@@ -15,9 +15,10 @@ if(RTS_BUILD_OPTION_DX12)
     add_subdirectory(Source/D3D8on12)
 endif()
 
-# D3DX8 exists only for 32-bit; x64 builds use these stand-ins.
+# D3DX8 and Miles exist only for 32-bit; x64 builds use these stand-ins.
 if(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     add_subdirectory(Source/D3DX8Compat)
+    add_subdirectory(Source/MilesMiniaudio)
 endif()
 
 # ImGui renderer backend for tools (only when ImGui was fetched)
