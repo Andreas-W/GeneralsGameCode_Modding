@@ -127,6 +127,27 @@
             }
         },
         {
+            "name": "win64-modding-zh",
+            "inherits": "default",
+            "hidden": false,
+            "displayName": "Windows 64bit Release (Modding) ZH",
+            "binaryDir": "${sourceDir}/build/win64",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "RTS_FLAGS": "/W3",
+                "RTS_BUILD_GENERALS": "OFF",
+                "RTS_DEBUG_LOGGING": "ON",
+                "RTS_BUILD_OPTION_DEBUG": "ON",
+                "RTS_DEBUG_STACKTRACE": "ON",
+                "RTS_DEBUG_CRASHING": "ON",
+                "RTS_BUILD_OPTION_GAME_MCP": "ON",
+                "RTS_BUILD_OPTION_DX12": "ON"
+            }
+        },
+        {
             "name": "win32-vcpkg",
             "inherits": "default-vcpkg",
             "hidden": false,
@@ -249,6 +270,14 @@
             "displayName": "Build Windows 32bit Debug",
             "description": "Build Windows 32bit Debug",
             "configuration": "Debug"
+        },
+        {
+            "name": "w64-modding-zh",
+            "configurePreset": "win64-modding-zh",
+            "displayName": "BUILD ZH AND WB FOR MODDING (64bit)",
+            "description": "BUILD ZH AND WB FOR MODDING (64bit)",
+            "configuration": "Release",
+            "targets": [ "z_generals", "z_worldbuilder" ]
         },
         {
             "name": "win32-vcpkg",

@@ -225,6 +225,17 @@ if(NOT IS_VS6_BUILD)
     )
 endif()
 
+# x64 has no Miles or Bink runtime (their DLLs exist only for 32-bit): it runs silent and without
+# movies until it gets its own audio and video backends.
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    list(REMOVE_ITEM GAMEENGINEDEVICE_SRC
+        Include/MilesAudioDevice/MilesAudioManager.h
+        Include/VideoDevice/Bink/BinkVideoPlayer.h
+        Source/MilesAudioDevice/MilesAudioManager.cpp
+        Source/VideoDevice/Bink/BinkVideoPlayer.cpp
+    )
+endif()
+
 add_library(corei_gameenginedevice_private INTERFACE)
 add_library(corei_gameenginedevice_public INTERFACE)
 
@@ -248,11 +259,18 @@ if(RTS_BUILD_OPTION_DX12)
 endif()
 
 target_link_libraries(corei_gameenginedevice_public INTERFACE
-    binkstub
     corei_gameengine_public
     d3d8lib
-    milesstub
 )
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    target_compile_definitions(corei_gameenginedevice_public INTERFACE RTS_NO_MILES RTS_NO_BINK)
+else()
+    target_link_libraries(corei_gameenginedevice_public INTERFACE
+        binkstub
+        milesstub
+    )
+endif()
 
 if(RTS_BUILD_OPTION_FFMPEG)
     find_package(FFMPEG REQUIRED)

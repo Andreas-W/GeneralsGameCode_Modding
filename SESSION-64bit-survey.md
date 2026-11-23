@@ -73,6 +73,26 @@ Candidates: **miniaudio** (public domain, one header, decodes MP3 + IMA ADPCM WA
 
 Tracking issue #473 (open). #3248 / #3250 (x64 foundation, closed, MinGW). #3459 (pointer truncations, merged). #784 (OpenAL, closed). Fork does not merge upstream; port pieces selectively.
 
+## Progress (2026-11-23)
+
+- Preset `win64-modding-zh` / build preset `w64-modding-zh` in `CMakePresets.json`, output `build/win64`. Configure and build from a dev shell started with `vcvarsall.bat amd64` (not `amd64_x86`).
+- Crash handlers ported (`WWLib/Except.cpp`, `WWLib/DbgHelpLoader`, `debug/debug_stack|except|debug.cpp`, `StackDump.cpp`): 64-bit dbghelp entry points, `RtlCaptureContext`, x64 register dumps. Note: on x64 `imagehlp.h` `#define`s `StackWalk`, `SymGetModuleBase` etc. to the `...64` names.
+- D3DX8 stand-in `Core/Libraries/Source/D3DX8Compat` (x64 MSVC only): math, texture creation, surface copy/convert/scale, mip generation, no fonts; the 4 runtime-assembled pixel shaders come from `AssembledShaders.inl` (assembled once with the 32-bit D3DX8).
+- x64 always uses D3D8on12 (`DX8Wrapper_UseDX12` defaults to 1 on `_WIN64`).
+- **`generalszh.exe` x64 compiles and links.** 32-bit build still builds.
+- First x64 compile: 0 errors outside the crash handlers, but **577 pointer-truncation warnings** (C4311/C4312) that will break at runtime; most in the GUI gadgets via 32-bit `WindowMsgData`. Upstream #3459 (78 files) fixes many of them.
+- Audio: miniaudio (0.11.26) chosen; `cmake/miniaudio.cmake` prepared, not included yet.
+- Truncations, own fixes (no upstream cherry-pick): `WindowMsgData` is `uintptr_t` (577 → 210 warnings). Fixed the real ones: list box multi-selection returned half a pointer (chat lobby), IME candidate list, surface lock arithmetic, Huffman encoder, asset name length, `BOGUSPTR`, registry `HKEY`, thread handle, debug pointer print. Memory pools align to 8 on x64 (`MEM_BOUND_ALIGNMENT`).
+- The ~190 remaining warnings are small integers kept in pointers (list item data, INI `userData`, GameSpy profile ids) and read back: harmless. Not fixed: Miles/Bink handles (replaced on x64 anyway), WWSaveLoad pointer ids and WWAudio callbacks (W3D tools only), `verchk` (W3DView only).
+- Saves: `xferUser` writes whole structs; where those hold pointers, x64 saves differ from 32-bit ones.
+- Silent x64 build: no Miles, no Bink on x64 (`RTS_NO_MILES` / `RTS_NO_BINK`, `AudioManagerDummy`, plain `VideoPlayer` = movies skipped). Temporary until miniaudio and FFmpeg video.
+- **First x64 runs (2026-11-23)**, deployed as `generalszh64.exe` in the mod folder: Armed Neighbors skirmish loads, renders through D3D8on12, logic 30 fps, combat works; same INI assertions as 32-bit. Fixed on the way:
+  - DDS header struct `LegacyDDSURFACEDESC2` had a `void*` (file layout 4 bytes): all DDS textures failed to load (magenta). Now `unsigned` plus a `static_assert` of 124 bytes.
+  - `ObjectPoolClass` (WWLib `mempool.h`) placed objects 4 bytes after a pointer-sized block header: corrupted block chain, crash in a static destructor at exit, then a hidden "Debug not inited" message box made it hang.
+- Not x64: dozer build orders via the MCP fail on 32-bit too in this mod. The installed `generalszh.exe` (2026-11-07) crashes on the current mod data (`AdditionalGeometry` in `ZZ_CompoundTest.ini`): it predates compound geometry.
+- Open: x64 assertion stack dumps print garbage addresses (`StackDump` path); exit-time crashes still show an invisible message box instead of exiting (`DebugLogRaw` after debug shutdown).
+- Tools for later: `scratchpad` scripts `stacks.py` (thread stacks of a hung process) and `addr2sym.py` (offset → source line from the PDB); no Windows debugger is installed.
+
 ## Proposed order
 
 1. MSVC x64 preset (`win64-modding-zh`, `amd64` dev shell, vcpkg `x64-windows`), stubs linked, browser off → get the real error list.

@@ -53,6 +53,16 @@ if((WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows") AND ${CMAKE_SIZEOF_VOID_P} EQU
     include(cmake/miles.cmake)
     include(cmake/bink.cmake)
     include(cmake/dx8.cmake)
+elseif(MSVC AND ${CMAKE_SIZEOF_VOID_P} EQUAL 8)
+    # x64: d3d8.dll and d3dx8.lib exist only for 32-bit. The renderer is D3D8on12 there, d3d8.dll is
+    # loaded at runtime anyway, and the D3DX8 functions the engine uses are replaced in the tree.
+    include(cmake/miles.cmake)
+    include(cmake/bink.cmake)
+    include(cmake/dx8.cmake)
+    # The SDK folder holds x86 dinput8.lib and dxguid.lib; the Windows SDK has the x64 ones.
+    set_property(TARGET d3d8lib PROPERTY INTERFACE_LINK_DIRECTORIES)
+    set_property(TARGET d3d8lib PROPERTY INTERFACE_LINK_LIBRARIES dinput8 dxguid legacy_stdio_definitions core_d3dx8compat)
+    set_property(TARGET d3d8lib PROPERTY INTERFACE_LINK_OPTIONS)
 endif()
 
 # Define a dummy stlport target when not on VC6.

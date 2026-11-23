@@ -36,7 +36,9 @@
 #include "GameClient/ParticleSys.h"
 #include "GameLogic/GameLogic.h"
 #include "GameNetwork/NetworkInterface.h"
+#ifndef RTS_NO_MILES
 #include "MilesAudioDevice/MilesAudioManager.h"
+#endif
 #include "Win32Device/Common/Win32BIGFileSystem.h"
 #include "Win32Device/Common/Win32LocalFileSystem.h"
 #include "W3DDevice/Common/W3DModuleFactory.h"
@@ -111,7 +113,11 @@ inline Radar *Win32GameEngine::createRadar(Bool dummy)
 inline WebBrowser *Win32GameEngine::createWebBrowser() { return NEW CComObject<W3DWebBrowser>; }
 inline AudioManager *Win32GameEngine::createAudioManager(Bool dummy)
 {
+#ifdef RTS_NO_MILES
+	return NEW AudioManagerDummy;
+#else
 	if (dummy)
 		return NEW MilesAudioManagerDummy;
 	return NEW MilesAudioManager;
+#endif
 }

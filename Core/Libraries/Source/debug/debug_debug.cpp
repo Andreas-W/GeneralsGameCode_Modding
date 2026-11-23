@@ -33,6 +33,8 @@
 #include "internal_io.h"
 #include <stdlib.h>
 #include <windows.h>
+#include <intrin.h>
+#include <Utility/stdint_adapter.h>
 #include <WWLib/WWCommon.h>
 #include <new>      // needed for placement new prototype
 
@@ -306,7 +308,10 @@ bool Debug::SkipNext()
   // do not implement this function inline, we do need
   // a valid frame pointer here!
   unsigned help;
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_M_X64)
+  // Frames are keyed by the return address; within one module its low 32 bits are unique.
+  help=(unsigned)(uintptr_t)_ReturnAddress();
+#elif defined(_MSC_VER)
   _asm
   {
     mov eax,[ebp+4]   // return address
@@ -434,7 +439,9 @@ bool Debug::AssertDone()
           }
           break;
         case IDRETRY:
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_M_X64)
+          __debugbreak();
+#elif defined(_MSC_VER)
           _asm int 0x03
 #elif defined(__GNUC__)
           __builtin_trap();
@@ -708,7 +715,9 @@ bool Debug::CrashDone(bool die)
             }
             break;
           case IDRETRY:
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(_M_X64)
+            __debugbreak();
+#elif defined(_MSC_VER)
             _asm int 0x03
 #elif defined(__GNUC__)
             __builtin_trap();
@@ -899,8 +908,8 @@ Debug& Debug::operator<<(const void *ptr)
   (*this) << "ptr:";
   if (ptr)
   {
-    char help[9];
-    (*this) << "0x" << _ultoa((unsigned long)ptr,help,16);
+    char help[17];
+    (*this) << "0x" << _ui64toa((unsigned __int64)(uintptr_t)ptr,help,16);
   }
   else
     (*this) << "null";

@@ -138,7 +138,7 @@ struct LegacyDDSURFACEDESC2 {
 	};
 	unsigned AlphaBitDepth;
 	unsigned Reserved;
-	void* Surface;
+	unsigned Surface;		// a 32-bit pointer in the file layout; never used
 	union
 	{
 		LegacyDDCOLORKEY CKDestOverlay;
@@ -151,6 +151,9 @@ struct LegacyDDSURFACEDESC2 {
 	LegacyDDSCAPS2 Caps;
 	unsigned TextureStage;
 };
+
+// The DDS file header after the magic number is 124 bytes.
+static_assert(sizeof(LegacyDDSURFACEDESC2) == 124, "LegacyDDSURFACEDESC2 must match the DDS file layout");
 
 
 enum DDSType

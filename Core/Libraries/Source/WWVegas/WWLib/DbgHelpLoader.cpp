@@ -113,14 +113,14 @@ bool DbgHelpLoader::load()
 
 	Inst->m_symInitialize = reinterpret_cast<SymInitialize_t>(::GetProcAddress(Inst->m_dllModule, "SymInitialize"));
 	Inst->m_symCleanup = reinterpret_cast<SymCleanup_t>(::GetProcAddress(Inst->m_dllModule, "SymCleanup"));
-	Inst->m_symLoadModule = reinterpret_cast<SymLoadModule_t>(::GetProcAddress(Inst->m_dllModule, "SymLoadModule"));
-	Inst->m_symUnloadModule = reinterpret_cast<SymUnloadModule_t>(::GetProcAddress(Inst->m_dllModule, "SymUnloadModule"));
-	Inst->m_symGetModuleBase = reinterpret_cast<SymGetModuleBase_t>(::GetProcAddress(Inst->m_dllModule, "SymGetModuleBase"));
-	Inst->m_symGetSymFromAddr = reinterpret_cast<SymGetSymFromAddr_t>(::GetProcAddress(Inst->m_dllModule, "SymGetSymFromAddr"));
-	Inst->m_symGetLineFromAddr = reinterpret_cast<SymGetLineFromAddr_t>(::GetProcAddress(Inst->m_dllModule, "SymGetLineFromAddr"));
+	Inst->m_symLoadModule = reinterpret_cast<SymLoadModule_t>(::GetProcAddress(Inst->m_dllModule, "SymLoadModule" DBGHELPLOADER_SUFFIX));
+	Inst->m_symUnloadModule = reinterpret_cast<SymUnloadModule_t>(::GetProcAddress(Inst->m_dllModule, "SymUnloadModule" DBGHELPLOADER_SUFFIX));
+	Inst->m_symGetModuleBase = reinterpret_cast<SymGetModuleBase_t>(::GetProcAddress(Inst->m_dllModule, "SymGetModuleBase" DBGHELPLOADER_SUFFIX));
+	Inst->m_symGetSymFromAddr = reinterpret_cast<SymGetSymFromAddr_t>(::GetProcAddress(Inst->m_dllModule, "SymGetSymFromAddr" DBGHELPLOADER_SUFFIX));
+	Inst->m_symGetLineFromAddr = reinterpret_cast<SymGetLineFromAddr_t>(::GetProcAddress(Inst->m_dllModule, "SymGetLineFromAddr" DBGHELPLOADER_SUFFIX));
 	Inst->m_symSetOptions = reinterpret_cast<SymSetOptions_t>(::GetProcAddress(Inst->m_dllModule, "SymSetOptions"));
-	Inst->m_symFunctionTableAccess = reinterpret_cast<SymFunctionTableAccess_t>(::GetProcAddress(Inst->m_dllModule, "SymFunctionTableAccess"));
-	Inst->m_stackWalk = reinterpret_cast<StackWalk_t>(::GetProcAddress(Inst->m_dllModule, "StackWalk"));
+	Inst->m_symFunctionTableAccess = reinterpret_cast<SymFunctionTableAccess_t>(::GetProcAddress(Inst->m_dllModule, "SymFunctionTableAccess" DBGHELPLOADER_SUFFIX));
+	Inst->m_stackWalk = reinterpret_cast<StackWalk_t>(::GetProcAddress(Inst->m_dllModule, "StackWalk" DBGHELPLOADER_SUFFIX));
 #ifdef RTS_ENABLE_CRASHDUMP
 	Inst->m_miniDumpWriteDump = reinterpret_cast<MiniDumpWriteDump_t>(::GetProcAddress(Inst->m_dllModule, "MiniDumpWriteDump"));
 #endif
@@ -232,12 +232,12 @@ BOOL DbgHelpLoader::symCleanup(
 	return FALSE;
 }
 
-BOOL DbgHelpLoader::symLoadModule(
+DbgHelpAddr DbgHelpLoader::symLoadModule(
 	HANDLE hProcess,
 	HANDLE hFile,
 	LPSTR ImageName,
 	LPSTR ModuleName,
-	DWORD BaseOfDll,
+	DbgHelpAddr BaseOfDll,
 	DWORD SizeOfDll)
 {
 	CriticalSectionClass::LockClass lock(CriticalSection);
@@ -248,9 +248,9 @@ BOOL DbgHelpLoader::symLoadModule(
 	return FALSE;
 }
 
-DWORD DbgHelpLoader::symGetModuleBase(
+DbgHelpAddr DbgHelpLoader::symGetModuleBase(
 	HANDLE hProcess,
-	DWORD dwAddr)
+	DbgHelpAddr dwAddr)
 {
 	CriticalSectionClass::LockClass lock(CriticalSection);
 
@@ -262,7 +262,7 @@ DWORD DbgHelpLoader::symGetModuleBase(
 
 BOOL DbgHelpLoader::symUnloadModule(
 	HANDLE hProcess,
-	DWORD BaseOfDll)
+	DbgHelpAddr BaseOfDll)
 {
 	CriticalSectionClass::LockClass lock(CriticalSection);
 
@@ -274,8 +274,8 @@ BOOL DbgHelpLoader::symUnloadModule(
 
 BOOL DbgHelpLoader::symGetSymFromAddr(
 	HANDLE hProcess,
-	DWORD Address,
-	LPDWORD Displacement,
+	DbgHelpAddr Address,
+	DbgHelpAddr *Displacement,
 	PIMAGEHLP_SYMBOL Symbol)
 {
 	CriticalSectionClass::LockClass lock(CriticalSection);
@@ -288,7 +288,7 @@ BOOL DbgHelpLoader::symGetSymFromAddr(
 
 BOOL DbgHelpLoader::symGetLineFromAddr(
 	HANDLE hProcess,
-	DWORD dwAddr,
+	DbgHelpAddr dwAddr,
 	PDWORD pdwDisplacement,
 	PIMAGEHLP_LINE Line)
 {
@@ -313,7 +313,7 @@ DWORD DbgHelpLoader::symSetOptions(
 
 LPVOID DbgHelpLoader::symFunctionTableAccess(
 	HANDLE hProcess,
-	DWORD AddrBase)
+	DbgHelpAddr AddrBase)
 {
 	CriticalSectionClass::LockClass lock(CriticalSection);
 

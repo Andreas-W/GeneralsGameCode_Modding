@@ -31,6 +31,12 @@
 #include <windows.h>
 #include <commctrl.h>
 
+#ifdef _WIN64
+#define DEBUG_EXC_IP(ctx) ((ctx).Rip)
+#else
+#define DEBUG_EXC_IP(ctx) ((ctx).Eip)
+#endif
+
 DebugExceptionhandler::DebugExceptionhandler()
 {
   // don't do anything here!
@@ -110,7 +116,7 @@ void DebugExceptionhandler::LogExceptionLocation(Debug &dbg, struct _EXCEPTION_P
   struct _CONTEXT &ctx=*exptr->ContextRecord;
 
   char buf[512];
-  DebugStackwalk::Signature::GetSymbol(ctx.Eip,buf,sizeof(buf));
+  DebugStackwalk::Signature::GetSymbol(DEBUG_EXC_IP(ctx),buf,sizeof(buf));
   dbg << "Exception occured at\n" << buf << ".";
 }
 
@@ -118,6 +124,34 @@ void DebugExceptionhandler::LogRegisters(Debug &dbg, struct _EXCEPTION_POINTERS 
 {
   struct _CONTEXT &ctx=*exptr->ContextRecord;
 
+#ifdef _WIN64
+  dbg << Debug::FillChar('0')
+      << Debug::Hex()
+      <<  "RAX:" << Debug::Width(16) << ctx.Rax
+      << " RBX:" << Debug::Width(16) << ctx.Rbx
+      << " RCX:" << Debug::Width(16) << ctx.Rcx << "\n"
+      <<  "RDX:" << Debug::Width(16) << ctx.Rdx
+      << " RSI:" << Debug::Width(16) << ctx.Rsi
+      << " RDI:" << Debug::Width(16) << ctx.Rdi << "\n"
+      <<  "R8: " << Debug::Width(16) << ctx.R8
+      << " R9: " << Debug::Width(16) << ctx.R9
+      << " R10:" << Debug::Width(16) << ctx.R10 << "\n"
+      <<  "R11:" << Debug::Width(16) << ctx.R11
+      << " R12:" << Debug::Width(16) << ctx.R12
+      << " R13:" << Debug::Width(16) << ctx.R13 << "\n"
+      <<  "R14:" << Debug::Width(16) << ctx.R14
+      << " R15:" << Debug::Width(16) << ctx.R15 << "\n"
+      <<  "RIP:" << Debug::Width(16) << ctx.Rip
+      << " RSP:" << Debug::Width(16) << ctx.Rsp
+      << " RBP:" << Debug::Width(16) << ctx.Rbp << "\n"
+      <<  "Flags:" << Debug::Bin() << Debug::Width(32) << (unsigned)ctx.EFlags << Debug::Hex() << "\n"
+      <<  "CS:" << Debug::Width(4) << ctx.SegCs
+      << " DS:" << Debug::Width(4) << ctx.SegDs
+      << " SS:" << Debug::Width(4) << ctx.SegSs
+      << "\nES:" << Debug::Width(4) << ctx.SegEs
+      << " FS:" << Debug::Width(4) << ctx.SegFs
+      << " GS:" << Debug::Width(4) << ctx.SegGs << "\n" << Debug::FillChar() << Debug::Dec();
+#else
   dbg << Debug::FillChar('0')
       << Debug::Hex()
       <<  "EAX:" << Debug::Width(8) << ctx.Eax
@@ -136,12 +170,17 @@ void DebugExceptionhandler::LogRegisters(Debug &dbg, struct _EXCEPTION_POINTERS 
       << "\nES:" << Debug::Width(4) << ctx.SegEs
       << " FS:" << Debug::Width(4) << ctx.SegFs
       << " GS:" << Debug::Width(4) << ctx.SegGs << "\n" << Debug::FillChar() << Debug::Dec();
+#endif
 }
 
 void DebugExceptionhandler::LogFPURegisters(Debug &dbg, struct _EXCEPTION_POINTERS *exptr)
 {
   struct _CONTEXT &ctx=*exptr->ContextRecord;
 
+#ifdef _WIN64
+  // x64 code computes with SSE; only its control/status register is of interest.
+  dbg << Debug::Hex() << "MXCSR:" << Debug::Width(8) << (unsigned)ctx.MxCsr << "\n" << Debug::Dec();
+#else
   if (!(ctx.ContextFlags&CONTEXT_FLOATING_POINT))
   {
     dbg << "FP registers not available\n";
@@ -181,6 +220,7 @@ void DebugExceptionhandler::LogFPURegisters(Debug &dbg, struct _EXCEPTION_POINTE
     dbg << "\n";
   }
   dbg << Debug::FillChar() << Debug::Dec();
+#endif
 }
 
 // include exception dialog box
@@ -195,7 +235,7 @@ static char regInfo[1024],verInfo[256];
 // and this saves us from doing a stack walk twice
 static DebugStackwalk::Signature sig;
 
-static BOOL CALLBACK ExceptionDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK ExceptionDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   switch(uMsg)
   {
@@ -240,7 +280,7 @@ static BOOL CALLBACK ExceptionDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
   // address
   struct _CONTEXT &ctx=*exPtrs->ContextRecord;
-  DebugStackwalk::Signature::GetSymbol(ctx.Eip,regInfo,sizeof(regInfo));
+  DebugStackwalk::Signature::GetSymbol(DEBUG_EXC_IP(ctx),regInfo,sizeof(regInfo));
   SendDlgItemMessage(hWnd,102,WM_SETTEXT,0,(LPARAM)regInfo);
 
   // stack
@@ -396,7 +436,7 @@ LONG __stdcall DebugExceptionhandler::ExceptionFilter(struct _EXCEPTION_POINTERS
   dbg.m_stackWalk.StackWalk(sig,pExPtrs->ContextRecord);
   dbg << sig << "\n";
 
-  dbg << "Bytes around EIP:" << Debug::MemDump::Char(((char *)(pExPtrs->ContextRecord->Eip))-32,80);
+  dbg << "Bytes around EIP:" << Debug::MemDump::Char(((char *)(DEBUG_EXC_IP(*pExPtrs->ContextRecord)))-32,80);
 
   dbg.FlushOutput();
 

@@ -411,6 +411,8 @@ class AudioManagerDummy : public AudioManager
 	virtual UnsignedInt getNum2DSamples(void) const { return 0; }
 	virtual UnsignedInt getNum3DSamples(void) const { return 0; }
 	virtual UnsignedInt getNumStreams(void) const { return 0; }
+	virtual UnsignedInt getNumAvailable2DSamples(void) const { return 0; }
+	virtual UnsignedInt getNumAvailable3DSamples(void) const { return 0; }
 	virtual Bool doesViolateLimit(AudioEventRTS* event) const { return false; }
 	virtual Bool isPlayingLowerPriority(AudioEventRTS* event) const { return false; }
 	virtual Bool isPlayingAlready(AudioEventRTS* event) const { return false; }

@@ -105,7 +105,12 @@ bool DX8Wrapper_IsWindowed = true;
 
 // FPU_PRESERVE
 int DX8Wrapper_PreserveFPU = 0;
+#ifdef _WIN64
+// There is no 64-bit d3d8.dll; x64 builds always render through D3D8on12.
+int DX8Wrapper_UseDX12 = 1;
+#else
 int DX8Wrapper_UseDX12 = 0;
+#endif
 
 /***********************************************************************************
 **

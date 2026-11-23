@@ -45,7 +45,11 @@
 #include "W3DDevice/GameClient/W3DGameWindowManager.h"
 #include "W3DDevice/GameClient/W3DGameFont.h"
 #include "W3DDevice/GameClient/W3DDisplayStringManager.h"
+#ifdef RTS_NO_BINK
+#include "GameClient/VideoPlayer.h"
+#else
 #include "VideoDevice/Bink/BinkVideoPlayer.h"
+#endif
 #ifdef RTS_HAS_FFMPEG
 #include "VideoDevice/FFmpeg/FFmpegVideoPlayer.h"
 #endif
@@ -113,6 +117,9 @@ protected:
 	virtual DisplayStringManager *createDisplayStringManager() override { return NEW W3DDisplayStringManager; }
 #ifdef RTS_HAS_FFMPEG
 	virtual VideoPlayerInterface *createVideoPlayer() { return NEW FFmpegVideoPlayer; }
+#elif defined(RTS_NO_BINK)
+	// no video backend: movies are skipped
+	virtual VideoPlayerInterface *createVideoPlayer() override { return NEW VideoPlayer; }
 #else
 	virtual VideoPlayerInterface *createVideoPlayer() override { return NEW BinkVideoPlayer; }
 #endif

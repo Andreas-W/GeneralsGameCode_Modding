@@ -7,15 +7,22 @@ else()
     set_target_properties(z_generals PROPERTIES OUTPUT_NAME "generalszh${RTS_BUILD_OUTPUT_SUFFIX}")
 endif()
 
+# x64 has none of these: d3d8.dll is loaded at runtime, D3DX8 comes from core_d3dx8compat,
+# and there is no Miles or Bink.
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    target_link_libraries(z_generals PRIVATE
+        binkstub
+        d3d8
+        d3dx8
+        milesstub
+    )
+endif()
+
 target_link_libraries(z_generals PRIVATE
-    binkstub
     comctl32
-    d3d8
-    d3dx8
     dinput8
     dxguid
     imm32
-    milesstub
     vfw32
     winmm
     z_gameengine

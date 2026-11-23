@@ -30,6 +30,16 @@
 #include "mutex.h"
 #include "SystemAllocator.h"
 
+// Addresses taken by the symbol functions. On x64 only their ...64 versions exist, and imagehlp.h
+// maps the STACKFRAME, IMAGEHLP_SYMBOL and IMAGEHLP_LINE types to the 64-bit ones.
+#ifdef _WIN64
+typedef DWORD64 DbgHelpAddr;
+#define DBGHELPLOADER_SUFFIX "64"
+#else
+typedef DWORD DbgHelpAddr;
+#define DBGHELPLOADER_SUFFIX ""
+#endif
+
 // This static class can load, unload and use dbghelp.dll. Is thread-safe.
 // Internally it must not use new and delete because it can be created during game memory initialization.
 
@@ -66,31 +76,31 @@ public:
 	static BOOL WINAPI symCleanup(
 		HANDLE hProcess);
 
-	static BOOL WINAPI symLoadModule(
+	static DbgHelpAddr WINAPI symLoadModule(
 		HANDLE hProcess,
 		HANDLE hFile,
 		LPSTR ImageName,
 		LPSTR ModuleName,
-		DWORD BaseOfDll,
+		DbgHelpAddr BaseOfDll,
 		DWORD SizeOfDll);
 
-	static DWORD WINAPI symGetModuleBase(
+	static DbgHelpAddr WINAPI symGetModuleBase(
 		HANDLE hProcess,
-		DWORD dwAddr);
+		DbgHelpAddr dwAddr);
 
 	static BOOL WINAPI symUnloadModule(
 		HANDLE hProcess,
-		DWORD BaseOfDll);
+		DbgHelpAddr BaseOfDll);
 
 	static BOOL WINAPI symGetSymFromAddr(
 		HANDLE hProcess,
-		DWORD Address,
-		LPDWORD Displacement,
+		DbgHelpAddr Address,
+		DbgHelpAddr *Displacement,
 		PIMAGEHLP_SYMBOL Symbol);
 
 	static BOOL WINAPI symGetLineFromAddr(
 		HANDLE hProcess,
-		DWORD dwAddr,
+		DbgHelpAddr dwAddr,
 		PDWORD pdwDisplacement,
 		PIMAGEHLP_LINE Line);
 
@@ -99,7 +109,7 @@ public:
 
 	static LPVOID WINAPI symFunctionTableAccess(
 		HANDLE hProcess,
-		DWORD AddrBase);
+		DbgHelpAddr AddrBase);
 
 	static BOOL WINAPI stackWalk(
 		DWORD MachineType,
@@ -135,31 +145,31 @@ private:
 	typedef BOOL (WINAPI *SymCleanup_t) (
 		HANDLE hProcess);
 
-	typedef BOOL (WINAPI *SymLoadModule_t) (
+	typedef DbgHelpAddr (WINAPI *SymLoadModule_t) (
 		HANDLE hProcess,
 		HANDLE hFile,
 		LPSTR ImageName,
 		LPSTR ModuleName,
-		DWORD BaseOfDll,
+		DbgHelpAddr BaseOfDll,
 		DWORD SizeOfDll);
 
-	typedef DWORD (WINAPI *SymGetModuleBase_t) (
+	typedef DbgHelpAddr (WINAPI *SymGetModuleBase_t) (
 		HANDLE hProcess,
-		DWORD dwAddr);
+		DbgHelpAddr dwAddr);
 
 	typedef BOOL (WINAPI *SymUnloadModule_t) (
 		HANDLE hProcess,
-		DWORD BaseOfDll);
+		DbgHelpAddr BaseOfDll);
 
 	typedef BOOL (WINAPI *SymGetSymFromAddr_t) (
 		HANDLE hProcess,
-		DWORD Address,
-		LPDWORD Displacement,
+		DbgHelpAddr Address,
+		DbgHelpAddr *Displacement,
 		PIMAGEHLP_SYMBOL Symbol);
 
 	typedef BOOL (WINAPI* SymGetLineFromAddr_t) (
 		HANDLE hProcess,
-		DWORD dwAddr,
+		DbgHelpAddr dwAddr,
 		PDWORD pdwDisplacement,
 		PIMAGEHLP_LINE Line);
 
@@ -168,7 +178,7 @@ private:
 
 	typedef LPVOID (WINAPI *SymFunctionTableAccess_t) (
 		HANDLE hProcess,
-		DWORD AddrBase);
+		DbgHelpAddr AddrBase);
 
 	typedef BOOL (WINAPI *StackWalk_t) (
 		DWORD MachineType,

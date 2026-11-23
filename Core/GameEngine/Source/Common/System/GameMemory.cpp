@@ -200,7 +200,12 @@ static Bool theMainInitFlag = false;
 // ----------------------------------------------------------------------------
 
 /// @todo srj -- make this work for 8
+#ifdef _WIN64
+// Blocks hold pointers and 64-bit values; block headers and walls are multiples of 8 here.
+#define MEM_BOUND_ALIGNMENT 8
+#else
 #define MEM_BOUND_ALIGNMENT 4
+#endif
 
 static Int roundUpMemBound(Int i);
 static void *sysAllocateDoNotZero(Int numBytes);
