@@ -230,6 +230,12 @@ const NuggetMap &nuggetMap()
 	bone.push_back(def("BoneName", FIELD_STRING, ""));
 	bone.push_back(def("OrientToBone", FIELD_BOOL, ""));
 
+	std::vector<FieldDef> &include = map["IncludeFX"];
+	include.push_back(def("FX", FIELD_FXLIST, "FXList played here, as if its entries were in this one."));
+	include.push_back(def("MinAllowedHeight", FIELD_REAL, "Skip it below this height above the surface."));
+	include.push_back(def("MaxAllowedHeight", FIELD_REAL, "Skip it above this height above the surface."));
+	include.push_back(def("AllowedSurface", FIELD_ENUM, "Play it only over this surface.", ALLOWED_SURFACE_NAMES));
+
 	return map;
 }
 
@@ -267,7 +273,7 @@ const std::vector<std::string> &FieldSchema::nuggetTypes()
 	if (types.empty())
 	{
 		const char *const order[] = { "ParticleSystem", "Sound", "LightPulse", "ViewShake", "TerrainScorch", "WaterRipple", "Tracer", "Decal",
-			"RayEffect", "FXListAtBonePos" };
+			"RayEffect", "FXListAtBonePos", "IncludeFX" };
 		for (size_t i = 0; i < ARRAY_SIZE(order); ++i)
 			types.push_back(order[i]);
 	}

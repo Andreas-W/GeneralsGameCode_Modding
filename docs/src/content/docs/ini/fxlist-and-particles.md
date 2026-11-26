@@ -80,6 +80,49 @@ FXList FX_ScorchDecal
 End
 ```
 
+### IncludeFX entries
+*This refers to a new `IncludeFX` nugget within an FXList definition in FXList.ini*
+
+Plays another FXList as if its entries were written at this place. Effects that many FXLists share (the splash, ripple and sound of a water impact, say) can be defined once as an ordinary FXList and included everywhere, instead of repeating their entries in every FXList.
+
+* `FX = <FXList>` - (The FXList to play. It gets the same position, orientation, objects and radius as the FXList that includes it, so `FXListAtBonePos`, `AttachToObject` and `UseCallersRadius` in it work as usual.)
+* `MinAllowedHeight = <height>` - (Skip the included FXList if the FX position is less than this high above the surface below it. Default = no limit)
+* `MaxAllowedHeight = <height>` - (Skip the included FXList if the FX position is more than this high above the surface below it. Default = no limit)
+* `AllowedSurface = ALL` - (`ALL` / `LAND` / `WATER`; play the included FXList only over this surface. Default = ALL)
+
+Example: one weapon FXList that plays a water template on water and a land template on land.
+```ini
+FXList FX_WaterImpactMedium          ; a template is an ordinary FXList
+  WaterRipple
+    StartRadius = 5
+    EndRadius = 80
+    Duration = 2000
+  End
+  ParticleSystem
+    Name = TorpedoWaterDropSplash
+  End
+End
+
+FXList WeaponFX_ShellDetonation
+  IncludeFX
+    FX = FX_WaterImpactMedium
+    AllowedSurface = WATER
+  End
+  IncludeFX
+    FX = FX_ShellImpactLand
+    AllowedSurface = LAND
+  End
+  ViewShake                          ; its own entries as usual
+    Type = SUBTLE
+  End
+End
+```
+
+Notes:
+* The included FXList is looked up by name each time it plays, so it may be defined anywhere in FXList.ini, before or after the FXLists that include it, and changes to it (also in the FX Editor) reach all of them. An unknown name plays nothing and is written to the debug log once.
+* The height and surface restrictions are checked once for the whole included FXList, the same way as for Sound entries. Entries inside it can have their own restrictions too.
+* FXLists that include each other (A includes B, B includes A) stop after 8 levels and write a line to the debug log; nothing hangs.
+
 ## ParticleSystem
 *This refers to ParticleSystem definitions in ParticleSystem.ini*
 

@@ -1205,6 +1205,119 @@ private:
 EMPTY_DTOR(FXListAtBonePosFXNugget)
 
 //-------------------------------------------------------------------------------------------------
+/** Plays another FXList as if its entries were written here, so shared effects (the splash of a water impact)
+	* are defined once. The list is looked up by name each time, so it may be defined anywhere in the INI and
+	* changes to it (FX Editor) reach every list that includes it. */
+//-------------------------------------------------------------------------------------------------
+class IncludeFXNugget : public FXNugget
+{
+	MEMORY_POOL_GLUE_WITH_USERLOOKUP_CREATE(IncludeFXNugget, "IncludeFXNugget")
+public:
+
+	IncludeFXNugget()
+	{
+		m_fxName.clear();
+		m_maxAllowedHeight = INFINITY;
+		m_minAllowedHeight = -INFINITY;
+		m_allowedSurfaceType = SURFACE_ALL;
+		m_warned = FALSE;
+	}
+
+	virtual void doFXPos(const Coord3D *primary, const Matrix3D* primaryMtx, const Real primarySpeed, const Coord3D *secondary, const Real overrideRadius, FXSurfaceInfo* surfaceInfo) const
+	{
+		const FXList *fx = findIncluded();
+		if (fx == nullptr || !isAllowedAt(primary, surfaceInfo))
+			return;
+		++s_depth;
+		FXList::doFXPos(fx, primary, primaryMtx, primarySpeed, secondary, overrideRadius);
+		--s_depth;
+	}
+
+	virtual void doFXObj(const Object* primary, const Object* secondary, FXSurfaceInfo* surfaceInfo) const
+	{
+		const FXList *fx = findIncluded();
+		if (fx == nullptr || (primary != nullptr && !isAllowedAt(primary->getPosition(), surfaceInfo)))
+			return;
+		++s_depth;
+		FXList::doFXObj(fx, primary, secondary);
+		--s_depth;
+	}
+
+	static void parse(INI *ini, void *instance, void* /*store*/, const void* /*userData*/)
+	{
+		static const FieldParse myFieldParse[] =
+		{
+			{ "FX",										INI::parseAsciiString,	nullptr, offsetof(IncludeFXNugget, m_fxName) },
+			{ "MinAllowedHeight",			INI::parseReal,							nullptr, offsetof(IncludeFXNugget, m_minAllowedHeight) },
+			{ "MaxAllowedHeight",			INI::parseReal,							nullptr, offsetof(IncludeFXNugget, m_maxAllowedHeight) },
+			{ "AllowedSurface",				INI::parseIndexList,				AllowedSurfaceNames, offsetof(IncludeFXNugget, m_allowedSurfaceType) },
+			{ nullptr, nullptr, nullptr, 0 }
+		};
+
+		IncludeFXNugget* nugget = newInstance(IncludeFXNugget);
+		ini->initFromINI(nugget, myFieldParse);
+		((FXList*)instance)->addFXNugget(nugget);
+	}
+
+private:
+
+	enum { MAX_DEPTH = 8 };
+
+	/// The included list, or null when it is missing or the lists include each other too deeply (a cycle).
+	const FXList *findIncluded() const
+	{
+		if (s_depth >= MAX_DEPTH)
+		{
+			if (!m_warned)
+				DEBUG_LOG(("IncludeFX %s: FXLists include each other more than %d deep (a cycle?), skipped", m_fxName.str(), (Int)MAX_DEPTH));
+			m_warned = TRUE;
+			return nullptr;
+		}
+		const FXList *fx = m_fxName.isEmpty() ? nullptr : TheFXListStore->findFXList(m_fxName.str());
+		if (fx == nullptr && !m_warned && !m_fxName.isEmpty() && stricmp(m_fxName.str(), "None") != 0)
+		{
+			DEBUG_LOG(("IncludeFX: FXList %s not found", m_fxName.str()));
+			m_warned = TRUE;
+		}
+		return fx;
+	}
+
+	/// The same height and surface test as Sound and ParticleSystem entries, once for the whole included list.
+	Bool isAllowedAt(const Coord3D *primary, FXSurfaceInfo *surfaceInfo) const
+	{
+		if (m_allowedSurfaceType == SURFACE_ALL && m_minAllowedHeight == -INFINITY && m_maxAllowedHeight == INFINITY)
+			return TRUE;
+		if (!getSurfaceInfo(primary, surfaceInfo, m_allowedSurfaceType != SURFACE_ALL))
+			return FALSE;
+		Real refHeight;
+		if (surfaceInfo->m_isWater)
+		{
+			if (m_allowedSurfaceType == SURFACE_LAND)
+				return FALSE;
+			refHeight = surfaceInfo->m_waterHeight;
+		}
+		else
+		{
+			if (m_allowedSurfaceType == SURFACE_WATER)
+				return FALSE;
+			refHeight = surfaceInfo->m_groundHeight;
+		}
+		const Real zOffset = primary->z - refHeight;
+		return zOffset >= m_minAllowedHeight && zOffset <= m_maxAllowedHeight;
+	}
+
+	static Int s_depth;	///< how many IncludeFX are being played inside each other right now
+
+	AsciiString				m_fxName;
+	Real							m_maxAllowedHeight;
+	Real							m_minAllowedHeight;
+	AllowedSurfaceType m_allowedSurfaceType;
+	mutable Bool			m_warned;	///< a missing list or a cycle is logged only once
+};
+EMPTY_DTOR(IncludeFXNugget)
+Int IncludeFXNugget::s_depth = 0;
+
+//-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -1220,6 +1333,7 @@ static const FieldParse TheFXListFieldParse[] =
 	{ "WaterRipple",								WaterRippleFXNugget::parse, nullptr, 0},
 	{ "ParticleSystem",							ParticleSystemFXNugget::parse, nullptr, 0},
 	{ "FXListAtBonePos",						FXListAtBonePosFXNugget::parse, nullptr, 0},
+	{ "IncludeFX",									IncludeFXNugget::parse, nullptr, 0},
 	{ "Decal",											DecalFXNugget::parse, nullptr, 0},
 	{ nullptr, nullptr, nullptr, 0 }
 };
