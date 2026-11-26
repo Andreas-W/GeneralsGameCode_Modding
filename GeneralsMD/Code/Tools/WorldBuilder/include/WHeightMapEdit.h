@@ -155,10 +155,14 @@ public: // Editing methods.
 	/// index range. Unlike autoBlendOut it decides from the base textures only, so the result does
 	/// not depend on the order and thin regions are blended like wide ones.
 	void blendAllEdges(const std::set<Int> &classes, Int globalEdgeClass, Int x0, Int y0, Int x1, Int y1);
-	/// Removes the blends in the inclusive index range and blends again, treating each cell's
-	/// texture as the texture at its lower left corner. Every boundary gets one blend, so edges
-	/// that step diagonally come out smooth. Textures do not move except where three or four meet.
+	/// Removes the blends in the inclusive index range and blends again, treating the texture each
+	/// cell shows at its lower left corner as the texture of that corner. Every boundary gets one
+	/// blend, so edges that step diagonally come out smooth. Blending again gives the same result,
+	/// so after painting only the cells around the new tiles change.
 	void blendCorners(Int x0, Int y0, Int x1, Int y1);
+	/// The texture class a cell shows at its lower left corner: the top blend layer that is opaque
+	/// there, otherwise the base texture.
+	Int getLowerLeftCornerClass(Int xIndex, Int yIndex);
 	/// Counts the blended cells, the cells with a second blend layer, and the edges between
 	/// different textures that neither side blends across.
 	void getBlendStats(Int x0, Int y0, Int x1, Int y1, Int *pBlended, Int *pThreeWay, Int *pHardEdges);

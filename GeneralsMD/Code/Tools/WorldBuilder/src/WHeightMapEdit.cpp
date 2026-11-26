@@ -2076,22 +2076,51 @@ void WorldHeightMapEdit::blendCellFromCorners(Int xIndex, Int yIndex, Int *corne
 	if (blend2 >= 0) addCornerBlend(xIndex, yIndex, blend2, kind2);
 }
 
+/// Whether a blend layer is opaque at the lower left corner of its cell, following the alpha tiles
+/// of WorldHeightMap::setupAlphaTiles: horizontal and vertical blends cover one side, diagonals the
+/// corner they point at, long diagonals every corner but the opposite one.
+static Bool blendCoversLowerLeft(const TBlendTileInfo &info)
+{
+	Int dx, dy;
+	getBlendDirection(info, &dx, &dy);
+	if (info.horiz) return dx < 0;
+	if (info.vert) return dy < 0;
+	if (info.longDiagonal) return !(dx > 0 && dy > 0);
+	return dx < 0 && dy < 0;
+}
+
+Int WorldHeightMapEdit::getLowerLeftCornerClass(Int xIndex, Int yIndex)
+{
+	const Int ndx = yIndex*m_width + xIndex;
+	const Short layers[2] = { m_extraBlendTileNdxes[ndx], m_blendTileNdxes[ndx] };	// top layer first
+	for (Int i = 0; i < 2; i++) {
+		if (layers[i] > 0 && layers[i] < m_numBlendedTiles && blendCoversLowerLeft(m_blendedTiles[layers[i]])) {
+			const Int cls = getBlendLayerClass(layers[i]);
+			if (cls >= 0) return cls;
+		}
+	}
+	return getTextureClass(xIndex, yIndex, true);
+}
+
 void WorldHeightMapEdit::blendCorners(Int x0, Int y0, Int x1, Int y1)
 {
 	if (x0 < 0) x0 = 0;
 	if (y0 < 0) y0 = 0;
 	if (x1 >= m_width) x1 = m_width-1;
 	if (y1 >= m_height) y1 = m_height-1;
-	clearBlends(x0, y0, x1, y1);
 
 	// One more row and column than cells: the last ones repeat the edge of the map.
+	// The corners are read before the blends are cleared: where three textures meet a cell's base
+	// texture is a neighbour's and its own texture is a blend over the corner. Reading the base
+	// instead would move that neighbour's texture by one cell on every reblend.
 	const Int stride = m_width + 1;
 	Int *corners = new Int[stride * (m_height + 1)];
 	for (Int y = 0; y <= m_height; y++) {
 		for (Int x = 0; x <= m_width; x++) {
-			corners[y*stride + x] = getTextureClass(x < m_width ? x : m_width-1, y < m_height ? y : m_height-1, true);
+			corners[y*stride + x] = getLowerLeftCornerClass(x < m_width ? x : m_width-1, y < m_height ? y : m_height-1);
 		}
 	}
+	clearBlends(x0, y0, x1, y1);
 	for (Int x = x0; x <= x1; x++) {
 		for (Int y = y0; y <= y1; y++) {
 			blendCellFromCorners(x, y, corners);

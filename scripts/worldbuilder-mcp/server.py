@@ -548,8 +548,9 @@ def terrain_reblend(shape: Shape | None = None, x: float | None = None, y: float
                     x1: float | None = None, y1: float | None = None) -> dict:
     """Removes all blends in the area (default: the whole map) and blends all textures again: the
     usual last step after painting. Each boundary gets one blend chosen from the textures at the cell
-    corners (as the Genesis map tools do), so edges that step diagonally come out smooth. Where three or
-    four textures meet a cell's base texture can change. Returns the same counts as
+    corners (as the Genesis map tools do), so edges that step diagonally come out smooth. A cell's
+    corner texture is what it shows at its lower left corner, so blending again gives the same result
+    and after painting only the cells around the new tiles change. Returns the same counts as
     terrain_blend_report. One undo step."""
     return wb.call("terrain.reblend", **_shape_args(shape, x, y, radius, x0, y0, x1, y1))
 
