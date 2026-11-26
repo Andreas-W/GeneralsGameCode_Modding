@@ -42,7 +42,8 @@ Bool previewKindFromName(const char *name, PreviewKind &kind);
 
 struct PreviewSettings
 {
-	Real height;				///< above the ground at the preview point
+	Real height;				///< above the ground at the preview point (or the water surface, see aboveWater)
+	Bool aboveWater;			///< over water, height counts from the water surface instead of the sea floor
 	Bool repeat;				///< play again every repeatSeconds
 	Real repeatSeconds;
 	Bool move;					///< move the emitter around the preview point

@@ -1654,6 +1654,10 @@ void FXEditorPanels::drawPreview()
 		ImGui::DragFloat("s##repeat", &s.repeatSeconds, 0.05f, 0.1f, 60.0f, "%.1f");
 		ImGui::SetNextItemWidth(150.0f);
 		ImGui::DragFloat("Height above ground", &s.height, 0.5f, -50.0f, 500.0f, "%.0f");
+		ImGui::SameLine();
+		ImGui::Checkbox("or water", (bool *)&s.aboveWater);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Over water, the height counts from the water surface instead of the ground below it");
 		ImGui::SetNextItemWidth(150.0f);
 		ImGui::DragFloat("Direction", &s.angle, 1.0f, -360.0f, 360.0f, "%.0f deg");
 		ImGui::Checkbox("Follow the camera", (bool *)&s.followCamera);

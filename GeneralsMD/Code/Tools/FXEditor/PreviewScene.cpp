@@ -83,6 +83,7 @@ Bool previewKindFromName(const char *name, PreviewKind &kind)
 //-------------------------------------------------------------------------------------------------
 PreviewSettings::PreviewSettings() :
 	height(0.0f),
+	aboveWater(TRUE),
 	repeat(TRUE),
 	repeatSeconds(3.0f),
 	move(FALSE),
@@ -231,7 +232,15 @@ Coord3D PreviewScene::getEmitterPosition() const
 		pos.x += m_settings.moveRadius * Cos(m_moveAngle);
 		pos.y += m_settings.moveRadius * Sin(m_moveAngle);
 	}
-	pos.z = (TheTerrainLogic ? TheTerrainLogic->getGroundHeight(pos.x, pos.y) : m_center.z) + m_settings.height;
+	Real base = m_center.z;
+	if (TheTerrainLogic)
+	{
+		base = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+		Real waterZ;
+		if (m_settings.aboveWater && TheTerrainLogic->isUnderwater(pos.x, pos.y, &waterZ))
+			base = waterZ;
+	}
+	pos.z = base + m_settings.height;
 	return pos;
 }
 

@@ -315,10 +315,12 @@ def fx_reload() -> dict:
 def fx_play(name: str, kind: Kind = "particle", repeat: bool | None = None, repeat_seconds: float | None = None,
             height: float | None = None, move: bool | None = None, move_radius: float | None = None,
             move_speed: float | None = None, angle: float | None = None, attach_to: str | None = None,
-            x: float | None = None, y: float | None = None, follow_camera: bool | None = None) -> dict:
+            x: float | None = None, y: float | None = None, follow_camera: bool | None = None,
+            above_water: bool | None = None) -> dict:
     """Plays a particle system, FXList or sound at the preview point, replacing what played before.
     - repeat / repeat_seconds: play again every so many seconds (systems that live forever start once).
     - height: above the ground; angle: direction in degrees.
+    - above_water: over water, height counts from the water surface instead of the ground (default on).
     - move, move_radius, move_speed: the emitter circles the preview point (trails, drift).
     - attach_to: thing template to spawn and play on (object FX, attached systems); "" for none.
     - x, y: moves the preview point first.
@@ -327,7 +329,7 @@ def fx_play(name: str, kind: Kind = "particle", repeat: bool | None = None, repe
     Settings not given stay as they were."""
     return fx.call("fx.play", kind=kind, name=name, repeat=repeat, repeat_seconds=repeat_seconds, height=height,
                    move=move, move_radius=move_radius, move_speed=move_speed, angle=angle, attach_to=attach_to, x=x, y=y,
-                   follow_camera=follow_camera)
+                   follow_camera=follow_camera, above_water=above_water)
 
 
 # --------------------------------------------------------------------------------------------------

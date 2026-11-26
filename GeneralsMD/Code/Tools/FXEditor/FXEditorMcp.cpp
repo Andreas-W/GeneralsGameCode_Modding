@@ -566,6 +566,7 @@ McpJson cmdPlay(const McpJson &args)
 	PreviewScene &scene = FXEditorApp::scene();
 	PreviewSettings &s = scene.settings();
 	s.height = (Real)gameMcpArgNumber(args, "height", s.height);
+	s.aboveWater = gameMcpArgBool(args, "above_water", s.aboveWater);
 	s.repeat = gameMcpArgBool(args, "repeat", s.repeat);
 	s.repeatSeconds = (Real)gameMcpArgNumber(args, "repeat_seconds", s.repeatSeconds);
 	s.move = gameMcpArgBool(args, "move", s.move);
@@ -1219,7 +1220,7 @@ void FXEditorMcp::registerCommands()
 		"{overwrite=true, kind?, name?} Writes changed blocks (all, or that block's file) into the mod's INI files; keeps <file>.fxeditor.bak.");
 	gameMcpRegisterCommand("fx.reload", cmdReload, "Reads the INI text from disk again (fails with unsaved changes).");
 	gameMcpRegisterCommand("fx.play", cmdPlay,
-		"{kind=particle|fxlist|sound, name, height?, repeat?, repeat_seconds?, move?, move_radius?, move_speed?, angle?, attach_to?, x?, y?} "
+		"{kind=particle|fxlist|sound, name, height?, above_water?, repeat?, repeat_seconds?, move?, move_radius?, move_speed?, angle?, attach_to?, x?, y?, follow_camera?} "
 		"Plays at the preview point (or on a spawned object).");
 	gameMcpRegisterCommand("fx.render_status", cmdRenderStatus,
 		"{postprocess?, materials?} Direct3D 12: post-processing and materials on/off (not saved), what runs, errors, and the "

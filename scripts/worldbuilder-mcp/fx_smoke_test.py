@@ -138,7 +138,11 @@ def main() -> int:
                 break
         check(name is not None, f"found a steady system: {name}")
         bridge.call("fx.time", paused=True)
-        bridge.call("fx.play", kind="particle", name=name, repeat=False, move=False, height=10)
+        over_ground = bridge.call("fx.play", kind="particle", name=name, repeat=False, move=False, height=10,
+                                  above_water=False)["position"]
+        over_water = bridge.call("fx.play", kind="particle", name=name, above_water=True)["position"]
+        # the preview map has no water: both count from the ground
+        check(abs(over_ground["z"] - over_water["z"]) < 0.01, f"height without water {over_ground['z']:.1f}")
         step(bridge, 30)
         stats = bridge.call("fx.stats")
         check(stats["preview_systems"] >= 1, f"{stats['preview_systems']} preview systems, {stats['preview_particles']} particles")
