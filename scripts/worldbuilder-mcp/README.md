@@ -257,7 +257,8 @@ are kept in `FXEditorPanels.ini` in the user data folder.
 
 - Every `ParticleSystem` and `FXList` block of the files the game reads (`Data\INI\ParticleSystem.ini`
   and `ParticleSystem\*.ini`, `Data\INI\Default\FXList.ini`, `Data\INI\FXList.ini` and `FXList\*.ini`,
-  loose or in `.big` archives) is kept as its text. Edits change lines of that text (other lines and
+  and the INIs the game reads after them, e.g. `Object\*.ini`, where mods sometimes define them next to
+  the objects; loose or in `.big` archives) is kept as its text. Edits change lines of that text (other lines and
   comments stay), and the block is parsed by the game's INI code into the live template at once; a
   particle template is reset to its defaults first (`ParticleSystemTemplate::resetToDefaults`), so
   removed fields go back to their defaults. What plays restarts.

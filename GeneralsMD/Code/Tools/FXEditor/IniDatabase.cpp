@@ -147,6 +147,15 @@ IniLine splitLine(const std::string &text, size_t start, size_t end)
 	return line;
 }
 
+/** The game's INI parser takes '=' only as a separator, so 'Height 16 20 UNIFORM' is a field too. Only block
+	headers (depth 0) and nugget headers (depth 1, a word alone) open a scope; anything else without '=' is a
+	field, or one such line would swallow the rest of the file. depth = scopes open before the line. */
+void fieldWithoutEquals(IniLine &line, Int depth)
+{
+	if (line.type == IniLine::HEADER && (depth >= 2 || (depth == 1 && !line.value.empty())))
+		line.type = IniLine::FIELD;
+}
+
 /// Index of the End line that closes the scope (block: nugget = -1, or a nugget).
 Int scopeEnd(const std::vector<IniLine> &lines, Int nugget)
 {
@@ -230,6 +239,7 @@ void IniText::parseLines(const std::string &text, std::vector<IniLine> &lines)
 		size_t end = text.find('\n', pos);
 		end = (end == std::string::npos) ? text.size() : end + 1;
 		IniLine line = splitLine(text, pos, end);
+		fieldWithoutEquals(line, depth);
 
 		switch (line.type)
 		{
@@ -302,10 +312,26 @@ std::string rewriteValue(const std::string &text, const IniLine &l, const std::s
 		lineBreak.insert(lineBreak.begin(), raw[raw.size() - 1]);
 		raw.erase(raw.size() - 1);
 	}
-	size_t eq = raw.find('=');
-	size_t valueStart = eq + 1;
-	while (valueStart < raw.size() && isSpace(raw[valueStart]))
-		++valueStart;
+	const size_t eq = raw.find('=');
+	std::string prefix;
+	size_t valueStart;
+	if (eq == std::string::npos)
+	{
+		// 'Key value' (see fieldWithoutEquals) is written back with an '='
+		valueStart = l.indent.size() + l.key.size();
+		while (valueStart < raw.size() && isSpace(raw[valueStart]))
+			++valueStart;
+		prefix = l.indent + l.key + " = ";
+	}
+	else
+	{
+		valueStart = eq + 1;
+		while (valueStart < raw.size() && isSpace(raw[valueStart]))
+			++valueStart;
+		prefix = raw.substr(0, valueStart);
+		if (valueStart == eq + 1)
+			prefix += " ";
+	}
 	const size_t c = commentStart(raw);
 	std::string tail;
 	if (c != std::string::npos)
@@ -316,9 +342,6 @@ std::string rewriteValue(const std::string &text, const IniLine &l, const std::s
 			--valueEnd;
 		tail = raw.substr(valueEnd);
 	}
-	std::string prefix = raw.substr(0, valueStart);
-	if (valueStart == eq + 1)
-		prefix += " ";
 	return text.substr(0, l.start) + prefix + value + tail + lineBreak + text.substr(l.end);
 }
 
@@ -602,6 +625,16 @@ void IniDatabase::load()
 		addFilesOf("Data\\INI\\ParticleSystem");
 		addFilesOf("Data\\INI\\Default\\FXList");
 		addFilesOf("Data\\INI\\FXList");
+		// The game takes ParticleSystem and FXList blocks from any INI it reads once their stores exist,
+		// e.g. next to the objects that use them. These are the files read after TheFXListStore.
+		const char *const later[] = { "Data\\INI\\Weapon", "Data\\INI\\Default\\ObjectCreationList",
+			"Data\\INI\\ObjectCreationList", "Data\\INI\\Locomotor", "Data\\INI\\Default\\SpecialPower",
+			"Data\\INI\\SpecialPower", "Data\\INI\\DamageFX", "Data\\INI\\Armor", "Data\\INI\\BuffTemplate",
+			"Data\\INI\\ChatCommands", "Data\\INI\\Default\\Object", "Data\\INI\\Object", "Data\\INI\\Default\\Upgrade",
+			"Data\\INI\\Upgrade", "Data\\INI\\Default\\AIData", "Data\\INI\\AIData", "Data\\INI\\Default\\Crate",
+			"Data\\INI\\Crate" };
+		for (size_t i = 0; i < sizeof(later) / sizeof(later[0]); ++i)
+			addFilesOf(later[i], TRUE);
 	}
 	m_loaded = TRUE;
 }
@@ -630,25 +663,25 @@ Int IniDatabase::findTypedBlock(const char *type, const AsciiString &name) const
 }
 
 //-------------------------------------------------------------------------------------------------
-void IniDatabase::addFilesOf(const char *fileDirName)
+void IniDatabase::addFilesOf(const char *fileDirName, Bool anywhere)
 {
 	AsciiString file = fileDirName;
 	file.concat(".ini");
 	if (TheFileSystem->doesFileExist(file.str()))
-		scanFile(file);
+		scanFile(file, anywhere);
 
 	AsciiString dir = fileDirName;
 	dir.concat('\\');
 	FilenameList list;
 	TheFileSystem->getFileListInDirectory(dir, "*.ini", list, TRUE);
 	for (FilenameList::const_iterator it = list.begin(); it != list.end(); ++it)
-		scanFile(*it);
+		scanFile(*it, anywhere);
 }
 
 //-------------------------------------------------------------------------------------------------
 /** Finds the ParticleSystem and FXList blocks of a file. */
 //-------------------------------------------------------------------------------------------------
-void IniDatabase::scanFile(const AsciiString &path)
+void IniDatabase::scanFile(const AsciiString &path, Bool anywhere)
 {
 	for (size_t i = 0; i < m_files.size(); ++i)
 	{
@@ -666,6 +699,7 @@ void IniDatabase::scanFile(const AsciiString &path)
 	const Int fileIndex = (Int)m_files.size();
 	m_files.push_back(source);
 	const std::string &text = m_files.back().text;
+	const size_t blocksBefore = m_blocks.size();
 
 	Int depth = 0;
 	size_t blockStart = 0;
@@ -678,14 +712,16 @@ void IniDatabase::scanFile(const AsciiString &path)
 	{
 		size_t end = text.find('\n', pos);
 		end = (end == std::string::npos) ? text.size() : end + 1;
-		const IniLine line = splitLine(text, pos, end);
+		IniLine line = splitLine(text, pos, end);
+		if (inBlock)
+			fieldWithoutEquals(line, depth);
 
 		if (line.type == IniLine::HEADER)
 		{
-			if (depth == 0)
+			if (anywhere ? !inBlock : depth == 0)
 			{
 				inBlock = FALSE;
-				if (isBlockType(line.key))
+				if (isBlockType(line.key) && (!anywhere || !line.value.empty()))
 				{
 					inBlock = TRUE;
 					kind = sameNoCase(line.key, "FXList") ? PREVIEW_FXLIST : PREVIEW_PARTICLE_SYSTEM;
@@ -699,7 +735,9 @@ void IniDatabase::scanFile(const AsciiString &path)
 						name = type;
 				}
 			}
-			++depth;
+			// Outside our blocks, the nesting of an anywhere file is not followed.
+			if (!anywhere || inBlock)
+				++depth;
 		}
 		else if (line.type == IniLine::END && depth > 0)
 		{
@@ -721,6 +759,9 @@ void IniDatabase::scanFile(const AsciiString &path)
 		}
 		pos = end;
 	}
+	// Files without blocks of ours are not kept (the Object INIs are large).
+	if (anywhere && m_blocks.size() == blocksBefore)
+		m_files.pop_back();
 }
 
 //-------------------------------------------------------------------------------------------------

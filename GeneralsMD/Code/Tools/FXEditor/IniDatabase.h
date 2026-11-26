@@ -160,8 +160,10 @@ public:
 	AsciiString getDiskPath(Int file) const;
 
 private:
-	void scanFile(const AsciiString &path);
-	void addFilesOf(const char *fileDirName);
+	/// anywhere: the file holds other blocks too (Object INIs open sub-blocks with 'Key = ...' lines, so their
+	/// nesting cannot be followed); a block header then counts wherever it stands outside one of our blocks.
+	void scanFile(const AsciiString &path, Bool anywhere);
+	void addFilesOf(const char *fileDirName, Bool anywhere = FALSE);
 	Bool parseIntoGame(const IniBlock &block, const std::string &text, AsciiString &error);
 	Bool commitText(Int block, const std::string &text, AsciiString &error, Bool keepOnError, Bool recordUndo);
 
