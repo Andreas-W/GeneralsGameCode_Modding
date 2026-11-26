@@ -39,6 +39,7 @@ static const Int SHAPE_SIZE = 64;				///< texels of a shape
 static const Real STEP_SECONDS = 1.0f / 30.0f;	///< the disturbance fades and takes new shapes this often
 static const Int MAX_STEPS = 3;					///< steps caught up at most in one frame
 static const size_t MAX_STAMPS = 512;			///< per kind, against runaway callers
+static const Int MAX_RING_COPIES = 4;			///< a ripple's height and foam count up to this
 
 //-------------------------------------------------------------------------------------------------
 static unsigned short toHalf(float value)
@@ -144,6 +145,7 @@ static IDirect3DTexture8 *makeShape(WaterDisturbance::Shape shape, float scale)
 W3DWaterDisturbance::W3DWaterDisturbance() :
 	m_previous(TheWaterDisturbance),
 	m_target(nullptr),
+	m_ringErase(nullptr),
 	m_shapesFade(-1.0f),
 	m_range(1024.0f),
 	m_windowX(0),
@@ -185,6 +187,11 @@ void W3DWaterDisturbance::release()
 			m_onceShapes[i]->Release();
 		m_sustainedShapes[i] = m_onceShapes[i] = nullptr;
 	}
+	if (m_ringErase != nullptr)
+	{
+		m_ringErase->Release();
+		m_ringErase = nullptr;
+	}
 	m_shapesFade = -1.0f;
 	m_active = FALSE;
 	m_clear = TRUE;
@@ -196,6 +203,7 @@ void W3DWaterDisturbance::reset()
 	m_sustained.clear();
 	m_once.clear();
 	m_ripples.clear();
+	m_retired.clear();
 	m_clear = TRUE;
 }
 
@@ -224,7 +232,7 @@ void W3DWaterDisturbance::addStamp(const Coord3D& pos, Real angle, Real length, 
 void W3DWaterDisturbance::addRipple(const Coord3D& pos, Real startRadius, Real endRadius, Real height, Real foam,
 	UnsignedInt frames)
 {
-	if (!m_active || frames == 0 || m_ripples.size() >= MAX_STAMPS)
+	if (!m_active || frames == 0)
 		return;
 	Ripple ripple;
 	ripple.pos = pos;
@@ -234,7 +242,32 @@ void W3DWaterDisturbance::addRipple(const Coord3D& pos, Real startRadius, Real e
 	ripple.foam = foam;
 	ripple.frames = frames;
 	ripple.age = 0;
-	m_ripples.push_back(ripple);
+	ripple.drawnRadius = ripple.drawnScale = 0.0f;
+	ripple.drawn = FALSE;
+	if (m_ripples.size() < MAX_STAMPS)
+	{
+		m_ripples.push_back(ripple);
+		return;
+	}
+	// Full: the new ripple takes the place of the one with the least left to show, if it shows more. Gunfire
+	// into the water then cannot keep a big blast's ripple out.
+	size_t weakest = 0;
+	Real least = 0.0f;
+	for (size_t i = 0; i < m_ripples.size(); ++i)
+	{
+		const Ripple& other = m_ripples[i];
+		const Real left = max(other.height, other.foam) * other.endRadius * (1.0f - (Real)other.age / (Real)other.frames);
+		if (i == 0 || left < least)
+		{
+			weakest = i;
+			least = left;
+		}
+	}
+	if (max(height, foam) * endRadius <= least)
+		return;
+	if (m_ripples[weakest].drawn)
+		m_retired.push_back(m_ripples[weakest]);
+	m_ripples[weakest] = ripple;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -265,27 +298,25 @@ Bool W3DWaterDisturbance::ensureResources(Real fade)
 			if (m_onceShapes[i] == nullptr)
 				m_onceShapes[i] = makeShape((Shape)i, 1.0f);
 		}
+		// Last step's ring as it is after the fade: drawn subtracted, it cancels that ring.
+		if (m_ringErase != nullptr)
+			m_ringErase->Release();
+		m_ringErase = makeShape(SHAPE_RING, fade);
 		m_shapesFade = fade;
 	}
-	return m_sustainedShapes[0] != nullptr && m_onceShapes[0] != nullptr;
+	return m_sustainedShapes[0] != nullptr && m_onceShapes[0] != nullptr && m_ringErase != nullptr;
 #else
 	return FALSE;
 #endif
 }
 
 //-------------------------------------------------------------------------------------------------
-/** One shape as a quad, in texels, and again shifted by the texture size where it crosses an edge. */
+/** One shape as a quad, in texels, and again shifted by the texture size where it crosses an edge, added to
+	the batch. FALSE when nothing was added: too small, or not inside the window. */
 //-------------------------------------------------------------------------------------------------
-void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *texture, Real scale)
+Bool W3DWaterDisturbance::batchStamp(const Stamp& stamp, Real scale)
 {
 #ifdef RTS_RENDERER_DX12
-	struct Vertex
-	{
-		float x, y, z, rhw;
-		DWORD color;
-		float u, v;
-	};
-	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
 	const float texelsPerUnit = TARGET_SIZE / m_range;
 	const float windowLeft = (float)(m_windowX - TARGET_SIZE / 2);
 	const float windowBottom = (float)(m_windowY - TARGET_SIZE / 2);
@@ -311,7 +342,7 @@ void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *textu
 		halfWidth /= 0.8f;
 	}
 	if (halfLength < 0.5f && halfWidth < 0.5f)
-		return;
+		return FALSE;
 	const float c = cosf(stamp.angle);
 	const float s = sinf(stamp.angle);
 	const float clamp01[4] = {
@@ -325,8 +356,7 @@ void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *textu
 	const float ty = stamp.pos.y * texelsPerUnit;
 	if (tx - reach < windowLeft || tx + reach > windowLeft + TARGET_SIZE || ty - reach < windowBottom
 		|| ty + reach > windowBottom + TARGET_SIZE)
-		return;
-	device->SetTexture(0, texture);
+		return FALSE;
 	for (Int oy = -1; oy <= 1; ++oy)
 	{
 		for (Int ox = -1; ox <= 1; ++ox)
@@ -336,7 +366,7 @@ void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *textu
 			if (px + reach < 0.0f || px - reach > TARGET_SIZE || py + reach < 0.0f || py - reach > TARGET_SIZE)
 				continue;
 			static const float corners[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
-			Vertex quad[4];
+			StampVertex quad[4];
 			for (Int i = 0; i < 4; ++i)
 			{
 				const float lx = corners[i][0] * halfLength;
@@ -349,9 +379,52 @@ void W3DWaterDisturbance::drawStamp(const Stamp& stamp, IDirect3DTexture8 *textu
 				quad[i].u = corners[i][0] * 0.5f + 0.5f;
 				quad[i].v = corners[i][1] * 0.5f + 0.5f;
 			}
-			device->DrawPrimitiveUP(D3DPT_TRIANGLEFAN, 2, quad, sizeof(Vertex));
+			// Two triangles of a list, so that quads of one texture go in one draw.
+			m_batch.push_back(quad[0]);
+			m_batch.push_back(quad[1]);
+			m_batch.push_back(quad[2]);
+			m_batch.push_back(quad[0]);
+			m_batch.push_back(quad[2]);
+			m_batch.push_back(quad[3]);
 		}
 	}
+	return TRUE;
+#else
+	return FALSE;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+/** A ripple's ring at radius, its strength times scale. */
+//-------------------------------------------------------------------------------------------------
+Bool W3DWaterDisturbance::batchRing(const Ripple& ripple, Real radius, Real scale)
+{
+	// The texture stages clamp a quad's colour to 1, so a stronger ring is drawn as several.
+	const Int copies = (Int)ceilf(min(max(max(ripple.height, ripple.foam), 1.0f), (Real)MAX_RING_COPIES));
+	Stamp ring;
+	ring.pos = ripple.pos;
+	ring.angle = 0.0f;
+	ring.length = ring.width = 2.0f * radius;
+	ring.height = ripple.height / copies;
+	ring.foam = ripple.foam / copies;
+	ring.highlight = 0.0f;
+	ring.shape = SHAPE_RING;
+	Bool drawn = FALSE;
+	for (Int i = 0; i < copies; ++i)
+		drawn = batchStamp(ring, scale);
+	return drawn;
+}
+
+//-------------------------------------------------------------------------------------------------
+void W3DWaterDisturbance::flushBatch(IDirect3DTexture8 *texture)
+{
+#ifdef RTS_RENDERER_DX12
+	if (m_batch.empty())
+		return;
+	IDirect3DDevice8 *device = DX8Wrapper::_Get_D3D_Device8();
+	device->SetTexture(0, texture);
+	device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, (UINT)(m_batch.size() / 3), &m_batch[0], sizeof(StampVertex));
+	m_batch.clear();
 #endif
 }
 
@@ -411,7 +484,8 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 		m_clear = TRUE;
 	}
 	const Real fadeTime = settings != nullptr ? max(settings->m_disturbanceFadeTime, 0.05f) : 1.0f;
-	const Real fade = powf(0.5f, STEP_SECONDS / fadeTime);
+	// As the fade quad's vertex colour has it, so that the ring taken out each step matches what is left of it.
+	const Real fade = floorf(powf(0.5f, STEP_SECONDS / fadeTime) * 255.0f + 0.5f) / 255.0f;
 	if (!ensureResources(fade))
 	{
 		m_active = FALSE;
@@ -456,6 +530,10 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 	{
 		device->Clear(0, nullptr, D3DCLEAR_TARGET, 0, 1.0f, 0);
 		m_clear = FALSE;
+		// Their rings are gone with the rest: nothing to take out.
+		for (size_t i = 0; i < m_ripples.size(); ++i)
+			m_ripples[i].drawn = FALSE;
+		m_retired.clear();
 	}
 
 	// The render states set here directly go back to what they were: the cache invalidation below makes the
@@ -463,7 +541,7 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 	// which skips frames. The main scene then drew without a depth test whenever both happened (flicker).
 	static const D3DRENDERSTATETYPE savedStates[] = { D3DRS_ZENABLE, D3DRS_ZWRITEENABLE, D3DRS_CULLMODE, D3DRS_LIGHTING,
 		D3DRS_FOGENABLE, D3DRS_ALPHATESTENABLE, D3DRS_STENCILENABLE, D3DRS_COLORWRITEENABLE, D3DRS_ALPHABLENDENABLE,
-		D3DRS_SRCBLEND, D3DRS_DESTBLEND };
+		D3DRS_SRCBLEND, D3DRS_DESTBLEND, D3DRS_BLENDOP };
 	const Int savedCount = sizeof(savedStates) / sizeof(savedStates[0]);
 	DWORD savedValues[savedCount];
 	for (Int i = 0; i < savedCount; ++i)
@@ -478,6 +556,7 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 	device->SetRenderState(D3DRS_STENCILENABLE, FALSE);
 	device->SetRenderState(D3DRS_COLORWRITEENABLE, 0xF);
 	device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+	device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
 	device->SetTextureStageState(0, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
 	device->SetTextureStageState(0, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
 	device->SetTextureStageState(0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
@@ -542,42 +621,56 @@ void W3DWaterDisturbance::update(const Coord3D& center)
 		device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 		device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
 		device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-		for (size_t i = 0; i < m_sustained.size(); ++i)
-			drawStamp(m_sustained[i], m_sustainedShapes[m_sustained[i].shape], 1.0f);
-		if (step == 0)
+		for (Int shape = 0; shape < 3; ++shape)
 		{
-			for (size_t i = 0; i < m_once.size(); ++i)
-				drawStamp(m_once[i], m_onceShapes[m_once[i].shape], 1.0f);
+			for (size_t i = 0; i < m_sustained.size(); ++i)
+			{
+				if (m_sustained[i].shape == shape)
+					batchStamp(m_sustained[i], 1.0f);
+			}
+			flushBatch(m_sustainedShapes[shape]);
+			if (step == 0)
+			{
+				for (size_t i = 0; i < m_once.size(); ++i)
+				{
+					if (m_once[i].shape == shape)
+						batchStamp(m_once[i], 1.0f);
+				}
+				flushBatch(m_onceShapes[shape]);
+			}
 		}
-		// Ripples grow a little each step. A ring adds up where it overlaps itself from step to step, so it is
-		// drawn at the share of its thickness it moved, which builds up to about its strength and leaves a short
-		// wave train behind.
+
+		// Ripples are rings moving outward: the ring drawn last step, faded like everything, is subtracted
+		// again and the ring drawn at its new radius, so nothing stays behind where it was. Only rings that
+		// were drawn are taken out; one that left the window since stays and fades.
+		device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
+		for (size_t i = 0; i < m_retired.size(); ++i)
+			batchRing(m_retired[i], m_retired[i].drawnRadius, m_retired[i].drawnScale);
+		m_retired.clear();
+		for (size_t i = 0; i < m_ripples.size(); ++i)
+		{
+			if (m_ripples[i].drawn)
+				batchRing(m_ripples[i], m_ripples[i].drawnRadius, m_ripples[i].drawnScale);
+		}
+		flushBatch(m_ringErase);
+		device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
 		for (size_t i = 0; i < m_ripples.size(); )
 		{
 			Ripple& ripple = m_ripples[i];
-			const Real t = (Real)ripple.age / (Real)ripple.frames;
-			const Real radius = ripple.startRadius + (ripple.endRadius - ripple.startRadius) * t;
-			const Real thickness = max(radius * 0.11f, 1.0f);
-			const Real advance = fabsf(ripple.endRadius - ripple.startRadius) / (Real)ripple.frames;
-			Stamp ring;
-			ring.pos = ripple.pos;
-			ring.angle = 0.0f;
-			ring.length = ring.width = 2.0f * radius;
-			ring.height = ripple.height;
-			ring.foam = ripple.foam;
-			ring.highlight = 0.0f;
-			ring.shape = SHAPE_RING;
-			drawStamp(ring, m_onceShapes[SHAPE_RING], (1.0f - t) * min(advance / thickness, 1.0f));
-			if (++ripple.age >= ripple.frames)
+			if (ripple.age >= ripple.frames)
 			{
 				ripple = m_ripples.back();
 				m_ripples.pop_back();
+				continue;
 			}
-			else
-			{
-				++i;
-			}
+			const Real t = (Real)ripple.age / (Real)ripple.frames;
+			ripple.drawnRadius = ripple.startRadius + (ripple.endRadius - ripple.startRadius) * t;
+			ripple.drawnScale = 1.0f - t;
+			ripple.drawn = batchRing(ripple, ripple.drawnRadius, ripple.drawnScale);
+			++ripple.age;
+			++i;
 		}
+		flushBatch(m_onceShapes[SHAPE_RING]);
 	}
 
 	m_sustained.clear();

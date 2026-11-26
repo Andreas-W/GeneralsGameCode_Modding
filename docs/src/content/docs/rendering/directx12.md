@@ -2,7 +2,7 @@
 title: "Direct3D 12 renderer"
 description: "Post-processing, shadow maps and HLSL materials with the Direct3D 12 renderer."
 status: verified
-verifiedAt: 7cdd826c5
+verifiedAt: 1820f3687
 sources:
   - Core/GameEngine/Source/GameClient/PostProcess.cpp
   - Core/GameEngineDevice/Source/W3DDevice/GameClient/W3DPostProcess.cpp
@@ -13,6 +13,7 @@ sources:
   - Core/GameEngine/Source/GameClient/Drawable/Update/WaterInteractionClientUpdate.cpp
   - Core/GameEngine/Source/GameClient/FXList.cpp
   - Core/GameEngine/Source/Common/OptionPreferences.cpp
+  - Core/GameEngineDevice/Source/W3DDevice/GameClient/Water/W3DWaterDisturbance.cpp
 sidebar:
   order: 0
 ---
@@ -553,14 +554,19 @@ FXList FX_ShellHitWater
   WaterRipple
     StartRadius = 5          ; world units the ring starts with
     EndRadius = 60           ; and grows to (scaled by the effect's radius when it has one)
-    Height = 1               ; 0..1, strength of its crest and trough
-    Foam = 0.5               ; 0..1, strength of its foam
+    Height = 1               ; 0..4, strength of its crest and trough
+    Foam = 0.5               ; 0..4, strength of its foam
     Splash = 0               ; 0..1, a round splash in the middle
     Duration = 1000          ; milliseconds it grows and dies away in
     MaxHeightAboveWater = 30 ; higher above the water nothing happens (air bursts)
   End
 End
 ```
+
+The ring moves outward from `StartRadius` to `EndRadius` and weakens evenly to nothing over `Duration`; it
+leaves no waves behind (for a trailing wave train add a second, slower `WaterRipple`). At most 512 ripples run
+at once; when more come, a new one takes the place of the one with the least left to show, if it is stronger, so
+gunfire into the water does not keep the ripple of a big blast out.
 
 Only on water and only with the Direct3D 12 water; otherwise the nugget does nothing. The game MCP command
 `render.water_ripple` adds one at a position, for tuning.

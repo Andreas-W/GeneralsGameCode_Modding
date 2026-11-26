@@ -67,20 +67,33 @@ private:
 		Coord3D pos;
 		Real startRadius, endRadius, height, foam;
 		UnsignedInt frames, age;
+		Real drawnRadius, drawnScale;		///< the ring drawn last step, taken out again in the next
+		Bool drawn;
+	};
+	struct StampVertex
+	{
+		float x, y, z, rhw;
+		UnsignedInt color;
+		float u, v;
 	};
 
 	Bool ensureResources(Real fade);
-	void drawStamp(const Stamp& stamp, IDirect3DTexture8 *texture, Real scale);
+	Bool batchStamp(const Stamp& stamp, Real scale);
+	Bool batchRing(const Ripple& ripple, Real radius, Real scale);
+	void flushBatch(IDirect3DTexture8 *texture);
 	void clearTexels(Int x0, Int y0, Int x1, Int y1);
 
 	WaterDisturbance *m_previous;			///< TheWaterDisturbance before this one
 	IDirect3DTexture8 *m_target;			///< the disturbance
 	IDirect3DTexture8 *m_sustainedShapes[3];	///< per Shape, scaled to build up to their strength
 	IDirect3DTexture8 *m_onceShapes[3];		///< per Shape, at full strength
+	IDirect3DTexture8 *m_ringErase;			///< the ring faded by one step, to take last step's ring out
 	Real m_shapesFade;						///< the fade the sustained shapes were made for
 	std::vector<Stamp> m_sustained;			///< this frame's
 	std::vector<Stamp> m_once;				///< until the next step
 	std::vector<Ripple> m_ripples;
+	std::vector<Ripple> m_retired;			///< replaced by a stronger ripple, their last ring still to take out
+	std::vector<StampVertex> m_batch;		///< quads of one texture, drawn together
 	Real m_transform[4];
 	Real m_range;
 	// The texture repeats every m_range, so it holds only the square of m_range around the camera's centre
